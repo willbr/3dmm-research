@@ -22734,3 +22734,29 @@ from retail and V3DMM suite `20261122T081603Z-7ffc4e8e`. The existing
 
 Evidence is under `tmp/c89-movie-admission` and `tmp/c89-kd`. The retained
 retail and V3DMM captures are under `tmp/c89-rscap`.
+
+## C89 actor edit replay (22 November 2026)
+
+C89 restores costume tracks, generated 3D text templates and names, custom
+materials, and saved placements in live actor order. The ASM worker uses
+the same default placement and validates the full list of actor indices
+before applying it. An actor with a lifetime receives the default offset
+and shape when its placement is omitted.
+
+All 239 selected x64, x86 and SDL Studio checks passed. The C fixture checks
+replay order, an actor without a lifetime, failure during material replay,
+duplicate and invalid worker indices, and resetting an omitted placement.
+Native integration covers costume and text edits, move and shape undo,
+reopen, materialized previews and the rebuilt ASM worker. Four generated
+movie fixtures and the headless startup capture matched the previous build
+byte for byte.
+
+The `resource-actors` candidate `20261122T200607Z-600c0c83` matched
+`20261122T195805Z-eaf866ea` on all 60 seek canvases and recorded states per
+port. Both ports matched the frame order in seek and continuous playback
+from retail and V3DMM suite `20261122T081603Z-7ffc4e8e`. The existing
+`scene-load` assertion repeated its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Evidence is under `tmp/c89-actor-replay` and `tmp/c89-kd`. The retained
+retail and V3DMM captures are under `tmp/c89-rscap`.

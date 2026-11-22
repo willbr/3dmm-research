@@ -29,6 +29,7 @@
 #include "mm/chunk_copy.h"
 #include "preview_actor.h"
 #include "preview_draft_host.h"
+#include "mm/movie_scene_journal.h"
 #include "preview_presentation.h"
 #include "preview_audio_output.h"
 #undef size
@@ -546,6 +547,83 @@ bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error 
         return Fail(error, ErrorCode::decode_failed, "Cannot transform the selected object.");
     }
 }
+namespace
+{
+struct ActorReplayHost
+{
+    Preview &preview;
+    Error &error;
+    void *nameContext;
+    PreviewActorNamePublish publishName;
+    std::exception_ptr failure;
+
+    template <class Effect> static int Run(void *context, Effect effect)
+    {
+        auto &host = *static_cast<ActorReplayHost *>(context);
+        try { return effect(host); }
+        catch (...) { host.failure = std::current_exception(); return 0; }
+    }
+
+    static int Name(void *context, MMI32 actor, const char *name)
+    {
+        return Run(context, [&](ActorReplayHost &h) { return h.publishName(h.nameContext, actor, name); });
+    }
+
+    MMMovieActorReplayServices Services()
+    {
+        return {this,
+            [](void *p, MMI32 object, MMI32 source) {
+                return Run(p, [&](ActorReplayHost &h) { return h.preview.SetObjectEventTrack(object, source, h.error); });
+            },
+            [](void *p, MMI32 object, MMI32 source) {
+                return Run(p, [&](ActorReplayHost &h) { return h.preview.SetObjectTextTemplate(object, source, 0, h.error); });
+            },
+            Name,
+            [](void *p, MMI32 object, MMI32 source) {
+                return Run(p, [&](ActorReplayHost &h) { return h.preview.SetObjectTextMaterial(object, source, 0, h.error); });
+            },
+            [](void *p, MMI32 object, const float value[3]) {
+                return Run(p, [&](ActorReplayHost &h) { return h.preview.SetObjectOffset(object, value, h.error); });
+            },
+            [](void *p, MMI32 object, const MMPreviewActorShape *shape) {
+                return Run(p, [&](ActorReplayHost &h) {
+                    PreviewObjectShape value;
+                    std::copy_n(shape->rotation, 9, value.rotation);
+                    std::copy_n(shape->scale, 3, value.scale);
+                    return h.preview.SetObjectShape(object, value, h.error);
+                });
+            }};
+    }
+
+    bool Result(int status)
+    {
+        if (failure)
+            std::rethrow_exception(failure);
+        if (status == MM_MOVIE_REPLAY_BAD_PLACEMENTS)
+            return Fail(error, ErrorCode::invalid_argument, "Invalid ASM object placement.");
+        return status == MM_MOVIE_REPLAY_OK;
+    }
+};
+}
+
+bool Preview::ReplayActorEdits(const MMMovieActorEdits &edits, void *context, PreviewActorNamePublish name, Error &error)
+{
+    ActorReplayHost host{*this, error, context, name, {}};
+    const auto services = host.Services();
+    return host.Result(mm_movie_actor_replay(&_impl->live, &edits, &services));
+}
+bool Preview::ReplayActorNames(const MMMovieTextJournal &texts, void *context, PreviewActorNamePublish name, Error &error)
+{
+    ActorReplayHost host{*this, error, context, name, {}};
+    return host.Result(mm_movie_actor_replay_names(&_impl->live, &texts, &host, ActorReplayHost::Name));
+}
+bool Preview::ReplayActorPlacements(const MMMovieActorPlacement *placements, std::size_t count, Error &error)
+{
+    ActorReplayHost host{*this, error, nullptr, nullptr, {}};
+    const auto services = host.Services();
+    return host.Result(mm_movie_actor_replay_placements(&_impl->live, placements, count, &services));
+}
+
 bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
 {
     bounds = {};

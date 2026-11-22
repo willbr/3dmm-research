@@ -219,6 +219,48 @@ int mm_movie_pose_journal_include(MMMoviePoseJournal *, MMU32 scene, MMU32 actor
 int mm_movie_pose_journal_export(MMMoviePoseJournal *, const MMMoviePoseJournal *,
                                  const MMMovieTextJournal *, const MMMovieActorTrackJournal *);
 
+typedef struct MMMovieActorEdits
+{
+    MMU32 scene;
+    const MMMovieActorTrackJournal *tracks;
+    const MMMovieTextJournal *texts;
+    const MMMoviePoseJournal *poses;
+} MMMovieActorEdits;
+
+typedef struct MMMovieActorPlacement
+{
+    MMI32 object;
+    float offset[3];
+    MMPreviewActorShape shape;
+} MMMovieActorPlacement;
+
+typedef int MMMovieActorNamePublish(void *, MMI32 actor, const char *utf8);
+typedef struct MMMovieActorReplayServices
+{
+    void *context;
+    int (*track)(void *, MMI32 object, MMI32 source);
+    int (*text)(void *, MMI32 object, MMI32 source);
+    MMMovieActorNamePublish *name;
+    int (*material)(void *, MMI32 object, MMI32 source);
+    int (*offset)(void *, MMI32 object, const float value[3]);
+    int (*shape)(void *, MMI32 object, const MMPreviewActorShape *);
+} MMMovieActorReplayServices;
+
+enum { MM_MOVIE_REPLAY_BAD_PLACEMENTS = -1, MM_MOVIE_REPLAY_FAILED, MM_MOVIE_REPLAY_OK };
+/* Traverse the current C actor list in scene order. Apply costume, text
+ * template, roll-call name and material before placing each actor with a
+ * lifetime. Reset missing poses to the authored offset and identity shape.
+ * The synchronous effects must not reorder the live actors, mutate the
+ * journals or unwind through C. Stop on failure, retaining completed effects. */
+int mm_movie_actor_replay(const MMPreviewLive *, const MMMovieActorEdits *, const MMMovieActorReplayServices *);
+/* Republish the names of edited text in the selected scene without applying
+ * templates or poses. */
+int mm_movie_actor_replay_names(const MMPreviewLive *, const MMMovieTextJournal *, void *, MMMovieActorNamePublish *);
+/* Validate the whole placement list for increasing, live object indices
+ * before any effects. Unlisted actors with lifetimes get the default pose. */
+int mm_movie_actor_replay_placements(const MMPreviewLive *, const MMMovieActorPlacement *, size_t count,
+                                     const MMMovieActorReplayServices *);
+
 typedef struct MMMoviePlacementDrafts
 {
     MMCollectionStorage storage;

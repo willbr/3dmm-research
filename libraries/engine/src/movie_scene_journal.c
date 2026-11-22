@@ -710,6 +710,102 @@ failure:
     return 0;
 }
 
+static int replay_transform(MMU32 index, const float *offset, const MMPreviewActorShape *shape,
+                            const MMMovieActorReplayServices *s)
+{
+    static const float zero[3] = {0, 0, 0};
+    static const MMPreviewActorShape identity = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {1, 1, 1}};
+    return s->offset(s->context, (MMI32)index, offset ? offset : zero) &&
+           s->shape(s->context, (MMI32)index, shape ? shape : &identity);
+}
+
+static MMU32 replay_actor_count(const MMPreviewLive *live)
+{
+    return live->status.ready ? live->actors.count : 0;
+}
+
+int mm_movie_actor_replay(const MMPreviewLive *live, const MMMovieActorEdits *edits, const MMMovieActorReplayServices *s)
+{
+    MMU32 index, count = replay_actor_count(live);
+    for (index = 0; index < count; ++index)
+    {
+        const MMPreviewActor *actor = mm_preview_live_actor_view(live, index);
+        const MMMovieActorTrackEdit *track;
+        const MMMovieActorTextEdit *text;
+        const MMMovieActorPoseEdit *pose;
+        MMI32 ordinal = (MMI32)index, id;
+        int has_lifetime;
+        if (!actor)
+            return MM_MOVIE_REPLAY_FAILED;
+        id = actor->header.actor_id;
+        has_lifetime = !actor->inactive;
+        track = mm_movie_track_journal_find(edits->tracks, edits->scene, actor->number);
+        text = mm_movie_text_journal_find(edits->texts, edits->scene, actor->number);
+        pose = mm_movie_pose_journal_find(edits->poses, edits->scene, actor->number);
+        if (track && !s->track(s->context, ordinal, track->source))
+            return MM_MOVIE_REPLAY_FAILED;
+        if (text && (!s->text(s->context, ordinal, text->source) || !s->name(s->context, id, text->name.utf8) ||
+                     (text->custom_material && !s->material(s->context, ordinal, text->source))))
+            return MM_MOVIE_REPLAY_FAILED;
+        if (has_lifetime && !replay_transform(index, pose ? pose->offset : NULL, pose ? &pose->shape : NULL, s))
+            return MM_MOVIE_REPLAY_FAILED;
+    }
+    return MM_MOVIE_REPLAY_OK;
+}
+
+int mm_movie_actor_replay_names(const MMPreviewLive *live, const MMMovieTextJournal *texts, void *context,
+                                MMMovieActorNamePublish *publish)
+{
+    MMU32 index, count = replay_actor_count(live);
+    for (index = 0; index < count; ++index)
+    {
+        const MMPreviewActor *actor = mm_preview_live_actor_view(live, index);
+        const MMMovieActorTextEdit *text;
+        if (!actor)
+            return MM_MOVIE_REPLAY_FAILED;
+        text = mm_movie_text_journal_find(texts, live->status.asset_number, actor->number);
+        if (text && !publish(context, actor->header.actor_id, text->name.utf8))
+            return MM_MOVIE_REPLAY_FAILED;
+    }
+    return MM_MOVIE_REPLAY_OK;
+}
+
+int mm_movie_actor_replay_placements(const MMPreviewLive *live, const MMMovieActorPlacement *placements,
+                                     size_t size, const MMMovieActorReplayServices *s)
+{
+    MMU32 index, count = replay_actor_count(live);
+    size_t next;
+    MMI32 previous = -1;
+    if (size > count || (size && !placements))
+        return MM_MOVIE_REPLAY_BAD_PLACEMENTS;
+    for (next = 0; next < size; ++next)
+    {
+        MMI32 object = placements[next].object;
+        const MMPreviewActor *actor;
+        if (object <= previous || (MMU32)object >= count)
+            return MM_MOVIE_REPLAY_BAD_PLACEMENTS;
+        actor = mm_preview_live_actor_view(live, (MMU32)object);
+        if (!actor || actor->inactive)
+            return MM_MOVIE_REPLAY_BAD_PLACEMENTS;
+        previous = object;
+    }
+    next = 0;
+    for (index = 0; index < count; ++index)
+    {
+        const MMPreviewActor *actor = mm_preview_live_actor_view(live, index);
+        const MMMovieActorPlacement *entry = NULL;
+        if (!actor)
+            return MM_MOVIE_REPLAY_FAILED;
+        if (actor->inactive)
+            continue;
+        if (next < size && placements[next].object == (MMI32)index)
+            entry = placements + next++;
+        if (!replay_transform(index, entry ? entry->offset : NULL, entry ? &entry->shape : NULL, s))
+            return MM_MOVIE_REPLAY_FAILED;
+    }
+    return MM_MOVIE_REPLAY_OK;
+}
+
 enum { PLACEMENT_POSITION = 1, PLACEMENT_SHAPE = 2 };
 typedef struct PlacementDraft
 {

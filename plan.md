@@ -1242,6 +1242,10 @@ The C89 placement controller holds the original transforms for live gestures,
 restores them on cancellation, stages commits, and combines temporary offsets
 with saved placements for the ASM worker. Preview refreshes the edited actor's
 snapshot directly after each position change.
+C89 replays costume, text, material and pose journals against the live actor
+list when a scene opens or an edit snapshot is restored. Native preview and
+the ASM worker share the default pose rule. The worker validates every
+placement index before changing any actor.
 Marcus's generated 3D text edits retain the validated UTF-8 and retail names
 with the draft archive in a C89 journal. C89 decides whether a font can be
 replaced and whether an edit needs to write or retain an appearance override.

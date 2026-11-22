@@ -1,19 +1,14 @@
 #ifndef MARCUS_ASM_PROTOCOL_H
 #define MARCUS_ASM_PROTOCOL_H
 #include "mm/preview.h"
-#include "mm/preview_live.h"
+#include "mm/movie_scene_journal.h"
 #include <cstdint>
 namespace MarcusASM
 {
 // ASM6 also requires actor-capable live insertion. Older helpers use the same
 // wire sizes but reject actor templates as if every added object were a prop.
 constexpr std::uint32_t Magic = 0x364d5341; // ASM6, little endian x86/x64 only.
-struct PropOffset
-{
-    std::int32_t object = 0;
-    float offset[3] = {};
-    MM::PreviewObjectShape shape;
-};
+using PropOffset = MMMovieActorPlacement;
 struct CameraEdit
 {
     std::uint32_t scene = 0;

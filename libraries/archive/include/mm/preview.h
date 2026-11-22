@@ -7,11 +7,15 @@
 struct MMPreviewLiveDefinitions;
 struct MMPreviewLiveCameraEdits;
 struct MMPreviewLightValues;
+struct MMMovieActorEdits;
+struct MMMovieActorPlacement;
+struct MMMovieTextJournal;
 
 namespace MM
 {
 class PreviewRasterizer;
 struct PreviewBounds;
+using PreviewActorNamePublish = int (*)(void *, std::int32_t actor, const char *utf8);
 // Matches the bundled BRender output pixelmap limit.
 constexpr std::uint32_t PreviewMaxDimension = 4096;
 // Retail Studio's movie workspace; saved 2D text bounds use these coordinates.
@@ -282,6 +286,9 @@ class Preview
     bool SetDefinitions(const std::vector<PreviewSceneDefinition> &, const std::vector<PreviewPropDefinition> &, Error &);
     bool SetCameraEdits(const std::vector<PreviewCameraEdit> &, Error &);
     bool SetLiveDefinitions(const MMPreviewLiveDefinitions &, Error &);
+    bool ReplayActorEdits(const MMMovieActorEdits &, void *, PreviewActorNamePublish, Error &);
+    bool ReplayActorNames(const MMMovieTextJournal &, void *, PreviewActorNamePublish, Error &);
+    bool ReplayActorPlacements(const MMMovieActorPlacement *, std::size_t count, Error &);
     bool SetLiveCameraEdits(const MMPreviewLiveCameraEdits &, Error &);
     // Replace scene scenery without changing actor tracks or frame events.
     bool SetBackground(std::int32_t source, std::uint32_t background, Error &);

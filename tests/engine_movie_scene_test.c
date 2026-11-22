@@ -1405,6 +1405,170 @@ static int placement_drafts(void)
     return 0;
 }
 
+typedef struct ReplayProbe
+{
+    char events[24];
+    unsigned count;
+    char fail;
+    float offset[3][3];
+    MMPreviewActorShape shape[3];
+} ReplayProbe;
+
+static int replay_event(ReplayProbe *probe, char event)
+{
+    if (probe->count >= sizeof(probe->events) - 1)
+        return 0;
+    probe->events[probe->count++] = event;
+    probe->events[probe->count] = 0;
+    return event != probe->fail;
+}
+
+static int replay_track(void *context, MMI32 object, MMI32 source)
+{
+    return object == 0 && source == 20 && replay_event((ReplayProbe *)context, 'T');
+}
+
+static int replay_text(void *context, MMI32 object, MMI32 source)
+{
+    return (object == 0 || object == 1) && source == 21 + object && replay_event((ReplayProbe *)context, 'X');
+}
+
+static int replay_name(void *context, MMI32 actor, const char *name)
+{
+    return ((actor == 101 && !strcmp(name, "First")) || (actor == 102 && !strcmp(name, "Second"))) &&
+           replay_event((ReplayProbe *)context, 'N');
+}
+
+static int replay_material(void *context, MMI32 object, MMI32 source)
+{
+    return object == 0 && source == 21 && replay_event((ReplayProbe *)context, 'M');
+}
+
+static int replay_offset(void *context, MMI32 object, const float offset[3])
+{
+    ReplayProbe *probe = (ReplayProbe *)context;
+    if ((object != 0 && object != 2) || !replay_event(probe, 'P'))
+        return 0;
+    memcpy(probe->offset[object], offset, sizeof(probe->offset[object]));
+    return 1;
+}
+
+static int replay_shape(void *context, MMI32 object, const MMPreviewActorShape *shape)
+{
+    ReplayProbe *probe = (ReplayProbe *)context;
+    if ((object != 0 && object != 2) || !replay_event(probe, 'S'))
+        return 0;
+    probe->shape[object] = *shape;
+    return 1;
+}
+
+static const MMPreviewActor *replay_actor_view(const void *actor) { return (const MMPreviewActor *)actor; }
+static void replay_actor_release(void *context, void *actor) { (void)context; (void)actor; }
+
+static int replay_actor_edits(void)
+{
+    const MMMovieEditFileServices files = {edit_file_retain, edit_file_release};
+    const MMPreviewActorShape changed = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {2, 1, 1}};
+    const float delta[3] = {2, -1, 3};
+    MMPreviewLive live;
+    MMPreviewActor actors[3];
+    MMPreviewLiveServices live_services = {0};
+    MMMovieActorTrackJournal tracks;
+    MMMovieTextJournal texts;
+    MMMoviePoseJournal poses;
+    MMMovieActorEdits edits;
+    MMMovieActorTrackEdit track = {9, 31, 20, NULL};
+    MMMovieActorTextEdit text = {0};
+    MMMovieActorPlacement packets[2] = {{0}};
+    MMMovieActorReplayServices replay = {NULL, replay_track, replay_text, replay_name,
+                                         replay_material, replay_offset, replay_shape};
+    ReplayProbe probe;
+    float offset[3];
+    int file = 1, i;
+    memset(actors, 0, sizeof(actors));
+    live_services.actor_release = replay_actor_release;
+    CHECK(mm_preview_live_init(&live, NULL));
+    live.actor_view = replay_actor_view;
+    live.status.ready = 1;
+    live.status.asset_number = 9;
+    actors[0].number = 31;
+    actors[1].number = 12;
+    actors[2].number = 84;
+    actors[1].inactive = 1;
+    for (i = 0; i < 3; ++i)
+    {
+        actors[i].header.actor_id = 101 + i;
+        CHECK(mm_preview_live_adopt(&live, actors + i) == MM_PREVIEW_LIVE_OK);
+    }
+    CHECK(mm_movie_track_journal_init(&tracks, NULL, &files));
+    CHECK(mm_movie_text_journal_init(&texts, NULL, &files));
+    CHECK(mm_movie_pose_journal_init(&poses, NULL));
+    track.file = &file;
+    CHECK(mm_movie_track_journal_set(&tracks, &track));
+    track.scene = 8;
+    track.actor = 84;
+    CHECK(mm_movie_track_journal_set(&tracks, &track));
+    text.scene = 9;
+    text.actor = 31;
+    text.source = 21;
+    text.file = &file;
+    text.custom_material = 1;
+    CHECK(mm_text_author_prepare_name("First", &text.name) == MM_TEXT_NAME_OK &&
+          mm_movie_text_journal_set(&texts, &text));
+    text.actor = 12;
+    text.source = 22;
+    text.custom_material = 0;
+    CHECK(mm_text_author_prepare_name("Second", &text.name) == MM_TEXT_NAME_OK &&
+          mm_movie_text_journal_set(&texts, &text));
+    CHECK(mm_movie_pose_journal_move(&poses, 9, 31, delta, offset));
+    CHECK(mm_movie_pose_journal_shape(&poses, 9, 31, &changed));
+    CHECK(mm_movie_pose_journal_move(&poses, 9, 12, delta, offset));
+    edits.scene = 9;
+    edits.tracks = &tracks;
+    edits.texts = &texts;
+    edits.poses = &poses;
+    replay.context = &probe;
+    memset(&probe, 0, sizeof(probe));
+    CHECK(mm_movie_actor_replay(&live, &edits, &replay) == MM_MOVIE_REPLAY_OK);
+    CHECK(!strcmp(probe.events, "TXNMPSXNPS"));
+    CHECK(probe.offset[0][0] == 2 && probe.shape[0].scale[0] == 2);
+    CHECK(probe.offset[2][0] == 0 && probe.shape[2].scale[0] == 1 && probe.shape[2].rotation[4] == 1);
+
+    probe.count = 0;
+    probe.fail = 'M';
+    CHECK(mm_movie_actor_replay(&live, &edits, &replay) == MM_MOVIE_REPLAY_FAILED);
+    CHECK(!strcmp(probe.events, "TXNM"));
+    probe.count = 0;
+    probe.fail = 0;
+    CHECK(mm_movie_actor_replay_names(&live, &texts, &probe, replay_name) == MM_MOVIE_REPLAY_OK);
+    CHECK(!strcmp(probe.events, "NN"));
+
+    probe.count = 0;
+    probe.events[0] = 0;
+    packets[1].object = 1;
+    CHECK(mm_movie_actor_replay_placements(&live, packets, 2, &replay) == MM_MOVIE_REPLAY_BAD_PLACEMENTS);
+    packets[1].object = 0;
+    CHECK(mm_movie_actor_replay_placements(&live, packets, 2, &replay) == MM_MOVIE_REPLAY_BAD_PLACEMENTS);
+    packets[1].object = 3;
+    CHECK(mm_movie_actor_replay_placements(&live, packets, 2, &replay) == MM_MOVIE_REPLAY_BAD_PLACEMENTS);
+    CHECK(!probe.count);
+    packets[0].object = 2;
+    memcpy(packets[0].offset, delta, sizeof(delta));
+    packets[0].shape = changed;
+    CHECK(mm_movie_actor_replay_placements(&live, packets, 1, &replay) == MM_MOVIE_REPLAY_OK);
+    CHECK(!strcmp(probe.events, "PSPS") && probe.offset[0][0] == 0 && probe.shape[0].scale[0] == 1);
+    CHECK(probe.offset[2][0] == 2 && probe.shape[2].scale[0] == 2);
+    probe.count = 0;
+    CHECK(mm_movie_actor_replay_placements(&live, NULL, 0, &replay) == MM_MOVIE_REPLAY_OK);
+    CHECK(!strcmp(probe.events, "PSPS") && probe.offset[2][0] == 0 && probe.shape[2].scale[0] == 1);
+    mm_movie_pose_journal_dispose(&poses);
+    mm_movie_text_journal_dispose(&texts);
+    mm_movie_track_journal_dispose(&tracks);
+    mm_preview_live_dispose(&live, &live_services);
+    CHECK(file == 1);
+    return 0;
+}
+
 static int text_journal(void)
 {
     const MMMovieEditFileServices files = {edit_file_retain, edit_file_release};
@@ -1520,7 +1684,7 @@ int main(void)
     if (switching() || insertion() || removal() || remove_materials() || undoing() || undo_insertion_ownership() ||
         cursor_operations() ||
         extending() || journal() || range_journal() || prop_journal() || track_journal() || pose_journal() ||
-        placement_drafts() || text_journal())
+        placement_drafts() || replay_actor_edits() || text_journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

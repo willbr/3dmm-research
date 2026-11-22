@@ -418,6 +418,11 @@ bool MountGeneratedSource(MarcusPlayer &player, MMI32 id, const MarcusSourceRegi
     }
     return player.preview.AddContent(id, file->path.u8string(), error);
 }
+int PublishTextActorName(void *context, std::int32_t actor, const char *name)
+{
+    static_cast<MarcusPlayer *>(context)->names[actor] = name;
+    return 1;
+}
 bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
 {
     if (!EnsureResources(player, error)) return false;
@@ -438,12 +443,8 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
     if (!player.preview.SetLiveDefinitions(mm_movie_definitions_preview(&definitions), error)) return false;
     player.names = player.baseNames;
     for (const auto &prop : *player.edits->props) player.names[prop.definition.actor_id] = prop.name;
-    for (const auto &object : player.preview.Objects())
-    {
-        const auto edit = mm_movie_text_journal_find(player.edits->texts.get(), player.preview.Info().asset.number,
-                                                    object.asset.number);
-        if (edit) player.names[object.actorId] = edit->name.utf8;
-    }
+    if (!player.preview.ReplayActorNames(*player.edits->texts, &player, PublishTextActorName, error))
+        return false;
     UpdateSceneRanges(player);
     return true;
 }
@@ -461,29 +462,9 @@ MM::PreviewObjectShape PoseShape(const MMMovieActorPoseEdit *pose)
 }
 bool ApplyPlacements(MarcusPlayer &player, int scene, const MMMoviePoseJournal &poses, MM::Error &error)
 {
-    const auto objects = player.preview.Objects();
-    const float zero[3] = {};
-    for (std::size_t index = 0; index < objects.size(); ++index)
-    {
-        const auto &object = objects[index];
-        const auto costume = mm_movie_track_journal_find(player.edits->costumes.get(), player.scenes[scene].number,
-                                                        object.asset.number);
-        if (costume && !player.preview.SetObjectEventTrack(int(index), costume->source, error)) return false;
-        const auto text = mm_movie_text_journal_find(player.edits->texts.get(), player.scenes[scene].number,
-                                                    object.asset.number);
-        if (text)
-        {
-            if (!player.preview.SetObjectTextTemplate(int(index), text->source, 0, error)) return false;
-            player.names[object.actorId] = text->name.utf8;
-            if (text->custom_material && !player.preview.SetObjectTextMaterial(int(index), text->source, 0, error)) return false;
-        }
-        if (!object.hasLifetime) continue;
-        const auto pose = mm_movie_pose_journal_find(&poses, player.scenes[scene].number, object.asset.number);
-        if (!player.preview.SetObjectOffset(static_cast<int>(index), pose ? pose->offset : zero, error))
-            return false;
-        if (!player.preview.SetObjectShape(static_cast<int>(index), PoseShape(pose), error))
-            return false;
-    }
+    const MMMovieActorEdits edits{player.scenes[scene].number, player.edits->costumes.get(), player.edits->texts.get(), &poses};
+    if (!player.preview.ReplayActorEdits(edits, &player, PublishTextActorName, error))
+        return false;
     player.objects = player.preview.Objects();
     player.playback.InvalidateMovieFrame();
     return true;
@@ -539,25 +520,8 @@ bool MarcusApplySceneRange(MarcusPlayer *player, std::int32_t first, std::int32_
 }
 bool MarcusApplyPropOffsets(MarcusPlayer *player, const std::vector<MarcusASM::PropOffset> &offsets, MM::Error &error)
 {
-    int previous = -1;
-    for (const auto &offset : offsets)
-    {
-        if (offset.object <= previous || offset.object < 0 || static_cast<std::size_t>(offset.object) >= player->objects.size() ||
-            !player->objects[offset.object].hasLifetime)
-        { error.message = "Invalid ASM object placement."; return false; }
-        previous = offset.object;
-    }
-    const float zero[3] = {};
-    std::size_t next = 0;
-    for (std::size_t index = 0; index < player->objects.size(); ++index)
-    {
-        const auto &object = player->objects[index];
-        if (!object.hasLifetime) continue;
-        const bool placed = next < offsets.size() && offsets[next].object == static_cast<int>(index);
-        if (!player->preview.SetObjectOffset(static_cast<int>(index), placed ? offsets[next].offset : zero, error)) return false;
-        if (!player->preview.SetObjectShape(static_cast<int>(index), placed ? offsets[next].shape : MM::PreviewObjectShape{}, error)) return false;
-        if (placed) ++next;
-    }
+    if (!player->preview.ReplayActorPlacements(offsets.data(), offsets.size(), error))
+        return false;
     player->objects = player->preview.Objects();
     return true;
 }
@@ -766,13 +730,16 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
                                                          object.asset.number);
             float position[3];
             ReadPlacementPosition(object, position);
-            MarcusASM::PropOffset change;
+            MarcusASM::PropOffset change{};
             change.object = static_cast<MMI32>(index);
             int shaped;
             if (mm_movie_placement_worker(&player->placementDrafts, change.object, position,
                                            pose, change.offset, &shaped))
             {
-                if (shaped && !player->preview.ObjectShape(static_cast<int>(index), change.shape, nullptr, nullptr, error)) return false;
+                MM::PreviewObjectShape shape;
+                if (shaped && !player->preview.ObjectShape(static_cast<int>(index), shape, nullptr, nullptr, error))
+                    return false;
+                change.shape = CorePlacementShape(shape);
                 offsets.push_back(change);
             }
         }
