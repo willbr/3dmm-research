@@ -39,8 +39,6 @@
 
 ***************************************************************************/
 #include "soc.h"
-#include "handle_services.h"
-#include "scene_renderer.h"
 #include <cstring>
 ASSERTNAME
 
@@ -49,83 +47,6 @@ ASSERTNAME
 #else
 #define BACKGROUND_VALIDATE(background) ((void)0)
 #endif
-
-const ChildChunkID kchidBds = 0;  // Background default sound
-const ChildChunkID kchidGllt = 0; // DynamicArray of LITEs
-const ChildChunkID kchidGlcr = 0; // Palette
-
-namespace
-{
-struct BackgroundResourceHost
-{
-    PBackground background;
-    MMResourceCache *cache;
-    PWorld world;
-};
-} // namespace
-static MMBackgroundServices ResourceServices(void *host)
-{
-    MMBackgroundServices s = {};
-    s.context = host;
-    const unsigned short one = 1;
-    s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
-#ifdef DEBUG
-    s.debug_checks = 1;
-#endif
-    s.actor_bytes = sizeof(BACT);
-    s.light_bytes = sizeof(BLIT);
-    s.name = [](void *p, MMU32 type, MMU32 number) {
-        auto h = static_cast<BackgroundResourceHost *>(p);
-        String name;
-        const bool found = ReadResourceName(h->cache, type, number, &name);
-        const auto storage = mm_background_owner_name(h->background);
-        mm_string_value_copy(&storage, name.Pst());
-        return int(found);
-    };
-    s.allocate = [](void *, MMI32 bytes, void **out) { return int(FAllocPv(out, bytes, fmemClear, mprNormal)); };
-    s.free_memory = [](void *, void **out) { FreePpv(out); };
-    s.configure_light = mm_brender_background_light;
-    s.add_light = [](void *p, MMBackgroundResource *b, MMI32 i) {
-        static_cast<BackgroundResourceHost *>(p)->world->AddActor(&static_cast<BACT *>(b->actors)[i]);
-    };
-    s.enable_light = mm_brender_background_light_enable;
-    s.disable_light = mm_brender_background_light_disable;
-    s.remove_light = mm_brender_background_light_remove;
-    s.diagnostic = [](void *, int issue) {
-        if (issue == MM_BACKGROUND_CAMERA_GAPS)
-            Bug("cam chids are not consecutive!");
-        else
-            Warn("Error reading background");
-    };
-    return s;
-}
-
-const MMBackgroundOwnerHost &EngineBackground::Host()
-{
-    static const auto teardown = ResourceServices(nullptr);
-    static const MMBackgroundOwnerHost host = {
-        KauaiResourceObjectAllocator(), &teardown, sizeof(achar),
-#ifdef DEBUG
-        EngineBackground::Mark
-#else
-        nullptr
-#endif
-    };
-    return host;
-}
-
-static MMI32 LegacyBackgroundSize()
-{
-    // Preserve the cache charge of the former native background class.
-    size_t prefix = sizeof(void *) == 8 ? 40 : 28;
-#ifdef DEBUG
-    if (sizeof(void *) == 4)
-        prefix += 4;
-#endif
-    const size_t bytes = prefix + sizeof(MMBackgroundResource) + sizeof(MMBackgroundCameraState) + sizeof(String);
-    const size_t alignment = sizeof(void *);
-    return static_cast<MMI32>((bytes + alignment - 1) & ~(alignment - 1));
-}
 
 /***************************************************************************
     Cache the background's chunks (excluding camera views) to HD
@@ -151,52 +72,6 @@ bool EngineBackground::FCacheToHD(PTAG ptagBkgd)
     return mm_background_cache(&tag, &s) != 0;
 }
 
-/***************************************************************************
-    Read a Background through its resource cache.
-***************************************************************************/
-int EngineBackground::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-                         void **object, MMI32 *bytes)
-{
-    struct Host
-    {
-        MMResourceCache *cache;
-        MMOwnedBlock *block;
-        void **object;
-        MMI32 *bytes;
-    } host = {cache, block, object, bytes};
-    MMBackgroundFactoryServices s = {};
-    s.context = &host;
-    s.object_bytes = LegacyBackgroundSize();
-    s.actor_bytes = sizeof(BACT);
-    s.light_bytes = sizeof(BLIT);
-    s.create = [](void *) -> void * { return mm_background_owner_create(&EngineBackground::Host()); };
-    s.initialize = [](void *p, void *object, MMU32 type, MMU32 number) {
-        auto host = static_cast<Host *>(p);
-        auto background = static_cast<PBackground>(object);
-        BackgroundResourceHost resource = {background, host->cache, nullptr};
-        const auto services = ResourceServices(&resource);
-        return mm_background_read_cached(mm_background_owner_resource(background),
-                                         mm_background_owner_camera(background), type, number,
-                                         host->cache, host->block, KauaiDecodeBlockHandle, &services);
-    };
-    s.lights = [](void *, void *object) -> MMI32 {
-        return Resource(static_cast<PBackground>(object)).light_count;
-    };
-    s.release = [](void *, void *object) { mm_background_owner_release(static_cast<PBackground>(object)); };
-    s.size = [](void *p, MMI32 bytes) { *static_cast<Host *>(p)->bytes = bytes; };
-    s.publish = [](void *p, void *object) {
-        auto background = static_cast<PBackground>(object);
-        BACKGROUND_VALIDATE(background);
-        *static_cast<Host *>(p)->object = background;
-    };
-    s.failure = [](void *p) {
-        auto h = static_cast<Host *>(p);
-        TrashVar(h->object);
-        TrashVar(h->bytes);
-    };
-    return mm_background_factory(type, number, object != nullptr, &s);
-}
-
 PBackground EngineBackground::Fetch(PTAG tag)
 {
     return static_cast<PBackground>(vptagm->FetchResource(tag, Read, mm_background_owner_services()));
@@ -204,8 +79,7 @@ PBackground EngineBackground::Fetch(PTAG tag)
 
 PBackground EngineBackground::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PBackground>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
-                                                                        mm_background_owner_services()));
+    return mm_brender_background_fetch(cache, type, number);
 }
 
 /***************************************************************************
@@ -261,95 +135,44 @@ void EngineBackground::GetCameraPos(PBackground background, BRS *pxr, BRS *pyr, 
         *pzr = Camera(background).position.dzr;
 }
 
-/***************************************************************************
-    Turn on lights in pbwld
-***************************************************************************/
-void EngineBackground::TurnOnLights(PBackground background, PWorld pbwld)
+static MMBRenderBackgroundWorld WorldServices(PWorld world)
 {
-    BACKGROUND_VALIDATE(background);
-    AssertPo(pbwld, 0);
-    BackgroundResourceHost host = {background, nullptr, pbwld};
-    auto services = ResourceServices(&host);
-    mm_background_lights_on(mm_background_owner_resource(background), &services);
+    return {
+        world,
+        [](void *p, br_actor *light) { static_cast<PWorld>(p)->AddActor(light); },
+        [](void *p, MMResourceCache *cache, MMU32 rgb, MMU32 depth) -> int {
+            return static_cast<PWorld>(p)->FSetBackground(cache, kctgMbmp, rgb, kctgZbmp, depth);
+        },
+        [](void *p, const MMBackgroundCameraData *camera) {
+            BMAT34 matrix;
+            std::memcpy(&matrix, &camera->matrix, sizeof(matrix));
+            static_cast<PWorld>(p)->SetCamera(&matrix, camera->near_z, camera->far_z, camera->fov);
+        },
+        [](void *p) { static_cast<PWorld>(p)->MarkDirty(); }
+    };
 }
 
-/***************************************************************************
-    Turn off lights in pbwld
-***************************************************************************/
+void EngineBackground::TurnOnLights(PBackground background, PWorld world)
+{
+    BACKGROUND_VALIDATE(background);
+    AssertPo(world, 0);
+    const auto services = WorldServices(world);
+    mm_brender_background_lights_on(background, &services);
+}
+
 void EngineBackground::TurnOffLights(PBackground background)
 {
     BACKGROUND_VALIDATE(background);
-    auto services = ResourceServices(nullptr);
-    mm_background_lights_off(mm_background_owner_resource(background), &services);
+    mm_brender_background_lights_off(background);
 }
 
-/***************************************************************************
-    Set the camera and associated bitmaps to icam
-***************************************************************************/
-namespace
-{
-struct BackgroundCameraHost
-{
-    PBackground background;
-    PWorld world;
-};
-} // namespace
-static MMBackgroundCameraServices CameraServices(void *host)
-{
-    MMBackgroundCameraServices s = {};
-    s.context = host;
-    s.background = [](void *p, MMU32 rgb, MMU32 depth) {
-        auto h = static_cast<BackgroundCameraHost *>(p);
-        const auto binding = mm_background_owner_binding(h->background);
-        return int(h->world->FSetBackground(binding->cache, kctgMbmp, rgb, kctgZbmp, depth));
-    };
-    s.euler_yxy = [](void *, const MMActorMatrix *value, unsigned short *a, unsigned short *c) {
-        BMAT34 matrix;
-        std::memcpy(&matrix, value, sizeof(matrix));
-        BREUL angles;
-        angles.order = BR_EULER_YXY_R;
-        BrMatrix34ToEuler(&angles, &matrix);
-        *a = angles.a;
-        *c = angles.c;
-    };
-    s.rotate_y = [](void *, MMActorMatrix *out, unsigned short yaw) {
-        BMAT34 matrix;
-        BrMatrix34RotateY(&matrix, yaw);
-        std::memcpy(out, &matrix, sizeof(matrix));
-    };
-    s.translate = [](void *, MMActorMatrix *out, const MMActorPoint *point) {
-        BMAT34 matrix;
-        std::memcpy(&matrix, out, sizeof(matrix));
-        BrMatrix34PostTranslate(&matrix, point->dxr, point->dyr, point->dzr);
-        std::memcpy(out, &matrix, sizeof(matrix));
-    };
-    s.camera = [](void *p, const MMBackgroundCameraData *camera) {
-        auto h = static_cast<BackgroundCameraHost *>(p);
-        BMAT34 matrix;
-        std::memcpy(&matrix, &camera->matrix, sizeof(matrix));
-        h->world->SetCamera(&matrix, camera->near_z, camera->far_z, camera->fov);
-    };
-    s.dirty = [](void *p) { static_cast<BackgroundCameraHost *>(p)->world->MarkDirty(); };
-    s.diagnostic = [](void *, int issue) {
-        if (issue == MM_BACKGROUND_CAMERA_SHORT)
-            Bug("CameraPosition chunk not large enough");
-        else
-            Bug("CameraPosition chunk's extra data not an even multiple of size(APOS)");
-    };
-    return s;
-}
-
-bool EngineBackground::FSetCamera(PBackground background, PWorld pbwld, long icam)
+bool EngineBackground::FSetCamera(PBackground background, PWorld world, long camera)
 {
     BACKGROUND_VALIDATE(background);
-    AssertPo(pbwld, 0);
-    AssertIn(icam, 0, Ccam(background));
-    BackgroundCameraHost host = {background, pbwld};
-    const auto services = CameraServices(&host);
-    TurnOnLights(background, pbwld);
-    const auto binding = mm_background_owner_binding(background);
-    return mm_background_select_cached(mm_background_owner_camera(background), binding->cache, binding->number,
-                                       icam, KauaiDecodeBlockHandle, &services) != 0;
+    AssertPo(world, 0);
+    AssertIn(camera, 0, Ccam(background));
+    const auto services = WorldServices(world);
+    return mm_brender_background_select(background, camera, &services) != 0;
 }
 
 /***************************************************************************
@@ -444,34 +267,13 @@ LFail:
 #endif // DEBUG
 
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the Background.
-***************************************************************************/
 void EngineBackground::Validate(PBackground background)
 {
-    if (!background)
-        return;
-    AssertIn(Resource(background).light_count, 1, 100); // 100 is sanity check
-    AssertIn(Camera(background).count, 1, 100);         // 100 is sanity check
-    Assert(Camera(background).current == ivNil || (Camera(background).current >= 0 && Camera(background).current < Camera(background).count),
-           "bad Camera(background).current");
-    AssertPvCb(Resource(background).actors, LwMul(Resource(background).light_count, size(BACT)));
-    AssertPvCb(Resource(background).lights, LwMul(Resource(background).light_count, size(BLIT)));
+    mm_kauai_background_validate(background);
 }
 
-/***************************************************************************
-    Mark memory used by the Background
-***************************************************************************/
 void EngineBackground::Mark(PBackground background)
 {
-    if (!background)
-        return;
-    Validate(background);
-    MarkPv(background);
-    const auto binding = mm_background_owner_binding(background);
-    if (binding->cache && !binding->attached)
-        mm_resource_cache_mark(binding->cache);
-    MarkPv(Resource(background).actors);
-    MarkPv(Resource(background).lights);
+    mm_kauai_background_mark(background);
 }
 #endif // DEBUG

@@ -1787,8 +1787,11 @@ C89 references. Preview reads the same sound state from its archive graph.
 The native sound manager and clock provide host services. Actor template
 and 3D text objects use the same C89 owner in Studio and Preview. Background
 resources use a C89 owner for metadata, lights, palettes and placement
-points. The resource, object and HQ facades remain part of final host
-integration.
+points. Studio's C89 BRender binding owns the cache reader, light attachment
+and teardown, and camera selection and mouse orientation. The World adapter
+publishes images, camera transforms and redraw requests. Preview uses the
+same background decoders with its archive-graph renderer. The resource,
+object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining

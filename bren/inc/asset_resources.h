@@ -4,6 +4,7 @@
 #include "mm/font_resource.h"
 #include "mm/material_resource.h"
 #include "mm/model_resource.h"
+#include "mm/string_value.h"
 #include "mm/texture_resource.h"
 
 #ifdef __cplusplus
@@ -11,6 +12,7 @@ extern "C" {
 #endif
 
 /* Native memory, codec, file and diagnostic providers. */
+int mm_kauai_resource_name(const MMResourceCache *, MMU32 type, MMU32 number, const MMStringValue *);
 const MMFontOwnerHost *mm_kauai_font_host(void);
 void mm_kauai_font_missing_model(void *, MMU32 id);
 const MMModelOwnerHost *mm_kauai_model_host(void);

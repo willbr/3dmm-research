@@ -20644,3 +20644,34 @@ Retail reopened the two-scene Studio save in 20261122T005857Z-08d0f92c and
 reproduced all 60 reference seek canvases and camera indices.
 
 Evidence is under tmp/c89-template-playback.
+
+## C89 Studio background cache and camera binding (22 November 2026)
+
+Studio's background cache reader, light lifetime and camera selection now
+use the C89 BRender binding. It computes the mouse orientation and applies
+the camera through the live archive. Kauai supplies allocation, decoding
+and diagnostics. Studio's World adapter publishes the images and camera
+and requests redraws. Preview continues to use the shared background
+decoders with its render-session graph. The Marcus link maps still contain
+no engine-core modules or Studio background adapter.
+
+All 193 standalone C89 checks and the strict BRender syntax check passed.
+Native x64 and SDL scene-edit, scene-content and movie save/load passed.
+Native x86 scene-edit and scene-content passed. Four native x64 and two
+x86 snapshots matched the prior bytes. The scene-content coverage includes
+camera transforms, mouse orientation, placement points, palette copies
+and repeated light attachment. The headless Preview and Studio authoring
+workflows passed. Both Studio saves preserved the archive graph and chunk
+payloads, with two TMPL index padding bytes differing in each.
+
+The eight actor-audio runs in 20261122T010543Z-40600430 completed. SDL and
+Marcus matched all 30 prior seek canvases, 29 of 30 retail seek canvases,
+and all 30 retail camera indices and continuous frame identities. V3DMM
+matched all 30 retail seek canvases. SDL and V3DMM matched all six retail
+sound requests. Mixed PCM differed and continuous image alignment remained
+inconclusive.
+
+Retail reopened the two-scene Studio save in 20261122T010655Z-b4013dfd and
+reproduced all 60 reference seek canvases and camera indices.
+
+Evidence is under tmp/c89-background-renderer.

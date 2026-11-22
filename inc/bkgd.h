@@ -17,8 +17,7 @@
 #include <cstdint>
 
 #include "background_data.h"
-#include "mm/background_camera.h"
-#include "mm/background_resource.h"
+#include "background_renderer.h"
 
 /****************************************
     Background Default Sound
@@ -38,8 +37,8 @@ const ByteOrderMask kbomBds = 0x5f000000 | kbomTag >> 8;
 
 namespace EngineBackground
 {
-const MMBackgroundOwnerHost &Host();
-int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
+inline const MMBackgroundOwnerHost &Host() { return mm_kauai_background_host()->owner; }
+constexpr MMResourceBlockReader Read = mm_brender_background_read;
 PBackground Fetch(PTAG);
 PBackground Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 bool FCacheToHD(PTAG);

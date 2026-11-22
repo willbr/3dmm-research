@@ -15,7 +15,6 @@ void mm_kauai_text_read_services(MMTextResourceServices *);
 void mm_kauai_template_validate(MMTemplateOwner *);
 void mm_kauai_template_mark(MMTemplateOwner *);
 void mm_kauai_font_check_index(MMI32 index, MMI32 count);
-int mm_kauai_resource_name(const MMResourceCache *, MMU32 type, MMU32 number, const MMStringValue *);
 void mm_kauai_text_name_services(MMTextResourceServices *);
 
 void mm_brender_template_read_services(MMTemplateCreateServices *, MMResourceCache *);
