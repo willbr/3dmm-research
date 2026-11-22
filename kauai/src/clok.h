@@ -45,6 +45,10 @@ class Clock : public Clock_PAR
     static PClock PclokFromHid(LegacyLong hid);
     static void BuryCmh(PCommandHandler pcmh);
     void RemoveCmh(PCommandHandler pcmh);
+    MMAlarmClock *CoreClock()
+    {
+        return &_clock;
+    }
 
     void Start(LegacyUlong tim);
     void Stop(void);

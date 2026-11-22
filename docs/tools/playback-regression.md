@@ -21447,3 +21447,39 @@ continuous frame order of the retained retail and V3DMM runs in
 
 The disassembly, traces and Studio canvases are under
 `tmp/c89-kidspace-script`. Playback captures are under `tmp/c89-kd`.
+
+## C89 Kidspace clock and sound commands (22 November 2026)
+
+The C89 VM decodes clock lifecycle, alarm, and sound operands. It sends
+typed play requests and sound controls through the existing sound manager.
+The retail ISO executable's alarm branch at RVA `0x611c1` supplies the
+default script ID `0xffffffff` for legacy `SetAlarm`. The playing queries
+at RVAs `0x60ca6` and `0x60d08` consume their operands without pushing when
+the mixer is absent. The master volume query at `0x610b3` pushes zero in
+that case. The VM fixture covers these stack results, clock reference
+counts and wake-up targets, and object and global sound dispatch.
+
+All 232 selected checks passed across the C89 engine, core link, native
+x64 and x86, SDL, and Chomp pipeline. Headless Studio room, Help, ISO and
+authoring workflows passed. All 470 generated script payloads, nine movie
+saves, five smoke canvases, the Marcus startup canvas, and the Help and
+cache traces matched retained results. The ticket booth AVI samples varied.
+The known `scene-load` failure reproduced its 63,224-byte trace and
+fingerprint `0D666753`.
+
+The silent fixture in suite `20261122T121947Z-5ca9084b` matched the preceding
+60 seek canvases per port and their camera and actor state. Both ports
+matched the seek and continuous frame order of the retained retail and
+V3DMM captures in `20261122T081603Z-7ffc4e8e`.
+
+The audible fixture in `20261122T121947Z-248bd145` matched the preceding 60
+seek canvases per port and the authored frame order of retained retail and
+V3DMM suite `20261122T082301Z-c465fa98`. SDL matched all 12 retail and V3DMM
+sound requests. Both ports' loopback recordings contained the authored
+600 Hz and 1,300 Hz tones. Marcus coverage used loopback audio and frame
+captures. The continuous SDL capture contained a different number of
+presentation samples.
+
+The disassembly, traces and Studio canvases are under
+`tmp/c89-kidspace-timed`. Playback captures are under `tmp/c89-kd` and
+`tmp/c89-aqcap`.

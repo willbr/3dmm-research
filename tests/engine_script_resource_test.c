@@ -933,7 +933,7 @@ static void execute_kidspace_scripts(void)
 {
     static const MMKidspaceScriptServices services = {
         kid_find, kid_id, kid_relative, NULL, kid_rect, kid_set_rect, kid_point,
-        kid_find, kid_enqueue, kid_run, kid_cell, kid_notice
+        kid_find, kid_enqueue, kid_run, kid_cell, kid_notice, NULL, NULL
     };
     static const MMU32 geometry[] = {
         0x101d101dUL, VM_IMMEDIATES(3), 21, 22, 1, kopResizeGob,
@@ -1017,6 +1017,252 @@ static void execute_kidspace_scripts(void)
     CHECK(!host.collections_live);
 }
 
+typedef struct TimedKidspace
+{
+    MMAlarmClock clock;
+    int references, starts, stops, retained, missing_clock, failed_alarm;
+    int current_gob, other_gob, mixer, attached_plays, global_plays, mouse_plays, fallbacks;
+    unsigned operations;
+    MMI32 volume;
+} TimedKidspace;
+
+static void *timed_find(void *context, MMI32 id)
+{
+    TimedKidspace *fixture = context;
+    return id == 2 ? &fixture->current_gob : id == 1 ? &fixture->other_gob : NULL;
+}
+
+static MMI32 timed_unique(void *context)
+{
+    (void)context;
+    return 77;
+}
+
+static MMAlarmClock *timed_clock(void *context, MMI32 id)
+{
+    TimedKidspace *fixture = context;
+    return fixture->references && fixture->clock.id == id ? &fixture->clock : NULL;
+}
+
+static int timed_create(void *context, MMI32 id)
+{
+    TimedKidspace *fixture = context;
+    CHECK(!fixture->references && id == 77);
+    fixture->references = 1;
+    return mm_alarm_clock_init(&fixture->clock, fixture, id, 0, NULL, 1);
+}
+
+static void timed_retain(void *context, MMAlarmClock *clock)
+{
+    TimedKidspace *fixture = context;
+    CHECK(clock == &fixture->clock);
+    ++fixture->references;
+}
+
+static void timed_release(void *context, MMAlarmClock *clock)
+{
+    TimedKidspace *fixture = context;
+    CHECK(clock == &fixture->clock && fixture->references > 0);
+    if (!--fixture->references)
+        CHECK(mm_alarm_clock_dispose(clock));
+}
+
+static int timed_now(void *context, MMU32 *milliseconds)
+{
+    (void)context;
+    *milliseconds = 43;
+    return 1;
+}
+
+static void timed_start(void *context, MMAlarmClock *clock, MMU32 time)
+{
+    TimedKidspace *fixture = context;
+    static const MMClockServices services = {NULL, timed_now, NULL};
+    CHECK(clock == &fixture->clock && mm_alarm_clock_start(clock, time, &services));
+    ++fixture->starts;
+}
+
+static void timed_stop(void *context, MMAlarmClock *clock)
+{
+    TimedKidspace *fixture = context;
+    CHECK(clock == &fixture->clock);
+    ++fixture->stops;
+}
+
+static int timed_alarm(void *context, MMAlarmClock *clock, void *target, MMI32 delay, MMI32 script)
+{
+    TimedKidspace *fixture = context;
+    CHECK(clock == &fixture->clock);
+    return mm_alarm_clock_schedule(clock, delay, target, script, 0, 0);
+}
+
+static int timed_sound_object(void *context, void *object)
+{
+    return object == &((TimedKidspace *)context)->current_gob;
+}
+
+static MMI32 timed_play(void *context, void *object, const MMSoundPlay *play)
+{
+    TimedKidspace *fixture = context;
+    CHECK(play->type == 0x57415645UL && play->number == 0x80000010UL && play->queue == 5 &&
+          play->volume == 2748 && play->plays == 3 && !play->offset && play->priority == -7 &&
+          play->sound_class == -8);
+    if (object)
+    {
+        CHECK(object == &fixture->current_gob);
+        ++fixture->attached_plays;
+        return 81;
+    }
+    ++fixture->global_plays;
+    return fixture->mixer ? 82 : 0;
+}
+
+static MMI32 timed_mouse(void *context, void *object, MMU32 type, MMU32 number)
+{
+    TimedKidspace *fixture = context;
+    CHECK(object == &fixture->current_gob && type == 0x4d494453UL && number == 0xffffffffUL);
+    ++fixture->mouse_plays;
+    return 83;
+}
+
+static int timed_control(void *context, int operation, MMI32 first, MMI32 second, MMI32 *out)
+{
+    TimedKidspace *fixture = context;
+    if (!fixture->mixer)
+        return 0;
+    fixture->operations |= 1U << operation;
+    switch (operation)
+    {
+    case MM_SOUND_ALL_STOP: case MM_SOUND_ALL_RESUME: case MM_SOUND_ALL_PLAYING:
+        CHECK(first == 7 && second == 6);
+        *out = 1;
+        break;
+    case MM_SOUND_INSTANCE_PAUSE:
+        CHECK(first == 81 && !second);
+        break;
+    case MM_SOUND_VOLUME:
+        fixture->volume = first;
+        break;
+    case MM_SOUND_GET_VOLUME:
+        *out = fixture->volume;
+        break;
+    default:
+        CHECK(0);
+    }
+    return 1;
+}
+
+static void timed_notice(void *context, int reason, unsigned opcode, MMI32 id, MMU32 detail)
+{
+    TimedKidspace *fixture = context;
+    (void)detail;
+    switch (reason)
+    {
+    case MM_KIDSPACE_CLOCK_RETAINED:
+        CHECK(opcode == kopCreateClock && id == 77);
+        ++fixture->retained;
+        break;
+    case MM_KIDSPACE_CLOCK_MISSING:
+        CHECK(opcode == kopTimeCur && id == 88);
+        ++fixture->missing_clock;
+        break;
+    case MM_KIDSPACE_ALARM_FAILED:
+        CHECK(opcode == kopSetAlarm && id == 88);
+        ++fixture->failed_alarm;
+        break;
+    case MM_KIDSPACE_SOUND_FALLBACK:
+        CHECK(opcode == kopPlaySoundGob && id == 1);
+        ++fixture->fallbacks;
+        break;
+    default:
+        CHECK(0);
+    }
+}
+
+static void execute_timed_scripts(void)
+{
+    static const MMKidspaceClockServices clock = {
+        timed_clock, timed_create, timed_retain, timed_release, timed_start, timed_stop, timed_alarm
+    };
+    static const MMKidspaceSoundServices sound = {timed_sound_object, timed_play, timed_mouse, timed_control};
+    static const MMKidspaceScriptServices services = {
+        timed_find, NULL, NULL, timed_unique, NULL, NULL, NULL,
+        NULL, NULL, NULL, NULL, timed_notice, &clock, &sound
+    };
+    static const MMU32 clocks[] = {
+        0x101d101dUL, VM_IMMEDIATES(1), 0, kopCreateClock, kopPop,
+        VM_IMMEDIATES(1), 77, kopCreateClock, kopPop,
+        VM_IMMEDIATES(2), 0x80000025UL, 77, kopStartClock,
+        VM_IMMEDIATES(2), 2, 77, kopSetAlarm,
+        VM_IMMEDIATES(3), 0x80000003UL, 3, 77, kopSetAlarmThis,
+        VM_IMMEDIATES(4), 9, 4, 77, 1, kopSetAlarmGob,
+        VM_IMMEDIATES(1), 77, kopStopClock,
+        VM_IMMEDIATES(1), 77, kopDestroyClock,
+        VM_IMMEDIATES(1), 77, kopTimeCur, kopReturn
+    };
+    static const MMU32 missing[] = {
+        0x101d101dUL, VM_IMMEDIATES(2), 2, 88, kopSetAlarm,
+        VM_IMMEDIATES(1), 88, kopTimeCur, kopReturn
+    };
+    static const MMU32 sounds[] = {
+        0x101d101dUL, VM_IMMEDIATES(7), 0xfffffff8UL, 0xfffffff9UL, 3, 2748, 5, 0x80000010UL, 0x57415645UL,
+        kopPlaySoundThis, kopPop,
+        VM_IMMEDIATES(8), 0xfffffff8UL, 0xfffffff9UL, 3, 2748, 5, 0x80000010UL, 0x57415645UL, 1,
+        kopPlaySoundGob, kopPop,
+        VM_IMMEDIATES(3), 0xffffffffUL, 0x4d494453UL, 2, kopPlayMouseSoundGob, kopPop,
+        VM_IMMEDIATES(2), 6, 7, kopStopSoundClass,
+        VM_IMMEDIATES(2), 6, 7, kopResumeSoundClass,
+        VM_IMMEDIATES(1), 81, kopPauseSound,
+        VM_IMMEDIATES(1), 0x87654321UL, kopSetMasterVolume,
+        VM_IMMEDIATES(2), 6, 7, kopPlayingSoundClass, kopGetMasterVolume, kopAdd, kopReturn
+    };
+    static const MMU32 no_mixer[] = {
+        0x101d101dUL, VM_IMMEDIATES(1), 83, kopPlayingSound,
+        VM_IMMEDIATES(2), 6, 7, kopPlayingSoundClass, kopGetMasterVolume, kopReturn
+    };
+    const unsigned current = 0x101d, minimum = 0x1015;
+    TimedKidspace fixture;
+    MMClockAlarm alarm;
+    Host host;
+    MMScriptVM vm;
+
+    init(&host);
+    memset(&fixture, 0, sizeof(fixture));
+    CHECK(mm_script_vm_init(&vm, NULL, 1, NULL, NULL, &fixture) == MM_STORAGE_OK);
+    vm.kidspace = &services;
+    vm.this_object = 2;
+    CHECK(attach_versioned_program(&host, &vm, clocks, sizeof(clocks) / sizeof(*clocks), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && (MMU32)vm.result == 0x80000025UL && !vm.stack.count);
+    CHECK(fixture.references == 1 && fixture.retained == 1 && fixture.starts == 1 && fixture.stops == 1);
+    CHECK(fixture.clock.count == 3 && fixture.clock.stamp == 43);
+    CHECK(mm_alarm_clock_at(&fixture.clock, 0, &alarm) && alarm.target == &fixture.other_gob &&
+          alarm.time == 0x80000029UL && alarm.value == 9);
+    CHECK(mm_alarm_clock_at(&fixture.clock, 1, &alarm) && alarm.target == &fixture.current_gob &&
+          alarm.time == 0x80000028UL && (MMU32)alarm.value == 0x80000003UL);
+    CHECK(mm_alarm_clock_at(&fixture.clock, 2, &alarm) && alarm.target == &fixture.current_gob &&
+          alarm.time == 0x80000027UL && alarm.value == -1);
+    mm_script_vm_dispose(&vm);
+    timed_release(&fixture, &fixture.clock);
+    CHECK(attach_versioned_program(&host, &vm, missing, sizeof(missing) / sizeof(*missing), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 0 && fixture.missing_clock == 1 && fixture.failed_alarm == 1);
+    mm_script_vm_dispose(&vm);
+
+    fixture.mixer = 1;
+    CHECK(attach_versioned_program(&host, &vm, sounds, sizeof(sounds) / sizeof(*sounds), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && (MMU32)vm.result == 0x87654322UL && !vm.stack.count);
+    CHECK(fixture.attached_plays == 1 && fixture.global_plays == 1 && fixture.mouse_plays == 1 && fixture.fallbacks == 1);
+    CHECK(fixture.operations == ((1U << MM_SOUND_ALL_STOP) | (1U << MM_SOUND_ALL_RESUME) |
+          (1U << MM_SOUND_ALL_PLAYING) | (1U << MM_SOUND_INSTANCE_PAUSE) |
+          (1U << MM_SOUND_VOLUME) | (1U << MM_SOUND_GET_VOLUME)));
+    mm_script_vm_dispose(&vm);
+
+    fixture.mixer = 0;
+    CHECK(attach_versioned_program(&host, &vm, no_mixer, sizeof(no_mixer) / sizeof(*no_mixer), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 0 && !vm.stack.count);
+    mm_script_vm_dispose(&vm);
+    CHECK(!host.collections_live);
+}
+
 int main(void)
 {
     scripts();
@@ -1028,6 +1274,7 @@ int main(void)
     random_decks();
     execute_random_scripts();
     execute_kidspace_scripts();
+    execute_timed_scripts();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

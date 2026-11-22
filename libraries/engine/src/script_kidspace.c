@@ -211,6 +211,167 @@ static void play_cell(MMScriptVM *vm, unsigned opcode)
         notice(vm, MM_KIDSPACE_MISSING_OBJECT, opcode, vm->this_object, 0);
 }
 
+static void set_alarm(MMScriptVM *vm, unsigned opcode, const MMKidspaceClockServices *clocks)
+{
+    MMI32 target_id = target(vm, opcode == kopSetAlarmGob);
+    MMI32 clock_id = mm_script_vm_pop(vm);
+    MMI32 delay = mm_script_vm_pop(vm);
+    MMI32 script = opcode == kopSetAlarm ? -1 : mm_script_vm_pop(vm);
+    void *object = find(vm, target_id);
+    MMAlarmClock *clock = object ? clocks->find(vm->host, clock_id) : NULL;
+    if (!clock || !clocks->alarm(vm->host, clock, object, delay, script))
+        notice(vm, MM_KIDSPACE_ALARM_FAILED, opcode, clock_id, 0);
+}
+
+static void clock_command(MMScriptVM *vm, unsigned opcode)
+{
+    const MMKidspaceClockServices *clocks = vm->kidspace->clocks;
+    MMAlarmClock *clock;
+    MMI32 id;
+    MMU32 time = 0;
+    if (!clocks)
+    {
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
+        return;
+    }
+    if (opcode == kopSetAlarm || opcode == kopSetAlarmThis || opcode == kopSetAlarmGob)
+    {
+        set_alarm(vm, opcode, clocks);
+        return;
+    }
+    id = mm_script_vm_pop(vm);
+    if (opcode == kopStartClock)
+        time = (MMU32)mm_script_vm_pop(vm);
+    if (vm->error)
+        return;
+    clock = id || opcode != kopCreateClock ? clocks->find(vm->host, id) : NULL;
+    if (opcode == kopCreateClock)
+    {
+        if (clock)
+        {
+            notice(vm, MM_KIDSPACE_CLOCK_RETAINED, opcode, id, 0);
+            clocks->retain(vm->host, clock);
+        }
+        else
+        {
+            if (!id)
+                id = vm->kidspace->unique_id(vm->host);
+            if (!clocks->create(vm->host, id))
+                id = 0;
+        }
+        mm_script_vm_push(vm, id);
+        return;
+    }
+    if (!clock && opcode != kopDestroyClock)
+        notice(vm, MM_KIDSPACE_CLOCK_MISSING, opcode, id, 0);
+    switch (opcode)
+    {
+    case kopDestroyClock:
+        if (clock)
+            clocks->release(vm->host, clock);
+        break;
+    case kopStartClock:
+        if (clock)
+            clocks->start(vm->host, clock, time);
+        break;
+    case kopStopClock:
+        if (clock)
+            clocks->stop(vm->host, clock);
+        break;
+    case kopTimeCur:
+        mm_script_vm_push(vm, clock ? mm_signed_word(mm_alarm_clock_time(clock, 0, 0)) : 0);
+        break;
+    }
+}
+
+static void play_sound(MMScriptVM *vm, unsigned opcode, const MMKidspaceSoundServices *sound)
+{
+    MMI32 id = target(vm, opcode == kopPlaySoundGob);
+    void *object;
+    const void *words;
+    MMI32 args[7], result;
+    MMSoundPlay play = {0};
+    if (vm->error)
+        return;
+    object = id ? find(vm, id) : NULL;
+    if (object && !sound->is_sound_object(vm->host, object))
+        object = NULL;
+    if (id && !object)
+        notice(vm, MM_KIDSPACE_SOUND_FALLBACK, opcode, id, 0);
+    words = mm_script_vm_words(vm, 7);
+    if (!words)
+        return;
+    memcpy(args, words, sizeof(args));
+    play.type = (MMU32)args[6];
+    play.number = (MMU32)args[5];
+    play.queue = args[4];
+    play.volume = args[3];
+    play.plays = args[2];
+    play.priority = args[1];
+    play.sound_class = args[0];
+    result = sound->play(vm->host, object, &play);
+    mm_script_vm_drop(vm, 7);
+    mm_script_vm_push(vm, result);
+}
+
+static void play_mouse_sound(MMScriptVM *vm, unsigned opcode, const MMKidspaceSoundServices *sound)
+{
+    MMI32 id = target(vm, opcode == kopPlayMouseSoundGob);
+    MMU32 type = (MMU32)mm_script_vm_pop(vm);
+    MMU32 number = (MMU32)mm_script_vm_pop(vm);
+    void *object = find(vm, id);
+    MMI32 result = 0;
+    if (object && sound->is_sound_object(vm->host, object))
+        result = sound->play_mouse(vm->host, object, type, number);
+    mm_script_vm_push(vm, result);
+}
+
+static void sound_command(MMScriptVM *vm, unsigned opcode)
+{
+    const MMKidspaceSoundServices *sound = vm->kidspace->sound;
+    static const int operations[] = {
+        MM_SOUND_INSTANCE_STOP, MM_SOUND_ALL_STOP, MM_SOUND_INSTANCE_PLAYING, MM_SOUND_ALL_PLAYING,
+        MM_SOUND_INSTANCE_PAUSE, MM_SOUND_ALL_PAUSE, MM_SOUND_INSTANCE_RESUME, MM_SOUND_ALL_RESUME
+    };
+    MMI32 first, second = 0, result = 0;
+    int operation, available;
+    if (!sound)
+    {
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
+        return;
+    }
+    switch (opcode)
+    {
+    case kopPlaySoundGob: case kopPlaySoundThis:
+        play_sound(vm, opcode, sound);
+        return;
+    case kopPlayMouseSoundGob: case kopPlayMouseSoundThis:
+        play_mouse_sound(vm, opcode, sound);
+        return;
+    case kopGetMasterVolume:
+        sound->control(vm->host, MM_SOUND_GET_VOLUME, 0, 0, &result);
+        mm_script_vm_push(vm, result);
+        return;
+    case kopSetMasterVolume:
+        operation = MM_SOUND_VOLUME;
+        break;
+    default:
+        operation = operations[opcode - kopStopSound];
+        break;
+    }
+    first = mm_script_vm_pop(vm);
+    if (operation == MM_SOUND_ALL_STOP || operation == MM_SOUND_ALL_PAUSE ||
+        operation == MM_SOUND_ALL_RESUME || operation == MM_SOUND_ALL_PLAYING)
+        second = mm_script_vm_pop(vm);
+    if (vm->error)
+        return;
+    available = sound->control(vm->host, operation, first, second, &result);
+    /* Retail's playing queries consume the operands without pushing when
+     * there is no mixer. The master volume query above always pushes. */
+    if (available && (operation == MM_SOUND_INSTANCE_PLAYING || operation == MM_SOUND_ALL_PLAYING))
+        mm_script_vm_push(vm, result != 0);
+}
+
 int mm_kidspace_script_execute(MMScriptVM *vm, unsigned opcode)
 {
     switch (opcode)
@@ -274,6 +435,16 @@ int mm_kidspace_script_execute(MMScriptVM *vm, unsigned opcode)
         break;
     case kopCell: case kopCellNoPause:
         play_cell(vm, opcode);
+        break;
+    case kopCreateClock: case kopDestroyClock: case kopStartClock: case kopStopClock: case kopTimeCur:
+    case kopSetAlarm: case kopSetAlarmThis: case kopSetAlarmGob:
+        clock_command(vm, opcode);
+        break;
+    case kopPlaySoundThis: case kopPlaySoundGob: case kopPlayMouseSoundThis: case kopPlayMouseSoundGob:
+    case kopStopSound: case kopStopSoundClass: case kopPlayingSound: case kopPlayingSoundClass:
+    case kopPauseSound: case kopPauseSoundClass: case kopResumeSound: case kopResumeSoundClass:
+    case kopSetMasterVolume: case kopGetMasterVolume:
+        sound_command(vm, opcode);
         break;
     default:
         return 0;

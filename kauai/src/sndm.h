@@ -67,6 +67,8 @@ class SoundDevice : public SoundDevice_PAR
     virtual void EndSynch(void);
 };
 
+MMI32 CallSoundDevice(PSoundDevice, int operation, MMI32 first, MMI32 second);
+
 /****************************************
     Sound manager class
 ****************************************/

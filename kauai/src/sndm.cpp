@@ -849,6 +849,56 @@ MMSoundQueueServices SoundQueue::_Services()
     return s;
 }
 
+MMI32 CallSoundDevice(PSoundDevice d, int op, MMI32 a, MMI32 b)
+{
+    switch (op)
+    {
+    case MM_SOUND_ACTIVE:
+        d->Activate(a != 0);
+        break;
+    case MM_SOUND_SUSPEND:
+        d->Suspend(a != 0);
+        break;
+    case MM_SOUND_VOLUME:
+        d->SetVlm(a);
+        break;
+    case MM_SOUND_GET_VOLUME:
+        return d->VlmCur();
+    case MM_SOUND_INSTANCE_STOP:
+        d->Stop(a);
+        break;
+    case MM_SOUND_ALL_STOP:
+        d->StopAll(a, b);
+        break;
+    case MM_SOUND_INSTANCE_PAUSE:
+        d->Pause(a);
+        break;
+    case MM_SOUND_ALL_PAUSE:
+        d->PauseAll(a, b);
+        break;
+    case MM_SOUND_INSTANCE_RESUME:
+        d->Resume(a);
+        break;
+    case MM_SOUND_ALL_RESUME:
+        d->ResumeAll(a, b);
+        break;
+    case MM_SOUND_INSTANCE_PLAYING:
+        return d->FPlaying(a);
+    case MM_SOUND_ALL_PLAYING:
+        return d->FPlayingAll(a, b);
+    case MM_SOUND_FLUSH:
+        d->Flush();
+        break;
+    case MM_SOUND_BEGIN:
+        d->BeginSynch();
+        break;
+    case MM_SOUND_END:
+        d->EndSynch();
+        break;
+    }
+    return 0;
+}
+
 MMSoundManagerServices SoundManager::_Services()
 {
     MMSoundManagerServices s = {};
@@ -876,54 +926,8 @@ MMSoundManagerServices SoundManager::_Services()
                                                      p->queue, p->volume, p->plays, p->offset, p->priority,
                                                      p->sound_class);
     };
-    s.call = [](void *, void *p, int op, MMI32 a, MMI32 b) -> MMI32 {
-        auto d = static_cast<PSoundDevice>(p);
-        switch (op)
-        {
-        case MM_SOUND_ACTIVE:
-            d->Activate(a != 0);
-            break;
-        case MM_SOUND_SUSPEND:
-            d->Suspend(a != 0);
-            break;
-        case MM_SOUND_VOLUME:
-            d->SetVlm(a);
-            break;
-        case MM_SOUND_GET_VOLUME:
-            return d->VlmCur();
-        case MM_SOUND_INSTANCE_STOP:
-            d->Stop(a);
-            break;
-        case MM_SOUND_ALL_STOP:
-            d->StopAll(a, b);
-            break;
-        case MM_SOUND_INSTANCE_PAUSE:
-            d->Pause(a);
-            break;
-        case MM_SOUND_ALL_PAUSE:
-            d->PauseAll(a, b);
-            break;
-        case MM_SOUND_INSTANCE_RESUME:
-            d->Resume(a);
-            break;
-        case MM_SOUND_ALL_RESUME:
-            d->ResumeAll(a, b);
-            break;
-        case MM_SOUND_INSTANCE_PLAYING:
-            return d->FPlaying(a);
-        case MM_SOUND_ALL_PLAYING:
-            return d->FPlayingAll(a, b);
-        case MM_SOUND_FLUSH:
-            d->Flush();
-            break;
-        case MM_SOUND_BEGIN:
-            d->BeginSynch();
-            break;
-        case MM_SOUND_END:
-            d->EndSynch();
-            break;
-        }
-        return 0;
+    s.call = [](void *, void *p, int op, MMI32 a, MMI32 b) {
+        return CallSoundDevice(static_cast<PSoundDevice>(p), op, a, b);
     };
     return s;
 }

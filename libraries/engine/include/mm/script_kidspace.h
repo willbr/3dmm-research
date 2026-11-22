@@ -1,8 +1,10 @@
 /* Host bindings for the Kidspace script operations implemented in C. */
 #ifndef MM_ENGINE_SCRIPT_KIDSPACE_H
 #define MM_ENGINE_SCRIPT_KIDSPACE_H
+#include "clock.h"
 #include "command_dispatch.h"
 #include "pixel_paint.h"
+#include "sound_manager.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -33,8 +35,33 @@ extern "C"
     {
         MM_KIDSPACE_MISSING_OBJECT,
         MM_KIDSPACE_ARGUMENT_ALLOCATION,
-        MM_KIDSPACE_NESTED_FAILURE
+        MM_KIDSPACE_NESTED_FAILURE,
+        MM_KIDSPACE_CLOCK_RETAINED,
+        MM_KIDSPACE_CLOCK_MISSING,
+        MM_KIDSPACE_ALARM_FAILED,
+        MM_KIDSPACE_SOUND_FALLBACK
     };
+
+    typedef struct MMKidspaceClockServices
+    {
+        MMAlarmClock *(*find)(void *, MMI32 id);
+        int (*create)(void *, MMI32 id);
+        void (*retain)(void *, MMAlarmClock *);
+        void (*release)(void *, MMAlarmClock *);
+        void (*start)(void *, MMAlarmClock *, MMU32 time);
+        void (*stop)(void *, MMAlarmClock *);
+        int (*alarm)(void *, MMAlarmClock *, void *target, MMI32 delay, MMI32 script);
+    } MMKidspaceClockServices;
+
+    typedef struct MMKidspaceSoundServices
+    {
+        int (*is_sound_object)(void *, void *object);
+        /* The host resolves source. A null object uses the global mixer. */
+        MMI32 (*play)(void *, void *object, const MMSoundPlay *);
+        MMI32 (*play_mouse)(void *, void *object, MMU32 type, MMU32 number);
+        /* Zero reports that no mixer is installed and leaves result untouched. */
+        int (*control)(void *, int operation, MMI32 first, MMI32 second, MMI32 *result);
+    } MMKidspaceSoundServices;
 
     typedef struct MMKidspaceScriptServices
     {
@@ -56,6 +83,8 @@ extern "C"
                    MMI32 count, MMI32 *result);
         void (*cell)(void *, void *object, MMU32 child, MMI32 dx, MMI32 dy, MMI32 delay);
         void (*notice)(void *, int reason, unsigned opcode, MMI32 id, MMU32 detail);
+        const MMKidspaceClockServices *clocks;
+        const MMKidspaceSoundServices *sound;
     } MMKidspaceScriptServices;
 
     struct MMScriptVM;

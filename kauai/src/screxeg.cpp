@@ -10,7 +10,6 @@
     Script interpreter for GraphicsObject based scripts.
 
 ***************************************************************************/
-#include <cstring>
 #include "kidframe.h"
 #include "mm/script_kidspace.h"
 ASSERTNAME
@@ -44,6 +43,46 @@ GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRe
     _grid = pgob->Grid();
     _pgob = pvNil;
 
+    static_assert(hidNil == 0 && siiNil == 0 && static_cast<MMU32>(chidNil) == 0xffffffffUL,
+                  "Kidspace sentinel values");
+    static const MMKidspaceClockServices clocks = {
+        [](void *context, MMI32 id) -> MMAlarmClock * {
+            auto interpreter = static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context));
+            auto clock = interpreter->_pwoks->PclokFromHid(id);
+            return clock ? clock->CoreClock() : nullptr;
+        },
+        [](void *, MMI32 id) -> int { return (NewObj Clock(id)) != nullptr; },
+        [](void *, MMAlarmClock *clock) { static_cast<PClock>(clock->owner)->AddRef(); },
+        [](void *, MMAlarmClock *clock) { static_cast<PClock>(clock->owner)->Release(); },
+        [](void *, MMAlarmClock *clock, MMU32 time) { static_cast<PClock>(clock->owner)->Start(time); },
+        [](void *, MMAlarmClock *clock) { static_cast<PClock>(clock->owner)->Stop(); },
+        [](void *, MMAlarmClock *clock, void *gob, MMI32 delay, MMI32 script) -> int {
+            return static_cast<PClock>(clock->owner)->FSetAlarm(delay, static_cast<PGraphicsObject>(gob), script);
+        }
+    };
+    static const MMKidspaceSoundServices sound = {
+        [](void *, void *gob) -> int { return static_cast<PGraphicsObject>(gob)->FIs(kclsKidspaceGraphicObject); },
+        [](void *context, void *gob, const MMSoundPlay *play) -> MMI32 {
+            if (gob)
+                return static_cast<PKidspaceGraphicObject>(gob)->SiiPlaySound(
+                    play->type, play->number, play->queue, play->volume, play->plays, play->offset,
+                    play->priority, play->sound_class);
+            if (!vpsndm)
+                return siiNil;
+            auto interpreter = static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context));
+            return vpsndm->SiiPlay(interpreter->_prca->Resources(), play->type, play->number, play->queue,
+                                   play->volume, play->plays, play->offset, play->priority, play->sound_class);
+        },
+        [](void *, void *gob, MMU32 type, MMU32 number) -> MMI32 {
+            return static_cast<PKidspaceGraphicObject>(gob)->SiiPlayMouseSound(type, number);
+        },
+        [](void *, int operation, MMI32 first, MMI32 second, MMI32 *out) -> int {
+            if (!vpsndm)
+                return 0;
+            *out = CallSoundDevice(vpsndm, operation, first, second);
+            return 1;
+        }
+    };
     static const MMKidspaceScriptServices kidspace = {
         [](void *context, MMI32 id) -> void * {
             return static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context))->_PgobFromHid(id);
@@ -141,13 +180,25 @@ GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRe
             else if (reason == MM_KIDSPACE_NESTED_FAILURE)
                 vm->_WarnSz(PszLit("Running script failed (chid = 0x%x, gid = %d)"), static_cast<LegacyLong>(detail),
                             static_cast<LegacyLong>(id));
+            else if (reason == MM_KIDSPACE_CLOCK_RETAINED)
+                vm->_WarnSz(PszLit("Clock already exists - incrementing ref count (hid = %d)"), static_cast<LegacyLong>(id));
+            else if (reason == MM_KIDSPACE_CLOCK_MISSING)
+                vm->_WarnSz(PszLit("Missing clock (opcode = 0x%x, hid = %d)"),
+                            static_cast<LegacyLong>(opcode), static_cast<LegacyLong>(id));
+            else if (reason == MM_KIDSPACE_ALARM_FAILED)
+                vm->_WarnSz(PszLit("Setting Alarm failed (hid = %d)"), static_cast<LegacyLong>(id));
+            else if (reason == MM_KIDSPACE_SOUND_FALLBACK)
+                vm->_WarnSz(PszLit("No KidspaceGraphicObject for PlaySound(Gob|This) (gid = %d)"),
+                            static_cast<LegacyLong>(id));
             else
                 vm->_WarnSz(PszLit("Missing or incompatible GraphicsObject (opcode = 0x%x, gid = %d)"),
                             static_cast<LegacyLong>(opcode), static_cast<LegacyLong>(id));
-        }
+        },
 #else
-        nullptr
+        nullptr,
 #endif
+        &clocks,
+        &sound
     };
     _vm.kidspace = &kidspace;
     _vm.this_object = _hid;
@@ -269,11 +320,9 @@ short GraphicsObjectInterpreter::_SwMin(void)
 bool GraphicsObjectInterpreter::_FExecHostOp(LegacyLong op)
 {
     PGraphicsObject pgob;
-    PClock pclok;
     LegacyLong hid;
     LegacyLong dtim;
     LegacyLong lw1, lw2, lw3, lw4;
-    const void *words;
 
     hid = _hid; // for "this" operations
     switch (op)
@@ -423,75 +472,6 @@ bool GraphicsObjectInterpreter::_FExecHostOp(LegacyLong op)
     case kopPrintStrStat:
         GobMayDie();
         _DoAlert(op);
-        break;
-
-    case kopCreateClock:
-        hid = _LwPop();
-        if (hidNil != hid && pvNil != (pclok = _pwoks->PclokFromHid(hid)))
-        {
-            Debug(_WarnSz(PszLit("Clock already exists - incrementing ref count (hid = %d)"), hid));
-            pclok->AddRef();
-        }
-        else
-        {
-            if (hidNil == hid)
-                hid = CommandHandler::HidUnique();
-            if (pvNil == NewObj Clock(hid))
-                hid = hidNil;
-        }
-        _Push(hid);
-        break;
-
-    case kopDestroyClock:
-        if (pvNil != (pclok = _pwoks->PclokFromHid(_LwPop())))
-            ReleasePpo(&pclok);
-        break;
-
-    case kopStartClock:
-        hid = _LwPop();
-        lw1 = _LwPop();
-        if (!_vm.error && pvNil != (pclok = _pwoks->PclokFromHid(hid)))
-            pclok->Start(lw1);
-        else
-        {
-            Debug(_WarnSz(PszLit("Missing clock for StartClock (hid = %d)"), hid));
-        }
-        break;
-
-    case kopStopClock:
-        if (pvNil != (pclok = _pwoks->PclokFromHid(_LwPop())))
-            pclok->Stop();
-        else
-        {
-            Debug(_WarnSz(PszLit("Missing clock for StopClock (hid = %d)"), hid));
-        }
-        break;
-
-    case kopTimeCur:
-        if (pvNil != (pclok = _pwoks->PclokFromHid(_LwPop())))
-            _Push(pclok->TimCur());
-        else
-        {
-            Debug(_WarnSz(PszLit("Missing clock for TimeCur (hid = %d)"), hid));
-            _Push(0);
-        }
-        break;
-
-    case kopSetAlarmGob:
-        hid = _LwPop();
-    case kopSetAlarmThis:
-    case kopSetAlarm:
-        lw1 = _LwPop();
-        dtim = _LwPop();
-        if (kopSetAlarm == op)
-            lw2 = chidNil;
-        else
-            lw2 = _LwPop();
-        if (_vm.error || pvNil == (pgob = _PgobFromHid(hid)) || pvNil == (pclok = _pwoks->PclokFromHid(lw1)) ||
-            !pclok->FSetAlarm(dtim, pgob, lw2))
-        {
-            Debug(_WarnSz(PszLit("Setting Alarm failed (hid = %d)"), lw1));
-        }
         break;
 
     case kopZGob:
@@ -702,113 +682,6 @@ bool GraphicsObjectInterpreter::_FExecHostOp(LegacyLong op)
         }
         break;
 
-    case kopPlaySoundGob:
-        hid = _LwPop();
-        // fall through
-    case kopPlaySoundThis:
-        lw1 = siiNil;
-        if (!_vm.error)
-        {
-            pgob = (hidNil == hid) ? pvNil : _PgobFromHid(hid);
-
-            if (pvNil != pgob && pgob->FIs(kclsKidspaceGraphicObject))
-            {
-                if (pvNil != (words = _StackWords(7)))
-                {
-                    MMI32 args[7];
-                    std::memcpy(args, words, sizeof(args));
-                    lw1 = ((PKidspaceGraphicObject)pgob)
-                              ->SiiPlaySound(args[6], args[5], args[4], args[3], args[2], 0, args[1], args[0]);
-                }
-            }
-            else
-            {
-#ifdef DEBUG
-                if (hidNil != hid)
-                {
-                    _WarnSz(PszLit("No KidspaceGraphicObject for PlaySound(Gob|This) (gid = %d)"), hid);
-                }
-#endif // DEBUG
-
-                if (pvNil != vpsndm && pvNil != (words = _StackWords(7)))
-                {
-                    MMI32 args[7];
-                    std::memcpy(args, words, sizeof(args));
-                    lw1 = vpsndm->SiiPlay(_prca->Resources(), args[6], args[5], args[4], args[3], args[2], 0,
-                                          args[1], args[0]);
-                }
-            }
-            _PopList(7);
-        }
-        _Push(lw1);
-        break;
-
-    case kopStopSound:
-        lw1 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            vpsndm->Stop(lw1);
-        break;
-
-    case kopStopSoundClass:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            vpsndm->StopAll(lw1, lw2);
-        break;
-
-    case kopPlayingSound:
-        lw1 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            _Push(vpsndm->FPlaying(lw1));
-        break;
-
-    case kopPlayingSoundClass:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            _Push(vpsndm->FPlayingAll(lw1, lw2));
-        break;
-
-    case kopPauseSound:
-        lw1 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            vpsndm->Pause(lw1);
-        break;
-
-    case kopPauseSoundClass:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            vpsndm->PauseAll(lw1, lw2);
-        break;
-
-    case kopResumeSound:
-        lw1 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            vpsndm->Resume(lw1);
-        break;
-
-    case kopResumeSoundClass:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            vpsndm->ResumeAll(lw1, lw2);
-        break;
-
-    case kopPlayMouseSoundGob:
-        hid = _LwPop();
-        // fall through
-    case kopPlayMouseSoundThis:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        if (!_vm.error && pvNil != (pgob = _PgobFromHid(hid)) && pgob->FIs(kclsKidspaceGraphicObject))
-        {
-            _Push(((PKidspaceGraphicObject)pgob)->SiiPlayMouseSound(lw1, lw2));
-        }
-        else
-            _Push(siiNil);
-        break;
-
     case kopSetNoSlipGob:
         hid = _LwPop();
         // fall through
@@ -822,19 +695,6 @@ bool GraphicsObjectInterpreter::_FExecHostOp(LegacyLong op)
         {
             Debug(_WarnSz(PszLit("Missing GraphicsObject for SetNoSlip(Gob|This) (gid = %d)"), hid));
         }
-        break;
-
-    case kopSetMasterVolume:
-        lw1 = _LwPop();
-        if (!_vm.error && pvNil != vpsndm)
-            vpsndm->SetVlm(lw1);
-        break;
-
-    case kopGetMasterVolume:
-        if (pvNil != vpsndm)
-            _Push(vpsndm->VlmCur());
-        else
-            _Push(0);
         break;
 
     case kopStartLongOp:

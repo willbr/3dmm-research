@@ -1757,6 +1757,9 @@ The VM shares C89 random and shuffle state across interpreters. Studio's
 transitions and asset selection use the same algorithms with their own state.
 C89 also executes Kidspace's 2D geometry and hierarchy operations, command
 enqueueing, nested call parameter handling, and animation cell suspension.
+C89 dispatches Kidspace clock and alarm operations and typed sound requests,
+reusing the clock and sound-manager policies. The host supplies clock
+lifetime and command-filter bindings, live object lookups, and sound devices.
 The native host supplies object access, seed ticks and clock scaling and
 handles the remaining Kidspace operations.
 The script string and colour tables use C-owned storage and cache references.
