@@ -119,17 +119,23 @@ int mm_resource_manager_add(MMResourceManager *m, void *file, MMI32 budget, MMU3
     mm_resource_cache_release(p);
     return result;
 }
-int mm_resource_manager_load(MMResourceManager *m, const MMResourceRequest *q)
+int mm_resource_manager_load_owned(MMResourceManager *m, const MMResourceRequest *q,
+                                  const MMResourceObjectServices *objects)
 {
     MMU32 i, count = m->count;
     int r;
     for (i = 0; i < count; ++i)
     {
-        r = mm_resource_cache_load(mm_resource_manager_at(m, i), q);
+        r = mm_resource_cache_load_owned(mm_resource_manager_at(m, i), q, objects);
         if (r)
             return r;
     }
     return 0;
+}
+
+int mm_resource_manager_load(MMResourceManager *m, const MMResourceRequest *q)
+{
+    return mm_resource_manager_load_owned(m, q, NULL);
 }
 typedef struct ManagerLookup
 {

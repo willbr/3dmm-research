@@ -115,7 +115,7 @@ class ResourceCache : public ResourceCache_PAR
                              bool *error = nullptr, RSC scope = rscNil) = 0;
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil) = 0;
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil) = 0;
-    virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
+    virtual MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
 };
 
 /***************************************************************************
@@ -136,6 +136,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     PFileObject _legacyWireFile = nullptr; // Borrowed from _cache when using Kauai file services.
     String _wirePath;
     MMResourceServices _Services();
+    static void _Destroy(void *);
     ChunkyResourceFile() = default;
     static PChunkyResourceFile _PcrfNew(const MMResourceSource &, LegacyLong budget,
                                        const MMBlockFileServices *files = nullptr, String *path = nullptr,
@@ -161,7 +162,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
                              bool *error = nullptr, RSC scope = rscNil) override;
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
-    virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
+    MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) override;
     MMResourceCache *CoreCache() { return &_cache; }
     MMChunkAccess ReadChunkAccess();
     MMChunkOwnerRead *ReadOwner();
@@ -211,7 +212,7 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
                              bool *error = nullptr, RSC scope = rscNil) override;
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
-    virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
+    MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) override;
 
     bool FAddCfl(PChunkyFile pcfl, LegacyLong cbMax, LegacyLong *piv = pvNil);
     LegacyLong Ccrf(void)
@@ -219,6 +220,7 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
         AssertThis(0);
         return _manager.count;
     }
+    // The Help editor uses this accessor for files it adds through FAddCfl.
     PChunkyResourceFile PcrfGet(LegacyLong icrf);
     MMResourceManager *CoreManager() { return &_manager; }
 };

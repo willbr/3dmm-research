@@ -944,7 +944,7 @@ bool BrowserList::FInit(PCommand pcmd, BrowserSelectionFlags bws, long thumSelec
         _pcrm = pbrcnl->pcrm;
         _pcrm->AddRef();
         for (long icrf = 0; icrf < _pcrm->Ccrf(); icrf++)
-            _pcrm->PcrfGet(icrf)->SetCbMax(kcbMaxCrm);
+            mm_resource_cache_budget(mm_resource_manager_at(_pcrm->CoreManager(), icrf), kcbMaxCrm);
 
         // First thumbnail on display page is inherited
         _ithumPageFirst = pbrcnl->ithumPageFirst;
@@ -1204,7 +1204,7 @@ void BrowserList::_CacheContext(void)
                 pbrcnl->pgst->Delete(--istn);
         }
         for (long icrf = 0; icrf < _pcrm->Ccrf(); icrf++)
-            _pcrm->PcrfGet(icrf)->SetCbMax(kcbMaxCrm);
+            mm_resource_cache_budget(mm_resource_manager_at(_pcrm->CoreManager(), icrf), kcbMaxCrm);
 
         pbrcnl->cthumCD = _cthumCD;
     }
@@ -1518,21 +1518,21 @@ bool BrowserContentList::_FBuildThd(PChunkyResourceManager pcrm)
     {
         if (fniThd.Ftg() != kftgThumbDesc)
             continue;
-        auto cache = ChunkyResourceFile::PcrfOpenWorking(&fniThd, false, pcrm ? kcbMaxCrm : 0);
+        auto cache = OpenWorkingResourceCache(&fniThd, false, pcrm ? kcbMaxCrm : 0);
         if (!cache)
             continue;
 
-        const auto chunks = cache->ReadChunkAccess();
+        const auto chunks = mm_resource_cache_chunks(cache);
         MMU32 first;
         const int status = mm_browser_thumbnail_first(&chunks, _ctgRoot, _cnoRoot, &first);
         bool ok = status == MM_CHUNK_NOT_FOUND;
         if (status == MM_CHUNK_OK &&
-            (!pcrm || mm_resource_manager_add_cache(pcrm->CoreManager(), cache->CoreCache(), nullptr) == MM_STORAGE_OK))
+            (!pcrm || mm_resource_manager_add_cache(pcrm->CoreManager(), cache, nullptr) == MM_STORAGE_OK))
         {
             struct Source
             {
                 BrowserContentList *list;
-                PChunkyResourceFile cache;
+                MMResourceCache *cache;
                 long sid;
             } source = {this, cache, sid};
             ok = mm_browser_thumbnail_visit(&chunks, first, _fDescend ? _ctgContent : 0,
@@ -1542,19 +1542,19 @@ bool BrowserContentList::_FBuildThd(PChunkyResourceManager pcrm)
                     return source->list->_FAddGokdToThd(source->cache, source->sid, child);
                 }, &source) != 0;
         }
-        ReleasePpo(&cache);
+        mm_resource_cache_release(cache);
         if (!ok)
             return fFalse;
     }
     return fTrue;
 }
 
-bool BrowserContentList::_FAddGokdToThd(PChunkyResourceFile cache, long sid, const ChildChunkIdentification &child)
+bool BrowserContentList::_FAddGokdToThd(MMResourceCache *cache, long sid, const ChildChunkIdentification &child)
 {
     AssertThis(0);
-    AssertPo(cache, 0);
+    AssertVarMem(cache);
     MMBrowserThumbnail entry;
-    if (!mm_browser_thumbnail_read(cache->CoreCache(), child.cki.ctg, child.cki.cno, KauaiDecodeBlockHandle, &entry))
+    if (!mm_browser_thumbnail_read(cache, child.cki.ctg, child.cki.cno, KauaiDecodeBlockHandle, &entry))
         return fFalse;
 
     ThumbnailDescriptor thd{};
@@ -1574,13 +1574,13 @@ bool BrowserContentList::_FAddGokdToThd(PChunkyResourceFile cache, long sid, con
     return _pglthd->FInsert(thd.ithd, &thd);
 }
 
-bool BrowserContentListWithStrings::_FAddGokdToThd(PChunkyResourceFile cache, long sid,
+bool BrowserContentListWithStrings::_FAddGokdToThd(MMResourceCache *cache, long sid,
                                                   const ChildChunkIdentification &child)
 {
     AssertThis(0);
-    AssertPo(cache, 0);
+    AssertVarMem(cache);
     String stn;
-    if (!cache->FGetName(child.cki.ctg, child.cki.cno, &stn) || !_pgst->FAddStn(&stn))
+    if (!ReadResourceName(cache, child.cki.ctg, child.cki.cno, &stn) || !_pgst->FAddStn(&stn))
         return fFalse;
     return BrowserContentListWithStrings_PAR::_FAddGokdToThd(cache, sid, child);
 }
@@ -2787,7 +2787,7 @@ void BrowserList::_SetCbPcrmMin(void)
     {
         for (long icrf = 0; icrf < _pcrm->Ccrf(); icrf++)
         {
-            _pcrm->PcrfGet(icrf)->SetCbMax(0);
+            mm_resource_cache_budget(mm_resource_manager_at(_pcrm->CoreManager(), icrf), 0);
         }
     }
 }
@@ -2901,16 +2901,16 @@ bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithu
     {
         if (fniThd.Ftg() != kftgThumbDesc)
             continue;
-        auto cache = ChunkyResourceFile::PcrfOpenWorking(&fniThd, false, kcbMaxCrm);
+        auto cache = OpenWorkingResourceCache(&fniThd, false, kcbMaxCrm);
         if (!cache)
             goto LFail;
-        if (mm_resource_manager_add_cache(_pcrm->CoreManager(), cache->CoreCache(), nullptr) != MM_STORAGE_OK)
+        if (mm_resource_manager_add_cache(_pcrm->CoreManager(), cache, nullptr) != MM_STORAGE_OK)
         {
-            ReleasePpo(&cache);
+            mm_resource_cache_release(cache);
             goto LFail;
         }
 
-        const auto chunks = cache->ReadChunkAccess();
+        const auto chunks = mm_resource_cache_chunks(cache);
         MMU32 first;
         const int status = mm_browser_thumbnail_first(&chunks, ctgTmplThum, cnoNil, &first);
         bool ok = status == MM_CHUNK_NOT_FOUND;
@@ -2920,7 +2920,7 @@ bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithu
             {
                 PStudio studio;
                 MMResourceCache *cache;
-            } source = {pstdio, cache->CoreCache()};
+            } source = {pstdio, cache};
             ok = mm_browser_thumbnail_visit(&chunks, first, 0,
                 [](void *context, MMU32 type, MMU32 number, MMU32) -> int {
                     const auto source = static_cast<Source *>(context);
@@ -2935,7 +2935,7 @@ bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithu
                     return source->studio->FAddCmg(entry.value, entry.graphic);
                 }, &source) != 0;
         }
-        ReleasePpo(&cache);
+        mm_resource_cache_release(cache);
         if (!ok)
             goto LFail;
     }

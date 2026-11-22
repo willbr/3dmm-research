@@ -24,11 +24,11 @@ static PStringTable_GST NormalizeExtras(PStringTable_GST table, short byteOrder)
     return table;
 }
 
-PStringTable_GST StudioResources::ReadStringTable(PChunkyResourceFile cache, ChunkNumber number, bool convertExtras)
+PStringTable_GST StudioResources::ReadStringTable(MMResourceCache *cache, ChunkNumber number, bool convertExtras)
 {
     struct Table { PStringTable_GST table; short order; } result = {nullptr, kboCur};
     int read;
-    mm_resource_cache_visit_payload(cache->CoreCache(), 'GST ', number, KauaiDecodeBlockHandle, nullptr,
+    mm_resource_cache_visit_payload(cache, 'GST ', number, KauaiDecodeBlockHandle, nullptr,
         [](void *out, const MMReadStream *stream) -> int {
             auto result = static_cast<Table *>(out);
             result->table = StringTable_GST::PgstReadStream(*stream, &result->order, nullptr);
@@ -37,11 +37,11 @@ PStringTable_GST StudioResources::ReadStringTable(PChunkyResourceFile cache, Chu
     return convertExtras ? NormalizeExtras(result.table, result.order) : result.table;
 }
 
-PDynamicArray StudioResources::ReadPalette(PChunkyResourceFile cache, ChunkNumber number)
+PDynamicArray StudioResources::ReadPalette(MMResourceCache *cache, ChunkNumber number)
 {
     PDynamicArray palette = nullptr;
     int read;
-    mm_resource_cache_visit_payload(cache->CoreCache(), 'GLCR', number, KauaiDecodeBlockHandle, nullptr,
+    mm_resource_cache_visit_payload(cache, 'GLCR', number, KauaiDecodeBlockHandle, nullptr,
         [](void *out, const MMReadStream *stream) -> int {
             auto &palette = *static_cast<PDynamicArray *>(out);
             palette = DynamicArray::PglReadStream(*stream, nullptr, nullptr);

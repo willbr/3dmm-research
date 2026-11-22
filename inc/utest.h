@@ -94,7 +94,7 @@ class Application : public Application_PAR
   protected:
     bool _fDontReportInitFailure; // init failure was already reported
     bool _fOnscreenDrawing;
-    PChunkyResourceFile _pcrfBoot;        // product resource cache
+    MMResourceCache *_bootResources = nullptr;
     PStudio _pstdio;               // Current studio
 #ifdef KAUAI_SDL3
     bool _fMovieOnly = false;

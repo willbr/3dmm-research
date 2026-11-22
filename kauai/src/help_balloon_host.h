@@ -141,9 +141,8 @@ struct Balloon::BalloonHost : TextDocumentFactoryHost
         s.find = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<BalloonHost *>(v);
             return h.Guard([&] {
-                const auto file = h.cache->PcrfFindChunk(kctgHelpTopic, n);
-                *out = file ? file->CoreCache() : nullptr;
-                return file != nullptr;
+                *out = h.cache->FindChunk(kctgHelpTopic, n);
+                return *out != nullptr;
             });
         };
         s.read = [](void *v, void *p, MMU32 n, void **out) -> int {

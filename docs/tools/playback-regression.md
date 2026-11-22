@@ -21104,3 +21104,35 @@ and V3DMM captures and reran SDL Studio and Marcus.
 
 Traces and Studio canvases are under `tmp/c89-help-save`. Playback captures
 are under `tmp/c89-rscap`.
+
+## C89 resource ownership in Studio (22 November 2026)
+
+Studio's boot, room and thumbnail archives use C-owned caches. Cache
+selection returns the typed archive directly for palettes, Help, browser
+artwork and sound. The cache preloader takes the same lifetime operations
+as the fetch path. The manager fixture verifies preload reuse and eviction
+and checks that a resource can outlive its manager.
+
+All 199 engine, core link and C89 checks passed. Archive and resource
+cache tests passed on native x64, native x86 and SDL. The SDL sound queue,
+movie save/load, and Studio resource table tests passed. The native Windows
+portfolio source passed an MSVC syntax check. The separate x64 `scene-load`
+test reproduced the existing fingerprint mismatch and exact output bytes.
+
+The retail ISO workflow passed cold and warm, including MIDI preview and
+save/reopen. The desktop smoke test passed WAVE playback, portfolio
+dialogs, browser scene selection and F1 Help. Its seven canvases and the
+ISO lobby canvas matched `0480d38d` byte for byte. MIDI was verified with
+the ISO's bundled bank. The extracted tree reported an unavailable MIDI
+provider on the baseline. Both Studio saves and seven Marcus saves
+matched the baseline bytes.
+
+All eight 60-frame actor runs in `20261122T081603Z-7ffc4e8e` matched the
+previous per-player seek canvases, camera and actor state, and continuous
+frame order. Existing differences from retail and timing and presentation
+limits reproduced. The four players reopened the copied 3D text save with
+identical canvases in `20261122T081740Z-bd0becfc`. Both suites reused the
+retained retail and V3DMM captures and reran SDL Studio and Marcus.
+
+Traces and Studio canvases are under `tmp/c89-studio-resource-owners`.
+Playback captures are under `tmp/c89-rscap`.

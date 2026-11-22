@@ -331,11 +331,7 @@ MMResourceServices ChunkyResourceFile::_Services()
 #ifdef DEBUG
     s.mark_owner = [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyResourceFile>(cache->owner)); };
 #endif
-    s.destroy_owner = [](void *c) {
-        auto cache = static_cast<PChunkyResourceFile>(c);
-        AssertPo(cache, fobjAllocated);
-        delete cache;
-    };
+    s.destroy_owner = _Destroy;
     s.issue = [](void *c, int kind, MMU32 type, MMU32 number) {
         if (kind == MM_RESOURCE_LOAD_FAILED)
         {
@@ -379,6 +375,12 @@ MMResourceServices ChunkyResourceFile::_Services()
             Bug("invalid resource cache ownership");
     };
     return s;
+}
+void ChunkyResourceFile::_Destroy(void *owner)
+{
+    auto cache = static_cast<PChunkyResourceFile>(owner);
+    AssertPo(cache, fobjAllocated);
+    delete cache;
 }
 ChunkyResourceFile::~ChunkyResourceFile(void)
 {
@@ -502,10 +504,10 @@ bool ChunkyResourceFile::FSetCrep(LegacyLong priority, ChunkTagOrType type, Chun
     return mm_resource_cache_priority(&_cache, priority, type, number,
                                             reader, scope) != 0;
 }
-PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
+MMResourceCache *ChunkyResourceFile::FindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
 {
     AssertThis(0);
-    return mm_resource_cache_contains(&_cache, type, number, scope) ? this : nullptr;
+    return mm_resource_cache_contains(&_cache, type, number, scope) ? &_cache : nullptr;
 }
 MMChunkAccess ChunkyResourceFile::ReadChunkAccess()
 {
@@ -624,12 +626,13 @@ tribool ChunkyResourceManager::TLoad(ChunkTagOrType type, ChunkNumber number, Re
     Assert(reader != nullptr, "nil object reader");
     Assert(_manager.count == 0 || priority > crepToss, "crep too small");
     const auto q = ResourceRequest(type, number, reader, scope, priority);
-    return static_cast<tribool>(mm_resource_manager_load(&_manager, &q));
+    return static_cast<tribool>(mm_resource_manager_load_owned(&_manager, &q, BaseCacheableObject::ObjectServices()));
 }
 PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
                                                        bool *error, RSC scope)
 {
-    return static_cast<PBaseCacheableObject>(FetchOwned(type, number, reader, nullptr, error, scope));
+    return static_cast<PBaseCacheableObject>(
+        FetchOwned(type, number, reader, BaseCacheableObject::ObjectServices(), error, scope));
 }
 void *ChunkyResourceManager::FetchOwned(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
                                   const MMResourceObjectServices *services, bool *error, RSC scope)
@@ -659,11 +662,10 @@ bool ChunkyResourceManager::FSetCrep(LegacyLong priority, ChunkTagOrType type, C
     const auto q = ResourceRequest(type, number, reader, scope, priority);
     return mm_resource_manager_priority(&_manager, &q) != 0;
 }
-PChunkyResourceFile ChunkyResourceManager::PcrfFindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
+MMResourceCache *ChunkyResourceManager::FindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
 {
     AssertThis(0);
-    auto cache = mm_resource_manager_find_file(&_manager, type, number, scope);
-    return cache ? static_cast<PChunkyResourceFile>(cache->owner) : nullptr;
+    return mm_resource_manager_find_file(&_manager, type, number, scope);
 }
 bool ChunkyResourceManager::FAddCfl(PChunkyFile file, LegacyLong budget, LegacyLong *position)
 {
@@ -688,7 +690,8 @@ PChunkyResourceFile ChunkyResourceManager::PcrfGet(LegacyLong position)
     AssertThis(0);
     AssertIn(position, 0, kcbMax);
     auto cache = mm_resource_manager_at(&_manager, position);
-    return cache ? static_cast<PChunkyResourceFile>(cache->owner) : nullptr;
+    return cache && cache->services.destroy_owner == ChunkyResourceFile::_Destroy
+        ? static_cast<PChunkyResourceFile>(cache->owner) : nullptr;
 }
 #ifdef DEBUG
 void ChunkyResourceManager::AssertValid(LegacyUlong flags)
@@ -702,7 +705,7 @@ void ChunkyResourceManager::MarkMem(void)
     ChunkyResourceManager_PAR::MarkMem();
     MarkPv(_manager.storage.buffers[0].data);
     for (MMU32 i = 0; i < _manager.count; ++i)
-        MarkMemObj(PcrfGet(i));
+        mm_resource_cache_mark(mm_resource_manager_at(&_manager, i));
 }
 #endif
 /***************************************************************************

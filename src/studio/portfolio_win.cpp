@@ -730,7 +730,6 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
             int xOff = 0;
             int yOff = 0;
             LONG lStyle;
-            PChunkyResourceFile pcrf;
             HWND hwndDlg = GetParent(hwndCustom);
             HWND hwndApp = GetParent(hwndDlg);
             HWND hwndPreview = GetDlgItem(hwndCustom, IDC_PREVIEW);
@@ -828,9 +827,9 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
             if (pdiPortfolio->cnoWave != cnoNil)
             {
                 // There is a sound for the portfolio, so find it.
-                if ((pcrf = ((Application *)vpappb)->PcrmAll()->PcrfFindChunk(kctgWave, pdiPortfolio->cnoWave)) != pvNil)
+                if (auto cache = ((Application *)vpappb)->PcrmAll()->FindChunk(kctgWave, pdiPortfolio->cnoWave))
                 {
-                    vpsndm->SiiPlay(pcrf, kctgWave, pdiPortfolio->cnoWave);
+                    vpsndm->SiiPlay(cache, kctgWave, pdiPortfolio->cnoWave);
                 }
             }
 

@@ -168,6 +168,8 @@ extern "C"
     void mm_resource_cache_budget(MMResourceCache *, MMI32);
     int mm_resource_cache_purge(MMResourceCache *, MMWide bytes, MMI32 last_priority);
     int mm_resource_cache_load(MMResourceCache *, const MMResourceRequest *);
+    /* Preload using the same lifetime operations as fetch_owned for that reader. */
+    int mm_resource_cache_load_owned(MMResourceCache *, const MMResourceRequest *, const MMResourceObjectServices *);
     void *mm_resource_cache_fetch(MMResourceCache *, const MMResourceRequest *, int *error);
     void *mm_resource_cache_fetch_owned(MMResourceCache *, const MMResourceRequest *,
                                         const MMResourceObjectServices *, int *error);
@@ -214,6 +216,7 @@ extern "C"
     /* Register an initialized cache, retaining one reference on success. */
     int mm_resource_manager_add_cache(MMResourceManager *, MMResourceCache *, MMU32 *position);
     int mm_resource_manager_load(MMResourceManager *, const MMResourceRequest *);
+    int mm_resource_manager_load_owned(MMResourceManager *, const MMResourceRequest *, const MMResourceObjectServices *);
     void *mm_resource_manager_fetch(MMResourceManager *, const MMResourceRequest *, int *error);
     void *mm_resource_manager_fetch_owned(MMResourceManager *, const MMResourceRequest *,
                                           const MMResourceObjectServices *, int *error);

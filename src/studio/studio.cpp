@@ -200,15 +200,15 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     DataBlock blck;
     bool fRet = fFalse;
     long icrf;
-    PChunkyResourceFile pcrf;
+    MMResourceCache *cache;
     LegacyLong lwParm;
 
     vapp.BeginLongOp();
 
     // read miscellaneous message strings
-    pcrf = _pcrm->PcrfFindChunk(kctgGst, kcnoGstMisc);
-    if (pcrf)
-        _pgstMisc = StudioResources::ReadStringTable(pcrf, kcnoGstMisc);
+    cache = _pcrm->FindChunk(kctgGst, kcnoGstMisc);
+    if (cache)
+        _pgstMisc = StudioResources::ReadStringTable(cache, kcnoGstMisc);
     if (pvNil == _pgstMisc) // if not found or read error
         goto LFail;
 
@@ -222,8 +222,8 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     //
     for (icrf = 0; icrf < _pcrm->Ccrf(); icrf++)
     {
-        pcrf = _pcrm->PcrfGet(icrf);
-        _pglclr = StudioResources::ReadPalette(pcrf, kidPalette);
+        cache = mm_resource_manager_at(_pcrm->CoreManager(), icrf);
+        _pglclr = StudioResources::ReadPalette(cache, kidPalette);
         if (_pglclr)
             break;
     }
@@ -2287,7 +2287,6 @@ void Studio::PlayUISound(long tool, long grfcust)
 {
     AssertThis(0);
 
-    PChunkyResourceFile pcrf;
     long cactRepeat = 1;
     long cno;
 
@@ -2489,10 +2488,8 @@ void Studio::PlayUISound(long tool, long grfcust)
     //
     // Find the sound and play it
     //
-    if ((pcrf = _pcrm->PcrfFindChunk(kctgWave, cno)) != pvNil)
-    {
-        vpsndm->SiiPlay(pcrf, kctgWave, cno, ksqnNone, kvlmFull, cactRepeat, 0, 0, ksclUISound);
-    }
+    if (auto cache = _pcrm->FindChunk(kctgWave, cno))
+        vpsndm->SiiPlay(cache, kctgWave, cno, ksqnNone, kvlmFull, cactRepeat, 0, 0, ksclUISound);
 }
 
 /***************************************************************************

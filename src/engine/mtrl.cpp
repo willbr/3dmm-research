@@ -38,10 +38,10 @@ bool EngineMaterial::SetShadeTable(const MMReadStream &stream)
     return mm_brender_material_shade_stream(&stream) != 0;
 }
 
-bool EngineMaterial::SetShadeTable(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
+bool EngineMaterial::SetShadeTable(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
     int read;
-    return mm_resource_cache_visit_payload(cache->CoreCache(), type, number, KauaiDecodeBlockHandle, nullptr,
+    return mm_resource_cache_visit_payload(cache, type, number, KauaiDecodeBlockHandle, nullptr,
         [](void *, const MMReadStream *stream) -> int { return SetShadeTable(*stream); }, nullptr, &read) == MM_CHUNK_OK && read;
 }
 

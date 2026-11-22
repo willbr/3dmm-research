@@ -59,6 +59,7 @@
 #endif
 #include "studio_preferences.h"
 #include "studio_resources.h"
+#include "resource_archive_host.h"
 #include "socres.h"
 #ifdef WIN
 #include "mminstal.h"
@@ -541,7 +542,7 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!EngineMaterial::SetShadeTable(_pcrfBoot, kctgTmap, 0))
+    if (!EngineMaterial::SetShadeTable(_bootResources, kctgTmap, 0))
     {
         _FGenericError(PszLit("FSetShadeTable"));
         _fDontReportInitFailure = fTrue;
@@ -1393,8 +1394,8 @@ bool Application::_FOpenResourceFile(void)
             return fFalse;
         }
     }
-    _pcrfBoot = ChunkyResourceFile::PcrfOpenWorking(&fni, false);
-    if (!_pcrfBoot)
+    _bootResources = OpenWorkingResourceCache(&fni, false);
+    if (!_bootResources)
         return fFalse;
     return fTrue;
 }
@@ -1809,16 +1810,16 @@ bool Application::FGetSetRegKey(PZString pszValueName, void *pvData, long cbData
 bool Application::_FDisplayHomeLogo(bool fSkipSplashScreen)
 {
     AssertBaseThis(0);
-    AssertPo(_pcrfBoot, 0);
+    AssertVarMem(_bootResources);
 
-    auto pglclr = StudioResources::ReadPalette(_pcrfBoot, kcnoGlcrInit);
+    auto pglclr = StudioResources::ReadPalette(_bootResources, kcnoGlcrInit);
     if (pvNil == pglclr)
         return fFalse;
     GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
     ReleasePpo(&pglclr);
 
     if (!fSkipSplashScreen) {
-        auto pmbmp = FetchMaskedBitmap(_pcrfBoot, kctgMbmp, kcnoMbmpHomeLogo);
+        auto pmbmp = FetchMaskedBitmap(_bootResources, kctgMbmp, kcnoMbmpHomeLogo);
         if (pvNil == pmbmp)
             return fFalse;
         _pkwa->SetMbmp(pmbmp);
@@ -1972,7 +1973,7 @@ LFail:
 bool Application::_FInitTdt(void)
 {
     AssertBaseThis(0);
-    AssertPo(_pcrfBoot, 0);
+    AssertVarMem(_bootResources);
 
     PStringTable_GST pgst;
 
@@ -1997,8 +1998,8 @@ bool Application::_FInitTdt(void)
 PStringTable_GST Application::_PgstRead(ChunkNumber cno)
 {
     AssertBaseThis(0);
-    AssertPo(_pcrfBoot, 0);
-    return StudioResources::ReadStringTable(_pcrfBoot, cno, true);
+    AssertVarMem(_bootResources);
+    return StudioResources::ReadStringTable(_bootResources, cno, true);
 }
 
 /***************************************************************************
@@ -2007,7 +2008,7 @@ PStringTable_GST Application::_PgstRead(ChunkNumber cno)
 bool Application::_FReadStringTables(void)
 {
     AssertBaseThis(0);
-    AssertPo(_pcrfBoot, 0);
+    AssertVarMem(_bootResources);
 
     // read studio filename list
     _pgstStudioFiles = _PgstRead(kcnoGstStudioFiles);
@@ -2056,7 +2057,7 @@ bool Application::_FShowSplashScreen(void)
 {
     AssertBaseThis(0);
 
-    auto pmbmp = FetchMaskedBitmap(_pcrfBoot, kctgMbmp, kcnoMbmpSplash);
+    auto pmbmp = FetchMaskedBitmap(_bootResources, kctgMbmp, kcnoMbmpSplash);
     if (pvNil == pmbmp)
         return fFalse;
     _pkwa->SetMbmp(pmbmp);
@@ -2072,13 +2073,11 @@ bool Application::_FPlaySplashSound(void)
 {
     AssertBaseThis(0);
 
-    PChunkyResourceFile pcrf;
-
-    pcrf = _pcrfBoot->PcrfNewSibling(0);
-    if (pvNil == pcrf)
+    auto cache = NewTypedSiblingCache(_bootResources, 0);
+    if (!cache)
         return fFalse;
-    vpsndm->SiiPlay(pcrf, kctgMidi, kcnoMidiSplash, ksqnNone, kvlmFull, 1, 0, 0, sclNonLoop);
-    ReleasePpo(&pcrf);
+    vpsndm->SiiPlay(cache, kctgMidi, kcnoMidiSplash, ksqnNone, kvlmFull, 1, 0, 0, sclNonLoop);
+    mm_resource_cache_release(cache);
 
     return fTrue;
 }
@@ -2160,7 +2159,7 @@ bool Application::_FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager 
     String stn;
     long istn;
     LegacyLong cbCache;
-    PChunkyResourceFile cache = pvNil;
+    MMResourceCache *cache = nullptr;
 
     for (istn = 0; istn < pgstFiles->IvMac(); istn++)
     {
@@ -2182,14 +2181,14 @@ bool Application::_FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager 
             Pkwa()->SetCDPrompt(fAskForCDSav);
             if (fFoundFile)
             {
-                cache = ChunkyResourceFile::PcrfOpenWorking(&fni, false, cbCache);
+                cache = OpenWorkingResourceCache(&fni, false, cbCache);
             }
             else
             {
 #endif                                         // DEBUG
                 stn.FAppendSz(PszLit(".chk")); // REVIEW *****
                 if (Pkwa()->FFindFile(&stn, &fni))
-                    cache = ChunkyResourceFile::PcrfOpenWorking(&fni, false, cbCache);
+                    cache = OpenWorkingResourceCache(&fni, false, cbCache);
 #ifdef DEBUG
             }
         }
@@ -2203,9 +2202,10 @@ bool Application::_FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager 
             goto LFail;
         }
         MMU32 index;
-        if (mm_resource_manager_add_cache(pcrm->CoreManager(), cache->CoreCache(), &index) != MM_STORAGE_OK)
+        if (mm_resource_manager_add_cache(pcrm->CoreManager(), cache, &index) != MM_STORAGE_OK)
             goto LFail;
-        ReleasePpo(&cache);
+        mm_resource_cache_release(cache);
+        cache = nullptr;
         LegacyLong icfl = static_cast<LegacyLong>(index);
         if (pglFiles != pvNil && !pglFiles->FAdd(&icfl))
             goto LFail;
@@ -2213,8 +2213,8 @@ bool Application::_FAddToCrm(PStringTable_GST pgstFiles, PChunkyResourceManager 
 
     fRet = fTrue;
 LFail:
-    if (!fRet)
-        ReleasePpo(&cache);
+    if (cache)
+        mm_resource_cache_release(cache);
     return fRet;
 }
 
@@ -2229,7 +2229,6 @@ bool Application::_FInitBuilding(void)
     long i;
     LegacyLong cbCache;
     LegacyLong iv;
-    PChunkyResourceFile pcrfT;
     PGraphicsObjectInterpreter psceg = pvNil;
     PScript pscpt = pvNil;
 
@@ -2253,18 +2252,18 @@ bool Application::_FInitBuilding(void)
     {
         _pgstBuildingFiles->GetExtra(i, &cbCache);
         _pglicrfBuilding->Get(i, &iv);
-        pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
-        pcrfT->SetCbMax(cbCache);
+        auto cache = mm_resource_manager_at(_pcrmAll->CoreManager(), iv);
+        AssertVarMem(cache);
+        mm_resource_cache_budget(cache, cbCache);
     }
 
     // Zero the cache for the studio crfs in the global crm.
     for (i = 0; i < _pglicrfStudio->IvMac(); i++)
     {
         _pglicrfStudio->Get(i, &iv);
-        pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
-        pcrfT->SetCbMax(0);
+        auto cache = mm_resource_manager_at(_pcrmAll->CoreManager(), iv);
+        AssertVarMem(cache);
+        mm_resource_cache_budget(cache, 0);
     }
 
     fRet = fTrue;
@@ -2286,7 +2285,6 @@ bool Application::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
     long i;
     LegacyLong cbCache;
     LegacyLong iv;
-    PChunkyResourceFile pcrfT;
     bool fRet = fFalse;
 
     _pstdio = Studio::PstdioNew(khidStudio, _pcrmAll, (pfniUserDoc->Ftg() == ftgNil ? pvNil : pfniUserDoc),
@@ -2301,18 +2299,18 @@ bool Application::_FInitStudio(PFilename pfniUserDoc, bool fFailIfDocOpenFailed)
     {
         _pgstStudioFiles->GetExtra(i, &cbCache);
         _pglicrfStudio->Get(i, &iv);
-        pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
-        pcrfT->SetCbMax(cbCache);
+        auto cache = mm_resource_manager_at(_pcrmAll->CoreManager(), iv);
+        AssertVarMem(cache);
+        mm_resource_cache_budget(cache, cbCache);
     }
 
     // Zero the cache for the building crfs in the global crm.
     for (i = 0; i < _pglicrfBuilding->IvMac(); i++)
     {
         _pglicrfBuilding->Get(i, &iv);
-        pcrfT = _pcrmAll->PcrfGet(iv);
-        Assert(pcrfT != pvNil, "Main ChunkyResourceManager is corrupt.");
-        pcrfT->SetCbMax(0);
+        auto cache = mm_resource_manager_at(_pcrmAll->CoreManager(), iv);
+        AssertVarMem(cache);
+        mm_resource_cache_budget(cache, 0);
     }
 
     fRet = fTrue;
@@ -4396,7 +4394,11 @@ void Application::_CleanUp(void)
     _FWriteUserData();
     ReleasePpo(&_pstdio);
     ReleasePpo(&_ptatr);
-    ReleasePpo(&_pcrfBoot);
+    if (_bootResources)
+    {
+        mm_resource_cache_release(_bootResources);
+        _bootResources = nullptr;
+    }
     ReleasePpo(&_pmvieHandoff);
     ReleasePpo(&_pcrmAll);
     ReleasePpo(&_pglicrfBuilding);
@@ -5814,7 +5816,7 @@ void Application::AssertValid(LegacyUlong grf)
     AssertNilOrPo(_pstdio, 0);
     AssertNilOrPo(_ptatr, 0);
     AssertNilOrPo(_pmvieHandoff, 0);
-    AssertPo(_pcrfBoot, 0);
+    AssertVarMem(_bootResources);
     AssertPo(_pgstStudioFiles, 0);
     AssertPo(_pgstBuildingFiles, 0);
     AssertPo(_pgstSharedFiles, 0);
@@ -5844,7 +5846,7 @@ void Application::MarkMem(void)
     MarkMemObj(_pstdio);
     MarkMemObj(_ptatr);
     MarkMemObj(_pmvieHandoff);
-    MarkMemObj(_pcrfBoot);
+    mm_resource_cache_mark(_bootResources);
     MarkMemObj(_pgstStudioFiles);
     MarkMemObj(_pgstBuildingFiles);
     MarkMemObj(_pgstSharedFiles);

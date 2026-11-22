@@ -239,7 +239,7 @@ bool Choose(Filename *selection, const Request &request)
         {
             if (request.sound != cnoNil)
             {
-                auto resource = vapp.PcrmAll()->PcrfFindChunk(kctgWave, request.sound);
+                auto resource = vapp.PcrmAll()->FindChunk(kctgWave, request.sound);
                 if (resource)
                     vpsndm->SiiPlay(resource, kctgWave, request.sound);
             }

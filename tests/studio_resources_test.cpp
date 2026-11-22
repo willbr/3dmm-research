@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "studio_resources.h"
+#include "resource_archive_host.h"
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error Studio resource tables must not import the Windows SDK
 #endif
@@ -53,8 +54,8 @@ int main()
             file->SetTemp(false);
             block.Free();
             ReleasePpo(&file);
-            auto cache = ChunkyResourceFile::PcrfOpenWorking(&name, false);
-            CHECK(cache && !cache->Pcfl());
+            auto cache = OpenWorkingResourceCache(&name, false);
+            CHECK(cache && !cache->services.objects.state);
             auto table = StudioResources::ReadStringTable(cache, number, true);
             if (width == 8)
                 CHECK(!table); // Valid generic GST, unsupported Studio schema.
@@ -80,7 +81,7 @@ int main()
             }
             ReleasePpo(&table);
             ReleasePpo(&source);
-            ReleasePpo(&cache);
+            mm_resource_cache_release(cache);
             CHECK(name.FDelete());
         }
     std::puts("Studio resources: native/swapped 32-bit extras, strings and unsupported-width rejection passed.");

@@ -25,9 +25,8 @@ struct TextDocument::DisplayHost : HelpHost
         s.find = [](void *v, const MMTextChunk *p, void **out) -> int {
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {
-                const auto file = h.help->_prca->PcrfFindChunk(p->type, p->number);
-                *out = file ? file->CoreCache() : nullptr;
-                return file != nullptr;
+                *out = h.help->_prca->FindChunk(p->type, p->number);
+                return *out != nullptr;
             });
         };
         s.child = [](void *v, void *cache, const MMTextChunk *p, MMU32 id, MMTextChunk *out) -> int {

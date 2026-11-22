@@ -195,8 +195,8 @@ int ManagerCases()
     LegacyLong slot = -1;
     CHECK(manager->FAddCfl(a, 100, &slot) && slot == 0 && manager->FAddCfl(b, 100, &slot) && slot == 1 &&
           manager->Ccrf() == 2 && !manager->PcrfGet(2));
-    CHECK(manager->PcrfFindChunk('RCHE', 1, 11) == manager->PcrfGet(0) &&
-          manager->PcrfFindChunk('RCHE', 1, 22) == manager->PcrfGet(1));
+    CHECK(manager->FindChunk('RCHE', 1, 11) == manager->PcrfGet(0)->CoreCache() &&
+          manager->FindChunk('RCHE', 1, 22) == manager->PcrfGet(1)->CoreCache());
     bool error = true;
     auto first = manager->PbacoFetch('RCHE', 1, ProbeResource::A, &error);
     CHECK(first && !error && first->CoreCache() == manager->PcrfGet(0)->CoreCache());
@@ -216,6 +216,32 @@ int ManagerCases()
     CHECK(!probeResident && a->CactRef() == 1 && b->CactRef() == 1);
     ReleasePpo(&a);
     ReleasePpo(&b);
+    return 0;
+}
+
+int TypedManagerCases()
+{
+    auto file = ChunkyFile::PcflCreateTemp();
+    CHECK(file && Put(file, 1, 7, 4, 8));
+    auto wrapped = ChunkyResourceFile::PcrfNew(file, 0);
+    CHECK(wrapped);
+    auto typed = NewTypedSiblingCache(wrapped->CoreCache(), 100);
+    ReleasePpo(&wrapped);
+    ReleasePpo(&file);
+    auto manager = ChunkyResourceManager::PcrmNew(1);
+    CHECK(manager && typed && !typed->services.objects.state);
+    CHECK(mm_resource_manager_add_cache(manager->CoreManager(), typed, nullptr) == MM_STORAGE_OK);
+    mm_resource_cache_release(typed);
+    CHECK(manager->FindChunk('RCHE', 1) == typed && !manager->PcrfGet(0));
+    CHECK(manager->TLoad('RCHE', 1, GenericHQ::FReadGhq) == tYes);
+    auto preloaded = manager->PbacoFind('RCHE', 1, GenericHQ::FReadGhq);
+    auto fetched = manager->PbacoFetch('RCHE', 1, GenericHQ::FReadGhq);
+    CHECK(preloaded && fetched == preloaded && fetched->CoreCache() == typed);
+    CHECK(manager->TLoad('RCHE', 2, GenericHQ::FReadGhq) == tNo);
+    ReleasePpo(&preloaded);
+    ReleasePpo(&manager);
+    CHECK(!fetched->CoreCache());
+    ReleasePpo(&fetched);
     return 0;
 }
 } // namespace
@@ -516,7 +542,7 @@ int main()
         resourceSnapshot = std::fopen(path, "wb");
         CHECK(resourceSnapshot);
     }
-    CHECK(CacheCases() == 0 && ManagerCases() == 0 && LargeResidentCase() == 0 &&
+    CHECK(CacheCases() == 0 && ManagerCases() == 0 && TypedManagerCases() == 0 && LargeResidentCase() == 0 &&
           WireSourceCase(false) == 0 && WireSourceCase(true) == 0 && SharedArchiveSourceCase() == 0 &&
           EmbeddedForestCase(false) == 0 && EmbeddedForestCase(true) == 0);
     if (resourceSnapshot)

@@ -53,7 +53,7 @@ constexpr MMResourceBlockReader Read = mm_brender_material_read;
 PMaterial_MTRL Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 PMaterial_MTRL Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
 bool SetShadeTable(PChunkyFile, ChunkTagOrType, ChunkNumber);
-bool SetShadeTable(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
+bool SetShadeTable(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 bool SetShadeTable(const MMReadStream &);
 void ReleaseShadeTable();
 PMaterial_MTRL New(LegacyLong base = ivNil, LegacyLong range = ivNil);

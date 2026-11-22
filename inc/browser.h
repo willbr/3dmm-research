@@ -308,7 +308,7 @@ class BrowserContentList : public BrowserContentList_PAR
     bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd);
     bool _FBuildThd(PChunkyResourceManager pcrm);
 
-    virtual bool _FAddGokdToThd(PChunkyResourceFile, long sid, const ChildChunkIdentification &);
+    virtual bool _FAddGokdToThd(MMResourceCache *, long sid, const ChildChunkIdentification &);
 
   public:
     static PBrowserContentList PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, bool fOnlineOnly = fFalse);
@@ -352,7 +352,7 @@ class BrowserContentListWithStrings : public BrowserContentListWithStrings_PAR
     }
 
     bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PStringTable_GST pgst, PDynamicArray pglthd);
-    bool _FAddGokdToThd(PChunkyResourceFile, long sid, const ChildChunkIdentification &) override;
+    bool _FAddGokdToThd(MMResourceCache *, long sid, const ChildChunkIdentification &) override;
 
   public:
     static PBrowserContentListWithStrings PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, PStringTable_GST pgst = pvNil,
