@@ -21,6 +21,7 @@
 #include "handle_services.h"
 #include "mm/chunk_copy.h"
 #include "mm/private_archive_cache.h"
+#include "mm/string_value.h"
 #include "resource_archive_host.h"
 #include "util.h"
 ASSERTNAME
@@ -189,6 +190,15 @@ bool ReadResourceName(const MMResourceCache *cache, ChunkTagOrType type, ChunkNu
     return name->Cch() > 0;
 }
 
+bool ReadResourceName(const MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number,
+                      const MMStringValue &out)
+{
+    String name;
+    const bool found = ReadResourceName(cache, type, number, &name);
+    mm_string_value_copy(&out, name.Pst());
+    return found;
+}
+
 MMChunkOwnerRead *ResourceArchiveReader(const MMResourceCache *cache)
 {
     if (!cache->wire_index && cache->services.live_reader)
@@ -198,9 +208,7 @@ MMChunkOwnerRead *ResourceArchiveReader(const MMResourceCache *cache)
 
 MMArchiveWriter ResourceArchiveWriter(const MMResourceCache *cache)
 {
-    if (!cache->wire_index && cache->services.live_writer)
-        return cache->services.live_writer(cache->file);
-    return {};
+    return mm_resource_cache_writer(cache);
 }
 
 void ReopenResourceArchive(MMResourceCache *cache)

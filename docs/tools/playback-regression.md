@@ -20675,3 +20675,36 @@ Retail reopened the two-scene Studio save in 20261122T010655Z-b4013dfd and
 reproduced all 60 reference seek canvases and camera indices.
 
 Evidence is under tmp/c89-background-renderer.
+
+## C89 movie-sound binding and shared WAVE import (22 November 2026)
+
+Studio uses one bound C89 MSND cache reader. Invalidation obtains the live
+archive writer through the C cache, and the C playback binding owns the
+last MIDI cue state and dispatches both preview sounds and frame queues.
+Kauai provides counted names, decoding, allocation, the physical sound
+manager and its clock. Studio and Marcus share the C89 WAVE import from
+input buffering through archive publication. SDL supplies decoding and
+resampling. Marcus still links without engine-core or Studio's native
+movie-sound host.
+
+All 193 rebuilt standalone C89 checks and the strict Kauai binding syntax
+check passed. Native x64 sound payload, scene sound/edit and movie save/load
+passed. Studio passed the same scene and movie checks and its WAVE import
+tests, including failed import rollback and persisted payload round-trip.
+The existing Marcus sound-edit test passed. Five native x64 snapshots and
+two native x86 sound snapshots matched the prior bytes.
+
+The eight actor-audio runs reported in 20261122T011707Z-070646ff completed.
+Seven fresh runs were reused after freeing disk space and the final run
+was captured in that suite. SDL and Marcus matched all 30 prior seek
+canvases, 29 of 30 retail seek canvases, and all 30 retail camera indices
+and playback frame identities. V3DMM matched all 30 retail seek canvases.
+Retail, SDL and V3DMM reproduced all six prior sound requests. Mixed PCM
+differed and continuous image alignment remained inconclusive.
+
+Studio imported a speech cue at frame 12 and saved its 3,162-byte WAVE
+under a named MSND. Retail reopened the save in 20261122T011739Z-847652ec,
+replayed all 30 frames and issued the new speech request at frame 12
+alongside the six original requests.
+
+Evidence is under tmp/c89-movie-sound-binding.

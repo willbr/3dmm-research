@@ -57,20 +57,24 @@ struct WavePCM
         return false;
     }
 };
-} // namespace
-bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uint8_t> &wave)
+
+MMWaveImportServices WaveImportServices(WavePCM &pcm)
 {
-    if (bytes > INT_MAX)
-        return false;
-    WavePCM pcm;
     MMWaveImportServices services = {};
     services.context = &pcm;
     services.load = [](void *context, const void *data, MMU32 bytes, MMU32 *decoded) -> int {
         auto &pcm = *static_cast<WavePCM *>(context);
-        if (!pcm.Load(data, bytes))
+        try
+        {
+            if (!pcm.Load(data, bytes))
+                return 0;
+            *decoded = pcm.bytes;
+            return 1;
+        }
+        catch (const std::bad_alloc &)
+        {
             return 0;
-        *decoded = pcm.bytes;
-        return 1;
+        }
     };
     services.convert_u8 = [](void *context, unsigned char **samples, MMI32 *count) -> int {
         auto &pcm = *static_cast<WavePCM *>(context);
@@ -82,6 +86,24 @@ bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uin
         return ok;
     };
     services.release_samples = [](void *, unsigned char *samples) { SDL_free(samples); };
+    return services;
+}
+} // namespace
+
+int ImportWave(const MMReadStream &source, MMI32 style, const MMChunkNameValue &name, MMU32 *number,
+               const MMArchiveWriter &writer)
+{
+    WavePCM pcm;
+    const auto services = WaveImportServices(pcm);
+    return mm_wave_decode_import(&source, style, &name, number, &services, &writer);
+}
+
+bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uint8_t> &wave)
+{
+    if (bytes > INT_MAX)
+        return false;
+    WavePCM pcm;
+    const auto services = WaveImportServices(pcm);
     MMWaveBuffer scratch;
     mm_wave_buffer_init(&scratch, nullptr);
     bool ok = false;

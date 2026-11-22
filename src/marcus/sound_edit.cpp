@@ -53,16 +53,8 @@ ChunkNumber Import(MMPrivateArchive *file, const char *path, int style)
     }
     else
     {
-        std::vector<unsigned char> wave;
-        {
-            std::vector<unsigned char> bytes(source.length);
-            Require(mm_read_exact(&source, 0, bytes.data(), bytes.size()) &&
-                        KauaiAudio::PrepareWaveImport(bytes.data(), bytes.size(), wave),
-                    "Cannot decode this WAV or MP3 file.");
-        }
-        MMMemoryStream payload;
-        Require(mm_memory_stream_init(&payload, wave.data(), wave.size()), "Cannot encode this sound in the native movie format.");
-        written = mm_sound_write(&payload.stream, 1, style, &title, &sound, &writer);
+        written = KauaiAudio::ImportWave(source, style, title, &sound, writer);
+        Require(written != MM_WAVE_BAD_AUDIO, "Cannot decode this WAV or MP3 file.");
     }
     Require(written > 0, "Cannot encode this sound in the native movie format.");
     return sound;

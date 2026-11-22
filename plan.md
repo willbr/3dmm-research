@@ -1782,9 +1782,11 @@ chunk names, allocation, decoding and diagnostics. Marcus, its Preview
 helper and regression runner build and link without engine-core. Studio
 still uses native engine and archive interfaces around the shared engine.
 The C89 MSND owner holds the counted sound name, payload metadata and
-cache binding. Studio's sound browser, listener and frame sound queue use the
-C89 references. Preview reads the same sound state from its archive graph.
-The native sound manager and clock provide host services. Actor template
+cache binding. Studio's cache reader, invalidation and frame-sound dispatch
+use the bound C89 operations. Preview reads the same sound state from its
+archive graph. Studio and Marcus use the same C89 WAVE import through the
+archive write, with SDL supplying decode and sample conversion. The native
+sound manager and clock provide output and timing services. Actor template
 and 3D text objects use the same C89 owner in Studio and Preview. Background
 resources use a C89 owner for metadata, lights, palettes and placement
 points. Studio's C89 BRender binding owns the cache reader, light attachment

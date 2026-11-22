@@ -19,6 +19,11 @@ extern "C"
     } MMWaveFileServices;
     int mm_wave_file_import(const MMReadStream *, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
                             const MMWaveFileServices *, const MMArchiveWriter *);
+    enum { MM_WAVE_BAD_AUDIO = -1 };
+    /* Read, prepare and write using C-owned scratch. Return 1 on success,
+     * MM_WAVE_BAD_AUDIO on read or preparation failure, or 0 on input allocation or archive write failure. */
+    int mm_wave_decode_import(const MMReadStream *, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
+                              const MMWaveImportServices *, const MMArchiveWriter *);
     /* The classic native host keeps AudioMan/ACM as external codec services. C
      * owns input fallback, conversion decisions, sample bounds, RIFF framing, source selection,
      * publication and cleanup. compress returns 1, 0 (memory), or -1 (bad sound).

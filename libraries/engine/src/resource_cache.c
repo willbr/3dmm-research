@@ -540,6 +540,14 @@ MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *c)
     return empty;
 }
 
+MMArchiveWriter mm_resource_cache_writer(const MMResourceCache *c)
+{
+    MMArchiveWriter empty = {0};
+    if (c && !c->wire_index && c->services.live_writer)
+        return c->services.live_writer(c->file);
+    return empty;
+}
+
 static int locate_payload(void *context, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
 {
     MMResourceCache *c = (MMResourceCache *)context;

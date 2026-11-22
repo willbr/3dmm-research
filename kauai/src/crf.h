@@ -27,6 +27,7 @@ struct MMResourceChunkCopy;
 struct MMChunkOwnerRead;
 struct MMArchiveWriter;
 struct MMPrivateArchive;
+struct MMStringValue;
 
 namespace Chunky
 {
@@ -289,6 +290,7 @@ MMResourceCache *NewTypedPrivateCache(MMPrivateArchive *, MMI32 budget);
 MMResourceCache *NewTypedWireCache(const MMChunkIndex *, void *file, const MMBlockFileServices *, MMI32 budget);
 MMResourceCache *NewTypedSiblingCache(const MMResourceCache *, MMI32 budget);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, PString);
+bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, const MMStringValue &);
 MMChunkEndpoint ResourceCopySource(MMResourceCache *, MMResourceChunkCopy &);
 MMChunkEndpoint ResourceCopyTarget(MMResourceCache *, MMChunkFileCopy &);
 MMChunkTitleIO ResourceTitleIO();

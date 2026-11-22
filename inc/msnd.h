@@ -33,6 +33,7 @@
 #include <cstdint>
 
 #include "sound_queue.h"
+#include "movie_sound.h"
 
 const long kSndSamplesPerSec = 22050;
 const long kSndBitsPerSample = 8;
@@ -68,8 +69,8 @@ using PMovieSoundMSND = MMSoundOwner *;
 
 namespace EngineSound
 {
-const MMSoundResourceHost &Host();
-int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
+inline const MMSoundResourceHost &Host() { return *mm_kauai_movie_sound_host(); }
+constexpr MMResourceBlockReader Read = mm_kauai_movie_sound_read;
 PMovieSoundMSND Fetch(PTAG);
 PMovieSoundMSND Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 bool Info(PChunkyFile, ChunkTagOrType, ChunkNumber, bool *invalid = nullptr, long *style = nullptr,

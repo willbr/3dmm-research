@@ -978,6 +978,8 @@ target_sources(kauai-core
     # direct Win32 multimedia APIs -- those live in mididev*.cpp +
     # sndam.cpp on the gui target. Hosts register their own devices.
     "${PROJECT_SOURCE_DIR}/kauai/src/sndm.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/movie_sound.c"
+    "${PROJECT_SOURCE_DIR}/kauai/src/movie_sound_host.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/stream.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/util.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/utilcopy.cpp"
@@ -1161,6 +1163,10 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
         "${PROJECT_SOURCE_DIR}/bren/asset_resources.c"
         "${PROJECT_SOURCE_DIR}/bren/template_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/background_renderer.c")
+  add_test(NAME kauai-movie-sound-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
+      -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/movie_sound.c")
 endif()
 
 # brender-core: BRender wrapper minus the World/PWorld gui binding.

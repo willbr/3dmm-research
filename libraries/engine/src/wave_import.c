@@ -37,6 +37,47 @@ done:
     mm_wave_buffer_dispose(&storage);
     return ok;
 }
+
+typedef struct WaveDecodeImport
+{
+    const MMWaveImportServices *decoder;
+    MMWaveBuffer prepared;
+    int bad_audio;
+} WaveDecodeImport;
+
+static int prepare_import(void *context, const void *bytes, MMU32 count, const void **out, MMU32 *size)
+{
+    WaveDecodeImport *import = context;
+    const unsigned char *prepared;
+    if (!mm_wave_prepare(bytes, count, import->decoder, &import->prepared, &prepared, size))
+        return 0;
+    *out = prepared;
+    return 1;
+}
+
+static void bad_import(void *context)
+{
+    ((WaveDecodeImport *)context)->bad_audio = 1;
+}
+
+int mm_wave_decode_import(const MMReadStream *source, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
+                          const MMWaveImportServices *decoder, const MMArchiveWriter *writer)
+{
+    WaveDecodeImport import;
+    MMWaveFileServices services = {0};
+    int ok;
+    if (!mm_wave_buffer_init(&import.prepared, NULL))
+        return 0;
+    import.decoder = decoder;
+    import.bad_audio = 0;
+    services.context = &import;
+    services.prepare = prepare_import;
+    services.bad_sound = bad_import;
+    ok = mm_wave_file_import(source, style, name, number, &services, writer);
+    mm_wave_buffer_dispose(&import.prepared);
+    return import.bad_audio ? MM_WAVE_BAD_AUDIO : ok;
+}
+
 static void write_word(unsigned char *b, MMU32 n)
 {
     b[0] = (unsigned char)n;

@@ -82,10 +82,7 @@ void mm_kauai_template_read_services(MMTemplateCreateServices *s)
 
 int mm_kauai_resource_name(const MMResourceCache *cache, MMU32 type, MMU32 number, const MMStringValue *out)
 {
-    String name;
-    const bool found = ReadResourceName(cache, type, number, &name);
-    mm_string_value_copy(out, name.Pst());
-    return found;
+    return ReadResourceName(cache, type, number, *out);
 }
 
 void mm_kauai_text_name_services(MMTextResourceServices *s)

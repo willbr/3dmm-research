@@ -2,6 +2,7 @@
 #ifndef KAUAI_SDL_AUDIO_H
 #define KAUAI_SDL_AUDIO_H
 #include "audio_mixer.h"
+#include "mm/wave_import.h"
 namespace KauaiAudio
 {
 bool DecodeWave(const void *data, std::size_t bytes, std::shared_ptr<const Sample> &sample);
@@ -10,6 +11,7 @@ bool WaveSeconds(const void *data, std::size_t bytes, double &seconds);
 // Preserve compatible source bytes when compression would not save space;
 // otherwise use legacy 11.025 kHz mono PCM for short clips or MS ADPCM.
 bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uint8_t> &wave);
+int ImportWave(const MMReadStream &, MMI32 style, const MMChunkNameValue &, MMU32 *number, const MMArchiveWriter &);
 class Output
 {
     struct Impl;

@@ -396,6 +396,13 @@ int mm_sound_invalidate(MMSoundState *state, const MMResourceObject *binding, co
     state->invalid = 1;
     return 1;
 }
+
+int mm_sound_owner_invalidate(MMSoundOwner *owner)
+{
+    const MMArchiveWriter writer = mm_resource_cache_writer(owner->binding.cache);
+    return mm_sound_invalidate(&owner->state, &owner->binding, &writer.edit, owner->host->services);
+}
+
 MMI32 mm_sound_class(MMI32 style,int loop)
 {
     return loop ? (style == MM_SOUND_STYLE_MUSIC ? MM_SOUND_CLASS_LOOP_MIDI : MM_SOUND_CLASS_LOOP_WAVE)

@@ -97,6 +97,7 @@ int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const MMC
  * otherwise returns the writer's result. */
 int mm_sound_import_midi(const MMReadStream *, const MMChunkNameValue *name, MMU32 *number, const MMArchiveWriter *);
 int mm_sound_invalidate(MMSoundState *,const MMResourceObject *,const MMChunkEdit *,const MMSoundResourceServices *);
+int mm_sound_owner_invalidate(MMSoundOwner *);
 MMI32 mm_sound_class(MMI32 style,int loop);
 /* Tool 0=Sounder, 1=Looper, 2=Matcher; MIDI matching is excluded by native bounds. */
 MMI32 mm_sound_priority(MMI32 style,int tool);

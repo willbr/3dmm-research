@@ -29,7 +29,6 @@
 #include "mm/string_wire.h"
 #include "handle_services.h"
 #include "mm/actor_sound.h"
-#include "engine_movie_graph.h"
 #include "engine_read_stream.h"
 #include "engine_sound_writer.h"
 #include "mm/wave_import.h"
@@ -45,74 +44,16 @@ BEGIN_CMD_MAP(MovieSoundQueue, CommandHandler)
 ON_CID_ME(cidAlarm, &MovieSoundQueue::FCmdAlarm, pvNil)
 END_CMD_MAP_NIL()
 
-static MMSoundResourceServices SoundServices()
-{
-    MMSoundResourceServices s = {};
-    s.system = koskCur;
-    static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 &&
-                      sizeof(MMSoundResource) == sizeof(void *) + 16,
-                  "sound resource ABI");
-    static_assert(stySfx == MM_SOUND_STYLE_EFFECT && stySpeech == MM_SOUND_STYLE_SPEECH &&
-                      styMidi == MM_SOUND_STYLE_MUSIC && toolLooper == toolSounder + 1 &&
-                      toolMatcher == toolSounder + 2,
-                  "sound policy enums");
-    static_assert(kctgMsnd == MM_SOUND_TYPE && kctgMidi == MM_SOUND_MIDI &&
-                      kctgWave == MM_SOUND_WAVE && kchidSnd == 0 && tNo == 0 && tYes == 1,
-                  "sound wire enums");
-    const unsigned short one = 1;
-    s.host_big_endian = *reinterpret_cast<const unsigned char *>(&one) == 0;
-    s.invalidate_output = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
-    s.decode = KauaiDecodeBlockHandle;
-    s.graph = [](void *, void *file, MMMovieSessionGraph *out) {
-        *out = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file));
-    };
-    s.read_name = [](void *, void *file, MMResourceCache *cache, MMU32 type, MMU32 number, MMSoundOwner *sound) -> int {
-        String name;
-        const bool found = cache ? ReadResourceName(cache, type, number, &name) :
-                                   static_cast<PChunkyFile>(file)->FGetName(type, number, &name);
-        const auto storage = mm_sound_owner_name(sound);
-        mm_string_value_copy(&storage, name.Pst());
-        return found;
-    };
-    s.publish_invalid = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
-    s.bad_order = [](void *) { Assert(false, "bad MovieSoundFile"); };
-    s.playing = [](void *, MMI32 instance) -> int { return vpsndm->FPlaying(instance); };
-    s.stop = [](void *, MMI32 queue) { vpsndm->StopAll(queue, sclNil); };
-    s.play = [](void *, const MMSoundResource *sound, MMI32 queue, MMI32 volume, MMI32 repeat,
-                MMU32 start, MMI32 priority, MMI32 soundClass) -> MMI32 {
-        return vpsndm->SiiPlay(sound->cache, sound->type, sound->number, queue, volume,
-                               repeat, start, priority, soundClass);
-    };
-    return s;
-}
-
-const MMSoundResourceHost &EngineSound::Host()
-{
-    static const auto services = SoundServices();
-    // Preserve the historical cache charge, including the native title width.
-    size_t prefix = sizeof(void *) == 8 ? 40 : 28;
-#ifdef DEBUG
-    if (sizeof(void *) == 4)
-        prefix += 4;
-#endif
-    const size_t bytes = prefix + sizeof(MMSoundResource) + sizeof(MMI32) + (MM_STRING_MAX + 2) * sizeof(achar) + 1;
-    static const MMSoundResourceHost host = {
-        &services, KauaiResourceObjectAllocator(),
-        static_cast<MMI32>((bytes + sizeof(void *) - 1) & ~(sizeof(void *) - 1)), sizeof(achar),
-#ifdef DEBUG
-        [](void *p) { MarkPv(p); },
-        [](MMResourceCache *cache) { mm_resource_cache_mark(cache); }
-#else
-        nullptr, nullptr
-#endif
-    };
-    return host;
-}
-
-int EngineSound::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
-{
-    return mm_sound_fetch(cache, type, number, block, out, bytes, &Host());
-}
+static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 &&
+                  sizeof(MMSoundResource) == sizeof(void *) + 16,
+              "sound resource ABI");
+static_assert(stySfx == MM_SOUND_STYLE_EFFECT && stySpeech == MM_SOUND_STYLE_SPEECH &&
+                  styMidi == MM_SOUND_STYLE_MUSIC && toolLooper == toolSounder + 1 &&
+                  toolMatcher == toolSounder + 2,
+              "sound policy enums");
+static_assert(kctgMsnd == MM_SOUND_TYPE && kctgMidi == MM_SOUND_MIDI &&
+                  kctgWave == MM_SOUND_WAVE && kchidSnd == 0 && tNo == 0 && tYes == 1,
+              "sound wire enums");
 
 PMovieSoundMSND EngineSound::Fetch(PTAG tag)
 {
@@ -121,8 +62,7 @@ PMovieSoundMSND EngineSound::Fetch(PTAG tag)
 
 PMovieSoundMSND EngineSound::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PMovieSoundMSND>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
-                                                                          mm_sound_owner_services()));
+    return mm_kauai_movie_sound_fetch(cache, type, number);
 }
 
 bool EngineSound::Info(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, bool *invalid, long *style, long *volume)
@@ -233,26 +173,10 @@ bool EngineSound::CopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, 
     const EngineSoundWriter writer(archive, pstn);
     const auto source = EngineReadStream::FromFile(*pfilSrc);
 #ifdef KAUAI_SDL3
-    std::vector<std::uint8_t> prepared;
-    MMWaveFileServices s = {};
-    s.context = &prepared;
-    s.prepare = [](void *p, const void *data, MMU32 bytes, const void **out, MMU32 *count) -> int {
-        auto &prepared = *static_cast<std::vector<std::uint8_t> *>(p);
-        if (!KauaiAudio::PrepareWaveImport(data, bytes, prepared))
-            return 0;
-        *out = prepared.data();
-        *count = static_cast<MMU32>((prepared.size)());
-        return 1;
-    };
-    s.bad_sound = [](void *) { PushErc(ercSocBadSoundFile); };
-    try
-    {
-        return mm_wave_file_import(&source, sty, &writer.name, pcno, &s, &writer.archive) != 0;
-    }
-    catch (const std::bad_alloc &)
-    {
-        return false;
-    }
+    const int result = KauaiAudio::ImportWave(source, sty, writer.name, pcno, writer.archive);
+    if (result == MM_WAVE_BAD_AUDIO)
+        PushErc(ercSocBadSoundFile);
+    return result > 0;
 #else
     struct Context
     {
@@ -382,11 +306,7 @@ bool EngineSound::CopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, 
 ***************************************************************************/
 bool EngineSound::Invalidate(PMovieSoundMSND sound)
 {
-    const auto binding = mm_sound_owner_binding(sound);
-    if (!binding->cache)
-        return false;
-    const auto edit = ResourceArchiveWriter(binding->cache).edit;
-    return mm_sound_invalidate(mm_sound_owner_state(sound), binding, &edit, Host().services) != 0;
+    return mm_sound_owner_invalidate(sound) != 0;
 }
 
 long EngineSound::Priority(PMovieSoundMSND sound, long tool)
@@ -401,9 +321,10 @@ long EngineSound::Priority(PMovieSoundMSND sound, long tool)
 void EngineSound::Play(PMovieSoundMSND sound, long object, bool loop, bool queue, long volume, long priority,
                        bool actor, ulong start)
 {
-    static MMSoundLastMidi last = {};
-    mm_sound_play(mm_sound_owner_state(sound), &last, object, loop, queue, volume, priority, actor, start,
-                  Host().services);
+    const MMFrameSoundRequest request = {sound, static_cast<MMI32>(Style(sound)),
+        static_cast<MMI32>(object), static_cast<MMI32>(volume), static_cast<MMI32>(priority),
+        static_cast<MMU32>(start), loop, queue, actor};
+    mm_kauai_movie_sound_play(vpsndm, &request);
 }
 
 static void StopMovieSoundClass(void *, MMI32 soundClass)
@@ -430,9 +351,7 @@ MMFrameSoundOutput MovieSoundQueue::_Output()
     output.begin = [](void *) { vpsndm->BeginSynch(); };
     output.end = [](void *) { vpsndm->EndSynch(); };
     output.play = [](void *, const MMFrameSoundRequest *request) {
-        auto sound = static_cast<PMovieSoundMSND>(request->sound);
-        EngineSound::Play(sound, request->object, request->loop != 0, request->queued != 0, request->volume,
-                          request->priority, request->actor != 0, request->offset);
+        mm_kauai_movie_sound_play(vpsndm, request);
     };
     output.stop_class = StopMovieSoundClass;
     output.playing_class = [](void *, MMI32 soundClass) -> int { return vpsndm->FPlayingAll(sqnNil, soundClass); };
