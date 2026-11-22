@@ -14,6 +14,7 @@
 #include <new>
 #include "kidframe.h"
 #include "handle_services.h"
+#include "resource_archive_host.h"
 ASSERTNAME
 #include "rich_text_store_host.h"
 #include "text_document_host.h"
@@ -81,15 +82,15 @@ void TextDocument::MarkMem(void)
     Static method to read a help text document from the source cache
     and using the given prca as the source for pictures and buttons.
 ***************************************************************************/
-PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyResourceFile source, ChunkTagOrType ctg,
+PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, MMResourceCache *source, ChunkTagOrType ctg,
                                           ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
 {
     AssertPo(prca, 0);
-    AssertPo(source, 0);
+    AssertVarMem(source);
     struct Factory : TextDocumentFactoryHost
     {
         PResourceCache cache;
-        PChunkyResourceFile file;
+        MMResourceCache *file;
         ChunkTagOrType type;
         ChunkNumber number;
         PStringRegistry strings;
@@ -128,10 +129,10 @@ PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyResourceF
 /***************************************************************************
     Read the given chunk into this RichTextDocument.
 ***************************************************************************/
-bool TextDocument::_FReadResource(PChunkyResourceFile source, ChunkTagOrType ctg, ChunkNumber cno,
+bool TextDocument::_FReadResource(MMResourceCache *source, ChunkTagOrType ctg, ChunkNumber cno,
                                  PStringRegistry pstrg, ulong grftxhd)
 {
-    AssertPo(source, 0);
+    AssertVarMem(source);
     AssertNilOrPo(pstrg, 0);
     HelpHost host(this);
     host.strings = pstrg;

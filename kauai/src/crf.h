@@ -168,7 +168,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMArchiveWriter ArchiveWriter();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);
-    PChunkyResourceFile PcrfOpenForest(ChunkTagOrType, ChunkNumber);
 
     LegacyLong CbMax(void)
     {

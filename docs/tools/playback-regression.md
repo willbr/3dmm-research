@@ -21048,3 +21048,32 @@ the retained retail and V3DMM captures and ran SDL Studio and Marcus again.
 
 Traces and room captures are under `tmp/c89-cache-owner-boundary`.
 Playback captures are under `tmp/c89-rscap`.
+
+## C89 embedded help archives (22 November 2026)
+
+Studio opens embedded help topics through a C89 resource cache and a
+read-only archive owner. The C binding decodes the forest and retains its
+extent independently of the outer cache. The fixture checks packed and
+unpacked forests, truncated input, missing chunks, and child reads after
+both caches close.
+
+All 199 engine, core link and C89 checks passed. The Archive API and resource
+cache checks passed on native x86, native x64 and SDL. Movie save/load passed
+on native x64 and SDL, and both 5,324-byte Help Text traces matched the
+retained baseline. The separate x64 `scene-load` test still reports its
+baseline fingerprint mismatch and produced identical output bytes.
+
+The desktop Studio smoke test opened the retail Help Book with F1 and
+completed the save/discard workflow. All five smoke-test canvases, including
+Help, matched `0f7b05e5` byte for byte. The Studio authoring save and seven
+Marcus saves also matched that baseline byte for byte.
+
+All eight 60-frame actor runs in `20261122T075627Z-18ea2845` matched their
+respective prior seek canvases, camera and actor state, and continuous frame
+order. Prior retail differences and timing and presentation limits
+reproduced. The four players reopened the copied 3D text save with identical
+canvases in `20261122T075744Z-0edbe298`. Both suites reused retained retail
+and V3DMM captures and reran SDL Studio and Marcus.
+
+Traces and Studio canvases are under `tmp/c89-help-archive`. Playback
+captures are under `tmp/c89-rscap`.

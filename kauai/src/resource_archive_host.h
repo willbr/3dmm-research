@@ -1,6 +1,8 @@
 #ifndef KAUAI_RESOURCE_ARCHIVE_HOST_H
 #define KAUAI_RESOURCE_ARCHIVE_HOST_H
 
+#include "mm/types.h"
+
 struct MMChunkOwnerRead;
 struct MMNamedArchiveServices;
 struct MMNativeArchiveSource;
@@ -10,6 +12,7 @@ class Filename;
 namespace Chunky
 {
 MMResourceCache *OpenWorkingResourceCache(Filename *, bool create, int budget = 0);
+MMResourceCache *OpenForestResourceCache(MMResourceCache *, MMU32 type, MMU32 number);
 const MMNamedArchiveServices *KauaiNamedArchiveServices();
 
 // A successful cache owns the source of the borrowed reader. When selected

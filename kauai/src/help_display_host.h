@@ -25,14 +25,15 @@ struct TextDocument::DisplayHost : HelpHost
         s.find = [](void *v, const MMTextChunk *p, void **out) -> int {
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {
-                *out = h.help->_prca->PcrfFindChunk(p->type, p->number);
-                return *out != nullptr;
+                const auto file = h.help->_prca->PcrfFindChunk(p->type, p->number);
+                *out = file ? file->CoreCache() : nullptr;
+                return file != nullptr;
             });
         };
         s.child = [](void *v, void *cache, const MMTextChunk *p, MMU32 id, MMTextChunk *out) -> int {
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {
-                const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
+                const auto chunks = mm_resource_cache_chunks(static_cast<MMResourceCache *>(cache));
                 MMU32 bitmap;
                 if (mm_chunk_link_number(&chunks, p->type, p->number, id, kctgMbmp, &bitmap) != MM_CHUNK_OK)
                     return false;
@@ -43,7 +44,7 @@ struct TextDocument::DisplayHost : HelpHost
         s.fetch = [](void *v, void *cache, const MMTextChunk *p, void **out) -> int {
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {
-                *out = cache ? FetchMaskedBitmap(static_cast<PChunkyResourceFile>(cache), p->type, p->number)
+                *out = cache ? FetchMaskedBitmap(static_cast<MMResourceCache *>(cache), p->type, p->number)
                              : FetchMaskedBitmap(h.help->_prca, p->type, p->number);
                 return *out != nullptr;
             });

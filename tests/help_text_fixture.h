@@ -17,13 +17,13 @@ struct HelpTextProbe : Help::TextDocument
               ulong flags = 0)
     {
         auto cache = ChunkyResourceFile::PcrfNew(file, 0);
-        const bool ok = cache && _FReadResource(cache, root.ctg, root.cno, strings, flags);
+        const bool ok = cache && _FReadResource(cache->CoreCache(), root.ctg, root.cno, strings, flags);
         ReleasePpo(&cache);
         return ok;
     }
     bool Load(PChunkyResourceFile cache, ChunkIdentification root)
     {
-        return _FReadResource(cache, root.ctg, root.cno, nullptr, 0);
+        return _FReadResource(cache->CoreCache(), root.ctg, root.cno, nullptr, 0);
     }
     bool Arg(LiveTextTrace &t, byte kind, const std::vector<byte> &bytes, short order)
     {

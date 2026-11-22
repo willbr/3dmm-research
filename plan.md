@@ -1819,6 +1819,10 @@ Studio's Kidspace descriptors now give their C89 cache directly to script
 and artwork loaders. The C cache owns their references and streaming
 priorities. Studio movie thumbnails also load from a C-owned working cache.
 The C resource services no longer carry a back-pointer to a C++ cache wrapper.
+Studio loads embedded help archives through the C89 resource cache and
+read-only archive owner. The owner decodes and retains the forest's file
+extent independently of the outer cache. Help text and artwork read from
+the C cache, with the host supplying file access, decoding and drawing.
 Studio and Marcus share the C89 rich-text binding for stored TEXT extents,
 file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables

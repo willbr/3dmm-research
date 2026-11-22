@@ -132,7 +132,7 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
         s.forest = [](void *v, void *f, MMU32 t, MMU32 n) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                const auto chunks = static_cast<PChunkyResourceFile>(f)->ReadChunkAccess();
+                const auto chunks = mm_resource_cache_chunks(static_cast<MMResourceCache *>(f));
                 MMU32 position;
                 MMChunkEntry entry;
                 return mm_chunk_find(&chunks, t, n, &position) == MM_CHUNK_OK &&
@@ -142,14 +142,14 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
         s.open_forest = [](void *v, void *f, MMU32 t, MMU32 n, void **out) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                *out = static_cast<PChunkyResourceFile>(f)->PcrfOpenForest(t, n);
+                *out = OpenForestResourceCache(static_cast<MMResourceCache *>(f), t, n);
                 return *out != nullptr;
             });
         };
         s.first = [](void *v, void *f, MMU32 t, MMU32 *out) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                const auto chunks = static_cast<PChunkyResourceFile>(f)->ReadChunkAccess();
+                const auto chunks = mm_resource_cache_chunks(static_cast<MMResourceCache *>(f));
                 MMChunkEntry entry;
                 MMU32 position;
                 if (mm_chunk_type_at(&chunks, t, 0, &entry, &position) != MM_CHUNK_OK)
@@ -158,8 +158,8 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
                 return true;
             });
         };
-        s.retain = [](void *, void *f) { static_cast<PChunkyResourceFile>(f)->AddRef(); };
-        s.release = [](void *, void *f) { static_cast<PChunkyResourceFile>(f)->Release(); };
+        s.retain = [](void *, void *f) { mm_resource_cache_retain(static_cast<MMResourceCache *>(f)); };
+        s.release = [](void *, void *f) { mm_resource_cache_release(static_cast<MMResourceCache *>(f)); };
         s.header = [](void *v, void *f, MMU32 t, MMU32 n, void *out, MMI32 *bytes) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
@@ -169,7 +169,7 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
                     MMI32 *bytes;
                 } header = {out, bytes};
                 int read;
-                return mm_resource_cache_visit_payload(static_cast<PChunkyResourceFile>(f)->CoreCache(), t, n,
+                return mm_resource_cache_visit_payload(static_cast<MMResourceCache *>(f), t, n,
                     KauaiDecodeBlockHandle, nullptr, [](void *context, const MMReadStream *stream) -> int {
                         auto header = static_cast<Header *>(context);
                         *header->bytes = stream->length;
@@ -181,7 +181,7 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
         s.child = [](void *v, void *f, MMU32 t, MMU32 n, MMTextChunk *out) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                const auto chunks = static_cast<PChunkyResourceFile>(f)->ReadChunkAccess();
+                const auto chunks = mm_resource_cache_chunks(static_cast<MMResourceCache *>(f));
                 MMU32 number;
                 if (mm_chunk_link_number(&chunks, t, n, 0, kctgRichText, &number) != MM_CHUNK_OK)
                     return false;
@@ -192,11 +192,11 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
         s.rich = [](void *v, void *f, const MMTextChunk *p, int copy) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                const auto cache = static_cast<PChunkyResourceFile>(f);
-                const auto reader = cache->ReadOwner();
+                const auto cache = static_cast<MMResourceCache *>(f);
+                const auto reader = mm_resource_cache_reader(cache);
                 if (!reader)
                     return false;
-                MovieArchiveHost archive(reader, cache->ArchiveWriter());
+                MovieArchiveHost archive(reader, mm_resource_cache_writer(cache));
                 return h.help->_FReadArchive(archive.Editor(), reader, p->type, p->number, copy != 0);
             });
         };

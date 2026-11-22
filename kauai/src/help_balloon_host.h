@@ -141,14 +141,15 @@ struct Balloon::BalloonHost : TextDocumentFactoryHost
         s.find = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<BalloonHost *>(v);
             return h.Guard([&] {
-                *out = h.cache->PcrfFindChunk(kctgHelpTopic, n);
-                return *out != nullptr;
+                const auto file = h.cache->PcrfFindChunk(kctgHelpTopic, n);
+                *out = file ? file->CoreCache() : nullptr;
+                return file != nullptr;
             });
         };
         s.read = [](void *v, void *p, MMU32 n, void **out) -> int {
             auto &h = *static_cast<BalloonHost *>(v);
             return h.Guard([&] {
-                *out = TextDocument::PtxhdReadChunk(h.cache, static_cast<PChunkyResourceFile>(p), kctgHelpTopic,
+                *out = TextDocument::PtxhdReadChunk(h.cache, static_cast<MMResourceCache *>(p), kctgHelpTopic,
                                                     n, h.world->Pstrg());
                 return *out != nullptr;
             });

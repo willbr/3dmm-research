@@ -466,6 +466,49 @@ static int SharedArchiveSourceCase()
     return 0;
 }
 
+static int EmbeddedForestCase(bool packed)
+{
+    constexpr MMU32 container = 0x464f5253UL, root = 0x524f4f54UL, leaf = 0x4c454146UL;
+    std::array<byte, 48 + 512> wire = {
+        1,0,3,0, 'T','O','O','R', 0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+        1,0,3,0, 'F','A','E','L', 7,0,0,0, 0,2,0,0, 0,0,0,0, 0,0,0,0
+    };
+    std::memset(wire.data() + 48, 0x61, 512);
+    Filename path;
+    CHECK(path.FGetTemp());
+    auto file = ChunkyFile::PcflCreate(&path, fcflWriteEnable);
+    CHECK(file && file->FPutPv(wire.data(), wire.size(), container, 0));
+    CHECK(file->FPutPv(wire.data(), wire.size() - 1, container, 1));
+    file->SetForest(container, 0);
+    file->SetForest(container, 1);
+    if (packed)
+        CHECK(file->FPackData(container, 0) && file->FPacked(container, 0));
+    CHECK(file->FSave(container));
+    ReleasePpo(&file);
+
+    const auto source = OpenWorkingResourceCache(&path, false);
+    CHECK(source && !OpenForestResourceCache(source, container, 1) && !OpenForestResourceCache(source, container, 2));
+    const auto forest = OpenForestResourceCache(source, container, 0);
+    mm_resource_cache_release(source);
+    CHECK(forest && !forest->services.objects.state);
+    MMChunkFileCopy binding;
+    CHECK(!mm_resource_cache_live_copy_target(forest, &binding).identity);
+    const auto graph = mm_resource_cache_chunks(forest);
+    MMU32 number;
+    CHECK(graph.count == 2 && mm_chunk_link_number(&graph, root, 0, 7, leaf, &number) == MM_CHUNK_OK);
+    MMOwnedBlock block;
+    MMBlockIO io;
+    std::array<byte, 512> payload;
+    CHECK(mm_owned_block_init(&block, forest->services.handles, forest->services.block_files) == MM_DATA_OK);
+    CHECK(mm_resource_cache_read_block(forest, leaf, number, &block) == MM_CHUNK_OK && !block.view.packed);
+    mm_resource_cache_release(forest);
+    CHECK(mm_owned_block_io(&block, &io) == MM_DATA_OK && block.view.length == payload.size() &&
+          mm_block_read(&io, 0, payload.data(), payload.size(), 0) == MM_DATA_OK &&
+          !std::memcmp(payload.data(), wire.data() + 48, payload.size()));
+    CHECK(mm_owned_block_clear(&block) == MM_DATA_OK && path.FDelete());
+    return 0;
+}
+
 int main()
 {
     if (const char *path = std::getenv("MM_RESOURCE_CACHE_SNAPSHOT"))
@@ -474,7 +517,8 @@ int main()
         CHECK(resourceSnapshot);
     }
     CHECK(CacheCases() == 0 && ManagerCases() == 0 && LargeResidentCase() == 0 &&
-          WireSourceCase(false) == 0 && WireSourceCase(true) == 0 && SharedArchiveSourceCase() == 0);
+          WireSourceCase(false) == 0 && WireSourceCase(true) == 0 && SharedArchiveSourceCase() == 0 &&
+          EmbeddedForestCase(false) == 0 && EmbeddedForestCase(true) == 0);
     if (resourceSnapshot)
         CHECK(std::fclose(resourceSnapshot) == 0);
     return 0;

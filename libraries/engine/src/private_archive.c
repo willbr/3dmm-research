@@ -380,6 +380,25 @@ MMPrivateArchive *mm_private_archive_open_forest(const MMBlockFile *extent, cons
     return NULL;
 }
 
+MMPrivateArchive *mm_private_archive_open_resource_forest(MMResourceCache *source, MMU32 type, MMU32 number,
+                                                         MMBlockTransform decode, void *decode_context,
+                                                         const MMChunkOwnerFileIO *io, const MMBlockFileServices *files,
+                                                         const MMPrivateArchiveProfile *profile)
+{
+    MMPrivateArchive *archive = NULL;
+    MMOwnedBlock block;
+    MMBlockFile extent;
+    if (!source || !io || !io->release || source->services.block_files != files ||
+        mm_owned_block_init(&block, source->services.handles, files) != MM_DATA_OK)
+        return NULL;
+    if (mm_resource_cache_read_block(source, type, number, &block) == MM_CHUNK_OK &&
+        mm_owned_block_code(&block, 0, decode_context, decode, NULL) == MM_DATA_OK &&
+        mm_owned_block_materialize(&block, 0, &extent) == MM_DATA_OK)
+        archive = mm_private_archive_open_forest(&extent, io, files, profile);
+    mm_owned_block_clear(&block);
+    return archive;
+}
+
 MMPrivateArchive *mm_private_archive_find(const MMChunkContext *registry, void *file)
 {
     MMPrivateArchive *archive;

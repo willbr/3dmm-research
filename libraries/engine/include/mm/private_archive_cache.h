@@ -13,6 +13,13 @@ void mm_private_archive_cache_services(MMPrivateArchive *, const MMHandleService
 MMResourceCache *mm_private_archive_cache_create(MMPrivateArchive *, MMI32 budget,
                                                  const MMResourceServices *,
                                                  const MMStorageAllocator *owner, const MMStorageAllocator *storage);
+/* Open the selected forest chunk as a read-only archive. The archive retains
+ * the decoded extent independently of the source cache. The file services
+ * must match those used by the source cache. */
+MMPrivateArchive *mm_private_archive_open_resource_forest(MMResourceCache *, MMU32 type, MMU32 number,
+                                                         MMBlockTransform decode, void *decode_context,
+                                                         const MMChunkOwnerFileIO *, const MMBlockFileServices *,
+                                                         const MMPrivateArchiveProfile *);
 
 typedef struct MMSharedArchiveCacheServices
 {
