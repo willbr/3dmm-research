@@ -5,6 +5,7 @@
 #include "mm/caption_layout.h"
 #include "mm/caption_render.h"
 #include "caption_quad.h"
+#include "caption_faces.h"
 #include "caption_raster.h"
 #include "caption_runs.h"
 #include "sdl_audio.h"
@@ -16,9 +17,7 @@
 #include <SDL3/SDL.h>
 #include <cmath>
 #include <exception>
-#include <map>
 #include <new>
-#include <tuple>
 #include <stdexcept>
 #include <utility>
 
@@ -166,26 +165,6 @@ struct CaptionImage
     PreviewCaption data;
     CaptionLayout runs;
 };
-using FaceKey = std::tuple<std::string, int, int>;
-KauaiFonts::Text FontText(const std::string &text, std::vector<std::uint16_t> &units)
-{
-    // Font family names are UTF-8 in the public preview API.
-    for (std::size_t i = 0; i < text.size();)
-    {
-        std::uint32_t c = static_cast<unsigned char>(text[i++]);
-        int follow = c < 128 ? 0 : c < 224 ? 1 : c < 240 ? 2 : 3;
-        c &= follow ? (1u << (6 - follow)) - 1 : 127;
-        while (follow-- && i < text.size())
-            c = (c << 6) | (static_cast<unsigned char>(text[i++]) & 63);
-        if (c > 0xffff)
-        {
-            units.push_back(static_cast<std::uint16_t>(0xd800 + ((c - 0x10000) >> 10)));
-            c = 0xdc00 + ((c - 0x10000) & 1023);
-        }
-        units.push_back(static_cast<std::uint16_t>(c));
-    }
-    return {units.data(), units.size(), KauaiFonts::Encoding::utf16};
-}
 } // namespace
 struct MarcusPlayback::Impl
 {
@@ -194,7 +173,7 @@ struct MarcusPlayback::Impl
     std::vector<CaptionImage> captions;
     std::unique_ptr<CaptionImage> draft;
     MMCaptionPresentation captionPresentation{};
-    std::map<FaceKey, std::unique_ptr<KauaiFonts::Face>> faces;
+    MarcusCaptionFaces faces{};
     std::shared_ptr<KauaiFonts::FontCatalog> fonts;
     MarcusCaptionRasterCache captionRasters{};
     std::unique_ptr<MarcusPlaybackAudio, decltype(&marcus_playback_audio_destroy)> audio{
@@ -209,6 +188,7 @@ struct MarcusPlayback::Impl
     }
     ~Impl()
     {
+        marcus_caption_faces_clear(&faces);
         marcus_caption_raster_clear(&captionRasters);
         mm_caption_presentation_dispose(&captionPresentation);
         mm_graphics_movie_frames_dispose(&movieFrames);
@@ -225,41 +205,59 @@ struct MarcusPlayback::Impl
         ClearTransition();
         mm_caption_presentation_rewind(&captionPresentation);
     }
-    KauaiFonts::Face *Face(const std::string &font, int pixels, int flags)
+    KauaiFonts::Face *Face(const MMCaptionStyle &style)
     {
-        auto key = std::make_tuple(font, pixels, flags);
-        auto found = faces.find(key);
-        if (found != faces.end())
-            return found->second.get();
-        if (faces.size() >= 128)
-            faces.clear();
-        std::vector<std::uint16_t> family;
-        auto text = FontText(font.empty() ? "Arial" : font, family);
-        std::unique_ptr<KauaiFonts::Face> face;
-        if (fonts)
+        struct Source
         {
-            KauaiFonts::FreeTypeOptions options;
-            options.pixels = pixels;
-            options.bold = (flags & 1) != 0;
-            options.italic = (flags & 2) != 0;
-            options.underline = (flags & 4) != 0;
-            options.legacyCellMetrics = true;
-            const auto familyName = font.empty() ? "Arial" : font;
-            if (fonts->Find(familyName, options))
-            {
-                face = fonts->Open(familyName, options);
-                if (!face) return nullptr; // A bundled face must not silently become an installed substitute.
-            }
-        }
-        if (!face)
-            face = KauaiFonts::CreateStudioFace(text, pixels, (flags & 1) != 0, (flags & 2) != 0,
-                                               (flags & 4) != 0);
-        if (!face)
-            face = KauaiFonts::CreateStudioFace({"System", 6}, pixels, (flags & 1) != 0,
-                                                (flags & 2) != 0, (flags & 4) != 0);
-        auto result = face.get();
-        faces.emplace(key, std::move(face));
-        return result;
+            KauaiFonts::FontCatalog *bundle;
+            std::exception_ptr failure;
+        } source{fonts.get(), {}};
+        const MarcusCaptionFaceServices services{
+            &source,
+            fonts ? +[](void *p, const MMCaptionFont *name, const MarcusCaptionFaceOptions *settings, void **out) -> int {
+                auto &source = *static_cast<Source *>(p);
+                try
+                {
+                    const std::string family(name->name, name->length);
+                    KauaiFonts::FreeTypeOptions options;
+                    options.pixels = settings->pixels;
+                    options.bold = settings->bold;
+                    options.italic = settings->italic;
+                    options.underline = settings->underline;
+                    options.legacyCellMetrics = true;
+                    if (!source.bundle->Find(family, options))
+                        return MARCUS_CAPTION_FACE_MISSING;
+                    auto face = source.bundle->Open(family, options);
+                    if (!face)
+                        return MARCUS_CAPTION_FACE_FAILED;
+                    *out = face.release();
+                    return MARCUS_CAPTION_FACE_READY;
+                }
+                catch (...) { source.failure = std::current_exception(); return MARCUS_CAPTION_FACE_FAILED; }
+            } : nullptr,
+            [](void *p, const void *name, std::size_t length, int utf16,
+               const MarcusCaptionFaceOptions *settings, void **out) -> int {
+                auto &source = *static_cast<Source *>(p);
+                try
+                {
+                    const auto encoding = utf16 ? KauaiFonts::Encoding::utf16 : KauaiFonts::Encoding::legacyBytes;
+                    auto face = KauaiFonts::CreateStudioFace({name, length, encoding}, settings->pixels,
+                                                            settings->bold, settings->italic, settings->underline);
+                    if (!face)
+                        return MARCUS_CAPTION_FACE_MISSING;
+                    *out = face.release();
+                    return MARCUS_CAPTION_FACE_READY;
+                }
+                catch (...) { source.failure = std::current_exception(); return MARCUS_CAPTION_FACE_FAILED; }
+            },
+            [](void *p) { delete static_cast<KauaiFonts::Face *>(p); }};
+        void *face = nullptr;
+        const int status = marcus_caption_face_get(&faces, &style, &services, &face);
+        if (source.failure)
+            std::rethrow_exception(source.failure);
+        if (status == MARCUS_CAPTION_FACE_MEMORY)
+            throw std::bad_alloc();
+        return static_cast<KauaiFonts::Face *>(face);
     }
     struct CaptionFontHost
     {
@@ -284,7 +282,7 @@ struct MarcusPlayback::Impl
                 [](void *p, const MMCaptionStyle *style) -> int {
                     auto &ctx = *static_cast<CaptionFontHost *>(p);
                     return ctx.Read([&] {
-                        ctx.face = ctx.host.Face({style->font.name, style->font.length}, style->pixels, style->flags);
+                        ctx.face = ctx.host.Face(*style);
                         return ctx.face != nullptr;
                     });
                 },
@@ -371,7 +369,7 @@ MarcusPlayback::MarcusPlayback() : impl(new Impl)
 MarcusPlayback::~MarcusPlayback() = default;
 void MarcusPlayback::SetFonts(std::shared_ptr<KauaiFonts::FontCatalog> fonts)
 {
-    impl->faces.clear();
+    marcus_caption_faces_clear(&impl->faces);
     marcus_caption_raster_clear(&impl->captionRasters);
     impl->fonts = std::move(fonts);
 }
@@ -719,7 +717,8 @@ bool MarcusPlayback::CaptionCaret(int offset)
 
 bool MarcusPlayback::CaptionFontSample(const std::string &family, PreviewImage &image)
 {
-    auto face = impl->Face(family, 20, 0);
+    const MMCaptionStyle style{{family.data(), family.size()}, 20, 0, 0, 0, 0};
+    auto face = impl->Face(style);
     KauaiFonts::Mask mask;
     if (!face || !face->Rasterize({"Aa Bb 123", 9}, mask) || mask.width <= 0 || mask.height <= 0 ||
         mask.width > 1024 || mask.height > 128 || mask.pitch < mask.width ||

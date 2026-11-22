@@ -22959,3 +22959,28 @@ Marcus Text Acid candidate `20261122T212841Z-66b23ed5` matched
 It reproduced the 240-frame seek and playback order from retail and V3DMM
 in `20261122T033140Z-2abe2197` and `20261122T033233Z-5e23a412`. Evidence is
 under `tmp/c89-caption-raster` and `tmp/c89-caption-presentation/capture`.
+
+## C89 Marcus caption face cache (22 November 2026)
+
+C89 owns the 128-entry face cache and chooses between bundled families,
+installed fonts, and System. It resolves an empty family to Arial and uses
+the shared UTF-8 decoder for installed family names. A failed load of a
+matched bundled face reports the error to the caller. The host opens the
+selected font and supplies its metrics and masks.
+
+Eight headless renders using installed and ZIP-bundled Arial matched byte
+for byte across 544-by-306 and 1440-by-1080 views. The generated bundled font
+produced different caption pixels from the installed font in both builds.
+The x86 fixture passed the fallback, cache reuse, and eviction checks.
+The x86 worker built and the startup capture matched byte for byte.
+
+The parallel native run passed 225 of 226 tests. `sound-payload` reported
+an error creating or writing its temporary file and passed all three
+isolated reruns. The caption playback test included ZIP font selection,
+scroll timing, and frame-preview rendering.
+
+Marcus Text Acid candidate `20261122T213547Z-fa9451c5` matched
+`20261122T212841Z-66b23ed5` on all 240 seek canvases and recorded states.
+It reproduced the 240-frame seek and playback order from retail and V3DMM
+in `20261122T033140Z-2abe2197` and `20261122T033233Z-5e23a412`. Evidence is
+under `tmp/c89-caption-faces` and `tmp/c89-caption-presentation/capture`.

@@ -4,6 +4,7 @@
 #include "sound_sheet.h"
 #include "caption_runs.h"
 #include "caption_raster.h"
+#include "caption_faces.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -489,6 +490,108 @@ failed:
     return ok;
 }
 
+typedef struct CaptionFaceProbe
+{
+    int bundled, installed, system, released;
+    int bundle_result, system_result;
+    int saw_arial, saw_unicode;
+} CaptionFaceProbe;
+
+static int caption_face_bundled(void *p, const MMCaptionFont *name, const MarcusCaptionFaceOptions *options, void **out)
+{
+    CaptionFaceProbe *probe = p;
+    (void)options;
+    ++probe->bundled;
+    if (name->length == 5 && !memcmp(name->name, "Arial", 5))
+        probe->saw_arial = 1;
+    if (probe->bundle_result == MARCUS_CAPTION_FACE_READY)
+        *out = probe;
+    return probe->bundle_result;
+}
+
+static int caption_face_installed(void *p, const void *name, size_t units, int utf16,
+                                  const MarcusCaptionFaceOptions *options, void **out)
+{
+    const unsigned short non_ascii[] = {'A', 0xe9, 0xd83d, 0xdcbe};
+    CaptionFaceProbe *probe = p;
+    if (utf16)
+    {
+        ++probe->installed;
+        if (units == 4 && !memcmp(name, non_ascii, sizeof(non_ascii)) &&
+            options->bold && options->italic && options->underline)
+            probe->saw_unicode = 1;
+        return MARCUS_CAPTION_FACE_MISSING;
+    }
+    if (units != 6 || memcmp(name, "System", 6))
+        return MARCUS_CAPTION_FACE_FAILED;
+    ++probe->system;
+    if (probe->system_result == MARCUS_CAPTION_FACE_READY)
+        *out = probe;
+    return probe->system_result;
+}
+
+static void caption_face_release(void *p)
+{
+    ++((CaptionFaceProbe *)p)->released;
+}
+
+static int check_caption_faces(MarcusPlayer *player)
+{
+    const char unicode[] = "A\xc3\xa9\xf0\x9f\x92\xbe";
+    CaptionFaceProbe probe = {0};
+    MarcusCaptionFaces cache = {0};
+    MarcusCaptionFaceServices services = {NULL, caption_face_bundled, caption_face_installed, caption_face_release};
+    MMCaptionStyle style = {{NULL, 0}, 12, 7, 0, 0, 0};
+    void *face = NULL;
+    int ok = 0, i;
+    services.context = &probe;
+
+    probe.bundle_result = MARCUS_CAPTION_FACE_FAILED;
+    CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_FAILED);
+    CHECK(probe.saw_arial && !probe.installed && !probe.system && !face && !cache.count);
+    probe.bundle_result = MARCUS_CAPTION_FACE_READY;
+    CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_READY);
+    CHECK(face == &probe && cache.count == 1 && probe.bundled == 2);
+    probe.bundle_result = MARCUS_CAPTION_FACE_MISSING;
+    CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_READY);
+    CHECK(probe.bundled == 2);
+
+    style.font.name = unicode;
+    style.font.length = sizeof(unicode) - 1;
+    probe.system_result = MARCUS_CAPTION_FACE_READY;
+    CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_READY);
+    CHECK(face == &probe && probe.saw_unicode && probe.installed == 1 && probe.system == 1);
+    style.font.name = "Missing";
+    style.font.length = 7;
+    probe.system_result = MARCUS_CAPTION_FACE_MISSING;
+    face = NULL;
+    CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_MISSING);
+    CHECK(!face && cache.count == 3 && probe.installed == 2 && probe.system == 2);
+    CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_MISSING);
+    CHECK(!face && probe.installed == 2 && probe.system == 2);
+    marcus_caption_faces_clear(&cache);
+    CHECK(probe.released == 2);
+
+    probe.bundle_result = MARCUS_CAPTION_FACE_READY;
+    for (i = 1; i <= MARCUS_CAPTION_FACE_LIMIT; ++i)
+    {
+        style.pixels = i;
+        CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_READY);
+    }
+    CHECK(cache.count == MARCUS_CAPTION_FACE_LIMIT);
+    ++style.pixels;
+    probe.bundle_result = MARCUS_CAPTION_FACE_FAILED;
+    CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_FAILED);
+    CHECK(cache.count == MARCUS_CAPTION_FACE_LIMIT && probe.released == 2);
+    probe.bundle_result = MARCUS_CAPTION_FACE_READY;
+    CHECK(marcus_caption_face_get(&cache, &style, &services, &face) == MARCUS_CAPTION_FACE_READY);
+    CHECK(cache.count == 1 && probe.released == 2 + MARCUS_CAPTION_FACE_LIMIT);
+    ok = 1;
+failed:
+    marcus_caption_faces_clear(&cache);
+    return ok && probe.released == 3 + MARCUS_CAPTION_FACE_LIMIT;
+}
+
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
@@ -527,6 +630,7 @@ int main(int argc, char **argv)
     CHECK(check_sound_sheet(player));
     CHECK(check_caption_runs(player));
     CHECK(check_caption_rasters(player));
+    CHECK(check_caption_faces(player));
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           movie_time.duration_seconds == 0);

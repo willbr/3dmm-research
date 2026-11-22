@@ -1634,6 +1634,10 @@ supplies font metrics, native and high-resolution masks, and palette colours.
 C89 owns the enlarged raster cache. It reuses runs by font, size, and text,
 averages supersampled coverage, and expands the native mask when the font
 provider has no larger strike.
+The C89 caption face cache keeps faces scoped to the active font catalog. It
+checks bundled families first and falls back to installed fonts and System
+when the family is unavailable. The font host opens and rasterizes the
+selected face.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

@@ -45,6 +45,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/playback_audio.c"
   "${SOURCE}/src/marcus/caption_runs.c"
   "${SOURCE}/src/marcus/caption_raster.c"
+  "${SOURCE}/src/marcus/caption_faces.c"
   "${SOURCE}/src/marcus/ribbon.c"
   "${SOURCE}/src/marcus/camera_guide.c"
   "${SOURCE}/src/marcus/camera_controls.c"
