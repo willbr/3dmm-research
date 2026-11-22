@@ -22520,3 +22520,28 @@ in `20261122T081603Z-7ffc4e8e`. All 252 selected test runs passed. The existing
 `0D666753`.
 
 Snapshots, workflows and checks are under `tmp/c89-actor-pose-journal`.
+
+## C89 insertion and frame-range journals (22 November 2026)
+
+Marcus stores inserted actors, props and generated text in authored insertion
+order in C89. Undo copies retain generated-template references and own their
+names. Preview and the 32-bit ASM worker read the same typed definitions as
+native export. Frame-edge edits retain one range per scene in C89. Native
+export reads that journal directly in scene-number order.
+
+All 238 selected checks passed, including strict C89 and the Marcus
+integration suite on x64, 12 SDL Studio checks and the x86 engine journal
+check. The rebuilt 32-bit worker handled live prop and scene insertion,
+prepended and appended frames, and structural undo. The default startup canvas
+and five saved native movies matched the previous build byte for byte.
+Retail reopened the inserted-object and animated-actor movies on a private
+Windows desktop. The inserted objects joined the stage at frame 2, and
+the animated movie reported its saved range of 1 through 162.
+
+Suite `20261122T183858Z-53aeeaa9` reproduced both ports' 60 seek canvases and
+recorded scene state. Both seek and continuous playback order matched the
+previous port runs and the retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`. The existing `scene-load` assertion reproduced
+the same 63,224-byte trace and fingerprint `0D666753`.
+
+Evidence is under `tmp/c89-live-insert-range`.

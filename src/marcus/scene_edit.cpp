@@ -130,10 +130,6 @@ static void ApplyCamera(const MMMovieArchiveEditor &editor, unsigned long number
                                                   static_cast<MMI32>(key), static_cast<MMU32>(camera)));
 }
 
-static void ApplySceneRange(const MMMovieArchiveEditor &editor, const MarcusSceneRange &range)
-{
-    CheckSceneFrameEdit(mm_scene_archive_set_range(&editor, static_cast<MMU32>(range.scene), range.first, range.last));
-}
 static void CheckActorArchiveEdit(int result)
 {
     static const char *const messages[] = {
@@ -227,17 +223,17 @@ struct ActorArchiveFiles
 }
 
 static void ApplyNewProp(MMPrivateArchive *file, MMPrivateArchive *library, const MMMovieArchiveEditor &destination,
-                         const MarcusNamedProp &prop)
+                         const MMMoviePropEdit &prop)
 {
     const auto source = mm_private_archive_editor(library);
     ActorArchiveFiles files{library, file};
     const MMActorAuthorHost host{&source, &destination, KauaiText::Services(), &files, ActorArchiveFiles::Copy};
-    const auto name = prop.file ? MarcusTextAnsi(prop.name.c_str()) : prop.name;
+    const std::string name = prop.file ? MarcusTextAnsi(prop.name) : prop.name;
     String caption;
     caption.SetSzs(const_cast<char *>(name.c_str()));
     const auto &definition = prop.definition;
-    const MMActorInsert insert{definition.scene, definition.number, definition.templateNumber,
-        definition.actorId, definition.first, definition.last, definition.point, caption.Prgch(),
+    const MMActorInsert insert{definition.scene, definition.number, definition.template_number,
+        definition.actor_id, definition.first, definition.last, definition.point, caption.Prgch(),
         static_cast<MMU32>(caption.Cch()), bool(prop.file)};
     int detail = 0;
     const int status = mm_actor_archive_insert(&host, &insert, &detail);
@@ -473,7 +469,7 @@ static void ApplyText(MMPrivateArchive *file, ChunkNumber actor, const MarcusTex
 static void ApplyCostumes(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTrackEdit &edit)
 {
     const auto profile = KauaiPrivateArchiveProfile();
-    const auto path = MarcusEditedTracks::File(edit)->path.u8string();
+    const auto path = MarcusEditFile::File(edit.file)->path.u8string();
     const auto status = marcus_archive_install_events(file, actor, path.c_str(), &profile);
     Require(status != MM_ACTOR_EDIT_ARCHIVE_COPY, "Cannot copy costume events.");
     CheckActorArchiveEdit(status);
@@ -533,7 +529,7 @@ static void ApplyText(MMPrivateArchive *file, ChunkNumber actorNumber, const Mar
 }
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const MMMoviePoseJournal &poses,
-    const std::vector<MarcusSceneRange> &ranges, const MarcusLiveEdits &edits, const std::filesystem::path &templates)
+    const MMMovieRangeJournal &ranges, const MarcusLiveEdits &edits, const std::filesystem::path &templates)
 {
     auto result = WorkingCopy(source, std::move(origin));
     auto file = MarcusOpenArchive(result->path, source.empty() ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_EDIT);
@@ -541,15 +537,20 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
     const auto editor = mm_private_archive_editor(file.get());
     for (const auto &scene : *edits.scenes) ApplyNewScene(editor, scene, source.empty());
     for (const auto &entry : *edits.storyboards) MarcusEmbedBoard(file.get(), entry.first, entry.second);
-    for (const auto &range : ranges) ApplySceneRange(editor, range);
-    if (!edits.props->empty())
+    const auto sceneRanges = mm_movie_range_journal_data(&ranges);
+    for (MMU32 i = 0; i < ranges.count; ++i)
+    {
+        const auto &range = sceneRanges[i];
+        CheckSceneFrameEdit(mm_scene_archive_set_range(&editor, range.scene, range.first, range.last));
+    }
+    if (edits.props->count)
     {
         auto library = MarcusOpenArchive(templates, MM_PRIVATE_ARCHIVE_READ);
         Require(bool(library), "Cannot open the prop library.");
         for (const auto &prop : *edits.props)
         {
             if (!prop.file) { ApplyNewProp(file.get(), library.get(), editor, prop); continue; }
-            auto textFile = MarcusOpenArchive(prop.file->path, MM_PRIVATE_ARCHIVE_READ);
+            auto textFile = MarcusOpenArchive(MarcusEditFile::File(prop.file)->path, MM_PRIVATE_ARCHIVE_READ);
             Require(bool(textFile), "Cannot open the 3D text template.");
             ApplyNewProp(file.get(), textFile.get(), editor, prop);
         }

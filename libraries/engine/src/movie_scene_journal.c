@@ -74,6 +74,74 @@ void mm_movie_scene_definitions_retarget(MMMovieSceneDefinitions *definitions, c
             items[i] = value;
 }
 
+int mm_movie_range_journal_init(MMMovieRangeJournal *journal, const MMStorageAllocator *allocator)
+{
+    journal->count = 0;
+    return mm_storage_init(&journal->storage, allocator) == MM_STORAGE_OK;
+}
+
+void mm_movie_range_journal_dispose(MMMovieRangeJournal *journal)
+{
+    mm_storage_dispose(&journal->storage);
+    journal->count = 0;
+}
+
+int mm_movie_range_journal_copy(MMMovieRangeJournal *destination, const MMMovieRangeJournal *source)
+{
+    if (destination != source &&
+        mm_storage_copy(&destination->storage, &source->storage, source->count * sizeof(MMMovieSceneRange), 0) != MM_STORAGE_OK)
+        return 0;
+    destination->count = source->count;
+    return 1;
+}
+
+const MMMovieSceneRange *mm_movie_range_journal_data(const MMMovieRangeJournal *journal)
+{
+    return (const MMMovieSceneRange *)journal->storage.buffers[0].data;
+}
+
+static MMU32 range_lower(const MMMovieRangeJournal *journal, MMU32 scene)
+{
+    const MMMovieSceneRange *items = mm_movie_range_journal_data(journal);
+    MMU32 first = 0, last = journal->count, middle;
+    while (first < last)
+    {
+        middle = first + (last - first) / 2;
+        if (items[middle].scene < scene)
+            first = middle + 1;
+        else
+            last = middle;
+    }
+    return first;
+}
+
+const MMMovieSceneRange *mm_movie_range_journal_find(const MMMovieRangeJournal *journal, MMU32 scene)
+{
+    const MMMovieSceneRange *items = mm_movie_range_journal_data(journal);
+    MMU32 position = range_lower(journal, scene);
+    return position < journal->count && items[position].scene == scene ? items + position : NULL;
+}
+
+int mm_movie_range_journal_set(MMMovieRangeJournal *journal, const MMMovieSceneRange *input)
+{
+    MMMovieSceneRange *items = (MMMovieSceneRange *)journal->storage.buffers[0].data;
+    MMMovieSceneRange value = *input;
+    MMU32 position = range_lower(journal, value.scene);
+    MMArray records;
+    if (value.first > value.last)
+        return 0;
+    if (position < journal->count && items[position].scene == value.scene)
+    {
+        items[position] = value;
+        return 1;
+    }
+    records = array(&journal->storage, sizeof(value), journal->count);
+    if (!insert(&records, position, &value))
+        return 0;
+    journal->count = records.count;
+    return 1;
+}
+
 int mm_movie_camera_journal_init(MMMovieCameraJournal *journal, const MMStorageAllocator *allocator)
 {
     journal->count = 0;
@@ -157,8 +225,120 @@ MMPreviewLiveCameraEdits mm_movie_camera_journal_preview(const MMMovieCameraJour
     return result;
 }
 
+int mm_movie_prop_journal_init(MMMoviePropJournal *journal, const MMStorageAllocator *allocator,
+                               const MMMovieEditFileServices *files)
+{
+    journal->count = 0;
+    journal->files = files;
+    return mm_storage_init(&journal->storage, allocator) == MM_STORAGE_OK;
+}
+
+const MMMoviePropEdit *mm_movie_prop_journal_data(const MMMoviePropJournal *journal)
+{
+    return (const MMMoviePropEdit *)journal->storage.buffers[0].data;
+}
+
+void mm_movie_prop_journal_dispose(MMMoviePropJournal *journal)
+{
+    const MMMoviePropEdit *items = mm_movie_prop_journal_data(journal);
+    MMU32 i;
+    for (i = 0; i < journal->count; ++i)
+        if (items[i].file)
+            journal->files->release(items[i].file);
+    mm_storage_dispose(&journal->storage);
+    journal->count = 0;
+}
+
+int mm_movie_prop_journal_copy(MMMoviePropJournal *destination, const MMMoviePropJournal *source)
+{
+    MMMoviePropJournal copy, old;
+    const MMMoviePropEdit *items;
+    MMU32 i;
+    if (destination == source)
+        return 1;
+    if (destination->files != source->files ||
+        !mm_movie_prop_journal_init(&copy, &destination->storage.allocator, destination->files))
+        return 0;
+    if (mm_storage_copy(&copy.storage, &source->storage, source->count * sizeof(*items), 0) != MM_STORAGE_OK)
+    {
+        mm_movie_prop_journal_dispose(&copy);
+        return 0;
+    }
+    items = mm_movie_prop_journal_data(&copy);
+    for (i = 0; i < source->count; ++i)
+        if (items[i].file)
+            copy.files->retain(items[i].file);
+    copy.count = source->count;
+    old = *destination;
+    *destination = copy;
+    mm_movie_prop_journal_dispose(&old);
+    return 1;
+}
+
+int mm_movie_prop_journal_append(MMMoviePropJournal *journal, const MMPreviewLiveProp *definition,
+                                const char *name, void *file)
+{
+    MMMoviePropEdit value;
+    MMArray records = array(&journal->storage, sizeof(value), journal->count);
+    size_t length = strlen(name);
+    if (length >= sizeof(value.name) || (file && !journal->files))
+        return 0;
+    memset(&value, 0, sizeof(value));
+    value.definition = *definition;
+    value.file = file;
+    memcpy(value.name, name, length + 1);
+    if (!insert(&records, records.count, &value))
+        return 0;
+    if (file)
+        journal->files->retain(file);
+    journal->count = records.count;
+    return 1;
+}
+
+int mm_movie_prop_journal_started(const MMMoviePropJournal *journal, MMU32 scene, MMI32 frame)
+{
+    const MMMoviePropEdit *items = mm_movie_prop_journal_data(journal);
+    MMU32 i;
+    for (i = 0; i < journal->count; ++i)
+        if (items[i].definition.scene == scene && items[i].definition.first <= frame)
+            return 1;
+    return 0;
+}
+
+int mm_movie_prop_placement_valid(const float point[3])
+{
+    int i;
+    for (i = 0; i < 3; ++i)
+        if (!(point[i] >= -32700.0f && point[i] <= 32700.0f))
+            return 0;
+    return 1;
+}
+
+static void preview_scene(void *context, MMU32 index, MMPreviewLiveScene *out)
+{
+    const MMMovieLiveDefinitions *definitions = (const MMMovieLiveDefinitions *)context;
+    *out = mm_movie_scene_definitions_data(definitions->scenes)[index];
+}
+
+static void preview_prop(void *context, MMU32 index, MMPreviewLiveProp *out)
+{
+    const MMMovieLiveDefinitions *definitions = (const MMMovieLiveDefinitions *)context;
+    *out = mm_movie_prop_journal_data(definitions->props)[index].definition;
+}
+
+MMPreviewLiveDefinitions mm_movie_definitions_preview(MMMovieLiveDefinitions *definitions)
+{
+    MMPreviewLiveDefinitions view;
+    view.context = definitions;
+    view.scene_count = definitions->scenes->count;
+    view.prop_count = definitions->props->count;
+    view.scene = preview_scene;
+    view.prop = preview_prop;
+    return view;
+}
+
 int mm_movie_track_journal_init(MMMovieActorTrackJournal *journal, const MMStorageAllocator *allocator,
-                               const MMMovieTrackFileServices *files)
+                               const MMMovieEditFileServices *files)
 {
     journal->count = 0;
     journal->files = files;

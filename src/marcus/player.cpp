@@ -7,6 +7,7 @@
 #include "mm/movie_undo.h"
 #include "mm/scene_edit.h"
 #include "mm/playback.h"
+#include "mm/text_resource.h"
 #include "mm/vmm_dependencies.h"
 #include "content.h"
 #include "movie_input.h"
@@ -130,8 +131,7 @@ struct MarcusPlayer
     unsigned internalOpenDepth = 0;
     bool modified = false;
     std::shared_ptr<const MarcusEditedPoses> poses = std::make_shared<MarcusEditedPoses>();
-    struct FrameRange { long first, last; };
-    using FrameRanges = std::map<unsigned long, FrameRange>;
+    using FrameRanges = MarcusEditedRanges;
     std::shared_ptr<const FrameRanges> frameRanges = std::make_shared<FrameRanges>();
     std::shared_ptr<const FrameRanges> materializedFrameRanges;
     std::shared_ptr<const MarcusLiveEdits> edits = std::make_shared<MarcusLiveEdits>();
@@ -208,8 +208,9 @@ struct EditHistory : KeepHistory
 // movie once; cached timing inputs are rescheduled for live frame ranges.
 std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
-    if (!player.poses->count && player.frameRanges->empty() && !player.edits->scenes->count &&
-        player.edits->props->empty() && !player.edits->cameras->count && player.edits->texts->empty() && !player.edits->costumes->count && player.edits->storyboards->empty()) return player.timingInput;
+    if (!player.poses->count && !player.frameRanges->count && !player.edits->scenes->count &&
+        !player.edits->props->count && !player.edits->cameras->count && player.edits->texts->empty() &&
+        !player.edits->costumes->count && player.edits->storyboards->empty()) return player.timingInput;
     if (player.materializedPoses == player.poses && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
     MarcusEditedPoses changes(*player.poses);
@@ -217,10 +218,8 @@ std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
         changes.Include(static_cast<MMU32>(entry.first.first), static_cast<MMU32>(entry.first.second));
     for (const auto &entry : *player.edits->costumes)
         changes.Include(entry.scene, entry.actor);
-    std::vector<MarcusSceneRange> ranges;
-    for (const auto &entry : *player.frameRanges) ranges.push_back({entry.first, entry.second.first, entry.second.last});
     auto file = MarcusMaterializeEdits(player.content ? player.content->movie : std::filesystem::path{}, player.timingInput,
-        changes, ranges, *player.edits, std::filesystem::u8path(player.timingContent) / "tmpls.3cn");
+        changes, *player.frameRanges, *player.edits, std::filesystem::u8path(player.timingContent) / "tmpls.3cn");
     player.materializedFile = file;
     player.materializedPoses = player.poses;
     player.materializedFrameRanges = player.frameRanges;
@@ -243,10 +242,10 @@ void UpdateSceneRanges(MarcusPlayer &player)
     }
     for (auto &scene : player.sceneInfo)
     {
-        const auto range = player.frameRanges->find(scene.chunk);
-        if (range == player.frameRanges->end()) continue;
-        scene.first_frame = range->second.first;
-        scene.last_frame = range->second.last;
+        const auto range = mm_movie_range_journal_find(player.frameRanges.get(), static_cast<MMU32>(scene.chunk));
+        if (!range) continue;
+        scene.first_frame = range->first;
+        scene.last_frame = range->last;
     }
 }
 bool EnsureResources(MarcusPlayer &player, MM::Error &error)
@@ -297,12 +296,12 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
 {
     if (!EnsureResources(player, error)) return false;
     const bool retailScene = mm_movie_scene_definitions_uses_source(player.edits->scenes.get(), player.retailSource);
-    if ((retailScene || !player.edits->props->empty()) && !EnsureRetailContent(player, error)) return false;
+    if ((retailScene || player.edits->props->count) && !EnsureRetailContent(player, error)) return false;
     for (const auto &entry : *player.edits->storyboards)
         if (entry.second.source && !MountGeneratedSource(player, entry.second.source, entry.second.file, error))
             return false;
     for (const auto &prop : *player.edits->props)
-        if (prop.file && !MountGeneratedSource(player, prop.definition.source, prop.file, error))
+        if (prop.file && !MountGeneratedSource(player, prop.definition.source, MarcusEditFile::File(prop.file), error))
             return false;
     for (const auto &entry : *player.edits->texts)
     {
@@ -310,20 +309,11 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
         if (!MountGeneratedSource(player, edit.source, edit.file, error)) return false;
     }
     for (const auto &edit : *player.edits->costumes)
-        if (!MountGeneratedSource(player, edit.source, MarcusEditedTracks::File(edit), error)) return false;
-    const MMPreviewLiveDefinitions definitions{
-        &player, player.edits->scenes->count, static_cast<MMU32>(player.edits->props->size()),
-        [](void *p, MMU32 index, MMPreviewLiveScene *out) {
-            *out = static_cast<MarcusPlayer *>(p)->edits->scenes->begin()[index];
-        },
-        [](void *p, MMU32 index, MMPreviewLiveProp *out) {
-            const auto &prop = (*static_cast<MarcusPlayer *>(p)->edits->props)[index].definition;
-            *out = {prop.scene, prop.number, prop.templateNumber, prop.source, prop.actorId, prop.first, prop.last,
-                    {prop.point[0], prop.point[1], prop.point[2]}};
-        }};
-    if (!player.preview.SetLiveDefinitions(definitions, error)) return false;
+        if (!MountGeneratedSource(player, edit.source, MarcusEditFile::File(edit.file), error)) return false;
+    MMMovieLiveDefinitions definitions{player.edits->scenes.get(), player.edits->props.get()};
+    if (!player.preview.SetLiveDefinitions(mm_movie_definitions_preview(&definitions), error)) return false;
     player.names = player.baseNames;
-    for (const auto &prop : *player.edits->props) player.names[prop.definition.actorId] = prop.name;
+    for (const auto &prop : *player.edits->props) player.names[prop.definition.actor_id] = prop.name;
     for (const auto &object : player.preview.Objects())
     {
         const auto edit = player.edits->texts->find({player.preview.Info().asset.number, object.asset.number});
@@ -399,16 +389,16 @@ bool MarcusPrepareEmpty(MarcusPlayer *player, const char *resources, const char 
     player->timingResources = resources; player->timingContent = content;
     return EnsureRetailContent(*player, error);
 }
-bool MarcusApplyLiveEdits(MarcusPlayer *player, const std::vector<MM::PreviewSceneDefinition> &scenes,
-                         const std::vector<MM::PreviewPropDefinition> &props,
+bool MarcusApplyLiveEdits(MarcusPlayer *player, const std::vector<MMPreviewLiveScene> &scenes,
+                         const std::vector<MMPreviewLiveProp> &props,
                          const std::vector<MarcusASM::CameraEdit> &cameras, std::uint64_t revision, MM::Error &error)
 {
     auto edits = std::make_shared<MarcusLiveEdits>();
     auto definitions = std::make_shared<MarcusLiveEdits::Scenes>();
-    for (const auto &scene : scenes) definitions->Append({scene.number, scene.background, scene.source});
+    for (const auto &scene : scenes) definitions->Append(scene);
     edits->scenes = definitions;
     auto named = std::make_shared<MarcusLiveEdits::Props>();
-    for (const auto &prop : props) named->push_back({prop, {}});
+    for (const auto &prop : props) named->Append(prop, "");
     edits->props = named;
     auto changes = std::make_shared<MarcusLiveEdits::Cameras>();
     for (const auto &camera : cameras) changes->Set({camera.scene, camera.frame, camera.camera});
@@ -797,7 +787,8 @@ struct RangeEditHost
     bool Prepare(const MMMovieRangeEdit &edit)
     {
         auto next = std::make_shared<MarcusPlayer::FrameRanges>(*movie.frameRanges);
-        (*next)[movie.scenes[movie.selected].number] = {edit.first, edit.last};
+        const MMMovieSceneRange range{movie.scenes[movie.selected].number, edit.first, edit.last};
+        if (!mm_movie_range_journal_set(next.get(), &range)) throw std::bad_alloc();
         ranges = std::move(next);
         history.emplace(movie);
         scenes = movie.sceneInfo;
@@ -1438,13 +1429,14 @@ std::shared_ptr<MarcusMovieFile> MarcusPrepareTextPreview(MarcusPlayer *player, 
     });
     return result;
 }
-static bool InsertObject(MarcusPlayer *player, MarcusNamedProp prop, int &result, MM::Error &error, const MarcusTextEdit *initial = nullptr)
+static bool InsertObject(MarcusPlayer *player, MMPreviewLiveProp definition, const char *name, int &result,
+                         MM::Error &error, const std::shared_ptr<MarcusMovieFile> &file = {},
+                         const MarcusTextEdit *initial = nullptr)
 {
     if (player->selected < 0) { error.message = "Create or open a scene before inserting an object."; return false; }
     if (!EnsureRetailContent(*player, error)) return false;
     if (player->nextObject > 0xffffffffULL || player->nextActorId > std::numeric_limits<std::int32_t>::max())
     { error.message = "No object IDs are available."; return false; }
-    auto &definition = prop.definition;
     if (!player->preview.NextPlacementPoint(definition.point)) { error.message = "This scene has no background placement point."; return false; }
     struct PlacementGuard
     {
@@ -1452,16 +1444,16 @@ static bool InsertObject(MarcusPlayer *player, MarcusNamedProp prop, int &result
         bool committed = false;
         ~PlacementGuard() { if (!committed) preview.ReusePlacementPoint(); }
     } placement{player->preview};
-    for (const auto value : definition.point)
-        if (!std::isfinite(value) || std::abs(value) > 32700) { error.message = "The placement point is out of range."; return false; }
+    if (!mm_movie_prop_placement_valid(definition.point))
+    { error.message = "The placement point is out of range."; return false; }
     definition.scene = player->scenes[player->selected].number;
     definition.number = static_cast<std::uint32_t>(player->nextObject++);
-    definition.actorId = static_cast<std::int32_t>(player->nextActorId++);
+    definition.actor_id = static_cast<std::int32_t>(player->nextActorId++);
     definition.first = player->preview.Info().currentFrame;
     definition.last = player->preview.Info().lastFrame;
     auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
     auto props = std::make_shared<MarcusLiveEdits::Props>(*edits->props);
-    props->push_back(prop); edits->props = props; edits->revision = player->nextEditRevision++;
+    props->Append(definition, name, file); edits->props = props; edits->revision = player->nextEditRevision++;
     if (initial)
     {
         auto texts = std::make_shared<MarcusLiveEdits::Texts>(*edits->texts);
@@ -1474,7 +1466,7 @@ static bool InsertObject(MarcusPlayer *player, MarcusNamedProp prop, int &result
     player->objects = player->preview.Objects();
     player->animations.clear();
     for (std::size_t index = 0; index < player->objects.size(); ++index)
-        if (player->objects[index].actorId == definition.actorId) result = static_cast<int>(index);
+        if (player->objects[index].actorId == definition.actor_id) result = static_cast<int>(index);
     if (result < 0) { error.message = "The new object could not be selected."; return false; }
     ++player->document; player->movieImageScene = -1;
     history.Commit();
@@ -1524,11 +1516,11 @@ static int InsertTemplate(MarcusPlayer *player, unsigned long chunk, bool actor)
         { error.message = player->error; return false; }
         const auto found = std::find_if(entries.begin(), entries.end(), [&](const auto &entry) { return entry.chunk == chunk; });
         if (found == entries.end()) { error.message = "The selected object is unavailable."; return false; }
-        MarcusNamedProp prop;
-        prop.definition.source = player->retailSource;
-        prop.definition.templateNumber = static_cast<std::uint32_t>(chunk);
-        prop.name = found->name;
-        return InsertObject(player, std::move(prop), result, error);
+        static_assert(sizeof(found->name) <= MM_MOVIE_PROP_NAME_BYTES, "catalogue name must fit the insert journal");
+        MMPreviewLiveProp definition{};
+        definition.source = player->retailSource;
+        definition.template_number = static_cast<MMU32>(chunk);
+        return InsertObject(player, definition, found->name, result, error);
     });
     return ok ? result : -1;
 }
@@ -2194,20 +2186,20 @@ extern "C"
                 ReadCatalogue(player, player->timingContent.c_str(), 2) < 0) { error.message = player->error; return false; }
             if (std::none_of(player->fonts.begin(), player->fonts.end(), [&](const auto &entry) { return entry.chunk == font; }))
             { error.message = "The selected 3D font is unavailable."; return false; }
-            MarcusNamedProp prop;
-            if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &prop.definition.source))
+            MMPreviewLiveProp definition{};
+            if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &definition.source))
             { error.message = "No text source IDs are available."; return false; }
-            prop.file = MarcusCreateTextTemplate(text, font, player->retailSource, shape);
-            prop.name = text;
-            prop.definition.templateNumber = 0;
+            static_assert(3 * (MM_TEXT_NAME_BYTES - 1) + 1 <= MM_MOVIE_PROP_NAME_BYTES,
+                          "validated text must fit the insert journal");
+            const auto file = MarcusCreateTextTemplate(text, font, player->retailSource, shape);
             MarcusTextEdit initial;
             if (options->appearance.enabled)
             {
-                if (!WriteMaterial(player, -1, options->appearance, *prop.file, error)) return false;
-                initial.file = prop.file; initial.source = prop.definition.source; initial.hasMaterial = true; initial.retailFont = true;
+                if (!WriteMaterial(player, -1, options->appearance, *file, error)) return false;
+                initial.file = file; initial.source = definition.source; initial.hasMaterial = true; initial.retailFont = true;
                 initial.value = {text, player->retailSource, shape, static_cast<std::uint32_t>(font)};
             }
-            return InsertObject(player, std::move(prop), result, error, options->appearance.enabled ? &initial : nullptr);
+            return InsertObject(player, definition, text, result, error, file, options->appearance.enabled ? &initial : nullptr);
         });
         return ok ? result : -1;
     }
@@ -2820,9 +2812,8 @@ extern "C"
             if (mm_movie_pose_journal_has_scene(player->poses.get(), player->scenes[index].number)) return true;
             if (mm_movie_track_journal_has_scene(player->edits->costumes.get(), player->scenes[index].number)) return true;
             if (static_cast<std::size_t>(index) >= player->baseSceneInfo.size()) return true;
-            for (const auto &prop : *player->edits->props)
-                if (prop.definition.scene == player->scenes[index].number && prop.definition.first <= player->sceneInfo[index].first_frame)
-                    return true;
+            if (mm_movie_prop_journal_started(player->edits->props.get(), player->scenes[index].number,
+                                             player->sceneInfo[index].first_frame)) return true;
             MMU32 count;
             const auto cameras = mm_movie_camera_journal_find(player->edits->cameras.get(), player->scenes[index].number, &count);
             for (MMU32 i = 0; i < count; ++i)

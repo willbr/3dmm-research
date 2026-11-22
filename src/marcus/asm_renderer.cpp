@@ -115,7 +115,7 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
             request.flags |= 256;
             request.editRevision = edits->revision;
             request.sceneCount = edits->scenes->count;
-            request.addedPropCount = static_cast<std::uint32_t>(edits->props->size());
+            request.addedPropCount = edits->props->count;
             request.cameraCount = edits->cameras->count;
         }
         Transfer(impl->input, &request, sizeof(request), true);
@@ -124,7 +124,7 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
         {
             for (const auto &scene : *edits->scenes)
             {
-                MM::PreviewSceneDefinition definition{scene.number, scene.background, scene.source};
+                auto definition = scene;
                 Transfer(impl->input, &definition, sizeof(definition), true);
             }
             for (const auto &prop : *edits->props)

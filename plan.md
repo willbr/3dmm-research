@@ -1615,6 +1615,11 @@ records. Scene definitions preserve insertion order. The camera journal
 replaces repeated keys, preserves the opening-frame sentinel, and supplies
 the same ordered cuts to preview, thumbnail checks, native save, and the
 32-bit renderer worker. Undo retains the previous records.
+Inserted retail actors, props, and generated text now use a C89 journal.
+C owns the insertion order, names and generated-template references across
+undo. Preview and the 32-bit worker consume the same typed definitions as
+native export. Scene frame ranges use a separate C89 journal keyed by scene.
+Undo, live scene publication and native export read those same range records.
 Ordinary scene insertion and storyboard scene edits publish through the C89
 snapshot transaction. It records undo only after the live scene is ready and
 restores the prior definitions, timing and position on failure. If recovery

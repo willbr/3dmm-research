@@ -3,11 +3,6 @@
 #include "movie_input.h"
 #include "live_edits.h"
 
-struct MarcusSceneRange
-{
-    unsigned long scene;
-    long first, last;
-};
 struct MarcusObjectClipboard
 {
     std::shared_ptr<MarcusMovieFile> file;
@@ -39,6 +34,6 @@ std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::pat
 std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsigned long font, long source, int shape);
 // Lazy materialization: copy once for all placement and frame-range edits.
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
-    std::shared_ptr<MarcusMovieFile> origin, const MMMoviePoseJournal &poses, const std::vector<MarcusSceneRange> &ranges,
+    std::shared_ptr<MarcusMovieFile> origin, const MMMoviePoseJournal &poses, const MMMovieRangeJournal &ranges,
     const MarcusLiveEdits &edits, const std::filesystem::path &templates);
 #endif

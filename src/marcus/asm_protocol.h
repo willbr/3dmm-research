@@ -1,6 +1,7 @@
 #ifndef MARCUS_ASM_PROTOCOL_H
 #define MARCUS_ASM_PROTOCOL_H
 #include "mm/preview.h"
+#include "mm/preview_live.h"
 #include <cstdint>
 namespace MarcusASM
 {
@@ -90,7 +91,7 @@ struct Reply
     MM::PreviewProjection projection, sceneCamera;
 };
 static_assert(sizeof(Request) == 104 && sizeof(Reply) == 216 && sizeof(PropOffset) == 64, "ASM wire layout changed");
-static_assert(sizeof(MM::PreviewSceneDefinition) == 12 && sizeof(MM::PreviewPropDefinition) == 40 && sizeof(CameraEdit) == 12,
+static_assert(sizeof(MMPreviewLiveScene) == 12 && sizeof(MMPreviewLiveProp) == 40 && sizeof(CameraEdit) == 12,
               "Live-edit wire layout changed");
 } // namespace MarcusASM
 #endif

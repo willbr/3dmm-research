@@ -41,6 +41,26 @@ int mm_movie_scene_definitions_append(MMMovieSceneDefinitions *, const MMPreview
  * can have no added-scene definition, so zero matches is valid. */
 void mm_movie_scene_definitions_retarget(MMMovieSceneDefinitions *, const MMPreviewLiveScene *);
 
+typedef struct MMMovieSceneRange
+{
+    MMU32 scene;
+    MMI32 first, last;
+} MMMovieSceneRange;
+
+typedef struct MMMovieRangeJournal
+{
+    MMCollectionStorage storage;
+    MMU32 count;
+} MMMovieRangeJournal;
+
+/* Store one authored frame range per scene, in scene-number order. */
+int mm_movie_range_journal_init(MMMovieRangeJournal *, const MMStorageAllocator *);
+void mm_movie_range_journal_dispose(MMMovieRangeJournal *);
+int mm_movie_range_journal_copy(MMMovieRangeJournal *, const MMMovieRangeJournal *);
+const MMMovieSceneRange *mm_movie_range_journal_data(const MMMovieRangeJournal *);
+const MMMovieSceneRange *mm_movie_range_journal_find(const MMMovieRangeJournal *, MMU32 scene);
+int mm_movie_range_journal_set(MMMovieRangeJournal *, const MMMovieSceneRange *);
+
 int mm_movie_camera_journal_init(MMMovieCameraJournal *, const MMStorageAllocator *);
 void mm_movie_camera_journal_dispose(MMMovieCameraJournal *);
 int mm_movie_camera_journal_copy(MMMovieCameraJournal *, const MMMovieCameraJournal *);
@@ -51,11 +71,47 @@ int mm_movie_camera_journal_set(MMMovieCameraJournal *, const MMMovieCameraEdit 
 const MMMovieCameraEdit *mm_movie_camera_journal_find(const MMMovieCameraJournal *, MMU32 scene, MMU32 *count);
 MMPreviewLiveCameraEdits mm_movie_camera_journal_preview(const MMMovieCameraJournal *, MMU32 scene);
 
-typedef struct MMMovieTrackFileServices
+typedef struct MMMovieEditFileServices
 {
     void (*retain)(void *file);
     void (*release)(void *file);
-} MMMovieTrackFileServices;
+} MMMovieEditFileServices;
+
+enum { MM_MOVIE_PROP_NAME_BYTES = 192 };
+
+typedef struct MMMoviePropEdit
+{
+    MMPreviewLiveProp definition;
+    void *file;
+    char name[MM_MOVIE_PROP_NAME_BYTES];
+} MMMoviePropEdit;
+
+typedef struct MMMoviePropJournal
+{
+    MMCollectionStorage storage;
+    MMU32 count;
+    const MMMovieEditFileServices *files;
+} MMMoviePropJournal;
+
+/* Preserve insertion order and own the name and an optional generated template
+ * reference. Copies use the same file services and retain their own references. */
+int mm_movie_prop_journal_init(MMMoviePropJournal *, const MMStorageAllocator *, const MMMovieEditFileServices *);
+void mm_movie_prop_journal_dispose(MMMoviePropJournal *);
+int mm_movie_prop_journal_copy(MMMoviePropJournal *, const MMMoviePropJournal *);
+const MMMoviePropEdit *mm_movie_prop_journal_data(const MMMoviePropJournal *);
+int mm_movie_prop_journal_append(MMMoviePropJournal *, const MMPreviewLiveProp *, const char *name, void *file);
+int mm_movie_prop_journal_started(const MMMoviePropJournal *, MMU32 scene, MMI32 frame);
+int mm_movie_prop_placement_valid(const float point[3]);
+
+typedef struct MMMovieLiveDefinitions
+{
+    const MMMovieSceneDefinitions *scenes;
+    const MMMoviePropJournal *props;
+} MMMovieLiveDefinitions;
+
+/* The definitions and journals must remain alive and unchanged while Preview
+ * reads this view. */
+MMPreviewLiveDefinitions mm_movie_definitions_preview(MMMovieLiveDefinitions *);
 
 typedef struct MMMovieActorTrackEdit
 {
@@ -68,7 +124,7 @@ typedef struct MMMovieActorTrackJournal
 {
     MMCollectionStorage storage;
     MMU32 count;
-    const MMMovieTrackFileServices *files;
+    const MMMovieEditFileServices *files;
 } MMMovieActorTrackJournal;
 
 /* Own one file reference per immutable event track, in scene/actor order.
@@ -76,7 +132,7 @@ typedef struct MMMovieActorTrackJournal
  * Failed copies or insertions preserve the destination and all references.
  * Callbacks are synchronous and do not reenter the journal. */
 int mm_movie_track_journal_init(MMMovieActorTrackJournal *, const MMStorageAllocator *,
-                               const MMMovieTrackFileServices *);
+                               const MMMovieEditFileServices *);
 void mm_movie_track_journal_dispose(MMMovieActorTrackJournal *);
 int mm_movie_track_journal_copy(MMMovieActorTrackJournal *, const MMMovieActorTrackJournal *);
 int mm_movie_track_journal_set(MMMovieActorTrackJournal *, const MMMovieActorTrackEdit *);

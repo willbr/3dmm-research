@@ -1102,12 +1102,98 @@ static void material_release(void *p, void *data, MMU32 bytes)
     free(data);
 }
 
-static void track_retain(void *file) { ++*(int *)file; }
-static void track_release(void *file) { --*(int *)file; }
+static void edit_file_retain(void *file) { ++*(int *)file; }
+static void edit_file_release(void *file) { --*(int *)file; }
+
+static int prop_journal(void)
+{
+    const MMMovieEditFileServices files = {edit_file_retain, edit_file_release};
+    MaterialGraph memory;
+    MMStorageAllocator allocator = {NULL, material_resize, material_release};
+    MMMovieSceneDefinitions scenes;
+    MMMoviePropJournal live, undo;
+    MMMovieLiveDefinitions definitions;
+    MMPreviewLiveScene scene = {9, 2, 18}, selected;
+    MMPreviewLiveProp prop = {9, 3, 8, 18, 4, -2, 10, {32700, 0, -32700}}, visible;
+    MMPreviewLiveDefinitions view;
+    char name[] = "Generated text";
+    char oversized[MM_MOVIE_PROP_NAME_BYTES + 1];
+    int file = 1;
+    memset(&memory, 0, sizeof(memory));
+    allocator.context = &memory;
+    definitions.scenes = &scenes;
+    definitions.props = &undo;
+    CHECK(mm_movie_scene_definitions_init(&scenes, &allocator) &&
+          mm_movie_prop_journal_init(&live, &allocator, &files) &&
+          mm_movie_prop_journal_init(&undo, &allocator, &files));
+    CHECK(mm_movie_scene_definitions_append(&scenes, &scene));
+    memory.failAt = memory.allocCalls + 1;
+    CHECK(!mm_movie_prop_journal_append(&live, &prop, name, &file) && !live.count && file == 1);
+    memory.failAt = 0;
+    CHECK(mm_movie_prop_journal_append(&live, &prop, name, &file) && file == 2);
+    name[0] = 'X';
+    prop.number = 2;
+    prop.first = 12;
+    CHECK(mm_movie_prop_journal_append(&live, &prop, "Shelf", NULL));
+    memset(oversized, 'X', sizeof(oversized) - 1);
+    oversized[sizeof(oversized) - 1] = 0;
+    CHECK(!mm_movie_prop_journal_append(&live, &prop, oversized, &file) && live.count == 2 && file == 2);
+    memory.failAt = memory.allocCalls + 1;
+    CHECK(!mm_movie_prop_journal_copy(&undo, &live) && !undo.count && file == 2);
+    memory.failAt = 0;
+    CHECK(mm_movie_prop_journal_copy(&undo, &live) && file == 3);
+    mm_movie_prop_journal_dispose(&live);
+    CHECK(file == 2 && !strcmp(mm_movie_prop_journal_data(&undo)[0].name, "Generated text"));
+    CHECK(mm_movie_prop_journal_started(&undo, 9, -2) && !mm_movie_prop_journal_started(&undo, 9, -3) &&
+          !mm_movie_prop_journal_started(&undo, 8, 99));
+    view = mm_movie_definitions_preview(&definitions);
+    CHECK(view.scene_count == 1 && view.prop_count == 2);
+    view.scene(view.context, 0, &selected);
+    CHECK(selected.number == scene.number && selected.background == scene.background && selected.source == scene.source);
+    view.prop(view.context, 0, &visible);
+    CHECK(visible.number == 3 && mm_movie_prop_placement_valid(visible.point));
+    view.prop(view.context, 1, &visible);
+    CHECK(visible.number == 2 && visible.first == 12);
+    visible.point[2] = -32701;
+    CHECK(!mm_movie_prop_placement_valid(visible.point));
+    mm_movie_prop_journal_dispose(&undo);
+    mm_movie_scene_definitions_dispose(&scenes);
+    CHECK(file == 1 && !memory.liveBlocks);
+    return 0;
+}
+
+static int range_journal(void)
+{
+    MaterialGraph memory;
+    MMStorageAllocator allocator = {NULL, material_resize, material_release};
+    MMMovieRangeJournal live, undo;
+    MMMovieSceneRange range = {(MMU32)-1, -20, 30};
+    memset(&memory, 0, sizeof(memory));
+    allocator.context = &memory;
+    CHECK(mm_movie_range_journal_init(&live, &allocator) && mm_movie_range_journal_init(&undo, &allocator));
+    CHECK(mm_movie_range_journal_set(&live, &range));
+    range.scene = 3;
+    CHECK(mm_movie_range_journal_set(&live, &range));
+    CHECK(mm_movie_range_journal_data(&live)[0].scene == 3 && !mm_movie_range_journal_find(&live, 4));
+    memory.failAt = memory.allocCalls + 1;
+    CHECK(!mm_movie_range_journal_copy(&undo, &live) && !undo.count);
+    memory.failAt = 0;
+    CHECK(mm_movie_range_journal_copy(&undo, &live));
+    range.first = 31;
+    CHECK(!mm_movie_range_journal_set(&live, &range) && mm_movie_range_journal_find(&live, 3)->first == -20);
+    range.first = 1;
+    CHECK(mm_movie_range_journal_set(&live, &range) && live.count == 2 &&
+          mm_movie_range_journal_find(&live, 3)->first == 1 && mm_movie_range_journal_find(&undo, 3)->first == -20);
+    CHECK(mm_movie_range_journal_find(&live, (MMU32)-1)->last == 30);
+    mm_movie_range_journal_dispose(&undo);
+    mm_movie_range_journal_dispose(&live);
+    CHECK(!memory.liveBlocks);
+    return 0;
+}
 
 static int track_journal(void)
 {
-    const MMMovieTrackFileServices files = {track_retain, track_release};
+    const MMMovieEditFileServices files = {edit_file_retain, edit_file_release};
     MaterialGraph memory;
     MMStorageAllocator allocator = {NULL, material_resize, material_release};
     MMMovieActorTrackJournal current, undo, empty;
@@ -1228,7 +1314,7 @@ int main(void)
 {
     if (switching() || insertion() || removal() || remove_materials() || undoing() || undo_insertion_ownership() ||
         cursor_operations() ||
-        extending() || journal() || track_journal() || pose_journal())
+        extending() || journal() || range_journal() || prop_journal() || track_journal() || pose_journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

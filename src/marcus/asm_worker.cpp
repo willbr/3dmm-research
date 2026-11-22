@@ -50,8 +50,8 @@ int main(int argc, char **argv)
         std::vector<MarcusASM::PropOffset> offsets(request.propCount);
         if (!offsets.empty() && !std::cin.read(reinterpret_cast<char *>(offsets.data()), offsets.size() * sizeof(offsets[0])))
             return 2;
-        std::vector<MM::PreviewSceneDefinition> scenes(request.sceneCount);
-        std::vector<MM::PreviewPropDefinition> props(request.addedPropCount);
+        std::vector<MMPreviewLiveScene> scenes(request.sceneCount);
+        std::vector<MMPreviewLiveProp> props(request.addedPropCount);
         std::vector<MarcusASM::CameraEdit> cameras(request.cameraCount);
         for (auto &scene : scenes) if (!std::cin.read(reinterpret_cast<char *>(&scene), sizeof(scene))) return 2;
         for (auto &prop : props) if (!std::cin.read(reinterpret_cast<char *>(&prop), sizeof(prop))) return 2;
