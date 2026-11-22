@@ -20587,3 +20587,31 @@ the new two-scene Studio save in 20261122T003923Z-07be6379 and reproduced
 all 60 reference seek canvases and camera indices.
 
 Evidence is under tmp/c89-font-bindings.
+
+## Shared C89 template and action loading (22 November 2026)
+
+Studio and Preview share the C89 template and action cache callbacks. C89
+dispatches the 3D text initializer and binds its generated actions, glyphs,
+materials and body operations. Kauai supplies native chunk names, decoding,
+allocators and diagnostics. The three x64 Marcus link maps show the new C89
+entry points. They still contain the legacy template and text modules for the
+remaining body and action application and native text and archive interfaces.
+
+All 193 standalone C89 checks and the strict BRender syntax check passed.
+Native x64 and x86 and SDL movie save/load passed. Six x64 snapshots and
+three x86 snapshots matched the prior bytes, including template creation,
+text loading and action decoding. The headless Preview and SDL Studio
+authoring workflows passed. Both Studio saves preserved the archive graph
+and chunk payloads. Each differed in two TMPL index padding bytes.
+
+The eight actor-audio runs in 20261122T004807Z-1920b191 completed. SDL and
+Marcus each matched all 30 prior seek canvases, 29 of 30 retail seek
+canvases, and all 30 retail camera indices and continuous frame identities.
+V3DMM matched all 30 retail seek canvases. SDL and V3DMM matched retail sound
+requests. Mixed PCM differed and continuous image alignment remained
+inconclusive.
+
+Retail reopened the two-scene Studio save in 20261122T004918Z-3301711f and
+reproduced all 60 reference seek canvases and camera indices.
+
+Evidence is under tmp/c89-template-bindings.

@@ -1158,7 +1158,8 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
         "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c"
-        "${PROJECT_SOURCE_DIR}/bren/asset_resources.c")
+        "${PROJECT_SOURCE_DIR}/bren/asset_resources.c"
+        "${PROJECT_SOURCE_DIR}/bren/template_renderer.c")
 endif()
 
 # brender-core: BRender wrapper minus the World/PWorld gui binding.
@@ -1173,6 +1174,7 @@ target_sources(brender-core
     "${PROJECT_SOURCE_DIR}/bren/stdmem.c"
     "${PROJECT_SOURCE_DIR}/bren/body_host.cpp"
     "${PROJECT_SOURCE_DIR}/bren/asset_resources.c"
+    "${PROJECT_SOURCE_DIR}/bren/template_renderer.c"
     "${PROJECT_SOURCE_DIR}/bren/asset_host.cpp"
     "${PROJECT_SOURCE_DIR}/bren/tmap.cpp"
     "${PROJECT_SOURCE_DIR}/bren/zbmp.cpp"

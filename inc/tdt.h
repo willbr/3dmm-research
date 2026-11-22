@@ -68,8 +68,6 @@ PModel FetchModel(PThreeDText, ChildChunkID);
 bool ActionName(PThreeDText, LegacyLong, PString);
 bool FSetActionNames(PStringTable_GST);
 #ifdef DEBUG
-void Validate(PThreeDText);
-void Mark(PThreeDText);
 void MarkActionNames();
 #endif
 

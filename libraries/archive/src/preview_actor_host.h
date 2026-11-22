@@ -84,7 +84,7 @@ struct PreviewActor::Host
                 auto source = h.actor->resolve(tag);
                 if (!source)
                     return false;
-                *out = EngineTemplate::Fetch(source, tag.ctg, tag.cno);
+                *out = mm_brender_template_fetch(source, tag.ctg, tag.cno, nullptr);
                 return *out != nullptr;
             });
         };

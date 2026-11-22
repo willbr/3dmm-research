@@ -23,7 +23,7 @@
 #include <cstdint>
 #include "mm/template_create.h"
 #include "mm/template_runtime.h"
-#include "mm/text_resource.h"
+#include "template_renderer.h"
 #include "mm/action_definition.h"
 
 using namespace BRender;
@@ -102,15 +102,14 @@ using PTemplate = MMTemplateOwner *;
 
 namespace EngineTemplate
 {
-const MMTemplateOwnerHost &Host();
-const MMActionResourceHost &ActionResourceHost();
-MMTemplateCreateServices CreateServices(MMResourceCache *cache = nullptr);
-int ReadActionResource(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
-int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
+inline const MMTemplateOwnerHost &Host() { return *mm_kauai_template_host(); }
+inline const MMActionResourceHost &ActionResourceHost() { return *mm_kauai_action_host(); }
+MMTemplateCreateServices CreateServices();
+constexpr MMResourceBlockReader ReadActionResource = mm_brender_action_read;
+constexpr MMResourceBlockReader Read = mm_brender_template_read;
 PTemplate Fetch(PTAG);
 PTemplate Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber, bool *error = nullptr);
 PTemplate Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, bool *error = nullptr);
-bool ReadHeader(PTemplate, MMResourceCache *, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
 bool WriteHeader(PTemplate, PChunkyFile, ChunkTagOrType, ChunkNumber *);
 void GetName(PTemplate, PString);
 PBody PbodyCreate(PTemplate);

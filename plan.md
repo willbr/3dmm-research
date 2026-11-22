@@ -1772,12 +1772,15 @@ nested dependency references, material appearance edits and the shade table.
 Both hosts use these owners for body costume snapshots, actor effects, 3D text
 material edits and archive writes. Kauai provides native memory, codec, file
 and diagnostic callbacks. The x64 Marcus, Preview helper and regression runner
-link this shared adapter directly. The remaining linked engine-core modules
-provide actor templates and 3D text. Studio's archive-backed
-actions and generated 3D text actions use the same C89 owner and playback
-readers for cels, matrices, distance, flags and motion sound tags. The C89
-text generator owns the cached action reference and replaces it after text
-edits. The C89 MSND owner holds the counted sound name, payload metadata and
+link this shared adapter directly. Studio and Preview also share the C89
+template and action cache readers, including the dispatch to initialize 3D
+text and the renderer bindings for generated text lists, glyphs, materials
+and actions. Native services supply chunk names, allocation, decoding and
+diagnostics. The two linked engine-core modules still provide body and action
+application and native text and archive interfaces. Archive-backed and
+generated actions use the same C89 owner and playback readers for cels,
+matrices, distance, flags and motion sound tags. The C89 text generator owns
+the cached action reference and replaces it after text edits. The C89 MSND owner holds the counted sound name, payload metadata and
 cache binding. Studio's sound browser, listener and frame sound queue use the
 C89 references. Preview reads the same sound state from its archive graph.
 The native sound manager and clock provide host services. Actor template

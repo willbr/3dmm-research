@@ -64,9 +64,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
-#include "handle_services.h"
 #include "mm/movie_session.h"
-#include "mm/string_value.h"
 ASSERTNAME
 
 #ifdef DEBUG
@@ -75,101 +73,10 @@ ASSERTNAME
 #define TEMPLATE_VALIDATE(owner) ((void)0)
 #endif
 
-const MMTemplateOwnerHost &EngineTemplate::Host()
+MMTemplateCreateServices EngineTemplate::CreateServices()
 {
-    static const MMTemplateOwnerHost host = {
-        KauaiResourceObjectAllocator(), sizeof(achar),
-#ifdef DEBUG
-        EngineTemplate::Mark
-#else
-        nullptr
-#endif
-    };
-    return host;
-}
-
-static MMI32 LegacyTemplateSize(bool text)
-{
-    // Preserve cache charges for the former native object layouts.
-    size_t prefix = sizeof(void *) == 8 ? 40 : 28;
-#ifdef DEBUG
-    if (sizeof(void *) == 4)
-        prefix += 4;
-#endif
-    const size_t bytes = prefix + sizeof(MMTemplateState) + sizeof(String);
-    const size_t alignment = sizeof(void *);
-    const size_t base = (bytes + alignment - 1) & ~(alignment - 1);
-    return static_cast<MMI32>(base + (text ? sizeof(MMTextDescriptor) + sizeof(MMTextGenerated) + 2 * sizeof(void *) : 0));
-}
-
-const MMActionResourceHost &EngineTemplate::ActionResourceHost()
-{
-    static const auto tables = CollectionAllocator();
-    static const MMActionResourceHost host = {
-        KauaiResourceObjectAllocator(), &tables, KauaiDecodeBlockHandle,
-#ifdef DEBUG
-        [](void *memory) { if (memory) MarkPv(memory); },
-        [](void *) { Assert(false, "bad ActionChunkOnFile"); },
-        [](void *, void *out, size_t bytes) { FillPb(out, static_cast<LegacyLong>(bytes), kbGarbage); }
-#else
-        nullptr, nullptr, nullptr
-#endif
-    };
-    return host;
-}
-
-int EngineTemplate::ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-                                 void **out, MMI32 *bytes)
-{
-    return mm_action_resource_read(cache, type, number, block, out, bytes, &ActionResourceHost());
-}
-
-/***************************************************************************
-    A PFNRPO (chunky resource reader function) to read Template objects.
-***************************************************************************/
-MMTemplateCreateServices EngineTemplate::CreateServices(MMResourceCache *cache)
-{
-    MMTemplateCreateServices s = {}; s.context = cache;
-    const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
-#ifdef DEBUG
-    s.debug_checks = 1;
-#endif
-    s.state = [](void *, void *object) -> MMTemplateState * { return mm_template_owner_state(static_cast<PTemplate>(object)); };
-    s.release = [](void *, void *object) { mm_template_owner_release(static_cast<PTemplate>(object)); };
-    s.release_custom = [](void *, void *custom) { mm_material_owner_release(static_cast<PCustomMaterial_CMTL>(custom)); };
-    s.decode = KauaiDecodeBlockHandle;
-    s.read_name = [](void *cache, void *object, MMU32 type, MMU32 number) -> int {
-        String name;
-        const auto found = ReadResourceName(static_cast<MMResourceCache *>(cache), type, number, &name);
-        const auto storage = mm_template_owner_name(static_cast<PTemplate>(object));
-        mm_string_value_copy(&storage, name.Pst());
-        return found;
-    };
-    s.create = [](void *, int text) -> void * { return mm_template_owner_create(&Host(), text); };
-    s.initialize = [](void *context, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
-        auto owner = static_cast<PTemplate>(object);
-        auto cache = static_cast<MMResourceCache *>(context);
-        if (mm_template_owner_is_text(owner))
-            return EngineText::Initialize(owner, cache, type, number, block);
-        const auto services = CreateServices(cache);
-        return mm_template_initialize(owner, cache, type, number, block, &services);
-    };
-    s.object_size = [](void *, int text) -> MMI32 { return LegacyTemplateSize(text != 0); };
-    s.invalidate = [](void *, void *out, size_t count) {
-#ifdef DEBUG
-        FillPb(out, static_cast<LegacyLong>(count), kbGarbage);
-#else
-        (void)out; (void)count;
-#endif
-    };
-    s.table_allocator = CollectionAllocator();
-    s.create_cache = [](void *cache) -> void * { return NewTypedSiblingCache(static_cast<MMResourceCache *>(cache), 0); };
-    s.release_cache = [](void *, void *cache) { mm_resource_cache_release(static_cast<MMResourceCache *>(cache)); };
-    s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return mm_brender_costume_fetch(static_cast<MMResourceCache *>(cache), type, number); };
-    s.custom_set = [](void *, void *custom) -> MMI32 { return mm_material_owner_custom(static_cast<MMMaterialOwner *>(custom))->set; };
-    s.append_costumes = [](void *, MMTemplateCostumeTable *table, const MMI32 *ids, MMI32 count) -> int {
-        return mm_template_costumes_append(table, ids, count);
-    };
+    MMTemplateCreateServices s = {};
+    mm_brender_template_read_services(&s, nullptr);
     s.create_body = [](void *, const MMPartIndexView *parents, const MMPartIndexView *sets) -> void * {
         return mm_brender_body_create(mm_kauai_body_renderer(), parents, sets);
     };
@@ -180,41 +87,16 @@ MMTemplateCreateServices EngineTemplate::CreateServices(MMResourceCache *cache)
     s.allocate_refs = [](void *, MMI32 count, void **out) -> int { return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal); };
     s.apply_custom = [](void *, void *body, void *custom) { mm_body_set_custom(body, custom, &mm_kauai_body_renderer()->edit.runtime); };
     s.free_memory = [](void *, void **data) { FreePpv(data); };
-    s.diagnostic = [](void *, int code) {
-        switch (code) {
-        case MM_TEMPLATE_BAD_ORDER: Assert(false, "freaky tmplf!"); break;
-        case MM_TEMPLATE_OBSOLETE: Warn("Obsolete GLDC structure...get rid of it"); break;
-        case MM_TEMPLATE_BUILD_COSTUMES: Warn("missing GGCM...building one on the fly"); break;
-        case MM_TEMPLATE_COSTUME_LIMIT: Assert(false, "legacy costume table exceeds 50 entries per set"); break;
-        case MM_TEMPLATE_WRONG_SET: Assert(false, "ibset's don't match"); break;
-        }
-    };
     return s;
-}
-
-int EngineTemplate::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-    void **out, MMI32 *bytes)
-{
-    const auto s = CreateServices(cache);
-    return mm_template_fetch(cache, type, number, block, out, bytes, &s);
 }
 
 PTemplate EngineTemplate::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number, bool *error)
 {
-    const MMResourceRequest request = {type, number, 0, Read, MM_RESOURCE_NORMAL_PRIORITY};
     int failed = 0;
-    auto owner = static_cast<PTemplate>(mm_resource_cache_fetch_owned(cache, &request,
-                                                                    mm_template_owner_services(), &failed));
+    auto owner = mm_brender_template_fetch(cache, type, number, &failed);
     if (error)
         *error = failed != 0;
     return owner;
-}
-
-bool EngineTemplate::ReadHeader(PTemplate owner, MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number,
-                                MMOwnedBlock *block)
-{
-    const auto services = CreateServices(cache);
-    return mm_template_read_header(owner, cache, type, number, block, &services) != 0;
 }
 
 bool EngineTemplate::WriteHeader(PTemplate owner, PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
@@ -477,46 +359,13 @@ void EngineTemplate::GetName(PTemplate owner, PString pstn)
 }
 
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the Template.
-***************************************************************************/
 void EngineTemplate::Validate(PTemplate owner)
 {
-    if (!owner)
-        return;
-    Assert(State(owner).parents && State(owner).sets, "missing Template part lists");
-    Assert(State(owner).costumes && State(owner).costumes->rows == static_cast<MMU32>(State(owner).set_count),
-           "Bad template costume table");
-    if (mm_template_owner_is_text(owner))
-        EngineText::Validate(owner);
+    mm_kauai_template_validate(owner);
 }
 
-/***************************************************************************
-    Mark memory used by the Template
-***************************************************************************/
 void EngineTemplate::Mark(PTemplate owner)
 {
-    if (!owner)
-        return;
-    TEMPLATE_VALIDATE(owner);
-    MarkPv(owner);
-    const auto binding = mm_template_owner_binding(owner);
-    if (binding->cache && !binding->attached)
-        mm_resource_cache_mark(binding->cache);
-    MMPartIndexList *indices[] = {State(owner).parents, State(owner).sets};
-    for (auto list : indices)
-        if (list)
-        {
-            MarkPv(list);
-            MarkPv(list->storage.buffers[0].data);
-        }
-    if (State(owner).costumes)
-    {
-        MarkPv(State(owner).costumes);
-        MarkPv(State(owner).costumes->storage.buffers[0].data);
-        MarkPv(State(owner).costumes->storage.buffers[1].data);
-    }
-    if (mm_template_owner_is_text(owner))
-        EngineText::Mark(owner);
+    mm_kauai_template_mark(owner);
 }
 #endif // DEBUG

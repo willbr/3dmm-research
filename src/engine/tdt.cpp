@@ -27,7 +27,6 @@ ASSERTNAME
 struct TextResourceContext
 {
     String saved;
-    MMResourceCache *cache = nullptr;
 };
 static void TextTagToCore(const TAG *tag, MMTag *out)
 {
@@ -40,9 +39,7 @@ static void TextTagFromCore(TAG *tag, const MMTag *in)
 static MMTextResourceServices ResourceServices(void *context)
 {
     MMTextResourceServices s = {}; s.context = context; s.generation = EngineText::GenerationServices();
-    const unsigned short order = 1;
-    s.host_big_endian = *reinterpret_cast<const unsigned char *>(&order) == 0;
-    s.payloads = KauaiChunkPayloadServices();
+    mm_kauai_text_read_services(&s);
     static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 && sizeof(TAG) == sizeof(MMTag), "text resource ABI");
     s.state = [](void *, void *object) { return mm_template_owner_descriptor(static_cast<PThreeDText>(object)); };
     s.create = [](void *) -> void * { return mm_template_owner_create(&EngineTemplate::Host(), 1); };
@@ -65,22 +62,7 @@ static MMTextResourceServices ResourceServices(void *context)
     s.provider_copy = [](void *, void *to, void *from) {
         *mm_template_owner_font(static_cast<PThreeDText>(to)) = *mm_template_owner_font(static_cast<PThreeDText>(from));
     };
-    s.has_provider = [](void *, void *object) -> int {
-        return mm_template_owner_font(static_cast<PThreeDText>(object))->fetch != nullptr;
-    };
-    s.provider_font = [](void *, void *object, const MMTag *font) -> void * {
-        const auto provider = mm_template_owner_font(static_cast<PThreeDText>(object));
-        return provider->fetch(provider->context, font);
-    };
-    s.default_font = [](void *, const MMTag *in) -> void * {
-        return mm_tag_fetch_owned(in, mm_brender_font_read, mm_font_owner_services(), 0,
-                                  mm_tag_local_cache_services());
-    };
     s.publish_tag = [](void *, void *out, const MMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
-    s.read_template = [](void *p, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
-        return EngineTemplate::ReadHeader(static_cast<PThreeDText>(object),
-                                          static_cast<TextResourceContext *>(p)->cache, type, number, block);
-    };
     s.publish_error = [](void *, void *out, int error) { *static_cast<bool *>(out) = error != 0; };
     s.release_tag_list = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
     s.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
@@ -89,26 +71,17 @@ static MMTextResourceServices ResourceServices(void *context)
     s.name_id = [](void *, void *table, MMI32 i) -> MMI32 { LegacyLong id; static_cast<PStringTable_GST>(table)->GetExtra(i, &id); return id; };
     s.name_text = [](void *, void *table, MMI32 i, void *text) { static_cast<PStringTable_GST>(table)->GetStn(i, static_cast<PString>(text)); };
     s.missing_name = [](void *) { Warn("action name not found"); };
-    s.bad_order = [](void *) { Assert(false, "bad ThreeDTextF"); };
     return s;
 }
 
 MMTextNames &EngineText::ActionNames()
 {
-    static MMTextNames names = {};
-    return names;
+    return *mm_brender_text_action_names();
 }
 
 void EngineText::SetFontResolver(PThreeDText owner, void *context, MMFontOwner *(*fetch)(void *, const MMTag *))
 {
     *mm_template_owner_font(owner) = {context, fetch};
-}
-
-static MMFontOwner *FetchFont(PThreeDText owner)
-{
-    TextResourceContext context;
-    const auto services = ResourceServices(&context);
-    return static_cast<MMFontOwner *>(mm_text_font(owner, &services));
 }
 
 /***************************************************************************
@@ -159,11 +132,7 @@ PThreeDText EngineText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf, con
 bool EngineText::Initialize(PThreeDText owner, MMResourceCache *cache, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl, MMOwnedBlock *block)
 {
     Assert(cache, "missing template resource cache");
-    TextResourceContext context;
-    context.cache = cache;
-    auto services = ResourceServices(&context);
-    const MMTextResourceSource source = {cache, nullptr, {}};
-    return mm_text_read(owner, &source, ctgTmpl, cnoTmpl, block, &services) != 0;
+    return mm_brender_text_initialize(owner, cache, ctgTmpl, cnoTmpl, block) != 0;
 }
 
 /***************************************************************************
@@ -177,45 +146,7 @@ MMTextGenerationServices EngineText::GenerationServices()
     static_assert(sizeof(BMAT34) == sizeof(MMActorMatrix) && sizeof(short) == 2, "text generation ABI");
     static_assert(krPi == 205887 && krTwoPi == 411774 && krThreePi == 617662 && krHalfPi == 102943 && BR_SCALAR(0.5 / PI) == 10430, "text constants");
     static_assert(tdtsLim == MM_TEXT_SHAPE_COUNT && tdaLim == MM_TEXT_ACTION_COUNT && tdtsCircleZ == 6 && tdaWalk == 13 && tdaStretch == 15, "text enums");
-    s.state = [](void *, void *object) { return mm_template_owner_generated(static_cast<PThreeDText>(object)); };
-    s.length = [](void *, void *object) -> MMI32 {
-        return static_cast<uchar>(*static_cast<PPascalString>(mm_template_owner_name(static_cast<PThreeDText>(object)).buffer));
-    };
-    s.character = [](void *, void *object, MMI32 index) -> MMI32 {
-        const auto text = static_cast<PPascalString>(mm_template_owner_name(static_cast<PThreeDText>(object)).buffer);
-        return static_cast<uchar>(text[index + 1]);
-    };
-    s.shape = [](void *, void *object) -> MMI32 {
-        return mm_template_owner_descriptor(static_cast<PThreeDText>(object))->shape;
-    };
-    s.template_state = [](void *, void *object) { return mm_template_owner_state(static_cast<PThreeDText>(object)); };
-    s.table_allocator = CollectionAllocator();
-    s.material_new = [](void *) -> void * { return mm_brender_material_new(-1, -1); };
-    s.retain_material = [](void *, void *material) { mm_material_owner_retain(static_cast<PMaterial_MTRL>(material)); };
-    s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<PMaterial_MTRL>(material)); };
-    s.font = [](void *, void *object) -> void * { return FetchFont(static_cast<PThreeDText>(object)); };
-    s.release_font = [](void *, void *font) { mm_font_owner_release(static_cast<MMFontOwner *>(font)); };
-    s.font_width = [](void *, void *font, MMI32 ch) -> MMI32 {
-        const auto metrics = mm_font_owner_metrics(static_cast<const MMFontOwner *>(font));
-        AssertIn(ch, 0, metrics->count);
-        return mm_font_width(metrics, ch);
-    };
-    s.font_height = [](void *, void *font, MMI32 ch) -> MMI32 {
-        const auto metrics = mm_font_owner_metrics(static_cast<const MMFontOwner *>(font));
-        AssertIn(ch, 0, metrics->count);
-        return mm_font_height(metrics, ch);
-    };
-    s.font_maximum = [](void *, void *font) -> MMI32 {
-        return mm_font_owner_metrics(static_cast<const MMFontOwner *>(font))->maximum_height;
-    };
-    s.glyph = [](void *, void *font, MMI32 ch) -> void * {
-        return mm_brender_font_glyph(static_cast<const MMFontOwner *>(font), ch);
-    };
-    s.action_host = &EngineTemplate::ActionResourceHost();
-    s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {
-        return mm_body_change_shape(body, parents, sets, &mm_kauai_body_renderer()->edit);
-    };
-    s.body_material = [](void *, void *body, MMI32 set, void *material) { mm_body_set_generic(body, set, material, &mm_kauai_body_renderer()->edit.runtime); };
+    mm_brender_text_generation_services(&s);
     return s;
 }
 
@@ -337,39 +268,6 @@ bool EngineText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, c
 }
 
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the ThreeDText.
-***************************************************************************/
-void EngineText::Validate(PThreeDText owner)
-{
-    const auto &descriptor = *mm_template_owner_descriptor(owner);
-    const auto &generated = *mm_template_owner_generated(owner);
-    AssertNilOrPo(static_cast<PStringTable_GST>(ActionNames().table), 0); // Localized action names are optional in headless hosts.
-    Assert(descriptor.font.type != ctgNil, "ThreeDText has bad _tagTdf");
-    mm_kauai_material_validate(static_cast<MMMaterialOwner *>(generated.material));
-    if (tdaNil != generated.action_id)
-    {
-        AssertIn(generated.action_id, 0, tdaLim);
-        Assert(mm_action_resource_references(generated.action) > 0, "missing generated action");
-    }
-    else
-    {
-        Assert(pvNil == generated.action, "generated.action_id is wrong");
-    }
-    AssertIn(descriptor.shape, 0, tdtsLim);
-}
-
-/***************************************************************************
-    Mark memory used by the ThreeDText
-***************************************************************************/
-void EngineText::Mark(PThreeDText owner)
-{
-    const auto &generated = *mm_template_owner_generated(owner);
-    mm_brender_material_mark(static_cast<MMMaterialOwner *>(generated.material));
-    if (tdaNil != generated.action_id)
-        mm_action_resource_services()->mark_memory(generated.action);
-}
-
 /***************************************************************************
     Mark memory used by the ThreeDText action StringTable_GST
 ***************************************************************************/

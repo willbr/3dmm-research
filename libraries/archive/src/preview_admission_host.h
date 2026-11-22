@@ -116,7 +116,7 @@ struct Preview::Impl::AdmissionHost
         s.template_fetch = [](void *v, MMU32 type, MMU32 number, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                h.impl->tmpl = EngineTemplate::Fetch(h.impl->cache, type, number);
+                h.impl->tmpl = mm_brender_template_fetch(h.impl->cache, type, number, nullptr);
                 *out = h.impl->tmpl;
                 return *out != nullptr;
             });
