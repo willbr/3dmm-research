@@ -21821,3 +21821,45 @@ order matched the retained retail and V3DMM captures in
 The collection fixtures, rebuilt archives, traces, and Studio canvases
 are under `tmp/c89-chunky-collections`. Playback captures are under
 `tmp/c89-kd`.
+
+## C89 Chunky archive assembly (22 November 2026)
+
+C89 drives CHUNK and ADOPT declarations and dispatches chunk bodies. It
+checks child and parent links, handles pack directives and both byte
+orders of the PACKEDFILE prefixes, and owns the SUBFILE stack and
+deferred LONER list. It visits unreferenced forest roots in archive
+order and bounds the combined write extent. Kauai provides file and
+codec services, resource imports, archive operations, and diagnostics.
+
+The C fixture checks nested archive publication and cleanup, defers
+LONER changes until successful completion, and fails cleanly when a
+temporary archive cannot be created or a forest exceeds the offset
+limit. Chomp matched the retained payload regions and listings for
+fourteen valid fixtures, including shared forest descendants, an empty
+forest, and packed and unpacked imports in both byte orders. Fourteen
+malformed fixtures matched the retained exit status and diagnostics,
+including cycles, missing links, unclosed forests, duplicate chunks,
+and the compilation error limit. Another 42 malformed fixtures from
+earlier lexer, payload, collection, and script changes also matched.
+The native Debug compiler passed the forest and packed-file fixtures.
+
+All 7,615 payloads from eight generated Studio archives were
+byte-identical to archives recompiled with the retained Chomp. Seven
+whole archives were byte-identical, including the embedded Help
+forests. The eight differing bytes in `utest.chk` were in its index.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp
+checks passed. The headless room, F1 Help, ISO, and authoring workflows
+passed. Nine movie saves, Help and cache traces, the smoke and room
+canvases, and the Marcus startup canvas matched retained results. The
+separate `scene-load` failure reproduced its 63,224-byte trace and
+fingerprint `0D666753`.
+
+Silent suite `20261122T142521Z-899e81bb` matched both ports' preceding
+60 seek canvases and camera and actor state. Seek and continuous frame
+order matched the retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`.
+
+The assembly fixtures, rebuilt archives, traces, and Studio canvases
+are under `tmp/c89-chunky-assembly`. Playback captures are under
+`tmp/c89-kd`.

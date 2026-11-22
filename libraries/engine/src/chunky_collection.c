@@ -240,16 +240,12 @@ static int string_row(Parser *parser, MMChunkySourceToken *token, int hole)
         return 0;
     if (!hole)
     {
-        if (token->kind != ttString || token->length > MM_LEX_TEXT_CAPACITY ||
-            (token->length && !token->text))
+        if (!mm_chunky_copy_text(&label, token, strings->unit_bytes))
         {
             report(parser, ertNeedString);
             skip_end(parser);
             return 0;
         }
-        label.length = token->length;
-        if (label.length)
-            memcpy(&label.units, token->text, label.length * strings->unit_bytes);
         if (!next(parser, token))
             return 0;
     }

@@ -1760,8 +1760,11 @@ applies string, numeric, byte-order and OSK modes, reads parenthesized
 headers, and emits payloads with numeric OR, string serialization and
 alignment. C89 also parses dense and allocated collection bodies, owns
 their array, group and string-table records, and writes the legacy wire
-format. The native Chunky compiler drives archive assembly, packaging,
-resource imports, file access, and source diagnostics.
+format. C89 dispatches archive declarations and chunk bodies, validates
+links, handles packed-file signatures, scopes subfiles and deferred
+loners, and walks forest roots in archive order. The native compiler
+provides file access, resource imports, codec selection, archive writes,
+and source diagnostics.
 The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,

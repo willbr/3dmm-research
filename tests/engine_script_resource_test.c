@@ -1,6 +1,7 @@
 #include "mm/script_resource.h"
 #include "mm/script_compile.h"
 #include "mm/script_kidspace.h"
+#include "mm/chunky_assembly.h"
 #include "mm/chunky_collection.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
@@ -2335,15 +2336,6 @@ static int source_read(void *context, MMChunkySourceToken *out, int mode)
     return 0;
 }
 
-static void source_set_text(void *destination, const void *text, MMU32 count)
-{
-    MMLexText *written = destination;
-    CHECK(count <= MM_LEX_TEXT_CAPACITY);
-    written->length = count;
-    if (count)
-        memcpy(written->units.narrow, text, count);
-}
-
 static int source_append(void *context, const void *bytes, MMU32 count)
 {
     ChunkySourceTrace *trace = context;
@@ -2387,7 +2379,6 @@ static void source_init(MMChunkySource *source, ChunkySourceTrace *trace,
     source->context = trace;
     source->next = source_read;
     source->report = source_report;
-    source->set_text = source_set_text;
     source->append = source_append;
     source->size = source_size;
     source->import_file = source_file;
@@ -2648,6 +2639,196 @@ static void chunky_collections(void)
     CHECK(trace.saves == 1 && trace.error_count == 1 && trace.errors[0] == ertOom);
 }
 
+typedef struct ChunkyAssemblyTrace
+{
+    ChunkySourceTrace source;
+    void *active;
+    unsigned char archives[3];
+    int children, released, finished, finalize, writes, names, fail_create;
+    MMU32 loners[2], loner_count;
+} ChunkyAssemblyTrace;
+
+static MMU32 assembly_errors(void *context)
+{
+    return ((ChunkyAssemblyTrace *)context)->source.error_count;
+}
+
+static int assembly_exists(void *context, MMChunkRecordKey key)
+{
+    (void)context;
+    (void)key;
+    return 0;
+}
+
+static int assembly_create(void *context, MMChunkRecordKey key)
+{
+    ChunkyAssemblyTrace *trace = context;
+    CHECK(trace->active && key.ctg == 0x54455354UL && key.cno > 0);
+    return 1;
+}
+
+static int assembly_name(void *context, MMChunkRecordKey key, const MMLexText *name)
+{
+    ChunkyAssemblyTrace *trace = context;
+    CHECK(trace->active == &trace->archives[0] && key.cno == 1);
+    check_lex_text(name, 1, "outer");
+    ++trace->names;
+    return 1;
+}
+
+static void assembly_clear(void *context)
+{
+    ((ChunkyAssemblyTrace *)context)->source.size = 0;
+}
+
+static void assembly_loner(void *context, MMChunkRecordKey key)
+{
+    ChunkyAssemblyTrace *trace = context;
+    CHECK(trace->active == &trace->archives[0] && trace->loner_count < 2);
+    trace->loners[trace->loner_count++] = key.cno;
+}
+
+static int assembly_finish_data(void *context, MMChunkRecordKey key, int pack, int prepacked)
+{
+    ChunkyAssemblyTrace *trace = context;
+    CHECK(!pack && !prepacked);
+    if (key.cno == 3)
+        CHECK(trace->active == &trace->archives[2] && trace->source.size == 1 && trace->source.bytes[0] == 7);
+    else
+        CHECK(trace->active == &trace->archives[0] && !trace->source.size);
+    ++trace->writes;
+    return 1;
+}
+
+static int assembly_finish_archive(void *context)
+{
+    ChunkyAssemblyTrace *trace = context;
+    CHECK(trace->active == &trace->archives[0]);
+    ++trace->finalize;
+    return 1;
+}
+
+static void *assembly_make_subfile(void *context)
+{
+    ChunkyAssemblyTrace *trace = context;
+    if (trace->fail_create)
+        return NULL;
+    CHECK(trace->children < 2);
+    return &trace->archives[++trace->children];
+}
+
+static void assembly_activate(void *context, void *archive)
+{
+    ((ChunkyAssemblyTrace *)context)->active = archive;
+}
+
+static void assembly_release(void *context, void *archive)
+{
+    ChunkyAssemblyTrace *trace = context;
+    int index = trace->children - trace->released++;
+    CHECK(index > 0 && archive == &trace->archives[index] && trace->active == &trace->archives[index - 1]);
+}
+
+static int assembly_finish_subfile(void *context, void *parent, MMChunkRecordKey key, int pack)
+{
+    ChunkyAssemblyTrace *trace = context;
+    CHECK(key.cno == (MMU32)(2 - trace->finished) && !!pack == (key.cno == 1));
+    CHECK(trace->active == &trace->archives[key.cno] && parent == &trace->archives[key.cno - 1]);
+    ++trace->finished;
+    return 1;
+}
+
+static void compile_assembly(const MMChunkySource *source, ChunkyAssemblyTrace *trace)
+{
+    MMChunkyAssemblyHost host;
+    memset(&host, 0, sizeof(host));
+    host.context = trace;
+    host.error_count = assembly_errors;
+    host.exists = assembly_exists;
+    host.create = assembly_create;
+    host.set_name = assembly_name;
+    host.set_loner = assembly_loner;
+    host.clear_data = assembly_clear;
+    host.finish_data = assembly_finish_data;
+    host.finish_archive = assembly_finish_archive;
+    host.create_subfile = assembly_make_subfile;
+    host.activate = assembly_activate;
+    host.release = assembly_release;
+    host.finish_subfile = assembly_finish_subfile;
+    trace->active = &trace->archives[0];
+    mm_chunky_assemble(source, &host, trace->active);
+    CHECK(trace->active == &trace->archives[0]);
+}
+
+#define TEST_CHUNK(number) SOURCE_KIND(ttChunk), SOURCE_KIND(ttOpenParen), SOURCE_NUMBER(0x54455354UL), SOURCE_NUMBER(number)
+
+static void chunky_assembly(void)
+{
+    static const MMChunkySourceToken complete[] = {
+        TEST_CHUNK(1), SOURCE_TEXT("outer"), SOURCE_KIND(ttCloseParen), SOURCE_KIND(ttPack), SOURCE_KIND(ttSubFile),
+        TEST_CHUNK(2), SOURCE_KIND(ttCloseParen), SOURCE_KIND(ttSubFile),
+        TEST_CHUNK(3), SOURCE_KIND(ttCloseParen), SOURCE_KIND(ttModeByte), SOURCE_NUMBER(7),
+        SOURCE_KIND(ttEndChunk), SOURCE_KIND(ttEndChunk), SOURCE_KIND(ttEndChunk),
+        TEST_CHUNK(4), SOURCE_KIND(ttCloseParen), SOURCE_KIND(ttLoner), SOURCE_KIND(ttEndChunk),
+        TEST_CHUNK(5), SOURCE_KIND(ttCloseParen), SOURCE_KIND(ttLoner), SOURCE_KIND(ttEndChunk)
+    };
+    ChunkyAssemblyTrace trace;
+    MMChunkySource source;
+    memset(&trace, 0, sizeof(trace));
+    source_init(&source, &trace.source, complete, SOURCE_COUNT(complete));
+    compile_assembly(&source, &trace);
+    CHECK(!trace.source.error_count && trace.names == 1 && trace.writes == 3);
+    CHECK(trace.children == 2 && trace.released == 2 && trace.finished == 2 && trace.finalize == 1);
+    CHECK(trace.loner_count == 2 && trace.loners[0] == 5 && trace.loners[1] == 4);
+
+    memset(&trace, 0, sizeof(trace));
+    source_init(&source, &trace.source, complete, 14);
+    compile_assembly(&source, &trace);
+    CHECK(trace.source.error_count == 1 && trace.source.errors[0] == ertNoEndSubFile);
+    CHECK(trace.children == 2 && trace.released == 2 && !trace.finished && !trace.finalize);
+
+    memset(&trace, 0, sizeof(trace));
+    source_init(&source, &trace.source, complete, 8);
+    trace.fail_create = 1;
+    compile_assembly(&source, &trace);
+    CHECK(trace.source.error_count == 1 && trace.source.errors[0] == ertOom);
+    CHECK(!trace.children && !trace.released && !trace.finished && !trace.finalize);
+}
+
+#undef TEST_CHUNK
+
+static int forest_entry(void *context, MMU32 index, MMChunkRecordKey *key, MMU32 *references)
+{
+    (void)context;
+    if (index >= 3)
+        return 0;
+    key->ctg = 0x54455354UL;
+    key->cno = index + 1;
+    *references = index == 1;
+    return 1;
+}
+
+static int forest_tree(void *context, MMChunkRecordKey key, MMU32 offset, MMU32 *bytes)
+{
+    MMU32 *next_offset = context;
+    CHECK(key.ctg == 0x54455354UL && key.cno != 2 && offset == *next_offset);
+    *bytes = 3;
+    *next_offset += 3;
+    return 1;
+}
+
+static void chunky_forest_roots(void)
+{
+    MMChunkyForestHost host;
+    MMU32 position = 9, bytes = 0;
+    host.context = &position;
+    host.entry = forest_entry;
+    host.tree = forest_tree;
+    CHECK(mm_chunky_write_roots(&host, position, &bytes) && bytes == 6 && position == 15);
+    position = 0x7ffffffeUL;
+    CHECK(!mm_chunky_write_roots(&host, position, &bytes) && bytes == 6);
+}
+
 #undef SOURCE_KIND
 #undef SOURCE_NUMBER
 #undef SOURCE_TEXT
@@ -2678,6 +2859,8 @@ int main(void)
     chunky_source_payload();
     chunky_source_strings();
     chunky_collections();
+    chunky_assembly();
+    chunky_forest_roots();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

@@ -84,7 +84,7 @@ typedef struct MMChunkySourceToken
 typedef struct MMChunkyHeaderField
 {
     MMI32 number;
-    void *text; /* Optional destination for a counted string. */
+    MMLexText *text; /* Optional destination for a counted string. */
 } MMChunkyHeaderField;
 
 typedef struct MMChunkySource
@@ -94,7 +94,6 @@ typedef struct MMChunkySource
      * Counted text is borrowed until the next read. Modes update format in place. */
     int (*next)(void *, MMChunkySourceToken *, int read_mode);
     void (*report)(void *, int error);
-    void (*set_text)(void *destination, const void *text, MMU32 count);
 
     /* Append synchronously. The destination may discard data after a diagnostic.
      * An allocation or write failure returns zero. File import reports its errors. */
@@ -107,6 +106,8 @@ typedef struct MMChunkySource
     int native_encoding, native_order;
 } MMChunkySource;
 
+/* Copies a counted string token whose borrowed text is still valid. */
+int mm_chunky_copy_text(MMLexText *, const MMChunkySourceToken *, unsigned unit_bytes);
 /* Returns the populated field count, or -1 for a structural failure. Field
  * type errors report diagnostics and leave header parsing at its usual boundary. */
 MMI32 mm_chunky_parse_header(const MMChunkySource *, MMChunkyHeaderField *, MMU32 capacity);

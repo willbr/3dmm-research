@@ -4,6 +4,18 @@
 #include "mm/string_ops.h"
 #include "mm/string_wire.h"
 #include "mm/wide.h"
+#include <string.h>
+
+int mm_chunky_copy_text(MMLexText *text, const MMChunkySourceToken *token, unsigned unit)
+{
+    if (token->kind != ttString || (unit != 1 && unit != 2) || token->length > MM_LEX_TEXT_CAPACITY ||
+        (token->length && !token->text))
+        return 0;
+    text->length = token->length;
+    if (token->length)
+        memcpy(&text->units, token->text, token->length * unit);
+    return 1;
+}
 
 static void report(const MMChunkySource *source, int error)
 {
@@ -39,20 +51,23 @@ MMI32 mm_chunky_parse_header(const MMChunkySource *source, MMChunkyHeaderField *
         case ttCloseParen:
             for (tail = i; tail < capacity; ++tail)
                 if (fields[tail].text)
-                    source->set_text(fields[tail].text, NULL, 0);
+                    fields[tail].text->length = 0;
             return (MMI32)i;
         case ttLong:
             if (field->text)
             {
                 report(source, ertNeedString);
-                source->set_text(field->text, NULL, 0);
+                field->text->length = 0;
             }
             else
                 field->number = token.number;
             break;
         case ttString:
             if (field->text)
-                source->set_text(field->text, token.text, token.length);
+            {
+                if (!mm_chunky_copy_text(field->text, &token, source->unit_bytes))
+                    report(source, ertBadToken);
+            }
             else
             {
                 report(source, ertNeedNumber);

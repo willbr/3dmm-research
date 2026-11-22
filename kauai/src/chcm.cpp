@@ -11,7 +11,9 @@
 ***************************************************************************/
 #include "kidframe.h" //because we need scrcomg
 #include "handle_services.h"
+#include "mm/chunky_assembly.h"
 #include "mm/chunky_collection.h"
+#include <cstring>
 ASSERTNAME
 
 namespace Chunky {
@@ -73,10 +75,8 @@ PZString _mpertpsz[] = {
 ***************************************************************************/
 Compiler::Compiler(void)
 {
-    _pglcsfc = pvNil;
     _pcfl = pvNil;
     _pchlx = pvNil;
-    _pglckiLoner = pvNil;
     _pmsnkError = pvNil;
     _cactError = 0;
     AssertThis(0);
@@ -87,20 +87,8 @@ Compiler::Compiler(void)
 ***************************************************************************/
 Compiler::~Compiler(void)
 {
-    if (pvNil != _pglcsfc)
-    {
-        CSFC csfc;
-
-        while (_pglcsfc->FPop(&csfc))
-        {
-            ReleasePpo(&_pcfl);
-            _pcfl = csfc.pcfl;
-        }
-        ReleasePpo(&_pglcsfc);
-    }
     ReleasePpo(&_pcfl);
     ReleasePpo(&_pchlx);
-    ReleasePpo(&_pglckiLoner);
 }
 
 #ifdef DEBUG
@@ -113,7 +101,6 @@ void Compiler::AssertValid(LegacyUlong grf)
     AssertNilOrPo(_pcfl, 0);
     AssertPo(&_bsf, 0);
     AssertNilOrPo(_pchlx, 0);
-    AssertNilOrPo(_pglckiLoner, 0);
     AssertNilOrPo(_pmsnkError, 0);
 }
 
@@ -125,11 +112,9 @@ void Compiler::MarkMem(void)
     AssertThis(0);
 
     Compiler_PAR::MarkMem();
-    MarkMemObj(_pglcsfc);
     MarkMemObj(_pcfl);
     MarkMemObj(&_bsf);
     MarkMemObj(_pchlx);
-    MarkMemObj(_pglckiLoner);
 }
 #endif // DEBUG
 
@@ -192,13 +177,6 @@ MMChunkySource Compiler::_ChunkySource(SourceCursor *cursor)
         else
             compiler->_Error(error);
     };
-    source.set_text = [](void *destination, const void *text, MMU32 count) {
-        auto string = static_cast<PString>(destination);
-        if (count)
-            string->SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
-        else
-            string->SetNil();
-    };
     source.append = [](void *context, const void *bytes, MMU32 size) -> int {
         auto compiler = static_cast<SourceCursor *>(context)->compiler;
         return compiler->FError() || compiler->_bsf.FReplace(const_cast<void *>(bytes), size, compiler->_bsf.IbMac(), 0);
@@ -214,25 +192,6 @@ MMChunkySource Compiler::_ChunkySource(SourceCursor *cursor)
     source.native_encoding = koskCur;
     source.native_order = kboCur;
     return source;
-}
-
-/***************************************************************************
-    Checks if data is already in the buffer (and issues an error) for a
-    non-buffer command such as metafile import.
-***************************************************************************/
-void Compiler::_ErrorOnData(PZString pszPreceed)
-{
-    AssertThis(0);
-    AssertSz(pszPreceed);
-
-    if (_bsf.IbMac() > 0)
-    {
-        // already data
-        _Error(ertBufData, pszPreceed);
-
-        // clear buffer
-        _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
-    }
 }
 
 /***************************************************************************
@@ -297,138 +256,6 @@ bool Compiler::_FParseParenHeader(PHP *prgphp, LegacyLong cphpMax, LegacyLong *p
     }
     *pcphp = count;
     return fTrue;
-}
-
-/***************************************************************************
-    Parse a chunk header from the source file.
-***************************************************************************/
-void Compiler::_ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno)
-{
-    AssertThis(0);
-    AssertVarMem(pctg);
-    AssertVarMem(pcno);
-
-    String stnChunkName;
-    PHP rgphp[3];
-    LegacyLong cphp;
-
-    ClearPb(rgphp, size(rgphp));
-    rgphp[2].text = &stnChunkName;
-    if (!_FParseParenHeader(rgphp, 3, &cphp) || cphp < 2)
-    {
-        _Error(ertChunkHead);
-        goto LFail;
-    }
-
-    *pctg = rgphp[0].number;
-    *pcno = rgphp[1].number;
-
-    // write empty chunk
-    if (_pcfl->FFind(*pctg, *pcno))
-    {
-        // duplicate chunk!
-        _Error(ertDupChunk);
-    LFail:
-        _SkipPastTok(ttEndChunk);
-        TrashVar(pctg);
-        TrashVar(pcno);
-        return;
-    }
-
-    // create the chunk and set its name
-    if (!_pcfl->FPutPv(pvNil, 0, *pctg, *pcno) ||
-        stnChunkName.Cch() > 0 && !FError() && !_pcfl->FSetName(*pctg, *pcno, &stnChunkName))
-    {
-        _Error(ertOom);
-    }
-}
-
-/***************************************************************************
-    Parse a child statement from the source file.
-***************************************************************************/
-void Compiler::_ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno)
-{
-    AssertThis(0);
-    ChunkTagOrType ctgChild;
-    ChunkNumber cnoChild;
-    ChildChunkID chid;
-    PHP rgphp[3];
-    LegacyLong cphp;
-
-    ClearPb(rgphp, size(rgphp));
-    if (!_FParseParenHeader(rgphp, 3, &cphp) || cphp < 2)
-    {
-        _Error(ertBodyChildHead);
-        return;
-    }
-
-    ctgChild = rgphp[0].number;
-    cnoChild = rgphp[1].number;
-    chid = rgphp[2].number;
-
-    // check if chunk exists
-    if (!_pcfl->FFind(ctgChild, cnoChild))
-    {
-        _Error(ertChildMissing);
-        return;
-    }
-
-    // check if cycle would be created
-    if (_pcfl->TIsDescendent(ctgChild, cnoChild, ctg, cno) != tNo)
-    {
-        _Error(ertCycle);
-        return;
-    }
-
-    // do the adoption
-    if (!FError() && !_pcfl->FAdoptChild(ctg, cno, ctgChild, cnoChild, chid, fTrue))
-    {
-        _Error(ertOom);
-    }
-}
-
-/***************************************************************************
-    Parse a parent statement from the source file.
-***************************************************************************/
-void Compiler::_ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno)
-{
-    AssertThis(0);
-    ChunkTagOrType ctgParent;
-    ChunkNumber cnoParent;
-    ChildChunkID chid;
-    PHP rgphp[3];
-    LegacyLong cphp;
-
-    ClearPb(rgphp, size(rgphp));
-    if (!_FParseParenHeader(rgphp, 3, &cphp) || cphp < 2)
-    {
-        _Error(ertBodyParentHead);
-        return;
-    }
-
-    ctgParent = rgphp[0].number;
-    cnoParent = rgphp[1].number;
-    chid = rgphp[2].number;
-
-    // check if chunk exists
-    if (!_pcfl->FFind(ctgParent, cnoParent))
-    {
-        _Error(ertParentMissing);
-        return;
-    }
-
-    // check if cycle would be created
-    if (_pcfl->TIsDescendent(ctg, cno, ctgParent, cnoParent) != tNo)
-    {
-        _Error(ertCycle);
-        return;
-    }
-
-    // do the adoption
-    if (!FError() && !_pcfl->FAdoptChild(ctgParent, cnoParent, ctg, cno, chid, fTrue))
-    {
-        _Error(ertOom);
-    }
 }
 
 /***************************************************************************
@@ -844,23 +671,6 @@ LFail:
     }
 }
 
-/***************************************************************************
-    Parse a data section from the source file.  ptok should be pre-loaded
-    with the first token and when _FParseData returns it contains the next
-    token to be processed.  Returns false iff no tokens were consumed.
-***************************************************************************/
-bool Compiler::_FParseData(PToken ptok)
-{
-    AssertThis(0);
-    AssertVarMem(ptok);
-    SourceCursor cursor{this, ptok};
-    const auto source = _ChunkySource(&cursor);
-    auto token = _SourceToken(ptok);
-    const bool consumed = mm_chunky_parse_data(&source, &token) != 0;
-    ptok->tt = token.kind;
-    return consumed;
-}
-
 void Compiler::_ParseBodyCollection(bool fPack, int kind, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
@@ -927,373 +737,181 @@ void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTagOrType ctg, Chu
     ScriptInterpreter::ReleaseScript(&pscpt);
 }
 
-/***************************************************************************
-    Parse a script from the source file.
-***************************************************************************/
-void Compiler::_ParseBodyPackedFile(bool *pfPacked)
+bool Compiler::_FWriteSubfile(PChunkyFile parent, bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
 {
-    AssertThis(0);
-    LegacyLong lw, lwSwapped;
-    Token tok;
-
-    _ParseBodyFile();
-    if (_bsf.IbMac() < size(LegacyLong))
+    struct Transfer
     {
-        _Error(ertPackedFile, PszLit("bad packed file"));
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
+        PChunkyFile source;
+        PFileObject destination;
+    } transfer{_pcfl, pvNil};
+    const MMChunkyForestHost forest{&transfer,
+        [](void *context, MMU32 index, MMChunkRecordKey *key, MMU32 *references) -> int {
+            auto file = static_cast<Transfer *>(context)->source;
+            ChunkIdentification cki;
+            if (!file->FGetCki(index, &cki))
+                return 0;
+            *key = {cki.ctg, cki.cno};
+            *references = file->CckiRef(cki.ctg, cki.cno);
+            return 1;
+        },
+        [](void *context, MMChunkRecordKey key, MMU32 offset, MMU32 *bytes) -> int {
+            auto move = static_cast<Transfer *>(context);
+            LegacyLong written;
+            if (!move->source->FWriteChunkTree(key.ctg, key.cno, move->destination, offset, &written))
+                return 0;
+            *bytes = written;
+            return 1;
+        }
+    };
 
-    _bsf.FetchRgb(0, size(LegacyLong), &lw);
-    lwSwapped = lw;
-    SwapBytesRglw(&lwSwapped, 1);
-    if (lw == klwSigPackedFile || lwSwapped == klwSigPackedFile)
-        *pfPacked = fTrue;
-    else if (lw == klwSigUnpackedFile || lwSwapped == klwSigUnpackedFile)
-        *pfPacked = fFalse;
+    MMU32 extent, written;
+    if (!mm_chunky_write_roots(&forest, 0, &extent))
+        return false;
+
+    FilePosition start = 0;
+    if (fPack)
+    {
+        transfer.destination = FileObject::PfilCreateTemp();
+        if (!transfer.destination)
+            return false;
+    }
     else
     {
-        _Error(ertPackedFile, PszLit("not a packed file"));
-        _SkipPastTok(ttEndChunk);
-        return;
+        FileLocation output;
+        if (!parent->FPut(extent, ctg, cno) || !parent->FFindFlo(ctg, cno, &output))
+            return false;
+        transfer.destination = output.pfil;
+        transfer.destination->AddRef();
+        start = output.fp;
     }
 
-    _bsf.FReplace(pvNil, 0, 0, size(LegacyLong));
-
-    if (!_FGetCleanTok(&tok) || ttEndChunk != tok.tt)
+    bool ok = mm_chunky_write_roots(&forest, start, &written) && written == extent;
+    if (ok && fPack)
     {
-        _Error(ertNeedEndChunk);
-        _SkipPastTok(ttEndChunk);
+        DataBlock block(transfer.destination, 0, written);
+        block.FPackData();
+        ok = parent->FPutBlck(&block, ctg, cno);
+    }
+    if (ok)
+        parent->SetForest(ctg, cno, fTrue);
+    ReleasePpo(&transfer.destination);
+    return ok;
+}
+
+bool Compiler::_FFinishChunkData(bool fPack, bool fPrePacked, ChunkTagOrType ctg, ChunkNumber cno)
+{
+    DataBlock block;
+    if (!_FPrepWrite(fPack, _bsf.IbMac(), ctg, cno, &block) || !_bsf.FWriteRgb(&block) ||
+        !_FEndWrite(fPack, ctg, cno, &block))
+        return false;
+    if (fPrePacked)
+        _pcfl->SetPacked(ctg, cno, fTrue);
+    return true;
+}
+
+void Compiler::_ParseSpecialBody(int kind, bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
+{
+    switch (kind)
+    {
+    case ttMeta: _ParseBodyMeta(fPack, ctg, cno); break;
+    case ttBitmap:
+    case ttMask: _ParseBodyBitmap(fPack, kind == ttMask, ctg, cno); break;
+    case ttPalette: _ParseBodyPalette(fPack, ctg, cno); break;
+    case ttMidi: _ParseBodyMidi(fPack, ctg, cno); break;
+    case ttCursor: _ParseBodyCursor(fPack, ctg, cno); break;
+    case ttAl:
+    case ttGl:
+    case ttAg:
+    case ttGg:
+    case ttAst:
+    case ttGst: _ParseBodyCollection(fPack, kind, ctg, cno); break;
+    case ttScript:
+    case ttScriptP: _ParseBodyScript(fPack, kind == ttScript, ctg, cno); break;
+    default: Bug("bad special chunk body"); break;
     }
 }
 
-/***************************************************************************
-    Start a sub file.
-***************************************************************************/
-void Compiler::_StartSubFile(bool fPack, ChunkTagOrType ctg, ChunkNumber cno)
+void Compiler::_Assemble(void)
 {
-    AssertThis(0);
-    CSFC csfc;
-
-    if (pvNil == _pglcsfc && pvNil == (_pglcsfc = DynamicArray::PglNew(size(CSFC))))
-        goto LFail;
-
-    csfc.pcfl = _pcfl;
-    csfc.ctg = ctg;
-    csfc.cno = cno;
-    csfc.fPack = FPure(fPack);
-
-    if (!_pglcsfc->FPush(&csfc))
-        goto LFail;
-
-    if (pvNil == (_pcfl = ChunkyFile::PcflCreateTemp()))
-    {
-        _pglcsfc->FPop();
-        _pcfl = csfc.pcfl;
-    LFail:
-        _Error(ertOom);
-    }
-}
-
-/***************************************************************************
-    End a sub file.
-***************************************************************************/
-void Compiler::_EndSubFile(void)
-{
-    AssertThis(0);
-    CSFC csfc;
-
-    if (pvNil == _pglcsfc || !_pglcsfc->FPop(&csfc))
-    {
-        _Error(ertSyntax);
-        return;
-    }
-
-    AssertPo(csfc.pcfl, 0);
-
-    if (!FError())
-    {
-        LegacyLong icki;
-        ChunkIdentification cki;
-        LegacyLong cbTot, cbT;
-        FilePosition fpDst;
-        PFileObject pfilDst = pvNil;
-        bool fRet = fFalse;
-
-        // get the size of the data
-        cbTot = 0;
-        for (icki = 0; _pcfl->FGetCki(icki, &cki); icki++)
-        {
-            if (_pcfl->CckiRef(cki.ctg, cki.cno) > 0)
-                continue;
-            if (!_pcfl->FWriteChunkTree(cki.ctg, cki.cno, pvNil, 0, &cbT))
-                goto LFail;
-            cbTot += cbT;
-        }
-
-        // setup pfilDst and fpDst for writing the chunk trees
-        if (csfc.fPack)
-        {
-            pfilDst = FileObject::PfilCreateTemp();
-            fpDst = 0;
-        }
-        else
-        {
-            FileLocation floDst;
-
-            // resize the chunk
-            if (!csfc.pcfl->FPut(cbTot, csfc.ctg, csfc.cno))
-                goto LFail;
-            csfc.pcfl->FFindFlo(csfc.ctg, csfc.cno, &floDst);
-
-            pfilDst = floDst.pfil;
-            pfilDst->AddRef();
-            fpDst = floDst.fp;
-        }
-
-        // write the data to (pfilDst, fpDst)
-        for (icki = 0; _pcfl->FGetCki(icki, &cki); icki++)
-        {
-            if (_pcfl->CckiRef(cki.ctg, cki.cno) > 0)
-                continue;
-            if (!_pcfl->FWriteChunkTree(cki.ctg, cki.cno, pfilDst, fpDst, &cbT))
-                goto LFail;
-            fpDst += cbT;
-            Debug(cbTot -= cbT;)
-        }
-        Assert(cbTot == 0, "FWriteChunkTree messed up!");
-
-        if (csfc.fPack)
-        {
-            DataBlock blck(pfilDst, 0, fpDst);
-
-            // pack the data and put it in the chunk.
-            blck.FPackData();
-            if (!csfc.pcfl->FPutBlck(&blck, csfc.ctg, csfc.cno))
-                goto LFail;
-        }
-
-        csfc.pcfl->SetForest(csfc.ctg, csfc.cno, fTrue);
-        fRet = fTrue;
-
-    LFail:
-        if (!fRet)
-            _Error(ertOom);
-
-        ReleasePpo(&pfilDst);
-    }
-
-    ReleasePpo(&_pcfl);
-    _pcfl = csfc.pcfl;
-}
-
-/***************************************************************************
-    Parse a PACKFMT command, which is used to specify the packing format
-    to use.
-***************************************************************************/
-void Compiler::_ParsePackFmt(void)
-{
-    AssertThis(0);
-    PHP rgphp[1];
-    LegacyLong cphp;
-    LegacyLong cfmt;
-
-    // get the format
-    ClearPb(rgphp, size(rgphp));
-    if (!_FParseParenHeader(rgphp, 1, &cphp) || cphp < 1)
-    {
-        _Error(ertSyntax);
-        return;
-    }
-
-    cfmt = rgphp[0].number;
-    if (!vpcodmUtil->FCanDo(cfmt, fTrue))
-        _Error(ertBadPackFmt);
-    else
-        vpcodmUtil->SetCfmtDefault(cfmt);
-}
-
-/***************************************************************************
-    Parse the chunk body from the source file.
-***************************************************************************/
-void Compiler::_ParseChunkBody(ChunkTagOrType ctg, ChunkNumber cno)
-{
-    AssertThis(0);
-    Token tok;
-    DataBlock blck;
-    ChunkIdentification cki;
-    bool fFetch;
-    bool fPack, fPrePacked;
-
-    // empty the FileByteStream
-    _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
-
-    fFetch = fTrue;
-    fPack = fPrePacked = fFalse;
-    for (;;)
-    {
-        if (fFetch && !_FGetCleanTok(&tok))
-            return;
-
-        fFetch = fTrue;
-        switch (tok.tt)
-        {
-        default:
-            if (!_FParseData(&tok))
-            {
-                _Error(ertBadToken);
-                _SkipPastTok(ttEndChunk);
-                return;
-            }
-            // don't fetch next token
-            fFetch = fFalse;
-            break;
-        case ttChild:
-            _ParseBodyChild(ctg, cno);
-            break;
-        case ttParent:
-            _ParseBodyParent(ctg, cno);
-            break;
-        case ttLoner:
-            if (pvNil != _pglcsfc && 0 < _pglcsfc->IvMac())
-            {
-                _Error(ertLonerInSub);
-                break;
-            }
-            cki.ctg = ctg;
-            cki.cno = cno;
-            if (pvNil == _pglckiLoner && pvNil == (_pglckiLoner = DynamicArray::PglNew(size(ChunkIdentification))) || !_pglckiLoner->FPush(&cki))
-            {
-                _Error(ertOom);
-            }
-            break;
-
-        case ttPrePacked:
-            fPrePacked = fTrue;
-            break;
-
-        case ttPack:
-            fPack = fTrue;
-            break;
-
-        case ttPackFmt:
-            _ParsePackFmt();
-            break;
-
-            // We're done after all the cases below
-        case ttPackedFile:
-            fPack = fFalse;
-            _ErrorOnData(PszLit("Packed File"));
-            _ParseBodyPackedFile(&fPrePacked);
-            // fall thru
-        case ttEndChunk:
-            if (!FError())
-            {
-                if (!_FPrepWrite(fPack, _bsf.IbMac(), ctg, cno, &blck) || !_bsf.FWriteRgb(&blck) ||
-                    !_FEndWrite(fPack, ctg, cno, &blck))
-                {
-                    _Error(ertOom);
-                }
-            }
-            _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
-            if (!FError() && fPrePacked)
-                _pcfl->SetPacked(ctg, cno, fTrue);
-            return;
-        case ttMeta:
-            _ErrorOnData(PszLit("Metafile"));
-            _ParseBodyMeta(fPack, ctg, cno);
-            return;
-        case ttBitmap:
-        case ttMask:
-            _ErrorOnData(PszLit("Bitmap"));
-            _ParseBodyBitmap(fPack, ttMask == tok.tt, ctg, cno);
-            return;
-        case ttPalette:
-            _ErrorOnData(PszLit("Palette"));
-            _ParseBodyPalette(fPack, ctg, cno);
-            return;
-        case ttMidi:
-            _ErrorOnData(PszLit("Midi"));
-            _ParseBodyMidi(fPack, ctg, cno);
-            return;
-        case ttCursor:
-            _ErrorOnData(PszLit("Cursor"));
-            _ParseBodyCursor(fPack, ctg, cno);
-            return;
-        case ttAl:
-        case ttGl:
-            _ErrorOnData(PszLit("List"));
-            _ParseBodyCollection(fPack, tok.tt, ctg, cno);
-            return;
-        case ttAg:
-        case ttGg:
-            _ErrorOnData(PszLit("Group"));
-            _ParseBodyCollection(fPack, tok.tt, ctg, cno);
-            return;
-        case ttAst:
-        case ttGst:
-            _ErrorOnData(PszLit("String Table"));
-            _ParseBodyCollection(fPack, tok.tt, ctg, cno);
-            return;
-        case ttScript:
-        case ttScriptP:
-            _ErrorOnData(PszLit("Script"));
-            _ParseBodyScript(fPack, ttScript == tok.tt, ctg, cno);
-            return;
-        case ttSubFile:
-            _ErrorOnData(PszLit("Sub File"));
-            _StartSubFile(fPack, ctg, cno);
-            return;
-        }
-    }
-}
-
-/***************************************************************************
-    Parse an adopt parenthesized header from the source file.
-***************************************************************************/
-void Compiler::_ParseAdopt(void)
-{
-    AssertThis(0);
-    ChunkTagOrType ctgParent, ctgChild;
-    ChunkNumber cnoParent, cnoChild;
-    ChildChunkID chid;
-    PHP rgphp[5];
-    LegacyLong cphp;
-
-    ClearPb(rgphp, size(rgphp));
-    if (!_FParseParenHeader(rgphp, 5, &cphp) || cphp < 4)
-    {
-        _Error(ertAdoptHead);
-        return;
-    }
-
-    ctgParent = rgphp[0].number;
-    cnoParent = rgphp[1].number;
-    ctgChild = rgphp[2].number;
-    cnoChild = rgphp[3].number;
-    chid = rgphp[4].number;
-
-    // check if parent exists
-    if (!_pcfl->FFind(ctgParent, cnoParent))
-    {
-        _Error(ertParentMissing);
-        return;
-    }
-
-    // check if child exists
-    if (!_pcfl->FFind(ctgChild, cnoChild))
-    {
-        _Error(ertChildMissing);
-        return;
-    }
-
-    // check if cycle would be created
-    if (_pcfl->TIsDescendent(ctgChild, cnoChild, ctgParent, cnoParent) != tNo)
-        _Error(ertCycle);
-    else if (!FError() && !_pcfl->FAdoptChild(ctgParent, cnoParent, ctgChild, cnoChild, chid, fTrue))
-    {
-        _Error(ertOom);
-    }
+    Token token;
+    SourceCursor cursor{this, &token};
+    const auto source = _ChunkySource(&cursor);
+    const auto allocator = Group::CollectionAllocator();
+    MMChunkyAssemblyHost host{};
+    host.context = this;
+    host.allocator = &allocator;
+    host.error_count = [](void *context) -> MMU32 {
+        return static_cast<Compiler *>(context)->_cactError;
+    };
+    host.error_detail = [](void *context, int error, const char *ascii) {
+        String detail;
+        detail.SetSzs(reinterpret_cast<PSZS>(const_cast<char *>(ascii)));
+        static_cast<Compiler *>(context)->_Error(error, detail.Psz());
+    };
+    host.error_limit = [](void *context) {
+        static_cast<Compiler *>(context)->_pmsnkError->ReportLine(PszLit("Too many errors - compilation aborted"));
+    };
+    host.exists = [](void *context, MMChunkRecordKey key) -> int {
+        return static_cast<Compiler *>(context)->_pcfl->FFind(key.ctg, key.cno);
+    };
+    host.create = [](void *context, MMChunkRecordKey key) -> int {
+        return static_cast<Compiler *>(context)->_pcfl->FPutPv(pvNil, 0, key.ctg, key.cno);
+    };
+    host.set_name = [](void *context, MMChunkRecordKey key, const MMLexText *text) -> int {
+        auto compiler = static_cast<Compiler *>(context);
+        achar chars[MM_LEX_TEXT_CAPACITY];
+        std::memcpy(chars, &text->units, text->length * sizeof(achar));
+        String name;
+        name.SetRgch(chars, text->length);
+        return compiler->_pcfl->FSetName(key.ctg, key.cno, &name);
+    };
+    host.reaches = [](void *context, MMChunkRecordKey child, MMChunkRecordKey parent) -> int {
+        return static_cast<Compiler *>(context)->_pcfl->TIsDescendent(child.ctg, child.cno, parent.ctg, parent.cno) != tNo;
+    };
+    host.adopt = [](void *context, MMChunkRecordKey parent, MMChunkRecordKey child, MMU32 slot) -> int {
+        return static_cast<Compiler *>(context)->_pcfl->FAdoptChild(parent.ctg, parent.cno, child.ctg, child.cno, slot, fTrue);
+    };
+    host.set_loner = [](void *context, MMChunkRecordKey key) {
+        static_cast<Compiler *>(context)->_pcfl->SetLoner(key.ctg, key.cno, fTrue);
+    };
+    host.clear_data = [](void *context) {
+        auto &buffer = static_cast<Compiler *>(context)->_bsf;
+        buffer.FReplace(pvNil, 0, 0, buffer.IbMac());
+    };
+    host.read_prefix = [](void *context, void *bytes, MMU32 count) {
+        static_cast<Compiler *>(context)->_bsf.FetchRgb(0, count, bytes);
+    };
+    host.remove_prefix = [](void *context, MMU32 count) {
+        static_cast<Compiler *>(context)->_bsf.FReplace(pvNil, 0, 0, count);
+    };
+    host.pack_format = [](void *, MMI32 format) -> int {
+        if (!vpcodmUtil->FCanDo(format, fTrue))
+            return 0;
+        vpcodmUtil->SetCfmtDefault(format);
+        return 1;
+    };
+    host.finish_data = [](void *context, MMChunkRecordKey key, int pack, int prepacked) -> int {
+        return static_cast<Compiler *>(context)->_FFinishChunkData(pack != 0, prepacked != 0, key.ctg, key.cno);
+    };
+    host.special_body = [](void *context, MMChunkRecordKey key, int kind, int pack) {
+        static_cast<Compiler *>(context)->_ParseSpecialBody(kind, pack != 0, key.ctg, key.cno);
+    };
+    host.finish_archive = [](void *context) -> int {
+        return static_cast<Compiler *>(context)->_pcfl->FSave(kctgChkCmp, pvNil);
+    };
+    host.create_subfile = [](void *) -> void * {
+        return ChunkyFile::PcflCreateTemp();
+    };
+    host.activate = [](void *context, void *file) {
+        static_cast<Compiler *>(context)->_pcfl = static_cast<PChunkyFile>(file);
+    };
+    host.release = [](void *, void *file) {
+        static_cast<PChunkyFile>(file)->Release();
+    };
+    host.finish_subfile = [](void *context, void *parent, MMChunkRecordKey key, int pack) -> int {
+        return static_cast<Compiler *>(context)->_FWriteSubfile(static_cast<PChunkyFile>(parent), pack != 0, key.ctg, key.cno);
+    };
+    mm_chunky_assemble(&source, &host, _pcfl);
 }
 
 /***************************************************************************
@@ -1337,11 +955,7 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
     AssertPo(pstnFile, 0);
     AssertPo(pfniDst, ffniFile);
     AssertPo(pmsnk, 0);
-    Token tok;
-    ChunkTagOrType ctg;
-    ChunkNumber cno;
     PChunkyFile pcfl;
-    bool fReportBadTok;
 
     if (pvNil == (_pchlx = NewObj CompilerLexer(pbsfSrc, pstnFile)))
     {
@@ -1362,79 +976,7 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
     _format.byte_order = kboCur;
     _format.os_kind = koskCur;
 
-    fReportBadTok = fTrue;
-    while (_FGetCleanTok(&tok, fTrue))
-    {
-        switch (tok.tt)
-        {
-        case ttChunk:
-            _ParseChunkHeader(&ctg, &cno);
-            _ParseChunkBody(ctg, cno);
-            fReportBadTok = fTrue;
-            break;
-
-        case ttEndChunk:
-            // ending a sub file
-            _EndSubFile();
-            fReportBadTok = fTrue;
-            break;
-
-        case ttAdopt:
-            _ParseAdopt();
-            fReportBadTok = fTrue;
-            break;
-
-        case ttPackFmt:
-            _ParsePackFmt();
-            fReportBadTok = fTrue;
-            break;
-
-        default:
-            if (fReportBadTok)
-            {
-                _Error(ertNeedChunk);
-                fReportBadTok = fFalse;
-            }
-            break;
-        }
-
-        if (_cactError > 100)
-        {
-            pmsnk->ReportLine(PszLit("Too many errors - compilation aborted"));
-            break;
-        }
-    }
-
-    // empty the FileByteStream
-    _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
-
-    // make sure we're not in any subfiles
-    if (pvNil != _pglcsfc && _pglcsfc->IvMac() > 0)
-    {
-        CSFC csfc;
-
-        _Error(ertNoEndSubFile);
-        while (_pglcsfc->FPop(&csfc))
-        {
-            ReleasePpo(&_pcfl);
-            _pcfl = csfc.pcfl;
-        }
-    }
-
-    if (!FError() && pvNil != _pglckiLoner)
-    {
-        ChunkIdentification cki;
-        LegacyLong icki;
-
-        for (icki = _pglckiLoner->IvMac(); icki-- > 0;)
-        {
-            _pglckiLoner->Get(icki, &cki);
-            _pcfl->SetLoner(cki.ctg, cki.cno, fTrue);
-        }
-    }
-
-    if (!FError() && !_pcfl->FSave(kctgChkCmp, pvNil))
-        _Error(ertOom);
+    _Assemble();
 
     if (FError())
     {
@@ -1442,7 +984,6 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
         pfniDst->FDelete();
     }
     ReleasePpo(&_pchlx);
-    ReleasePpo(&_pglckiLoner);
 
     pcfl = _pcfl;
     _pcfl = pvNil;
