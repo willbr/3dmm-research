@@ -2038,6 +2038,11 @@ Marcus reads props, actors, fonts, materials, backgrounds and sounds directly
 from the C89 archive reader. The catalog owners keep the previous rows on
 failure and share the encoded-name reader. Prop and actor filtering uses the
 same template header decoder as the live and standalone engine.
+On movie open, Marcus builds its staged scene rows and source names directly
+from the C89 movie reader. C89 registers the declared sources, chooses the
+retail alias, and reads scene names and roll-call names. The host mounts
+content from the ordered source rows and transfers the staged scene data to
+the live player.
 Working archive lookup, cache retention and reload now use the C89
 registry and archive owner. Studio and Preview supply filename and
 physical access operations for the shared selection.

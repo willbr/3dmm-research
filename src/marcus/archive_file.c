@@ -214,15 +214,20 @@ static int write_archive_name(void *p, const char *bytes, size_t count)
     return 1;
 }
 
+static int encode_archive_text(ArchiveName *name, const void *text, size_t bytes, int encoding)
+{
+    unsigned short utf16[MM_STRING_MAX];
+    const size_t units = mm_text_utf16(name->text, text, bytes, encoding, utf16, sizeof(utf16) / sizeof(*utf16));
+    return mm_text_encode_utf8(utf16, units, name, write_archive_name);
+}
+
 static int read_archive_name(void *p, const MMReadStream *stream)
 {
     ArchiveName *name = p;
     const MMPrivateArchiveProfile *profile = name->profile;
     unsigned char wire[MM_CHUNK_NAME_WIRE_BYTES];
-    unsigned short utf16[MM_STRING_MAX];
     MMMovieTitle title;
     MMChunkTitleIO io = {0};
-    size_t units;
     if (stream->length > sizeof(wire) || !mm_read_exact(stream, 0, wire, stream->length))
         return MM_MOVIE_BAD_FILE;
     io.context = (void *)profile;
@@ -231,9 +236,8 @@ static int read_archive_name(void *p, const MMReadStream *stream)
     io.convert = translate_archive_name;
     mm_movie_title_init(&title, profile->unit);
     mm_movie_title_read_wire(&title, wire, stream->length, &io);
-    units = mm_text_utf16(name->text, mm_movie_title_text(&title), title.count * title.unit,
-                         io.encoding, utf16, sizeof(utf16) / sizeof(*utf16));
-    return mm_text_encode_utf8(utf16, units, name, write_archive_name) == 1 ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+    return encode_archive_text(name, mm_movie_title_text(&title), title.count * title.unit, io.encoding) == 1 ?
+        MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
 }
 
 size_t marcus_archive_name_utf8(MMArchiveReader *reader, MMU32 position, const MMPrivateArchiveProfile *profile,
@@ -254,6 +258,24 @@ size_t marcus_archive_name_utf8(MMArchiveReader *reader, MMU32 position, const M
         return 0;
     }
     return (size_t)(name.output - output);
+}
+
+int marcus_archive_text_utf8(const MMTextHost *host, const void *text, size_t bytes, int encoding,
+                             char *output, size_t capacity, size_t *written)
+{
+    ArchiveName name;
+    if (!capacity)
+        return 0;
+    name.profile = NULL;
+    name.text = host;
+    name.output = output;
+    name.available = capacity - 1;
+    name.whole_characters = 1;
+    *output = '\0';
+    if (encode_archive_text(&name, text, bytes, encoding) != 1)
+        return 0;
+    *written = (size_t)(name.output - output);
+    return 1;
 }
 
 typedef struct ActorArchives

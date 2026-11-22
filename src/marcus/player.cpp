@@ -15,6 +15,7 @@
 #include "mm/vmm_dependencies.h"
 #include "content.h"
 #include "movie_input.h"
+#include "movie_open.h"
 #include "playback.h"
 #include "render_plan.h"
 #include "gpu_renderer.h"
@@ -2484,42 +2485,35 @@ extern "C"
             MM::Archive archive;
             if (!archive.OpenForPreview(document, error))
                 return false;
-            MM::MovieOpenInfo movie;
-            if (!archive.ReadMovieOpenInfo(movie, error))
-                return false;
             MarcusScenes sceneInfo, baseSceneInfo;
-            std::map<std::int32_t, std::string> names;
-            const auto &sources = movie.directory.sources;
-            sceneInfo.Resize(movie.directory.scenes.size());
-            for (std::size_t i = 0; i < sceneInfo.size(); ++i)
+            struct Names
             {
-                const auto &entry = movie.directory.scenes[i];
-                const auto &name = movie.sceneNames[i];
-                auto &scene = sceneInfo[i];
-                scene = {};
-                scene.chunk = entry.id.number;
-                scene.first_frame = entry.header.firstFrame;
-                scene.last_frame = entry.header.lastFrame;
-                scene.transition = entry.header.transition;
-                Copy(scene.name, name.empty() ? "Scene " + std::to_string(i + 1) : name);
-            }
-            baseSceneInfo = sceneInfo;
-            for (auto &actor : movie.actorNames)
-                names[actor.id] = std::move(actor.name);
+                std::map<std::int32_t, std::string> rows;
+                std::exception_ptr failure;
+            } names;
+            struct MovieOpen : MarcusMovieOpen
+            {
+                MovieOpen() { marcus_movie_open_init(this); }
+                ~MovieOpen() { marcus_movie_open_dispose(this); }
+                MovieOpen(const MovieOpen &) = delete;
+                MovieOpen &operator=(const MovieOpen &) = delete;
+            } movie;
             MarcusSourceRegistry sourceIds;
             if (player->internalOpenDepth)
                 mm_movie_source_ids_limit(&sourceIds, player->sourceIds.next);
-            for (const auto &source : sources)
-                if (mm_movie_source_ids_add(&sourceIds, source.id, nullptr) == MM_MOVIE_SOURCE_ID_MEMORY)
-                    throw std::bad_alloc();
-            MMI32 retailSource = 2;
-            bool retailPrepared = false;
-            for (const auto &source : sources)
-                if (MM::Content::SourceKey(source.name) == "3dmovie") { retailSource = source.id; retailPrepared = true; break; }
-            if (!retailPrepared && !mm_movie_source_ids_retail_alias(&sourceIds, &retailSource))
-            { error.message = "No retail source ID is available."; return false; }
-            for (const auto &source : sources)
-                content->PrepareSource(source.name);
+            const auto openError = MarcusReadMovieOpen(movie, archive.Reader(), sceneInfo, sourceIds, &names,
+                [](void *context, MMI32 actor, const char *name, std::size_t bytes) noexcept -> int {
+                    auto &names = *static_cast<Names *>(context);
+                    try { names.rows[actor].assign(name, bytes); return 1; }
+                    catch (...) { names.failure = std::current_exception(); return 0; }
+                });
+            if (names.failure)
+                std::rethrow_exception(names.failure);
+            if (openError) { error.message = openError; return false; }
+            baseSceneInfo = sceneInfo;
+            const auto sources = marcus_movie_open_sources(&movie);
+            for (MMU32 i = 0; i < movie.source_count; ++i)
+                content->PrepareSource(std::string(sources[i].name, sources[i].name_bytes));
             const auto loadedBoards = std::make_shared<MarcusStoryboards>();
             struct BoardLoad
             {
@@ -2529,7 +2523,7 @@ extern "C"
                 const char *resources, *directory;
                 MM::Error &error;
                 std::exception_ptr failure;
-            } load{*loadedBoards, sourceIds, retailSource, resources, directory, error, {}};
+            } load{*loadedBoards, sourceIds, movie.retail_source, resources, directory, error, {}};
             const auto boardStatus = marcus_board_read_archive(archive.Reader(),
                 [](void *p, MMU32 scene, const MarcusBoardWire *board) -> int {
                     auto &load = *static_cast<BoardLoad *>(p);
@@ -2577,10 +2571,12 @@ extern "C"
             mm_movie_source_ids_swap(&player->sourceIds, &sourceIds);
             player->asmBoardFile.reset();
             player->materializedEdits.reset();
-            player->nextScene = movie.nextScene;
-            player->nextObject = movie.nextActorChunk;
-            player->nextActorId = movie.nextActorId;
-            player->resourcesReady = true; player->retailPrepared = retailPrepared; player->retailSource = retailSource;
+            player->nextScene = movie.ids.scene_exhausted ? std::uint64_t{1} << 32 : movie.ids.next_scene;
+            player->nextObject = movie.ids.actor_chunk_exhausted ? std::uint64_t{1} << 32 : movie.ids.next_actor_chunk;
+            player->nextActorId = movie.ids.next_actor_id;
+            player->resourcesReady = true;
+            player->retailPrepared = movie.retail_prepared != 0;
+            player->retailSource = movie.retail_source;
             player->materializedFrameRanges.reset();
             player->materializedPoses.reset();
             player->materializedFile.reset();
@@ -2592,15 +2588,15 @@ extern "C"
             player->image = {};
             player->playback.ForgetMovieFrame();
             if (!player->preserveEditFraming) player->inspectionMatched = false;
-            for (const auto &source : sources)
-                for (const auto &path : player->content->files.Files(source.name, ".3cn"))
+            for (MMU32 i = 0; i < movie.source_count; ++i)
+                for (const auto &path : player->content->files.Files(std::string(sources[i].name, sources[i].name_bytes), ".3cn"))
                 {
-                    if (!player->preview.AddContent(source.id, path.u8string(), error))
+                    if (!player->preview.AddContent(sources[i].id, path.u8string(), error))
                         return false;
                 }
             player->sceneInfo.swap(sceneInfo);
             player->baseSceneInfo.swap(baseSceneInfo);
-            player->names.swap(names);
+            player->names.swap(names.rows);
             player->baseNames = player->names;
             LiveDocumentHost host{*player, error, {}};
             const auto services = host.Services();

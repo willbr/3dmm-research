@@ -1,5 +1,6 @@
 #include "archive_file.h"
 #include "asset_catalog.h"
+#include "movie_open.h"
 #include "platform_text.h"
 #include "private_archive_host.h"
 
@@ -14,6 +15,13 @@ int MarcusLoadAssetCatalog(MarcusAssetCatalog &catalog, MarcusAssetKind kind, co
     const auto profile = KauaiPrivateArchiveProfile();
     const auto path = (std::filesystem::u8path(directory) / marcus_asset_catalog_file(kind)).u8string();
     return marcus_asset_catalog_load(&catalog, kind, directory, path.c_str(), &profile, KauaiText::Services());
+}
+
+const char *MarcusReadMovieOpen(MarcusMovieOpen &movie, MMArchiveReader *reader, MarcusSceneRows &scenes,
+                                MMMovieSourceIds &sourceIds, void *context, MarcusOpenActorName actor)
+{
+    const auto profile = KauaiPrivateArchiveProfile();
+    return marcus_movie_open_read(&movie, reader, &scenes, &sourceIds, &profile, KauaiText::Services(), context, actor);
 }
 
 MMChunkNameValue MarcusArchiveName(String &name, void *wire)

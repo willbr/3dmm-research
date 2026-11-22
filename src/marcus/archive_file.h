@@ -38,6 +38,10 @@ int marcus_archive_input_open_profile(MarcusArchiveInput *, const char *path, co
  * written. Sound assets retain their historical byte truncation. */
 size_t marcus_archive_name_utf8(MMArchiveReader *, MMU32 position, const MMPrivateArchiveProfile *,
                                 const struct MMTextHost *, char *output, size_t capacity, int whole_characters);
+/* Encode one counted legacy string, terminating the output and truncating at
+ * a character boundary. On invalid UTF-16, written stays unchanged. */
+int marcus_archive_text_utf8(const struct MMTextHost *, const void *text, size_t bytes, int encoding,
+                             char *output, size_t capacity, size_t *written);
 
 struct MMMovieActorTextEdit;
 struct MMMoviePoseJournal;

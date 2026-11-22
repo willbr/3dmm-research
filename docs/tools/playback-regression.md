@@ -23242,3 +23242,20 @@ candidate `20261122T230406Z-2412aae8` matched `20261122T225554Z-984cd334`
 on all 60 Marcus seek canvases and recorded states. Seek and playback frame
 order matched retained retail and V3DMM run `20261122T082301Z-c465fa98`.
 Evidence is under `tmp/c89-asset-catalog` and `tmp/c89-aqcap`.
+
+## C89 Marcus movie-open metadata (22 November 2026)
+
+Marcus stages its scene rows, source names, retail source alias and edit ID
+limits directly from the C89 movie reader. The host consumes counted roll-call
+names and keeps the source rows in authored order when mounting content.
+
+Scene bounds, transitions, names and actor metadata matched the previous build
+on six native and portable movies. The two rejected files produced the same
+diagnostics. All 226 selected tests passed. The x86 Marcus worker built, and
+the headless startup image and eleven native saves matched byte for byte.
+
+Actor Audio candidate `20261122T231254Z-6982f580` matched
+`20261122T230406Z-2412aae8` on all 60 Marcus seek canvases and recorded states.
+The seek and playback frame order matched retained retail and V3DMM run
+`20261122T082301Z-c465fa98`. Evidence is under `tmp/c89-movie-open` and
+`tmp/c89-aqcap`.
