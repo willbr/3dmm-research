@@ -135,11 +135,19 @@ int mm_background_preview_init(MMBackgroundPreview *p, MMBackgroundCameraState *
     return mm_storage_init(&p->metadata, allocator) == MM_STORAGE_OK &&
            mm_storage_init(&p->images, allocator) == MM_STORAGE_OK;
 }
+
+static void release_mesh(MMBackgroundPreview *p, MMBackgroundMesh *mesh, const MMBackgroundMeshServices *renderer)
+{
+    const MMStorageAllocator *allocator = &p->metadata.allocator;
+    mm_background_mesh_dispose(mesh, renderer);
+    allocator->release(allocator->context, mesh, sizeof(*mesh));
+}
+
 void mm_background_preview_dispose(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
 {
     MMU32 i;
     for (i = 0; i < p->mesh_count; ++i)
-        s->mesh_release(s->context, p->meshes[i]);
+        release_mesh(p, p->meshes[i], s->mesh_renderer);
     p->mesh_count = 0;
     p->placement = NULL;
     mm_storage_dispose(&p->images);
@@ -338,13 +346,14 @@ void mm_background_preview_reuse_place(MMBackgroundPreview *p)
     if (p->placement)
         mm_background_reuse_place(p->placement);
 }
-void *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
+MMBackgroundMesh *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
 {
     const MMBackgroundCameraData *camera = &p->camera.data;
+    const MMStorageAllocator *allocator = &p->metadata.allocator;
     MMU32 i, row, axis, key;
     MMI32 native_projection[16], aspect;
     double transform[16], projection[16];
-    void *mesh;
+    MMBackgroundMesh *mesh;
     for (i = 0; i < p->mesh_count; ++i)
         if (p->keys[i] == p->active)
         {
@@ -359,9 +368,14 @@ void *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBackgroundPrevi
             p->keys[p->mesh_count - 1] = key;
             return mesh;
         }
-    mesh = s->mesh_new(s->context);
+    mesh = allocator->resize(allocator->context, NULL, 0, sizeof(*mesh), MM_STORAGE_NORMAL);
     if (!mesh)
         return NULL;
+    if (!mm_background_mesh_init(mesh, allocator))
+    {
+        allocator->release(allocator->context, mesh, sizeof(*mesh));
+        return NULL;
+    }
     memset(transform, 0, sizeof(transform));
     transform[15] = 1;
     for (row = 0; row < 4; ++row)
@@ -369,21 +383,25 @@ void *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBackgroundPrevi
             transform[row * 4 + axis] = s->scalar_float(s->context, camera->matrix.m[row][axis]);
     if (!p->height || camera->near_z <= 0 || camera->far_z <= camera->near_z)
     {
-        s->mesh_release(s->context, mesh);
+        release_mesh(p, mesh, s->mesh_renderer);
         return NULL;
     }
     aspect = s->float_scalar(s->context, (float)p->width / p->height);
     s->perspective(s->context, camera->fov, aspect, -camera->near_z, -camera->far_z, native_projection);
     for (i = 0; i < 16; ++i)
         projection[i] = s->scalar_float(s->context, native_projection[i]);
-    if (!s->mesh_build(s->context, mesh, p, transform, projection))
+    /* Rejected geometry contributes an empty mesh. A failed allocation must
+     * leave the previously cached meshes intact. */
+    if (mm_background_mesh_build(mesh, p->width, p->height, p->images.buffers[0].data, p->rgb_count,
+                                 (const unsigned short *)p->images.buffers[1].data, p->depth_count, transform,
+                                 projection, s->mesh_renderer) < 0)
     {
-        s->mesh_release(s->context, mesh);
+        release_mesh(p, mesh, s->mesh_renderer);
         return NULL;
     }
     if (p->mesh_count == 2)
     {
-        s->mesh_release(s->context, p->meshes[0]);
+        release_mesh(p, p->meshes[0], s->mesh_renderer);
         p->meshes[0] = p->meshes[1];
         p->keys[0] = p->keys[1];
         --p->mesh_count;

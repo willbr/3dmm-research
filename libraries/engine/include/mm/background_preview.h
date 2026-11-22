@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_BACKGROUND_PREVIEW_H
 #define MM_ENGINE_BACKGROUND_PREVIEW_H
 #include "background_resource.h"
+#include "background_mesh.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -12,7 +13,7 @@ extern "C"
         MMU32 camera_count, light_count, width, height, rgb_count, depth_count, active;
         MMBackgroundCameraBinding camera;
         MMBackgroundCameraState *placement;
-        void *meshes[2];
+        MMBackgroundMesh *meshes[2];
         MMU32 keys[2], mesh_count;
     } MMBackgroundPreview;
     typedef struct MMBackgroundPreviewServices
@@ -27,10 +28,9 @@ extern "C"
         void (*draw_depth)(void *, void *, unsigned short *, MMU32, MMU32);
         void (*publish)(void *, const MMBackgroundPreview *);
         void (*selected)(void *, MMU32 slot);
-        void *(*mesh_new)(void *);
-        void (*mesh_release)(void *, void *);
-        int (*mesh_build)(void *, void *, const MMBackgroundPreview *, const double transform[16],
-                          const double projection[16]);
+        /* Use the same renderer for the lifetime of each cached mesh.
+         * Geometry-only consumers can leave this unset. */
+        const MMBackgroundMeshServices *mesh_renderer;
         float (*scalar_float)(void *, MMI32);
         MMI32 (*float_scalar)(void *, float);
         void (*perspective)(void *, unsigned short, MMI32 aspect, MMI32 near_z, MMI32 far_z,
@@ -40,7 +40,7 @@ extern "C"
     typedef struct MMBackgroundPreviewGraph
     {
         const struct MMMovieSessionGraph *graph;
-        void *owner; /* Borrowed by the host publication and mesh services. */
+        void *owner; /* Borrowed by the host publication service. */
     } MMBackgroundPreviewGraph;
     /* Bind decoded graph payloads and C bitmap services. The graph and context
      * must stay live through the call. Image allocations belong to the reader
@@ -79,7 +79,7 @@ extern "C"
     void mm_background_preview_reuse_place(MMBackgroundPreview *);
     /* Hits move to the most recent end. Misses build before evicting the oldest;
      * failed construction leaves the existing cache untouched. */
-    void *mm_background_preview_mesh(MMBackgroundPreview *, const MMBackgroundPreviewServices *);
+    MMBackgroundMesh *mm_background_preview_mesh(MMBackgroundPreview *, const MMBackgroundPreviewServices *);
 #ifdef __cplusplus
 }
 #endif

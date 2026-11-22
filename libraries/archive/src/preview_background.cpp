@@ -2,6 +2,7 @@
 #include <algorithm>
 #include "mm/preview.h"
 #include "preview_background.h"
+#include "scene_renderer.h"
 #include "palette_state.h"
 #include "mm/background_camera.h"
 #include "mm/indexed_display.h"
@@ -126,43 +127,7 @@ MMBackgroundPreviewServices PreviewBackground::Services(MMBackgroundPreviewGraph
     s.publish = [](void *p, const MMBackgroundPreview *state) {
         BackgroundHost(p).Publish(*state);
     };
-    s.mesh_new = [](void *) -> void * {
-        try
-        {
-            return new (std::nothrow) PreviewBackgroundMesh;
-        }
-        catch (...)
-        {
-            return nullptr;
-        }
-    };
-    s.mesh_release = [](void *, void *p) { delete static_cast<PreviewBackgroundMesh *>(p); };
-    s.mesh_build = [](void *, void *mesh, const MMBackgroundPreview *p, const double *transform,
-                      const double *projection) {
-        BackgroundMatrix t, q;
-        std::memcpy(t.data(), transform, sizeof(t));
-        std::memcpy(q.data(), projection, sizeof(q));
-        try
-        {
-            static_cast<PreviewBackgroundMesh *>(mesh)->Build(
-                p->width, p->height, p->images.buffers[0].data, p->rgb_count,
-                reinterpret_cast<const std::uint16_t *>(p->images.buffers[1].data), p->depth_count, t, q);
-            return 1;
-        }
-        catch (...)
-        {
-            return 0;
-        }
-    };
-    s.scalar_float = [](void *, MMI32 value) -> float { return BrScalarToFloat(value); };
-    s.float_scalar = [](void *, float value) -> MMI32 { return BrFloatToScalar(value); };
-    s.perspective = [](void *, unsigned short fov, MMI32 aspect, MMI32 near_z, MMI32 far_z,
-                       MMI32 out[16]) {
-        br_matrix4 matrix;
-        BrMatrix4Perspective(&matrix, fov, aspect, near_z, far_z);
-        static_assert(sizeof(matrix) == 16 * sizeof(*out), "Projection matrix layout");
-        std::memcpy(out, &matrix, sizeof(matrix));
-    };
+    mm_brender_preview_background_services(&s);
     return s;
 }
 bool PreviewBackground::SetCamera(std::uint32_t slot, bool updatePlacement)
@@ -189,11 +154,11 @@ void PreviewBackground::ReusePlacementPoint()
 {
     mm_background_preview_reuse_place(&preview);
 }
-PreviewBackgroundMesh &PreviewBackground::Mesh()
+MMBackgroundMesh &PreviewBackground::Mesh()
 {
     MMBackgroundPreviewGraph host = {&graph, this};
     auto s = Services(&host);
-    auto mesh = static_cast<PreviewBackgroundMesh *>(mm_background_preview_mesh(&preview, &s));
+    auto mesh = mm_background_preview_mesh(&preview, &s);
     if (!mesh)
         throw std::bad_alloc();
     return *mesh;

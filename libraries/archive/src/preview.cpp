@@ -4,7 +4,7 @@
 #include "scene_renderer.h"
 #include "scene_pick.h"
 #include "zb_capture.h"
-#include "preview_background_mesh.h"
+#include "preview_buffer_view.h"
 #include "preview_depth_range.h"
 #include "diagnostics.h"
 #include <algorithm>

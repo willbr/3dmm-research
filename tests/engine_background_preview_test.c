@@ -26,10 +26,6 @@ enum
     SELECTED,
     POINT_READ
 };
-typedef struct Mesh
-{
-    int live, id;
-} Mesh;
 typedef struct Host
 {
     MMBackgroundPreview preview;
@@ -39,8 +35,7 @@ typedef struct Host
     unsigned char wire[100];
     MMI32 rect[4];
     int allocations, fail_allocation, live_memory, fail, trace[64], traces, publishes, rgb, depth;
-    Mesh meshes[32];
-    int created, released, builds, fail_new, fail_build, scalar_calls;
+    int scalar_calls, invalid_projection;
 } Host;
 static void event(Host *h, int code)
 {
@@ -187,35 +182,6 @@ static void selected(void *p, MMU32 slot)
     CHECK(slot == h->preview.active && !h->depth && !h->rgb && h->preview.depth_count == 12);
     event(h, SELECTED);
 }
-static void *mesh_new(void *p)
-{
-    Host *h = (Host *)p;
-    Mesh *m;
-    if (h->fail_new)
-        return NULL;
-    CHECK(h->created < 32);
-    m = &h->meshes[h->created];
-    m->id = h->created++;
-    m->live = 1;
-    return m;
-}
-static void mesh_release(void *p, void *object)
-{
-    Host *h = (Host *)p;
-    Mesh *m = (Mesh *)object;
-    CHECK(m->live);
-    m->live = 0;
-    ++h->released;
-}
-static int mesh_build(void *p, void *object, const MMBackgroundPreview *state, const double *t, const double *q)
-{
-    Host *h = (Host *)p;
-    CHECK(((Mesh *)object)->live && state == &h->preview && state->rgb_count == 12 && state->depth_count == 12);
-    CHECK(t[0] == 1 && t[5] == 1 && t[10] == 1 && t[12] == 3 && t[15] == 1 && !t[3] && !t[7] && !t[11]);
-    CHECK(q[0] == 1 && q[5] == 1 && q[11] == -1 && q[14] == 2);
-    ++h->builds;
-    return !h->fail_build;
-}
 static float scalar_float(void *p, MMI32 value)
 {
     Host *h = (Host *)p;
@@ -231,10 +197,11 @@ static MMI32 float_scalar(void *p, float value)
 static void perspective(void *p, unsigned short fov, MMI32 aspect, MMI32 near_z, MMI32 far_z,
                         MMI32 *out)
 {
-    (void)p;
+    const Host *h = (const Host *)p;
     CHECK(fov == 0x2345 && aspect == (MMI32)(((float)4 / 3) * 65536.0f) && near_z == -65536 && far_z == -65536000);
     memset(out, 0, 16 * sizeof(*out));
-    out[0] = out[5] = out[10] = 65536;
+    out[0] = h->invalid_projection ? 0 : 65536;
+    out[5] = out[10] = 65536;
     out[11] = -65536;
     out[14] = 131072;
 }
@@ -282,9 +249,6 @@ static void init(Host *h)
     s->draw_depth = draw_depth;
     s->publish = publish;
     s->selected = selected;
-    s->mesh_new = mesh_new;
-    s->mesh_release = mesh_release;
-    s->mesh_build = mesh_build;
     s->scalar_float = scalar_float;
     s->float_scalar = float_scalar;
     s->perspective = perspective;
@@ -296,12 +260,9 @@ static int select_camera(Host *h, MMU32 slot)
 }
 static void dispose(Host *h)
 {
-    int i;
     mm_background_preview_dispose(&h->preview, &h->services);
     mm_background_camera_dispose(&h->placement);
     CHECK(!h->live_memory && !h->rgb && !h->depth);
-    for (i = 0; i < h->created; ++i)
-        CHECK(!h->meshes[i].live);
 }
 static void placement(void)
 {
@@ -383,8 +344,8 @@ static void prepared_camera(void)
 int main(void)
 {
     Host h;
-    int i, base, created, released, builds, scalar_calls;
-    void *a, *b, *c;
+    int i, base, mesh_allocations, scalar_calls, live_memory;
+    MMBackgroundMesh *a, *b, *c;
     MMU32 keys[2];
     const int expected[] = {READ,        RGB_CHILD,   RGB_FETCH,  BOUNDS,        RGB_DRAW, RGB_RELEASE,
                             DEPTH_CHILD, DEPTH_FETCH, DEPTH_DRAW, DEPTH_RELEASE, SELECTED};
@@ -450,32 +411,37 @@ int main(void)
     dispose(&h);
     init(&h);
     CHECK(select_camera(&h, 0));
+    base = h.allocations;
     a = mm_background_preview_mesh(&h.preview, &h.services);
-    CHECK(a && h.preview.mesh_count == 1 && h.scalar_calls == 28);
+    mesh_allocations = h.allocations - base;
+    CHECK(a && h.preview.mesh_count == 1 && h.scalar_calls == 28 && mesh_allocations > 1);
+    CHECK(a->triangle_count == 2 && a->vertex_count == 4 && a->infinite_count == 0);
+    CHECK(a->low[0] > .6f && a->low[0] < .8f && a->high[0] > 4.1f && a->high[0] < 4.3f);
     CHECK(select_camera(&h, 1));
     b = mm_background_preview_mesh(&h.preview, &h.services);
     CHECK(b && b != a && h.preview.mesh_count == 2);
-    builds = h.builds;
     scalar_calls = h.scalar_calls;
     CHECK(select_camera(&h, 0));
-    CHECK(mm_background_preview_mesh(&h.preview, &h.services) == a && h.builds == builds &&
-          h.scalar_calls == scalar_calls);
+    CHECK(mm_background_preview_mesh(&h.preview, &h.services) == a && h.scalar_calls == scalar_calls);
     CHECK(h.preview.keys[0] == 1 && h.preview.keys[1] == 0);
     CHECK(select_camera(&h, 2));
     memcpy(keys, h.preview.keys, sizeof(keys));
-    created = h.created;
-    released = h.released;
-    h.fail_new = 1;
-    CHECK(!mm_background_preview_mesh(&h.preview, &h.services) && h.created == created &&
-          h.released == released && !memcmp(keys, h.preview.keys, sizeof(keys)));
-    h.fail_new = 0;
-    h.fail_build = 1;
-    CHECK(!mm_background_preview_mesh(&h.preview, &h.services) && h.released == released + 1 &&
-          !memcmp(keys, h.preview.keys, sizeof(keys)));
-    h.fail_build = 0;
+    live_memory = h.live_memory;
+    for (i = 1; i <= mesh_allocations; ++i)
+    {
+        h.fail_allocation = h.allocations + i;
+        CHECK(!mm_background_preview_mesh(&h.preview, &h.services) && h.live_memory == live_memory &&
+              !memcmp(keys, h.preview.keys, sizeof(keys)) && h.preview.mesh_count == 2 &&
+              h.preview.meshes[0] == b && h.preview.meshes[1] == a);
+    }
+    h.fail_allocation = 0;
     c = mm_background_preview_mesh(&h.preview, &h.services);
-    CHECK(c && c != a && c != b && h.preview.keys[0] == 0 && h.preview.keys[1] == 2 && !((Mesh *)b)->live &&
-          ((Mesh *)a)->live);
+    CHECK(c && c != a && h.preview.keys[0] == 0 && h.preview.keys[1] == 2 &&
+          h.preview.meshes[0] == a && h.preview.meshes[1] == c && h.live_memory == live_memory);
+    CHECK(select_camera(&h, 1));
+    h.invalid_projection = 1;
+    b = mm_background_preview_mesh(&h.preview, &h.services);
+    CHECK(b && !b->triangle_count && !b->infinite_count && h.preview.keys[0] == 2 && h.preview.keys[1] == 1);
     dispose(&h);
     placement();
     prepared_camera();

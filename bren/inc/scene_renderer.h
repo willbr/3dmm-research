@@ -13,6 +13,8 @@ struct br_actor;
 struct br_camera;
 struct br_light;
 struct br_pixelmap;
+struct MMBackgroundMeshServices;
+struct MMBackgroundPreviewServices;
 
 /* Studio embeds its actors and camera data. Preview adds allocated actors
  * to a temporary tree and keeps their camera and light data alive separately. */
@@ -33,6 +35,8 @@ void mm_brender_background_light_remove(void *, MMBackgroundResource *, MMI32);
 struct br_actor *mm_brender_preview_camera(void *world, struct br_camera *, const MMRenderCamera *);
 void mm_brender_preview_tree(MMPreviewTreeServices *);
 void mm_brender_preview_services(MMPreviewRenderServices *);
+const struct MMBackgroundMeshServices *mm_brender_background_mesh_services(void);
+void mm_brender_preview_background_services(struct MMBackgroundPreviewServices *);
 
 #ifdef __cplusplus
 }

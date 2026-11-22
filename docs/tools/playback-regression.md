@@ -22129,3 +22129,32 @@ playback order also matched retained retail and V3DMM captures in
 `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows, and checks are under `tmp/c89-world-owners`.
+
+## C89 Preview background mesh ownership (22 November 2026)
+
+Preview's two-entry camera cache allocates and builds typed C89 meshes
+directly. The C89 BRender binding publishes and releases their textures,
+materials, models and frame actors. The C++ Preview facade borrows the
+mesh geometry and backdrop pixels for presentation.
+
+The synthetic mesh and retail-content catalogue traces matched all
+307,280,417 bytes. The catalogue exercises 12 backgrounds and 188 cameras,
+including 184 depth meshes, 68 static backdrops, authored views, orbit views
+and camera revisits. The C89 tests inject failures at each mesh allocation
+stage and verify that the previous cache entries survive. They also cover
+cache hits, eviction, and the empty mesh produced by invalid projection data.
+Five native and SDL World snapshots matched another 14,387,434 bytes.
+The x86 synthetic mesh trace also matched x64 byte for byte. All 238 selected
+test runs passed across C89, native x64 and x86, SDL, and Chomp.
+
+The Studio ISO, authoring and F1 Help workflows ran headlessly. Both saved
+movies and five Studio canvases matched retained files. Headless Marcus
+reproduced its startup canvas. The existing `scene-load` mismatch reproduced
+its 63,224-byte trace and fingerprint `0D666753`.
+
+The four runs in suite `20261122T160059Z-9155a985` matched both ports'
+preceding 60 seek canvases, camera and actor state, and continuous playback
+order. Seek and playback order matched retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-mesh`.

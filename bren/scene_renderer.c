@@ -1,4 +1,5 @@
 #include "scene_renderer.h"
+#include "mm/background_preview.h"
 #include "body_renderer.h"
 #include "brender.h"
 #include <stdlib.h>
@@ -371,6 +372,170 @@ static void free_pixelmap(void *context, void *map)
 {
     (void)context;
     BrPixelmapFree((br_pixelmap *)map);
+}
+
+static unsigned char *background_map_row(void *context, void *object, MMU32 y)
+{
+    br_pixelmap *map = object;
+    (void)context;
+    return (unsigned char *)map->pixels + y * map->row_bytes;
+}
+
+static void background_map_add(void *context, void *map)
+{
+    (void)context;
+    BrMapAdd(map);
+}
+
+static void background_map_remove(void *context, void *map)
+{
+    (void)context;
+    BrMapRemove(map);
+}
+
+static void *background_material_new(void *context)
+{
+    (void)context;
+    return BrMaterialAllocate(NULL);
+}
+
+static void background_material_configure(void *context, void *object, void *map)
+{
+    br_material *material = object;
+    (void)context;
+    material->flags = BR_MATF_TWO_SIDED | BR_MATF_PERSPECTIVE | BR_MATF_MAP_OPAQUE;
+    material->colour_map = map;
+}
+
+static void background_material_add(void *context, void *material)
+{
+    (void)context;
+    BrMaterialAdd(material);
+}
+
+static void background_material_remove(void *context, void *material)
+{
+    (void)context;
+    BrMaterialRemove(material);
+}
+
+static void background_material_free(void *context, void *material)
+{
+    (void)context;
+    BrMaterialFree(material);
+}
+
+static void *background_model_new(void *context, MMU32 vertices, MMU32 faces)
+{
+    (void)context;
+    return BrModelAllocate(NULL, (br_uint_16)vertices, (br_uint_16)faces);
+}
+
+static void background_model_configure(void *context, void *model)
+{
+    (void)context;
+    ((br_model *)model)->flags = BR_MODF_QUICK_UPDATE;
+}
+
+static void background_vertex(void *context, void *object, MMU32 index, const MMBackgroundVertex *value)
+{
+    br_vertex *vertex = &((br_model *)object)->vertices[index];
+    (void)context;
+    vertex->p.v[0] = BrFloatToScalar(value->x);
+    vertex->p.v[1] = BrFloatToScalar(value->y);
+    vertex->p.v[2] = BrFloatToScalar(value->z);
+    vertex->map.v[0] = BrFloatToScalar(value->u);
+    vertex->map.v[1] = BrFloatToScalar(value->v);
+}
+
+static void background_face(void *context, void *object, MMU32 index, const MMU32 indices[3], void *material)
+{
+    br_face *face = &((br_model *)object)->faces[index];
+    unsigned i;
+    (void)context;
+    face->material = material;
+    for (i = 0; i < 3; ++i)
+        face->vertices[i] = (br_uint_16)indices[i];
+}
+
+static void background_model_add(void *context, void *model)
+{
+    (void)context;
+    BrModelAdd(model);
+}
+
+static void background_model_remove(void *context, void *model)
+{
+    (void)context;
+    BrModelRemove(model);
+}
+
+static void background_model_free(void *context, void *model)
+{
+    (void)context;
+    BrModelFree(model);
+}
+
+static void *background_actor_new(void *context)
+{
+    (void)context;
+    return BrActorAllocate(BR_ACTOR_MODEL, NULL);
+}
+
+static void background_actor_configure(void *context, void *object, void *model, void *material)
+{
+    br_actor *actor = object;
+    (void)context;
+    actor->model = model;
+    actor->material = material;
+    actor->t.type = BR_TRANSFORM_IDENTITY;
+}
+
+static void background_actor_add(void *context, void *world, void *actor)
+{
+    (void)context;
+    BrActorAdd(world, actor);
+}
+
+const MMBackgroundMeshServices *mm_brender_background_mesh_services(void)
+{
+    static const MMBackgroundMeshServices services = {
+        NULL, new_colour, background_map_row, background_map_add, background_map_remove, free_pixelmap,
+        background_material_new, background_material_configure, background_material_add, background_material_remove,
+        background_material_free, background_model_new, background_model_configure, background_vertex, background_face,
+        background_model_add, background_model_remove, background_model_free, background_actor_new,
+        background_actor_configure, background_actor_add
+    };
+    return &services;
+}
+
+static float background_scalar_float(void *context, MMI32 value)
+{
+    (void)context;
+    return BrScalarToFloat(value);
+}
+
+static MMI32 background_float_scalar(void *context, float value)
+{
+    (void)context;
+    return BrFloatToScalar(value);
+}
+
+static void background_perspective(void *context, unsigned short fov, MMI32 aspect, MMI32 near_z, MMI32 far_z,
+                                   MMI32 out[16])
+{
+    br_matrix4 projection;
+    (void)context;
+    BrMatrix4Perspective(&projection, fov, aspect, near_z, far_z);
+    memcpy(out, &projection, sizeof(projection));
+}
+
+void mm_brender_preview_background_services(MMBackgroundPreviewServices *services)
+{
+    services->mesh_renderer = mm_brender_background_mesh_services();
+    services->scalar_float = background_scalar_float;
+    services->float_scalar = background_float_scalar;
+    services->perspective = background_perspective;
 }
 
 static void fill_pixelmap(void *context, void *map, MMU32 value)

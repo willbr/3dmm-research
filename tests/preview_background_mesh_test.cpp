@@ -1,4 +1,7 @@
-#include "preview_background_mesh.h"
+#include "mm/background_mesh.h"
+#include "scene_renderer.h"
+#include <array>
+#include <vector>
 #include "preview_depth_range.h"
 #include "preview_background.h"
 #include <algorithm>
@@ -31,20 +34,36 @@ static void Record(const void *data,std::size_t bytes)
     recorded+=static_cast<std::uint32_t>(bytes);
     if(snapshot)CHECK(std::fwrite(data,1,bytes,snapshot)==bytes);
 }
-namespace MM { namespace Internal {
-struct BackgroundMeshProbe {
-    static void RecordMesh(const PreviewBackgroundMesh &m)
-    {
-        const auto &c=m.core;
-        std::uint32_t counts[]={c.vertex_count,c.triangle_count,c.width*c.height,c.infinite_count,c.width,c.height};
-        Record(counts,sizeof(counts));
-        Record(c.geometry.buffers[0].data,c.vertex_count*sizeof(MMBackgroundVertex));
-        Record(c.geometry.buffers[1].data,c.triangle_count*sizeof(MMBackgroundTriangle));
-        Record(c.pixels.buffers[0].data,c.width*c.height);Record(c.pixels.buffers[1].data,c.infinite_count);
-        Record(m.low.data(),sizeof(m.low));Record(m.high.data(),sizeof(m.high));
-    }
-};
-}}
+using BackgroundMatrix = std::array<double, 16>;
+static void RecordMesh(const MMBackgroundMesh &mesh)
+{
+    std::uint32_t counts[] = {mesh.vertex_count, mesh.triangle_count, mesh.width * mesh.height, mesh.infinite_count,
+                              mesh.width, mesh.height};
+    Record(counts, sizeof(counts));
+    Record(mesh.geometry.buffers[0].data, mesh.vertex_count * sizeof(MMBackgroundVertex));
+    Record(mesh.geometry.buffers[1].data, mesh.triangle_count * sizeof(MMBackgroundTriangle));
+    Record(mesh.pixels.buffers[0].data, mesh.width * mesh.height);
+    Record(mesh.pixels.buffers[1].data, mesh.infinite_count);
+    Record(mesh.low, sizeof(mesh.low));
+    Record(mesh.high, sizeof(mesh.high));
+}
+
+static void BuildMesh(MMBackgroundMesh &mesh, unsigned width, unsigned height, const std::vector<std::uint8_t> &colours,
+                      const std::vector<std::uint16_t> &depths, const BackgroundMatrix &camera,
+                      const BackgroundMatrix &projection, int expected = 1)
+{
+    CHECK(mm_background_mesh_build(&mesh, width, height, colours.data(), static_cast<MMU32>(colours.size()),
+                                   depths.data(), static_cast<MMU32>(depths.size()), camera.data(), projection.data(),
+                                   mm_brender_background_mesh_services()) == expected);
+}
+
+static PreviewBufferView<std::uint8_t> InfiniteColours(const MMBackgroundMesh &mesh)
+{
+    PreviewBufferView<std::uint8_t> view;
+    view.Reset(mesh.pixels.buffers[1].data, mesh.infinite_count);
+    return view;
+}
+
 BackgroundMatrix Identity()
 {
     BackgroundMatrix result = {};
@@ -67,7 +86,7 @@ struct Target
     Target() : colour(stride * height, 199), depth(stride * height, 0xffff)
     {
     }
-    void Render(PreviewBackgroundMesh &mesh, const BackgroundMatrix &projection)
+    void Render(MMBackgroundMesh &mesh, const BackgroundMatrix &projection)
     {
         auto colours = BrPixelmapAllocate(BR_PMT_INDEX_8, width, height, colour.data(), BR_PMAF_NORMAL);
         auto depths = BrPixelmapAllocate(BR_PMT_DEPTH_16, stride, height, depth.data(), BR_PMAF_NORMAL);
@@ -81,7 +100,7 @@ struct Target
         camera.yon_z = BR_SCALAR(1000);
         auto eye = BrActorAllocate(BR_ACTOR_CAMERA, &camera);
         BrActorAdd(world, eye);
-        CHECK(mesh.AddToScene(world));
+        CHECK(mm_background_mesh_add(&mesh, world, mm_brender_background_mesh_services()));
         BrZbSceneRenderBegin(world, eye, colours, depths);
         // Supply an exact synthetic clip transform to BRender. Its normal
         // model/face culling, clipping, texturing and depth testing still run.
@@ -153,11 +172,12 @@ int main()
     std::vector<std::uint16_t> depths(colours.size(), 26214); // About ten units forward.
     for (unsigned i = 0; i < colours.size(); ++i)
         colours[i] = static_cast<std::uint8_t>(i);
-    PreviewBackgroundMesh mesh;
-    mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
-    CHECK(!mesh.Empty() && mesh.TriangleCount() < 100);
-    CHECK(mesh.InfiniteColours().empty());
+    MMBackgroundMesh mesh;
+    CHECK(mm_background_mesh_init(&mesh, nullptr));
+    BuildMesh(mesh, Target::width, Target::height, colours, depths, Identity(), Projection());
+    RecordMesh(mesh);
+    CHECK(mesh.triangle_count != 0 && mesh.triangle_count < 100);
+    CHECK(InfiniteColours(mesh).empty());
     CHECK(std::abs(mesh.low[2] + 10) < .01 && std::abs(mesh.high[2] + 10) < .01);
     Target same;
     same.Render(mesh, Projection());
@@ -189,8 +209,8 @@ int main()
     // Camera-to-world translation must cancel its inverse at render time.
     auto placement = Identity();
     placement[12] = 3;
-    mesh.Build(Target::width, Target::height, colours, depths, placement, Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
+    BuildMesh(mesh, Target::width, Target::height, colours, depths, placement, Projection());
+    RecordMesh(mesh);
     Target restored;
     restored.Render(mesh, translated);
     CHECK(restored.colour == same.colour && restored.depth == same.depth);
@@ -202,8 +222,8 @@ int main()
     rear[11] = 1;
     rear[14] = -18;
     rear[15] = 20;
-    mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
+    BuildMesh(mesh, Target::width, Target::height, colours, depths, Identity(), Projection());
+    RecordMesh(mesh);
     Target backside;
     backside.Render(mesh, rear);
     CHECK(backside.Covered());
@@ -279,17 +299,17 @@ int main()
     // A missing stripe must stay a hole, including when coarse cells straddle it.
     for (unsigned y = 0; y < Target::height; ++y)
         depths[y * Target::width + 7] = 0xffff;
-    mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
+    BuildMesh(mesh, Target::width, Target::height, colours, depths, Identity(), Projection());
+    RecordMesh(mesh);
     Target holes;
     holes.Render(mesh, Projection());
     CHECK(holes.Covered() && holes.Covered() < same.Covered());
-    CHECK(mesh.InfiniteColours().size() == colours.size());
+    CHECK(InfiniteColours(mesh).size() == colours.size());
     for (unsigned y = 0; y < Target::height; ++y)
     {
         CHECK(holes.depth[y * Target::stride + 7] == 0xffff);
         for (unsigned x = 0; x < Target::width; ++x)
-            CHECK(mesh.InfiniteColours()[y * Target::width + x] == colours[y * Target::width + 7]);
+            CHECK(InfiniteColours(mesh)[y * Target::width + x] == colours[y * Target::width + 7]);
     }
 
     // Two planes meet at a hard depth edge. A rotated inspection camera must
@@ -297,8 +317,8 @@ int main()
     for (unsigned y = 0; y < Target::height; ++y)
         for (unsigned x = 0; x < Target::width; ++x)
             depths[y * Target::width + x] = x < 8 ? 19660 : 29491; // 5 / 20 units.
-    mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
+    BuildMesh(mesh, Target::width, Target::height, colours, depths, Identity(), Projection());
+    RecordMesh(mesh);
     auto oblique = Projection();
     oblique[0] = .8;
     oblique[2] = .6;
@@ -323,10 +343,10 @@ int main()
     // behind when a different camera replaces the mesh.
     std::vector<std::uint8_t> largeColours(1024 * 1024, 42);
     std::vector<std::uint16_t> largeDepths(largeColours.size(), 26214);
-    mesh.Build(1024, 1024, largeColours, largeDepths, Identity(), Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
-    CHECK(mesh.InfiniteColours().empty());
-    CHECK(mesh.TriangleCount() > 65535);
+    BuildMesh(mesh, 1024, 1024, largeColours, largeDepths, Identity(), Projection());
+    RecordMesh(mesh);
+    CHECK(InfiniteColours(mesh).empty());
+    CHECK(mesh.triangle_count > 65535);
     Target large;
     large.Render(mesh, Projection());
     CHECK(large.Covered() > 100 && large.colour[6 * Target::stride + 8] == 42);
@@ -337,19 +357,20 @@ int main()
 
     // Empty / malformed inputs clear an earlier cached result safely.
     std::fill(depths.begin(), depths.end(), 0xffff);
-    mesh.Build(Target::width, Target::height, colours, depths, Identity(), Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
-    CHECK(mesh.Empty());
-    CHECK(std::vector<std::uint8_t>(mesh.InfiniteColours().begin(),mesh.InfiniteColours().end()) == colours); // Includes opaque palette index zero.
+    BuildMesh(mesh, Target::width, Target::height, colours, depths, Identity(), Projection());
+    RecordMesh(mesh);
+    CHECK(mesh.triangle_count == 0);
+    CHECK(std::vector<std::uint8_t>(InfiniteColours(mesh).begin(),InfiniteColours(mesh).end()) == colours); // Includes opaque palette index zero.
     CHECK(BrModelCount(nullptr) == initialModels && BrMapCount(nullptr) == initialMaps &&
           BrMaterialCount(nullptr) == initialMaterials);
-    mesh.Build(1025, 2, colours, depths, Identity(), Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
-    CHECK(mesh.Empty());
-    CHECK(mesh.InfiniteColours().empty());
-    mesh.Build(1, 1, {0}, {0xffff}, Identity(), Projection());
-    BackgroundMeshProbe::RecordMesh(mesh);
-    CHECK(mesh.Empty() && std::vector<std::uint8_t>(mesh.InfiniteColours().begin(),mesh.InfiniteColours().end()) == std::vector<std::uint8_t>{0});
+    BuildMesh(mesh, 1025, 2, colours, depths, Identity(), Projection(), 0);
+    RecordMesh(mesh);
+    CHECK(mesh.triangle_count == 0);
+    CHECK(InfiniteColours(mesh).empty());
+    BuildMesh(mesh, 1, 1, {0}, {0xffff}, Identity(), Projection());
+    RecordMesh(mesh);
+    CHECK(mesh.triangle_count == 0 && std::vector<std::uint8_t>(InfiniteColours(mesh).begin(),InfiniteColours(mesh).end()) == std::vector<std::uint8_t>{0});
+    mm_background_mesh_dispose(&mesh, mm_brender_background_mesh_services());
     BrZbEnd();
     BrEnd();
     if(snapshot)CHECK(!std::fclose(snapshot));

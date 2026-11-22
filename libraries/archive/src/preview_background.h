@@ -1,8 +1,8 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_PREVIEW_BACKGROUND_H
 #define MM_PREVIEW_BACKGROUND_H
-#include <memory>
-#include "preview_background_mesh.h"
+#include <cstdint>
+#include "preview_buffer_view.h"
 #include "soc_core.h"
 #include "mm/background_resource.h"
 #include "mm/background_preview.h"
@@ -43,7 +43,7 @@ class PreviewBackground
     bool NextPlacementPoint(float point[3]);
     void ReusePlacementPoint();
     bool CameraProjection(std::uint32_t slot, PreviewProjection &projection);
-    PreviewBackgroundMesh &Mesh();
+    MMBackgroundMesh &Mesh();
 };
 } // namespace Internal
 } // namespace MM

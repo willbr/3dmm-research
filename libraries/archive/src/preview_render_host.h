@@ -9,7 +9,7 @@ struct Preview::Impl::RenderHost
     Error *error;
     PreviewImage image;
     br_camera camera = {};
-    Internal::PreviewBackgroundMesh *mesh = nullptr;
+    MMBackgroundMesh *mesh = nullptr;
     std::exception_ptr exception;
     bool readBodyBounds = true;
     int onlyObject = view ? view->onlyObject : -1;
@@ -93,10 +93,10 @@ struct Preview::Impl::RenderHost
             try
             {
                 h.mesh = &h.impl->background->Mesh();
-                out->empty = h.mesh->Empty();
-                std::copy(h.mesh->low.begin(), h.mesh->low.end(), out->low);
-                std::copy(h.mesh->high.begin(), h.mesh->high.end(), out->high);
-                out->infinite = h.mesh->InfiniteColours().empty() ? nullptr : h.mesh->InfiniteColours().data();
+                out->empty = h.mesh->triangle_count == 0;
+                std::copy(h.mesh->low, h.mesh->low + 3, out->low);
+                std::copy(h.mesh->high, h.mesh->high + 3, out->high);
+                out->infinite = h.mesh->infinite_count ? h.mesh->pixels.buffers[1].data : nullptr;
                 return 1;
             }
             catch (...)
@@ -166,7 +166,8 @@ struct Preview::Impl::RenderHost
             return mm_brender_preview_camera(world, &static_cast<RenderHost *>(v)->camera, c);
         };
         s.add_mesh = [](void *v, void *world) -> int {
-            return static_cast<RenderHost *>(v)->mesh->AddToScene(static_cast<br_actor *>(world));
+            return mm_background_mesh_add(static_cast<RenderHost *>(v)->mesh, world,
+                                          mm_brender_background_mesh_services());
         };
         s.raster_begin = [](void *v, const MMPreviewProjection *p, const unsigned char *palette, int opaque,
                             MMU32 w, MMU32 height) -> int {
