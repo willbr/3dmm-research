@@ -8,10 +8,14 @@ typedef struct MMPreviewPose
 {
     MMPreviewData scene;
     MMMovieRenderScene render;
+    struct MMBackgroundMesh *mesh;
 } MMPreviewPose;
 
+void mm_preview_describe(MMPreviewData *, const MMPreviewRenderServices *);
 void mm_preview_pose_init(MMPreviewPose *, const MMPreviewRenderServices *);
 void mm_preview_pose_describe(MMPreviewPose *, const MMPreviewRenderServices *);
+int mm_preview_pose_mesh(MMPreviewPose *, MMPreviewMesh *, const MMPreviewRenderServices *);
+int mm_preview_pose_add_mesh(const MMPreviewPose *, void *world, const MMPreviewRenderServices *);
 int mm_preview_pose_bodies(MMPreviewPose *, const MMPreviewRenderServices *);
 int mm_preview_pose_submit(MMPreviewPose *, void *world, MMCollectionStorage *scratch,
                            const MMPreviewRenderServices *);

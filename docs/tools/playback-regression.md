@@ -22188,3 +22188,28 @@ order. Seek and playback order matched retained retail and V3DMM captures in
 `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-background-owner`.
+
+## C89 Preview frame background binding (22 November 2026)
+
+Preview's C89 render, pick and camera-match paths read the camera, images,
+palette and authored lights from the background owner. Render and pick
+prepare and attach the owner's cached mesh directly. Isolated previews
+use the background palette while omitting its scenery, and temporary
+light overrides apply to the requested frame.
+
+The synthetic mesh and retail-content catalogue snapshots matched
+307,280,417 bytes across 12 backgrounds and 188 cameras. Five native and
+SDL World snapshots matched another 14,387,434 bytes. All 244 selected
+test runs passed across strict C89, native x64 and x86, SDL, and Chomp.
+The headless Studio
+ISO, authoring and F1 Help workflows reproduced both saved movies and their
+canvas captures. Headless Marcus reproduced its startup canvas.
+The existing `scene-load` assertion reproduced its 63,224-byte trace and
+fingerprint `0D666753`.
+
+The four runs in suite `20261122T161840Z-237cc11d` matched both ports'
+preceding 60 seek canvases, camera, actor and caption state, and continuous
+playback order. Seek and playback order also matched the retained retail
+and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-frame`.

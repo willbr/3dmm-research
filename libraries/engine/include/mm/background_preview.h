@@ -56,6 +56,9 @@ extern "C"
     int mm_background_preview_next_place(MMBackgroundPreviewOwner *, float point[3]);
     void mm_background_preview_reuse_placement(MMBackgroundPreviewOwner *);
     MMBackgroundMesh *mm_background_preview_owner_mesh(MMBackgroundPreviewOwner *);
+    /* Attach a borrowed cached mesh from this owner to the caller's world.
+     * Requires the renderer supplied when opening the owner. */
+    int mm_background_preview_add_mesh(MMBackgroundPreviewOwner *, MMBackgroundMesh *, void *world);
     /* The initialized placement state is borrowed for the lifetime of the view.
      * Unique C owners. Metadata append operations copy their inputs and do not alias
      * storage. Fresh image selection publishes decoded camera before clip validation,

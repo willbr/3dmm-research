@@ -178,7 +178,10 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     if (!bg && d->background)
     {
         memset(&mesh, 0, sizeof(mesh));
-        if (!r.mesh(r.context, &mesh) || !r.add_mesh(r.context, frame->world))
+        result = mm_preview_pose_mesh(&state->pose, &mesh, &r);
+        if (result == MM_PREVIEW_MEMORY)
+            return MM_PREVIEW_PICK_MEMORY;
+        if (result != MM_PREVIEW_OK || !mm_preview_pose_add_mesh(&state->pose, frame->world, &r))
             return MM_PREVIEW_PICK_MODELS;
     }
     state->near_clip = p->near_clip;

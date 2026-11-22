@@ -581,3 +581,8 @@ MMBackgroundMesh *mm_background_preview_owner_mesh(MMBackgroundPreviewOwner *own
 {
     return mm_background_preview_mesh(&owner->preview, &owner->services);
 }
+
+int mm_background_preview_add_mesh(MMBackgroundPreviewOwner *owner, MMBackgroundMesh *mesh, void *world)
+{
+    return mm_background_mesh_add(mesh, world, owner->services.mesh_renderer);
+}

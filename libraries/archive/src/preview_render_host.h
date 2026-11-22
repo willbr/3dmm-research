@@ -9,7 +9,6 @@ struct Preview::Impl::RenderHost
     Error *error;
     PreviewImage image;
     br_camera camera = {};
-    MMBackgroundMesh *mesh = nullptr;
     const MMBackgroundLight *lights = nullptr;
     MMU32 lightCount = 0;
     std::exception_ptr exception;
@@ -36,6 +35,11 @@ struct Preview::Impl::RenderHost
         mm_brender_preview_services(&s);
         s.context = this;
         s.movie = impl->assets.MovieSession();
+        s.base_palette = impl->palette;
+        s.background = impl->background.get();
+        s.light_override = lights;
+        s.light_override_count = lightCount;
+        s.omit_background = onlyObject >= 0;
         if (impl->live.publication.phase && impl->live.publication.frame == impl->live.status.frame)
             s.position = &impl->live.publication;
         s.math.sin = [](float x) { return std::sin(x); };
@@ -54,7 +58,6 @@ struct Preview::Impl::RenderHost
             auto &h = *static_cast<RenderHost *>(v);
             auto &i = *h.impl;
             d->scene = i.live.status.scene;
-            d->background = bool(i.background) && h.onlyObject < 0;
             d->model = i.model ? mm_model_owner_resource(i.model)->handle : nullptr;
             const auto *model = static_cast<const br_model *>(d->model);
             d->model_resource = i.model;
@@ -64,51 +67,6 @@ struct Preview::Impl::RenderHost
                     d->model_low[a] = BrScalarToFloat(model->bounds.min.v[a]);
                     d->model_high[a] = BrScalarToFloat(model->bounds.max.v[a]);
                 }
-            const auto *palette = i.Palette();
-            for (unsigned n = 0; n < 256; ++n)
-            {
-                d->palette[n * 4] = palette[n * 4 + 2];
-                d->palette[n * 4 + 1] = palette[n * 4 + 1];
-                d->palette[n * 4 + 2] = palette[n * 4];
-                d->palette[n * 4 + 3] = 255;
-            }
-            if (i.background && d->background)
-            {
-                const auto &b = *mm_background_preview_state(i.background.get());
-                d->width = b.width;
-                d->height = b.height;
-                d->light_count = h.lights ? h.lightCount : b.light_count;
-                d->lights = h.lights ? h.lights :
-                    reinterpret_cast<const MMBackgroundLight *>(b.metadata.buffers[1].data);
-                d->colours = b.images.buffers[0].data;
-                d->depths = reinterpret_cast<const unsigned short *>(b.images.buffers[1].data);
-                const auto &camera = b.camera.data;
-                static_assert(sizeof(d->camera.matrix) == sizeof(camera.matrix.m), "Camera matrix layout");
-                std::memcpy(d->camera.matrix, camera.matrix.m, sizeof(d->camera.matrix));
-                d->camera.fov = camera.fov;
-                d->camera.near_z = camera.near_z;
-                d->camera.far_z = camera.far_z;
-                d->camera.aspect = BrFloatToScalar(float(b.width) / b.height);
-            }
-        };
-        s.mesh = [](void *v, MMPreviewMesh *out) -> int {
-            auto &h = *static_cast<RenderHost *>(v);
-            try
-            {
-                h.mesh = mm_background_preview_owner_mesh(h.impl->background.get());
-                if (!h.mesh)
-                    throw std::bad_alloc();
-                out->empty = h.mesh->triangle_count == 0;
-                std::copy(h.mesh->low, h.mesh->low + 3, out->low);
-                std::copy(h.mesh->high, h.mesh->high + 3, out->high);
-                out->infinite = h.mesh->infinite_count ? h.mesh->pixels.buffers[1].data : nullptr;
-                return 1;
-            }
-            catch (...)
-            {
-                h.exception = std::current_exception();
-                return 0;
-            }
         };
         s.body_count = [](void *v) -> MMU32 {
             return static_cast<MMU32>(static_cast<RenderHost *>(v)->impl->actors.size() + 1);
@@ -169,10 +127,6 @@ struct Preview::Impl::RenderHost
         };
         s.camera = [](void *v, void *world, const MMPreviewCamera *c) -> void * {
             return mm_brender_preview_camera(world, &static_cast<RenderHost *>(v)->camera, c);
-        };
-        s.add_mesh = [](void *v, void *world) -> int {
-            return mm_background_mesh_add(static_cast<RenderHost *>(v)->mesh, world,
-                                          mm_brender_background_mesh_services());
         };
         s.raster_begin = [](void *v, const MMPreviewProjection *p, const unsigned char *palette, int opaque,
                             MMU32 w, MMU32 height) -> int {

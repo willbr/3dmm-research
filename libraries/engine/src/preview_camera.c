@@ -1,4 +1,5 @@
 #include "mm/preview_camera.h"
+#include "preview_pose.h"
 #include <float.h>
 #include <string.h>
 static float minf(float a, float b)
@@ -104,7 +105,7 @@ int mm_preview_camera_match(float aspect, MMPreviewOrbit *orbit, MMPreviewCamera
     if (!s->ready(s->context) || !finitef(aspect) || aspect <= 0)
         return MM_PREVIEW_CAMERA_INVALID;
     memset(&d, 0, sizeof(d));
-    s->describe(s->context, &d);
+    mm_preview_describe(&d, s);
     if (!d.scene)
         return MM_PREVIEW_CAMERA_INVALID;
     out->position[2] = 10;

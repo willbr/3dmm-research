@@ -105,11 +105,22 @@ extern "C"
         MM_PREVIEW_ISOLATED_INVALID,
         MM_PREVIEW_ISOLATED_FIT
     };
+    struct MMBackgroundPreviewOwner;
     typedef struct MMPreviewRenderServices
     {
         void *context;
         struct MMMovieSession *movie;
         const MMMovieLiveFrame *position;
+        /* With a base BGRX palette, the C frame reads its environment directly.
+         * Otherwise describe/mesh/add_mesh supply an external environment.
+         * The palette, background and override are borrowed during the call.
+         * A non-null override with count zero suppresses the authored lights.
+         * Isolated views omit the scenery and still use its palette. */
+        const unsigned char *base_palette;
+        struct MMBackgroundPreviewOwner *background;
+        const MMBackgroundLight *light_override;
+        MMU32 light_override_count;
+        int omit_background;
         MMStorageAllocator allocator;
         MMPreviewMath math;
         MMPreviewTreeServices tree;

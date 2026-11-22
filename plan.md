@@ -1178,9 +1178,12 @@ buffers, image selection, mesh reconstruction,
 infinite-backdrop fill, SDK preparation and the two-entry mesh cache also
 use C89. The cache allocates each mesh through the C storage allocator and
 releases its registered maps, materials and models through the C89 BRender
-binding. Preview borrows the camera, image, palette and mesh views from that
-owner. The session normalizes its base palette in C89 using the same display
-policy as the background palette.
+binding. The C89 render, pick and camera-match paths read the camera, image,
+palette and light views directly from the owner. Render and pick borrow the
+cached mesh and attach it through the owner's renderer. Isolated render
+views keep the background palette while hiding its scenery. The session
+normalizes its base palette in C89 using the same display policy as the
+background palette.
 Preview frame allocation/lifetime, camera framing and stable-orbit state, body
 instance ordering/tree copying, lighting/material overrides, frustum depth fitting,
 raster dispatch and indexed/depth output composition now also use C89. Typed
