@@ -1751,8 +1751,11 @@ fixups. C89 parses infix and postfix source from the shared lexer tokens.
 Infix precedence, expression storage, constant folding, and control flow
 all feed the C89 emitter. Both compiler modes and the disassembler share
 C89 opcode descriptions for the base and Kidspace dialects. The VM and
-disassembler share version validation. Chomp supplies lexer tokens,
-source diagnostics, and a text sink for listings.
+disassembler share version validation. C89 also owns Kauai's buffered
+base lexer, including comments, line directives, token text, and raw
+quoted archive paths. Native adapters supply positional input, source
+diagnostics, and the listing text sink. The native Chunky compiler
+implements the archive grammar and SET variable handling.
 The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,

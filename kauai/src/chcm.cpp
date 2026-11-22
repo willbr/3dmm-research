@@ -2252,31 +2252,10 @@ bool CompilerLexer::FGetPath(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, 0);
-    achar ch;
     String stn;
 
-    if (!_FSkipWhiteSpace())
-    {
-        _fSkipToNextLine = fTrue;
+    if (!_FReadPath(&stn))
         return fFalse;
-    }
-
-    if (!_FFetchRgch(&ch) || '"' != ch)
-        return fFalse;
-    _Advance();
-
-    stn.SetNil();
-    for (;;)
-    {
-        if (!_FFetchRgch(&ch))
-            return fFalse;
-        _Advance();
-        if ('"' == ch)
-            break;
-        if (kchReturn == ch)
-            return fFalse;
-        stn.FAppendCh(ch);
-    }
 
 #ifdef WIN
     static achar _szInclude[1024];

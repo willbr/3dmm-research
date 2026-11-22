@@ -21654,3 +21654,41 @@ order matched retail and V3DMM suite `20261122T081603Z-7ffc4e8e`.
 The listings, compiler fixtures, traces, and Studio canvases are under
 `tmp/c89-script-listing` and `tmp/c89-script-infix`. Playback captures
 are under `tmp/c89-kd`.
+
+## C89 base lexer (22 November 2026)
+
+C89 reads the base tokens used by Chomp and the standalone script compiler.
+It owns the buffered cursor, comments, `#line` directives, numbers, quoted
+literals, operators, and literal path text. The Kauai adapter supplies
+positional file and byte-stream reads, publishes native token strings, and
+retains the derived number hook used by the legacy model converter. The
+native compiler resolves Chunky keywords, SET variables, and filesystem
+paths.
+
+The C fixture exercises one- and two-byte input, a directive crossing a
+512-unit buffer boundary, malformed numeric and string tokens, a continued
+string, a long identifier, and recovery after a lexical error. The native
+fixture also exercises a derived number reader through the C cursor.
+Chomp matched the retained build's four valid fixture listings and all
+13 fixture chunk payloads, including bytes imported from a quoted Windows
+path. Archive differences were confined to the index. Six malformed
+fixtures matched the previous exit status and diagnostic text, including
+the source line and filename selected by a directive. All 470 generated
+Studio script payloads matched.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. The headless room, F1 Help, ISO, and authoring workflows passed.
+Nine movie saves, Help and cache traces, five smoke canvases, and the
+Marcus startup canvas matched retained results. The ticket booth canvases
+before and during video matched the preceding build. After the AVI, the
+animation region differed from the immediately preceding sample and the
+full canvas matched earlier captures. The separate `scene-load` failure
+reproduced the preceding 63,224-byte trace and fingerprint `0D666753`.
+
+Silent suite `20261122T133505Z-7c14e965` matched both ports' preceding
+60 seek canvases and camera and actor state. Seek and continuous frame
+order matched the retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`.
+
+The lexer fixtures, traces, and Studio canvases are under `tmp/c89-lexer`.
+Playback captures are under `tmp/c89-kd`.

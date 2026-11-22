@@ -151,7 +151,7 @@ class S2BLX : public S2BLX_PAR
     double _fl;
 
   protected:
-    virtual void _ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax);
+    void _ReadNumTok(PToken ptok, achar ch, LegacyLong lwBase, LegacyLong cchMax) override;
 
   public:
     S2BLX(PFileObject pfil, bool fUnionStrings = fTrue) : S2BLX_PAR(pfil, fUnionStrings)
@@ -167,9 +167,9 @@ class S2BLX : public S2BLX_PAR
     {
         _pfil->GetFni(pfni);
     }
-    bool FIsDigit(char ch)
+    bool FIsDigit(achar ch)
     {
-        return FPure(_GrfctCh(ch) & fctDec);
+        return mm_lexer_is_decimal(static_cast<uchar>(ch)) != 0;
     }
     virtual bool FTextFromTt(long tt, PString pstn);
     bool FTextFromS2btk(PS2BTK ps2btk, PString pstn);

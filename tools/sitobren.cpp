@@ -4599,7 +4599,7 @@ static LexerKeywordEntry _rgkeyttS2B[] = {"ACTOR",
     Read a number.  The first character is passed in ch.  lwBase is the base
     of the number (must be <= 10).
 ***************************************************************************/
-void S2BLX::_ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax)
+void S2BLX::_ReadNumTok(PToken ptok, achar ch, LegacyLong lwBase, LegacyLong cchMax)
 {
     AssertThis(0);
     AssertVarMem(ptok);
@@ -4608,7 +4608,7 @@ void S2BLX::_ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax)
     long lw;
 
     lw = ch - ChLit('0');
-    while (--cchMax > 0 && _FFetchRgch(&ch) && (_GrfctCh(ch) & fctDec) && (ch - ChLit('0') < lwBase))
+    while (--cchMax > 0 && _FFetchRgch(&ch) && FIsDigit(ch) && (ch - ChLit('0') < lwBase))
     {
         lw = lw * lwBase + (ch - ChLit('0'));
         _Advance();
@@ -4624,7 +4624,7 @@ void S2BLX::_ReadNumTok(PToken ptok, achar ch, long lwBase, long cchMax)
         double fl = (double)0.0;
 
         _Advance();
-        while (--cchMax > 0 && _FFetchRgch(&ch) && (_GrfctCh(ch) & fctDec) && (ch - ChLit('0') < lwBase))
+        while (--cchMax > 0 && _FFetchRgch(&ch) && FIsDigit(ch) && (ch - ChLit('0') < lwBase))
         {
             fl += ((double)(ch - ChLit('0'))) / (double)lwFrac;
             lwFrac *= lwBase;

@@ -96,6 +96,48 @@ static bool CheckInterpreterResume(bool infix)
     return ran && interpreter.FResume(&result, &paused) && !paused && result == 8;
 }
 
+static bool CheckCustomNumberReader()
+{
+    class ModelLexer : public LexerBase
+    {
+      protected:
+        void _ReadNumTok(PToken token, achar ch, LegacyLong base, LegacyLong limit) override
+        {
+            LexerBase::_ReadNumTok(token, ch, base, limit);
+            if (_FFetchRgch(&ch) && ch == '.')
+            {
+                _Advance();
+                if (_FFetchRgch(&ch) && mm_lexer_is_decimal(static_cast<uchar>(ch)))
+                {
+                    _Advance();
+                    token->tt = ttLimBase;
+                    token->lw = token->lw * 10 + ch - '0';
+                }
+            }
+        }
+
+      public:
+        explicit ModelLexer(PFileObject input) : LexerBase(input) {}
+    };
+
+    char source[] = "12.5 + 0x1F";
+    auto input = FileObject::PfilCreateTemp();
+    if (!input)
+        return false;
+    if (!input->FWriteRgb(source, sizeof(source) - 1, 0))
+    {
+        ReleasePpo(&input);
+        return false;
+    }
+    ModelLexer lexer(input);
+    ReleasePpo(&input);
+    Token token;
+    return lexer.FGetTok(&token) && token.tt == ttLimBase && token.lw == 125 &&
+           lexer.FGetTok(&token) && token.tt == ttAdd &&
+           lexer.FGetTok(&token) && token.tt == ttLong && token.lw == 31 &&
+           !lexer.FGetTok(&token);
+}
+
 int main()
 {
     auto input = FileObject::PfilCreateTemp();
@@ -114,6 +156,8 @@ int main()
         }
     }
     ReleasePpo(&input);
+    if (!CheckCustomNumberReader())
+        return 1;
     struct Example
     {
         const char *text;

@@ -15,23 +15,8 @@
 ***************************************************************************/
 #ifndef LEX_H
 #define LEX_H
-#include "mm/lex_token.h"
-
-enum
-{
-    fctNil = 0,   // invalid character
-    fctLow = 1,   // lowercase letter
-    fctUpp = 2,   // uppercase letter
-    fctOct = 4,   // octal
-    fctDec = 8,   // digit
-    fctHex = 16,  // hex digit
-    fctSpc = 32,  // space character
-    fctOp1 = 64,  // first character of a multi-character operator
-    fctOp2 = 128, // last character of a multi-character operator
-    fctOpr = 256, // lone character operator
-    fctQuo = 512, // quote character
-};
-#define kgrfctDigit (fctOct | fctDec | fctHex)
+#include "mm/lexer.h"
+#include "mm/wide.h"
 
 struct Token
 {
@@ -44,8 +29,6 @@ typedef Token *PToken;
 /***************************************************************************
     Base lexer.
 ***************************************************************************/
-#define kcchLexbBuf 512
-
 typedef class LexerBase *PLexerBase;
 #define LexerBase_PAR BASE
 #define kclsLexerBase 'LEXB'
@@ -55,42 +38,31 @@ class LexerBase : public LexerBase_PAR
     ASSERT
     MARKMEM
 
-  protected:
-    static ushort _mpchgrfct[];
-
-    PFileObject _pfil; // exactly one of _pfil, _pbsf should be non-nil
+  private:
+    MMLexer _lexer;
     PFileByteStream _pbsf;
     String _stnFile;
-    LegacyLong _lwLine;  // which line
-    LegacyLong _ichLine; // which character on the line
 
-    FilePosition _fpCur;
-    FilePosition _fpMac;
-    LegacyLong _ichLim;
-    LegacyLong _ichCur;
-    achar _rgch[kcchLexbBuf];
-    bool _fLineStart : 1;
-    bool _fSkipToNextLine : 1;
-    bool _fUnionStrings : 1;
+    struct NumberContext
+    {
+        LexerBase *lexer;
+        PToken token;
+    };
+    static int _ReadInput(void *context, MMU32 offset, void *bytes, size_t count);
+    static void _ReadNumberToken(void *context, MMLexToken *token, unsigned first, unsigned base);
 
-    LegacyUlong _GrfctCh(achar ch)
+  protected:
+    PFileObject _pfil; // exactly one of _pfil, _pbsf should be non-nil
+    bool _FFetchRgch(achar *pch);
+    void _Advance()
     {
-        return (uchar)ch < 128 ? _mpchgrfct[(byte)ch] : fctNil;
+        mm_lexer_advance(&_lexer);
     }
-    bool _FFetchRgch(achar *prgch, LegacyLong cch = 1);
-    void _Advance(LegacyLong cch = 1)
-    {
-        _ichCur += cch;
-        _ichLine += cch;
-    }
-    bool _FSkipWhiteSpace(void);
-    virtual void _ReadNumber(LegacyLong *plw, achar ch, LegacyLong lwBase, LegacyLong cchMax);
     virtual void _ReadNumTok(PToken ptok, achar ch, LegacyLong lwBase, LegacyLong cchMax)
     {
-        _ReadNumber(&ptok->lw, ch, lwBase, cchMax);
+        ptok->lw = mm_lexer_number(&_lexer, static_cast<uchar>(ch), lwBase, cchMax);
     }
-    bool _FReadHex(LegacyLong *plw);
-    bool _FReadControlCh(achar *pch);
+    bool _FReadPath(PString path);
 
   public:
     LexerBase(PFileObject pfil, bool fUnionStrings = fTrue);
@@ -104,11 +76,11 @@ class LexerBase : public LexerBase_PAR
     void GetStnFile(PString pstn);
     LegacyLong LwLine(void)
     {
-        return _lwLine;
+        return mm_signed_word(_lexer.line);
     }
     LegacyLong IchLine(void)
     {
-        return _ichLine;
+        return _lexer.column;
     }
 };
 

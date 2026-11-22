@@ -1,7 +1,7 @@
 #include "mm/script_resource.h"
 #include "mm/script_compile.h"
 #include "mm/script_kidspace.h"
-#include "mm/lex_token.h"
+#include "mm/lexer.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_strings.h"
@@ -2109,6 +2109,87 @@ static void disassemble_script(void)
     }
 }
 
+static unsigned lex_unit(const MMLexText *text, unsigned width, unsigned index)
+{
+    return width == 1 ? text->units.narrow[index] : text->units.wide[index];
+}
+
+static void check_lex_text(const MMLexText *text, unsigned width, const char *expected)
+{
+    unsigned i;
+    CHECK(text->length == strlen(expected));
+    for (i = 0; i < text->length; ++i)
+        CHECK(lex_unit(text, width, i) == (unsigned char)expected[i]);
+}
+
+static void lexer_tokens(void)
+{
+    static const char tail[] =
+        "#line 41 \"source\\\\file.cht\"\r\n"
+        "alpha9>>=0xFFFFFFFF 08 'ABCD' \"A\\t\\101\\x42\\0\" /* join */ \"C\\\r\nD\" ; // skip\r\n"
+        "\"folder\\new file\" next \"\\x263a\" ; \"\\xQ\" ignored\r\n"
+        "done /* unterminated";
+    unsigned char bytes[508 + sizeof(tail)];
+    unsigned short wide[508 + sizeof(tail)];
+    MMMemoryStream input;
+    MMLexer lexer;
+    MMLexToken token;
+    MMLexText path;
+    unsigned i, width;
+
+    memset(bytes, ' ', 508);
+    memcpy(bytes + 508, tail, sizeof(tail) - 1);
+    for (i = 0; i < sizeof(bytes) - 1; ++i)
+        wide[i] = bytes[i];
+    for (width = 1; width <= 2; ++width)
+    {
+        CHECK(mm_memory_stream_init(&input, width == 1 ? (void *)bytes : (void *)wide,
+                                    (sizeof(bytes) - 1) * width));
+        CHECK(mm_lexer_init(&lexer, &input.stream, width, 1));
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttName);
+        check_lex_text(&token.text, width, "alpha9");
+        CHECK(lexer.line == 41 && lexer.column == 6 && lexer.has_filename);
+        check_lex_text(&lexer.filename, width, "source\\file.cht");
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttAShr);
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttLong && token.number == -1);
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttError);
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttLong && token.number == 8);
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttLong && token.number == 0x41424344);
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttString);
+        check_lex_text(&token.text, width, "A\tABCD");
+        CHECK(lexer.line == 41);
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttSemi);
+        CHECK(mm_lexer_path(&lexer, &path) && lexer.line == 42);
+        check_lex_text(&path, width, "folder\\new file");
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttName);
+        check_lex_text(&token.text, width, "next");
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttString && token.text.length == 1);
+        CHECK(lex_unit(&token.text, width, 0) == (width == 1 ? 0x3aU : 0x263aU));
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttSemi);
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttError);
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttName && lexer.line == 43);
+        check_lex_text(&token.text, width, "done");
+        CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttError);
+        CHECK(!mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttNil);
+    }
+
+    memset(bytes, 'a', sizeof(bytes));
+    bytes[sizeof(bytes) - 1] = '+';
+    CHECK(mm_memory_stream_init(&input, bytes, sizeof(bytes)));
+    CHECK(mm_lexer_init(&lexer, &input.stream, 1, 0));
+    CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttName);
+    CHECK(token.text.length == MM_LEX_TEXT_CAPACITY && lexer.column == sizeof(bytes) - 1);
+    CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttAdd);
+    CHECK(!mm_lexer_next(&lexer, &token, NULL, NULL));
+
+    CHECK(mm_memory_stream_init(&input, "\"a\"\"b\"", 6));
+    CHECK(mm_lexer_init(&lexer, &input.stream, 1, 0));
+    CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttString);
+    check_lex_text(&token.text, 1, "a");
+    CHECK(mm_lexer_next(&lexer, &token, NULL, NULL) && token.kind == ttString);
+    check_lex_text(&token.text, 1, "b");
+}
+
 int main(void)
 {
     scripts();
@@ -2127,6 +2208,7 @@ int main(void)
     compile_postfix();
     compile_infix();
     disassemble_script();
+    lexer_tokens();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }
