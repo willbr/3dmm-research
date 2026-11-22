@@ -1753,8 +1753,10 @@ arithmetic, variable dispatch, jumps, pause/resume, and the return value.
 It also packs variable names with the compiler, binds parameters and literals,
 and runs the string opcodes against the C89 registry shared with Help. Kidspace
 resolves the current, global, and remote objects and finds registry resources.
-The native host supplies clock, random and shuffle services and handles
-Kidspace opcodes that operate on Studio's objects.
+The VM shares C89 random and shuffle state across interpreters. Studio's
+transitions and asset selection use the same algorithms with their own state.
+The native host supplies seed ticks and clock scaling and handles Kidspace
+opcodes that operate on Studio's objects.
 The script string and colour tables use C-owned storage and cache references.
 C89 normalizes registry IDs, translates counted text through the host codec,
 and merges rows in reverse order. The transition adapter supplies native

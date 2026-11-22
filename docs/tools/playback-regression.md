@@ -21382,3 +21382,35 @@ The playback fixture is silent.
 
 The disassembly, traces and Studio canvases are under `tmp/c89-script-strings`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 random draws and shuffled decks (22 November 2026)
+
+The script interpreter calls the C89 generator and deck directly. Script
+instances share their existing random and deck state. Studio's native
+transition and asset-selection callers use the same implementations.
+Clock scaling now has a dedicated host callback that receives the C89 VM's
+unsigned scale word.
+
+The retail ISO executable at RVA `0x1a880` returns the high word of an
+unsigned multiply. With seed `0x963a8b66` and limit `0x07ffffff`, the
+exact result is 4,194,303. The former x64 floating-point path rounded
+that draw up to 4,194,304. C89 uses the retail calculation on both
+architectures. The fixture also checks standard and custom decks,
+reshuffling at exhaustion, allocation failure, and draws shared across
+two interpreters.
+
+All 199 engine, core link and C89 checks passed, along with 13 native x64,
+12 SDL, seven native x86 and the Chomp pipeline check. All 470 generated
+Studio script payloads matched the retained bytes. The headless Studio
+room, Help, ISO and authoring workflows passed. The Help and resource-cache
+traces, five smoke canvases, nine movie saves and the Marcus startup canvas
+matched the retained results. The native `scene-load` failure retained
+fingerprint `0D666753` and its identical trace.
+
+Suite `20261122T115637Z-e629cf4b` matched the preceding 60 seek images per
+port and the associated camera and actor state. Both ports matched the
+seek and continuous frame order of the retained retail and V3DMM runs in
+`20261122T081603Z-7ffc4e8e`. The fixture is silent.
+
+The disassembly, traces and Studio canvases are under `tmp/c89-random`.
+Playback captures are under `tmp/c89-kd`.

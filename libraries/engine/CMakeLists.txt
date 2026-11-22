@@ -22,6 +22,7 @@ target_link_libraries(mm-movie-content PUBLIC mm-engine-c89 mm-vfs)
 set_target_properties(mm-movie-content PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_sources(mm-engine-c89 PRIVATE src/settings.c src/settings_paths.c)
 target_sources(mm-engine-c89 PRIVATE src/runtime_math.c)
+target_sources(mm-engine-c89 PRIVATE src/random.c)
 target_sources(mm-engine-c89 PRIVATE src/vmm_wire.c src/vxp_package.c src/vmm_dependencies.c)
 if(WIN32)
   set(native_runtime_source src/native_runtime_win.c)
@@ -1514,6 +1515,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/action_definition.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/font_resource.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/script_resource.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/random.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/script_runtime.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/script_strings.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/script_vm.c"

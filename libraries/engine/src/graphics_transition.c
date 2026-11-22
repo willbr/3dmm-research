@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/graphics_transition.h"
 #include "mm/indexed_display.h"
+#include "mm/random.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -400,7 +401,7 @@ int mm_graphics_movie_transition_rgba(MMI32 authored_kind, double elapsed_ms, MM
         if (!filling)
         {
             elapsed_ms -= effect.dissolve_phase_ms;
-            seed = seed * 1566083941UL + 2531011UL;
+            seed = mm_random_step(seed);
         }
     }
     if ((!fading || filling) && (!outgoing || outgoing->depth != 32 || !mm_pixel_surface_valid(outgoing)))

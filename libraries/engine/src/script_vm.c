@@ -300,7 +300,7 @@ static void random_word(MMScriptVM *vm, unsigned opcode, MMI32 count)
         mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
     else
     {
-        value = services->random(vm->host, count);
+        value = (MMI32)mm_random_bounded(services->random, (MMU32)count);
         if (opcode == kopRndList)
             stack_status(vm, mm_script_stack_select(&vm->stack, count, value));
         else
@@ -314,17 +314,17 @@ static void shuffle(MMScriptVM *vm, unsigned opcode, MMI32 count)
     const void *words = NULL;
     if (count <= 0)
         mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPERAND);
-    else if (!services || !services->shuffle)
+    else if (!services || !services->deck)
         mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
     else if (opcode == kopShuffle)
-        services->shuffle(vm->host, count, NULL);
+        mm_shuffle_set(services->deck, count, NULL);
     else if ((words = mm_script_vm_words(vm, count)) != NULL)
     {
         if (mm_storage_lock(&vm->stack.storage, 0) != MM_STORAGE_OK)
             mm_script_vm_fail(vm, MM_SCRIPT_ERROR_RESOURCE);
         else
         {
-            services->shuffle(vm->host, count, words);
+            mm_shuffle_set(services->deck, count, words);
             mm_storage_unlock(&vm->stack.storage, 0);
         }
     }
@@ -531,8 +531,14 @@ static void execute(MMScriptVM *vm, unsigned opcode)
         vm->paused = 1;
         return;
     case kopNextCard:
-        if (services && services->next_card)
-            mm_script_vm_push(vm, services->next_card(vm->host));
+        if (services && services->deck)
+            mm_script_vm_push(vm, mm_shuffle_next(services->deck, 0));
+        else
+            mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
+        return;
+    case kopScaleTime:
+        if (services && services->scale_time)
+            services->scale_time(vm->host, (MMU32)mm_script_vm_pop(vm));
         else
             mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
         return;

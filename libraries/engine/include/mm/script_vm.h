@@ -1,6 +1,7 @@
 /* Execution state and host services for compiled Kauai scripts. */
 #ifndef MM_ENGINE_SCRIPT_VM_H
 #define MM_ENGINE_SCRIPT_VM_H
+#include "random.h"
 #include "script_resource.h"
 #include "script_runtime.h"
 #include "script_strings.h"
@@ -42,10 +43,10 @@ extern "C"
         MMScriptVariables *(*variables)(void *, int scope, MMI32 object);
         void (*missing_variable)(void *, MMU32 high, MMU32 low);
         void (*error)(void *, int reason);
-        MMI32 (*random)(void *, MMI32 limit);
-        /* NULL words shuffles the range [0, count). Otherwise copy count words. */
-        void (*shuffle)(void *, MMI32 count, const void *words);
-        MMI32 (*next_card)(void *);
+        /* Interpreters in one host can share draws and a deck. */
+        MMRandom *random;
+        MMShuffle *deck;
+        void (*scale_time)(void *, MMU32 scale);
         int (*opcode)(void *, unsigned opcode);
         /* Return a retained registry resource. The VM releases the reference. */
         MMScriptCollection *(*string_resource)(void *, MMU32 number, MMU32 scope);

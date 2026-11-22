@@ -6,7 +6,7 @@ MMRuntimeCounter mm_runtime_counter_subtract(MMRuntimeCounter a, MMRuntimeCounte
     result.high = a.high - b.high - (a.low < b.low);
     return result;
 }
-static MMRuntimeCounter multiply(MMU32 a, MMU32 b)
+MMRuntimeCounter mm_runtime_counter_multiply(MMU32 a, MMU32 b)
 {
     MMRuntimeCounter result;
     MMU32 first, second, third, before;
@@ -45,7 +45,8 @@ int mm_runtime_counter_scale(MMRuntimeCounter counter, MMU32 scale,
         }
         *result = quotient; return 1;
     }
-    lower = multiply(counter.low, scale); upper = multiply(counter.high, scale);
+    lower = mm_runtime_counter_multiply(counter.low, scale);
+    upper = mm_runtime_counter_multiply(counter.high, scale);
     numerator[0] = lower.low;
     numerator[1] = lower.high + upper.low;
     numerator[2] = upper.high + (numerator[1] < lower.high);

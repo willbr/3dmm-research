@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef UTILRND_H
 #define UTILRND_H
+#include "mm/random.h"
 
 /***************************************************************************
     A pseudo-random number generator. LwNext returns values from 0 to
@@ -29,11 +30,15 @@ class Random : public Random_PAR
     NOCOPY(Random)
 
   protected:
-    LegacyUlong _luSeed;
+    MMRandom _random;
 
   public:
     Random(LegacyUlong luSeed = 0L);
     virtual LegacyLong LwNext(LegacyLong lwLim);
+    MMRandom *RandomCore()
+    {
+        return &_random;
+    }
 };
 
 /***************************************************************************
@@ -50,13 +55,7 @@ class Shuffler : public Shuffler_PAR
     NOCOPY(Shuffler)
 
   protected:
-    LegacyLong _clw;
-    LegacyLong _ilw;
-    HQ _hqrglw;
-    bool _fCustom; // false iff the values in the hq are [0, _clw)
-
-    bool _FEnsureHq(LegacyLong clw);
-    void _ShuffleCore(void);
+    MMShuffle _deck;
 
   public:
     Shuffler(LegacyUlong luSeed = 0L);
@@ -65,6 +64,10 @@ class Shuffler : public Shuffler_PAR
     void ShuffleRglw(LegacyLong clw, const void *words);
 
     virtual LegacyLong LwNext(LegacyLong lwLim = 0);
+    MMShuffle *ShuffleCore()
+    {
+        return &_deck;
+    }
 };
 
 #endif // UTILRND_H

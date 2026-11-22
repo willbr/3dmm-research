@@ -55,14 +55,9 @@ Interpreter::Interpreter(PResourceCache prca, PStringRegistry pstrg)
         nullptr,
 #endif
         [](void *context, int reason) { static_cast<PInterpreter>(context)->_ReportScriptError(reason); },
-        [](void *, MMI32 count) -> MMI32 { return vrndUtil.LwNext(count); },
-        [](void *, MMI32 count, const void *words) {
-            if (words)
-                vsflUtil.ShuffleRglw(count, words);
-            else
-                vsflUtil.Shuffle(count);
-        },
-        [](void *) -> MMI32 { return vsflUtil.LwNext(0); },
+        vrndUtil.RandomCore(),
+        vsflUtil.ShuffleCore(),
+        [](void *, MMU32 scale) { vpusac->Scale(scale); },
         [](void *context, unsigned opcode) -> int { return static_cast<PInterpreter>(context)->_FExecHostOp(opcode); },
         [](void *context, MMU32 number, MMU32 scope) {
             return static_cast<PInterpreter>(context)->_FetchStringResource(number, scope);
@@ -221,15 +216,12 @@ short Interpreter::_SwMin(void)
 }
 
 /***************************************************************************
-    Dispatch the application clock operation.
+    Host-specific opcodes are provided by derived interpreters.
 ***************************************************************************/
-bool Interpreter::_FExecHostOp(LegacyLong op)
+bool Interpreter::_FExecHostOp(LegacyLong)
 {
     AssertThis(0);
-    if (op != kopScaleTime)
-        return fFalse;
-    vpusac->Scale(_LwPop());
-    return !_vm.error;
+    return fFalse;
 }
 
 void Interpreter::_Push(LegacyLong lw)

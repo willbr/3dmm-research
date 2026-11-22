@@ -662,6 +662,135 @@ static void execute_string_scripts(void)
     }
 }
 
+typedef struct DeckAllocator
+{
+    int fail;
+    int releases;
+} DeckAllocator;
+
+static void *allocate_cards(void *context, void *old, MMU32 old_bytes, MMU32 new_bytes, int priority)
+{
+    DeckAllocator *allocator = context;
+    (void)old_bytes;
+    CHECK(priority == MM_STORAGE_NORMAL);
+    return allocator->fail ? NULL : realloc(old, new_bytes);
+}
+
+static void release_cards(void *context, void *data, MMU32 bytes)
+{
+    DeckAllocator *allocator = context;
+    CHECK(bytes > 0);
+    ++allocator->releases;
+    free(data);
+}
+
+static void random_decks(void)
+{
+    static const MMI32 first[] = {2, 1, 0, 3, 4, 5};
+    static const MMI32 second[] = {2, 1, 0, 4, 3, 5};
+    static const MMI32 cards[] = {91, -8, 999, 75};
+    static const MMI32 custom[] = {-8, 91, 75, 999};
+    static const MMI32 repeated[] = {75, 999, 91, -8};
+    MMRandom random;
+    MMShuffle deck;
+    MMStorageAllocator storage;
+    DeckAllocator allocator;
+    size_t i;
+
+    CHECK(mm_random_seed_from_ticks(0x12345678UL) == 0x78563412UL);
+    random.seed = 0x963a8b66UL;
+    CHECK(mm_random_bounded(&random, 0x07ffffffUL) == 4194303 && random.seed == 0x08000001UL);
+    random.seed = 0x12345678UL;
+    memset(&allocator, 0, sizeof(allocator));
+    storage.context = &allocator;
+    storage.resize = allocate_cards;
+    storage.release = release_cards;
+    CHECK(mm_shuffle_init(&deck, &random, &storage) == MM_STORAGE_OK);
+    CHECK(mm_shuffle_next(&deck, 0) == 0 && random.seed == 0x12345678UL);
+    for (i = 0; i < sizeof(first) / sizeof(*first); ++i)
+        CHECK(mm_shuffle_next(&deck, 6) == first[i]);
+    for (i = 0; i < sizeof(second) / sizeof(*second); ++i)
+        CHECK(mm_shuffle_next(&deck, 0) == second[i]);
+    CHECK(mm_shuffle_set(&deck, 4, cards));
+    for (i = 0; i < sizeof(custom) / sizeof(*custom); ++i)
+        CHECK(mm_shuffle_next(&deck, 0) == custom[i]);
+    for (i = 0; i < sizeof(repeated) / sizeof(*repeated); ++i)
+        CHECK(mm_shuffle_next(&deck, 0) == repeated[i]);
+    CHECK(mm_shuffle_next(&deck, 4) == 0 && mm_shuffle_next(&deck, 4) == 3 && !deck.custom);
+    CHECK(random.seed == 0xabd57425UL);
+
+    allocator.fail = 1;
+    random.seed = 0xffeeddccUL;
+    CHECK(mm_shuffle_next(&deck, 5) == 0 && random.seed == 99738687);
+    CHECK(!deck.count && !deck.storage.buffers[0].data && allocator.releases == 1);
+    CHECK(mm_shuffle_next(&deck, 0) == 0 && random.seed == 99738687);
+    mm_shuffle_dispose(&deck);
+    CHECK(allocator.releases == 1);
+}
+
+static void record_scale(void *context, MMU32 scale)
+{
+    *(MMU32 *)context = scale;
+}
+
+static void execute_random_scripts(void)
+{
+    static const MMU32 prepare[] = {
+        VM_VERSION, VM_IMMEDIATES(1), 6, kopShuffle, kopNextCard, kopReturn
+    };
+    static const MMU32 next[] = {VM_VERSION, kopNextCard, kopReturn};
+    static const MMU32 list[] = {
+        VM_VERSION, VM_IMMEDIATES(5), 91, 0xfffffff8UL, 999, 75, 4, kopShuffleList, kopNextCard, kopReturn
+    };
+    static const MMU32 draw[] = {
+        VM_VERSION, VM_IMMEDIATES(1), 0x80000000UL, kopScaleTime,
+        VM_IMMEDIATES(1), 1000, kopRnd, kopReturn
+    };
+    static const MMU32 draw_list[] = {
+        VM_VERSION, VM_IMMEDIATES(4), 10, 20, 30, 3, kopRndList, kopReturn
+    };
+    Host host;
+    MMScriptVM first, second;
+    MMScriptVMServices services;
+    MMRandom random, deck_random;
+    MMShuffle deck;
+    MMU32 clock_scale = 0;
+
+    init(&host);
+    random.seed = 0x13579bdfUL;
+    deck_random.seed = 0x12345678UL;
+    CHECK(mm_shuffle_init(&deck, &deck_random, NULL) == MM_STORAGE_OK);
+    memset(&services, 0, sizeof(services));
+    services.random = &random;
+    services.deck = &deck;
+    services.scale_time = record_scale;
+    CHECK(mm_script_vm_init(&first, NULL, 1, NULL, &services, &clock_scale) == MM_STORAGE_OK);
+    CHECK(mm_script_vm_init(&second, NULL, 1, NULL, &services, &clock_scale) == MM_STORAGE_OK);
+
+    CHECK(attach_program(&host, &first, prepare, sizeof(prepare) / sizeof(*prepare)));
+    CHECK(mm_script_vm_resume(&first) && first.result == 2);
+    mm_script_vm_dispose(&first);
+    CHECK(attach_program(&host, &second, next, sizeof(next) / sizeof(*next)));
+    CHECK(mm_script_vm_resume(&second) && second.result == 1);
+    mm_script_vm_dispose(&second);
+    CHECK(attach_program(&host, &first, list, sizeof(list) / sizeof(*list)));
+    CHECK(mm_script_vm_resume(&first) && first.result == 91 && first.stack.count == 4);
+    CHECK(!first.stack.storage.buffers[0].locks);
+    mm_script_vm_dispose(&first);
+    CHECK(attach_program(&host, &second, next, sizeof(next) / sizeof(*next)));
+    CHECK(mm_script_vm_resume(&second) && second.result == -8);
+    mm_script_vm_dispose(&second);
+
+    CHECK(attach_program(&host, &first, draw, sizeof(draw) / sizeof(*draw)));
+    CHECK(mm_script_vm_resume(&first) && first.result == 792 && clock_scale == 0x80000000UL);
+    mm_script_vm_dispose(&first);
+    CHECK(attach_program(&host, &second, draw_list, sizeof(draw_list) / sizeof(*draw_list)));
+    CHECK(mm_script_vm_resume(&second) && second.result == 30 && random.seed == 897371577);
+    mm_script_vm_dispose(&second);
+    mm_shuffle_dispose(&deck);
+    CHECK(!host.collections_live);
+}
+
 int main(void)
 {
     scripts();
@@ -670,6 +799,8 @@ int main(void)
     execute_scripts();
     runtime_strings();
     execute_string_scripts();
+    random_decks();
+    execute_random_scripts();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }
