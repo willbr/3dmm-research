@@ -14,21 +14,21 @@ static void check(int ok, int line)
 typedef struct Token
 {
     int refs;
-    void *rows;
 } Token;
 typedef struct Host
 {
     MMTextMaterializeServices s;
     MMTextDocumentConfig config;
-    Token file, translated, temporary, props, args;
+    Token file, translated, temporary;
+    MMTextCollection *props, *args;
+    int returned_props, returned_args;
     void *slots[5];
     MMPieceTable pieces;
-    MMCollectionStorage property_storage, argument_storage;
-    MMArray property_rows;
-    MMGroup argument_rows;
+    MMArray *property_rows;
+    MMGroup *argument_rows;
     unsigned char header[16], marker[2], properties[16], normalized[16];
     MMU32 fixed[3];
-    int foreign, big, change, missing, empty, copy, base, defaults, replaced, opened, long_text, unpadded;
+    int foreign, big, change, missing, empty, copy, base, defaults, replaced, opened, long_text, unpadded, relocate;
     int refs_at_publish, fail_index, fail_result, calls, fail_at, failed;
     char log[256];
     unsigned used;
@@ -60,17 +60,27 @@ static void retain_file(void *v, void *p)
 static void drop(void *v, MMU32 kind, void *p)
 {
     Host *h = (Host *)v;
-    Token *t = (Token *)p;
-    (void)kind;
-    CHECK(t->refs > 0);
-    --t->refs;
-    event(h, t == &h->file ? 'f' : t == &h->translated ? 't' : t == &h->props ? 'p' : 'a');
+    if (kind == MM_TEXT_BYTES)
+    {
+        Token *t = p;
+        CHECK(t->refs > 0);
+        --t->refs;
+        event(h, t == &h->file ? 'f' : 't');
+    }
+    else
+    {
+        MMTextCollection **owner = kind == MM_TEXT_PROPERTIES ? &h->props : &h->args;
+        CHECK(*owner == p);
+        mm_text_collection_dispose(*owner);
+        *owner = NULL;
+        event(h, kind == MM_TEXT_PROPERTIES ? 'p' : 'a');
+    }
 }
 static MMI32 width(void *v, MMU32 kind, void *p)
 {
     Host *h = (Host *)v;
-    CHECK(p == (kind == MM_TEXT_PROPERTIES ? (void *)&h->props : (void *)&h->args));
-    return kind == MM_TEXT_PROPERTIES ? 8 : 4;
+    CHECK(p == (kind == MM_TEXT_PROPERTIES ? h->props : h->args));
+    return mm_text_collection_width(p);
 }
 static int header_read(void *v, MMU32 off, void *p, size_t n)
 {
@@ -126,12 +136,12 @@ static int read_text(void *v, const MMTextLocation *p, void *out, MMU32 n)
 static int group(void *v, MMU32 kind, MMU32 number, void **out, int *order, int *system)
 {
     Host *h = (Host *)v;
-    Token *t = kind == MM_TEXT_PROPERTIES ? &h->props : &h->args;
+    int *returned = kind == MM_TEXT_PROPERTIES ? &h->returned_props : &h->returned_args;
     int r = step(h, 'G');
-    CHECK(number == 3 && !t->refs);
+    CHECK(number == 3 && !*returned);
     /* Owned output on failure must still be released. */
-    *out = t;
-    t->refs = 1;
+    *out = kind == MM_TEXT_PROPERTIES ? h->props : h->args;
+    *returned = 1;
     *order = h->foreign ? 256 : 1;
     *system = 0x202;
     return r;
@@ -235,31 +245,39 @@ static int piece_copy(void *v, const MMFilePiece *from, const MMFilePiece *to)
     CHECK(to->file == &h->temporary && to->offset == 0 && to->length == 2048);
     return 1;
 }
-static MMArray properties(void *p)
-{
-    return *(MMArray *)((Token *)p)->rows;
-}
-static MMGroup arguments(void *p)
-{
-    return *(MMGroup *)((Token *)p)->rows;
-}
 static MMU32 fixed(Host *h, MMU32 i)
 {
     MMGroupLocation row;
     MMU32 n;
-    CHECK(mm_group_read_slot(&h->argument_rows, i, &row) == MM_GROUP_SLOT_PRESENT);
-    memcpy(&n, h->argument_storage.buffers[0].data + row.offset, sizeof(n));
+    CHECK(mm_group_read_slot(h->argument_rows, i, &row) == MM_GROUP_SLOT_PRESENT);
+    memcpy(&n, h->argument_rows->storage->buffers[0].data + row.offset, sizeof(n));
     return n;
+}
+static void replace_payload_buffer(MMCollectionStorage *storage, MMCollectionStorage *replacement, MMU32 bytes)
+{
+    MMStorageBuffer original = storage->buffers[0];
+    CHECK(mm_storage_copy(replacement, storage, bytes, 0) == MM_STORAGE_OK);
+    storage->buffers[0] = replacement->buffers[0];
+    replacement->buffers[0] = original;
 }
 static int open_argument(void *v, MMI32 i, unsigned kind, int order, int system)
 {
     Host *h = (Host *)v;
-    CHECK(h->slots[MM_TEXT_OWNER_PROPERTIES] == &h->props && h->slots[MM_TEXT_OWNER_ARGUMENTS] == &h->args);
-    CHECK(h->empty || !memcmp(h->property_storage.buffers[0].data, h->normalized, 16));
+    CHECK(h->slots[MM_TEXT_OWNER_PROPERTIES] == h->props && h->slots[MM_TEXT_OWNER_ARGUMENTS] == h->args);
+    CHECK(h->empty || !memcmp(h->property_rows->storage->buffers[0].data, h->normalized, 16));
+    CHECK(h->property_rows->storage->min_grow[0] == 128 && h->property_rows->storage->min_grow[1] == 16);
+    CHECK(h->argument_rows->storage->min_grow[1] == 16 * sizeof(MMGroupLocation));
     CHECK(i == (h->opened == 0 ? 2 : 0) && kind == (i == 2 ? 0x80U : 2U));
     CHECK(order == (h->foreign ? 256 : 1) && system == 0x202);
     ++h->opened;
     event(h, i == 2 ? '2' : '0');
+    if (h->relocate && i == 2)
+    {
+        MMCollectionStorage replacement;
+        CHECK(mm_storage_init(&replacement, NULL) == MM_STORAGE_OK);
+        replace_payload_buffer(h->argument_rows->storage, &replacement, h->argument_rows->bytes);
+        CHECK(mm_storage_dispose(&replacement) == MM_STORAGE_OK);
+    }
     return i == h->fail_index ? h->fail_result : step(h, 'O');
 }
 static void word(unsigned char *p, MMU32 n, unsigned bytes, int big)
@@ -318,8 +336,6 @@ static void init(Host *h, unsigned unit, int big, int foreign)
     s->base.pieces = pieces;
     s->init_base = base;
     s->defaults = defaults;
-    s->properties = properties;
-    s->arguments = arguments;
     s->open_argument = open_argument;
 }
 static int run(Host *h)
@@ -335,21 +351,18 @@ static int run(Host *h)
     files.create_temp = piece_temp;
     files.copy = piece_copy;
     CHECK(mm_piece_table_init(&h->pieces, NULL, &files, 0) == MM_DATA_OK);
-    CHECK(mm_storage_init(&h->property_storage, NULL) == MM_STORAGE_OK);
-    h->property_rows.storage = &h->property_storage;
-    h->property_rows.width = 8;
-    h->props.rows = &h->property_rows;
+    h->props = mm_text_collection_new(MM_TEXT_PROPERTIES, NULL);
+    h->args = mm_text_collection_new(MM_TEXT_ARGUMENTS, NULL);
+    CHECK(h->props && h->args);
+    h->property_rows = mm_text_collection_property_array(h->props, NULL);
+    h->argument_rows = mm_text_collection_argument_group(h->args);
     if (!h->empty)
-        CHECK(mm_array_insert(&h->property_rows, 0, h->properties, 2) == MM_STORAGE_OK);
-    CHECK(mm_storage_init(&h->argument_storage, NULL) == MM_STORAGE_OK);
-    h->argument_rows.storage = &h->argument_storage;
-    h->argument_rows.fixed_bytes = 4;
-    h->args.rows = &h->argument_rows;
+        CHECK(mm_array_insert(h->property_rows, 0, h->properties, 2) == MM_STORAGE_OK);
     for (i = 0; i < 3; ++i)
-        CHECK(mm_group_add(&h->argument_rows, i == 2 && h->unpadded, &payload, h->fixed + i, NULL) == MM_STORAGE_OK);
-    CHECK(mm_group_delete(&h->argument_rows, 1) == MM_STORAGE_OK);
+        CHECK(mm_group_add(h->argument_rows, i == 2 && h->unpadded, &payload, h->fixed + i, NULL) == MM_STORAGE_OK);
+    CHECK(mm_group_delete(h->argument_rows, 1) == MM_STORAGE_OK);
     if (h->unpadded)
-        h->argument_rows.bytes -= 3;
+        h->argument_rows->bytes -= 3;
     return mm_text_materialize(&h->config, MM_TEXT_ROOT, 9, h->copy, &h->s);
 }
 static void cleanup(Host *h)
@@ -359,9 +372,11 @@ static void cleanup(Host *h)
     if (h->slots[MM_TEXT_OWNER_ARGUMENTS])
         drop(h, MM_TEXT_ARGUMENTS, h->slots[MM_TEXT_OWNER_ARGUMENTS]);
     CHECK(mm_piece_table_dispose(&h->pieces) == MM_DATA_OK);
-    CHECK(mm_storage_dispose(&h->property_storage) == MM_STORAGE_OK);
-    CHECK(mm_storage_dispose(&h->argument_storage) == MM_STORAGE_OK);
-    CHECK(h->file.refs == 1 && !h->translated.refs && !h->temporary.refs && !h->props.refs && !h->args.refs);
+    CHECK(!h->props || !h->returned_props);
+    CHECK(!h->args || !h->returned_args);
+    mm_text_collection_dispose(h->props);
+    mm_text_collection_dispose(h->args);
+    CHECK(h->file.refs == 1 && !h->translated.refs && !h->temporary.refs);
 }
 static void materialization(void)
 {
@@ -382,7 +397,7 @@ static void materialization(void)
                         h.copy = copy;
                         CHECK(run(&h) == 1 && h.opened == 2 && h.replaced && h.defaults);
                         CHECK(fixed(&h, 0) == 0x02000001UL && fixed(&h, 2) == 0x80000001UL);
-                        CHECK(mm_group_read_slot(&h.argument_rows, 1, &slot) == MM_GROUP_SLOT_FREE);
+                        CHECK(mm_group_read_slot(h.argument_rows, 1, &slot) == MM_GROUP_SLOT_FREE);
                         inserted = change ? 8 : 4;
                         /* Preserve the legacy CpMac()-1 byte removal for both unit widths. */
                         CHECK(h.pieces.length == inserted + 5 * unit - 4);
@@ -435,7 +450,7 @@ static void materialization(void)
                             h.fail_result = 0;
                             CHECK(run(&h) == 0 && h.opened == (which ? 2 : 1));
                             CHECK(fixed(&h, 2) == 0x80000001UL);
-                            CHECK(mm_group_read_slot(&h.argument_rows, 1, &slot) == MM_GROUP_SLOT_FREE);
+                            CHECK(mm_group_read_slot(h.argument_rows, 1, &slot) == MM_GROUP_SLOT_FREE);
                             CHECK(fixed(&h, 0) == (foreign && !which ? 0x01000002UL : 0x02000001UL));
                             cleanup(&h);
                         }
@@ -448,7 +463,11 @@ static void materialization(void)
     init(&h, 1, 0, 1);
     h.unpadded = 1;
     CHECK(run(&h) == 1 && h.opened == 2 && fixed(&h, 2) == 0x80000001UL);
-    CHECK(mm_group_location(&h.argument_rows, 2, &slot) != MM_STORAGE_OK);
+    CHECK(mm_group_location(h.argument_rows, 2, &slot) != MM_STORAGE_OK);
+    cleanup(&h);
+    init(&h, 1, 0, 1);
+    h.relocate = 1;
+    CHECK(run(&h) == 1 && h.opened == 2 && fixed(&h, 0) == 0x02000001UL);
     cleanup(&h);
     for (change = 0; change < 2; ++change)
         for (copy = 0; copy < 2; ++copy)
@@ -467,22 +486,17 @@ static void materialization(void)
 typedef struct FontHost
 {
     MMTextFontArgumentServices services;
-    MMCollectionStorage storage, replacement;
-    MMGroup rows;
-    unsigned lookups, conversions, mappings, strings, entries, count;
+    MMTextCollection *arguments;
+    MMCollectionStorage *storage, replacement;
+    MMGroup *rows;
+    unsigned conversions, mappings, strings, entries, count;
     int converted, mapped, relocate;
 } FontHost;
-static MMGroup arg_rows(void *v)
-{
-    FontHost *h = (FontHost *)v;
-    ++h->lookups;
-    return h->rows;
-}
 static MMI32 arg_convert(void *v, const void *p, MMU32 n, int encoding, void *out, MMU32 capacity)
 {
     FontHost *h = (FontHost *)v;
     const unsigned short wide = 'Z';
-    CHECK(h->storage.buffers[0].locks == 1 && n == 1 && *(const unsigned char *)p == 'A');
+    CHECK(h->storage->buffers[0].locks == 1 && n == 1 && *(const unsigned char *)p == 'A');
     CHECK(encoding == MM_TEXT_MAC && capacity == MM_STRING_MAX);
     ++h->conversions;
     if (h->services.wire.unit == 1)
@@ -495,15 +509,12 @@ static int arg_map(void *v, const MMMovieTitle *p, int system, MMI32 *out)
 {
     FontHost *h = (FontHost *)v;
     unsigned expected = h->conversions ? 'Z' : 'A';
-    CHECK(!h->storage.buffers[0].locks && system == -123 && p->unit == h->services.wire.unit);
+    CHECK(!h->storage->buffers[0].locks && system == -123 && p->unit == h->services.wire.unit);
     CHECK(p->count == h->count);
     if (p->count)
         CHECK((p->unit == 1 ? *(const unsigned char *)p->text : p->text[0]) == expected);
     if (h->relocate)
-    {
-        CHECK(mm_storage_copy(&h->replacement, &h->storage, h->rows.bytes, 8) == MM_STORAGE_OK);
-        h->rows.storage = &h->replacement;
-    }
+        replace_payload_buffer(h->storage, &h->replacement, h->rows->bytes);
     ++h->mappings;
     *out = -17;
     return h->mapped;
@@ -511,13 +522,13 @@ static int arg_map(void *v, const MMMovieTitle *p, int system, MMI32 *out)
 static void arg_bad_string(void *v)
 {
     FontHost *h = (FontHost *)v;
-    CHECK(h->storage.buffers[0].locks == 1 && !h->entries);
+    CHECK(h->storage->buffers[0].locks == 1 && !h->entries);
     ++h->strings;
 }
 static void arg_bad_entry(void *v)
 {
     FontHost *h = (FontHost *)v;
-    CHECK(h->storage.buffers[0].locks == h->strings);
+    CHECK(h->storage->buffers[0].locks == h->strings);
     ++h->entries;
 }
 static void init_font(FontHost *h, unsigned unit, int foreign, unsigned count, int size_adjustment)
@@ -531,14 +542,13 @@ static void init_font(FontHost *h, unsigned unit, int foreign, unsigned count, i
     MMI32 payload_bytes;
     memset(h, 0, sizeof(*h));
     memset(data, 0, sizeof(data));
-    CHECK(mm_storage_init(&h->storage, NULL) == MM_STORAGE_OK);
-    CHECK(mm_storage_init(&h->replacement, NULL) == MM_STORAGE_OK);
-    h->rows.storage = &h->storage;
-    h->rows.fixed_bytes = 4;
+    h->arguments = mm_text_collection_new(MM_TEXT_ARGUMENTS, NULL);
+    CHECK(h->arguments != NULL && mm_storage_init(&h->replacement, NULL) == MM_STORAGE_OK);
+    h->rows = mm_text_collection_argument_group(h->arguments);
+    h->storage = h->rows->storage;
     h->mapped = h->converted = 1;
     h->count = count;
     s->context = h;
-    s->arguments = arg_rows;
     s->wire.unit = unit;
     s->wire.native_big_endian = *(const unsigned char *)&one == 0;
     s->wire.current_encoding = unit == 1 ? MM_TEXT_WINDOWS :
@@ -572,7 +582,7 @@ static void init_font(FontHost *h, unsigned unit, int foreign, unsigned count, i
     CHECK(mm_string_wire_get(&source, data + 6, sizeof(data) - 6));
     payload_bytes = 6 + (MMI32)mm_string_wire_size(&source) + size_adjustment;
     CHECK(payload_bytes >= 0 && payload_bytes <= (MMI32)sizeof(data));
-    CHECK(mm_group_add(&h->rows, (MMU32)payload_bytes, data, &fixed_word, NULL) == MM_STORAGE_OK);
+    CHECK(mm_group_add(h->rows, (MMU32)payload_bytes, data, &fixed_word, NULL) == MM_STORAGE_OK);
 }
 static MMI32 font_id(const MMCollectionStorage *storage)
 {
@@ -582,8 +592,8 @@ static MMI32 font_id(const MMCollectionStorage *storage)
 }
 static void dispose_font(FontHost *h)
 {
-    CHECK(!h->storage.buffers[0].locks && !h->replacement.buffers[0].locks);
-    CHECK(mm_storage_dispose(&h->storage) == MM_STORAGE_OK);
+    CHECK(!h->storage->buffers[0].locks && !h->replacement.buffers[0].locks);
+    mm_text_collection_dispose(h->arguments);
     CHECK(mm_storage_dispose(&h->replacement) == MM_STORAGE_OK);
 }
 static void font_arguments(void)
@@ -597,46 +607,46 @@ static void font_arguments(void)
         {
             init_font(&h, unit, foreign, 1, 0);
             h.relocate = foreign;
-            CHECK(mm_text_open_font_argument(0, 2, &h.services) == 1);
-            CHECK(h.lookups == 2 && h.mappings == 1 && h.conversions == (unsigned)foreign);
-            CHECK(font_id(h.rows.storage) == -17 && !h.strings && !h.entries);
+            CHECK(mm_text_open_font_argument(h.arguments, 0, 2, &h.services) == 1);
+            CHECK(h.mappings == 1 && h.conversions == (unsigned)foreign);
+            CHECK(font_id(h.storage) == -17 && !h.strings && !h.entries);
             if (foreign)
-                CHECK(font_id(&h.storage) == 23);
+                CHECK(font_id(&h.replacement) == 23);
             dispose_font(&h);
         }
         for (kind = 0; kind < 256; ++kind)
             if (kind != 2)
             {
                 init_font(&h, unit, 0, 1, 0);
-                CHECK(!mm_text_open_font_argument(0, kind, &h.services));
-                CHECK(h.lookups == 1 && !h.entries && !h.mappings && font_id(&h.storage) == 23);
+                CHECK(!mm_text_open_font_argument(h.arguments, 0, kind, &h.services));
+                CHECK(!h.entries && !h.mappings && font_id(h.storage) == 23);
                 dispose_font(&h);
             }
         for (n = 0; n < 6 + 2 + 3 * (int)unit; ++n)
         {
             init_font(&h, unit, 0, 1, n - 8 - 3 * (int)unit);
-            CHECK(!mm_text_open_font_argument(0, 2, &h.services));
-            CHECK(h.lookups == 1 && h.entries == 1 && h.strings == (unsigned)(n >= 6) && !h.mappings);
+            CHECK(!mm_text_open_font_argument(h.arguments, 0, 2, &h.services));
+            CHECK(h.entries == 1 && h.strings == (unsigned)(n >= 6) && !h.mappings);
             dispose_font(&h);
         }
         for (failure = 0; failure >= -2; --failure)
         {
             init_font(&h, unit, 0, 1, 0);
             h.mapped = failure;
-            CHECK(mm_text_open_font_argument(0, 2, &h.services) == failure);
-            CHECK(h.lookups == 1 && h.mappings == 1 && !h.entries && font_id(&h.storage) == 23);
+            CHECK(mm_text_open_font_argument(h.arguments, 0, 2, &h.services) == failure);
+            CHECK(h.mappings == 1 && !h.entries && font_id(h.storage) == 23);
             dispose_font(&h);
         }
         init_font(&h, unit, 1, 1, 0);
         h.converted = 0;
-        CHECK(!mm_text_open_font_argument(0, 2, &h.services));
+        CHECK(!mm_text_open_font_argument(h.arguments, 0, 2, &h.services));
         CHECK(h.conversions == 1 && h.strings == 1 && h.entries == 1 && !h.mappings);
         dispose_font(&h);
         init_font(&h, unit, 0, 1, 1);
-        CHECK(!mm_text_open_font_argument(0, 2, &h.services) && h.strings == 1 && !h.mappings);
+        CHECK(!mm_text_open_font_argument(h.arguments, 0, 2, &h.services) && h.strings == 1 && !h.mappings);
         dispose_font(&h);
         init_font(&h, unit, 0, 0, 0);
-        CHECK(mm_text_open_font_argument(0, 2, &h.services) == 1 && font_id(&h.storage) == -17);
+        CHECK(mm_text_open_font_argument(h.arguments, 0, 2, &h.services) == 1 && font_id(h.storage) == -17);
         dispose_font(&h);
     }
 }

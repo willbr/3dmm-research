@@ -20855,3 +20855,25 @@ frames and all 11 caption frames. SDL and Marcus retained the three
 caption-area differences from retail on the caption fixture.
 
 Evidence is under tmp/c89-rich-text-edit-rows.
+
+## C89 rich-text document materialization (22 November 2026)
+
+Studio's C89 loader transfers the property and argument collections into the
+document and normalizes their stored byte order in place. Its font argument
+reader edits the live collection directly. It reacquires the row after native
+font mapping, which can move the payload buffer. Fixtures use the C owners
+and cover relocation during font mapping and argument opening, partial
+failure, and an argument row without trailing padding.
+
+The 193 rebuilt C89 checks passed. Native x64, native x86 and SDL save/load
+and text-store passed, along with Marcus's caption edit, undo and reopen
+check. All 14 native x64 traces matched their prior bytes. Studio's caption
+save matched byte for byte. Its camera save retained the same archive graph
+and payloads, with two TMPL index padding bytes differing.
+
+All six seek runs in 20261122T021909Z-853ecd64 matched their prior canvases
+and camera indices. Retail and V3DMM agreed on all 60 camera frames and all
+11 caption frames. SDL and Marcus retained the three caption-area pixel
+differences from retail.
+
+Evidence is under tmp/c89-text-materialize-owners.

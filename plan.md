@@ -1810,6 +1810,9 @@ Studio supplies its document/view hooks, font mapping and allocator.
 Property edits in both hosts bind those C89 owners directly. Argument
 allocation, lookup, insertion and reference updates use shared collection
 operations that preserve the payload byte order.
+Studio's document loader now transfers and normalizes these collections in
+C89. Font argument lookup uses the live collection before and after the
+native font mapping call, so buffer relocation keeps the mapped ID current.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

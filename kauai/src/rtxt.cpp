@@ -899,7 +899,7 @@ bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
     AssertBaseThis(0);
     DocumentHost host(this);
     auto services = host.FontArgument();
-    int result = mm_text_open_font_argument(icact, sprm, &services);
+    int result = mm_text_open_font_argument(_arguments, icact, sprm, &services);
     host.Rethrow();
     return result > 0;
 }

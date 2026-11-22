@@ -51,22 +51,9 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
         if (slot == MM_TEXT_OWNER_ARCHIVE)
             rich->_pcfl = static_cast<PChunkyFile>(p);
         else if (slot == MM_TEXT_OWNER_PROPERTIES)
-        {
             rich->_properties = static_cast<MMTextCollection *>(p);
-            if (p)
-            {
-                mm_text_collection_use_native_order(rich->_properties);
-                auto storage = mm_text_collection_property_array(rich->_properties, nullptr)->storage;
-                storage->min_grow[0] = 128;
-                storage->min_grow[1] = 16;
-            }
-        }
         else if (slot == MM_TEXT_OWNER_ARGUMENTS)
-        {
             rich->_arguments = static_cast<MMTextCollection *>(p);
-            if (p)
-                mm_text_collection_use_native_order(rich->_arguments);
-        }
         else
             TextDocumentBase::DocumentHost::Set(slot, p);
     }
@@ -98,7 +85,6 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
     {
         MMTextFontArgumentServices s = {};
         s.context = this;
-        s.arguments = [](void *v) { return static_cast<DocumentHost *>(v)->ArgumentRows(); };
         s.wire = {nullptr, sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), RichTextStoreHost::NativeBig(),
                   nullptr, [](void *, const void *input, MMU32 bytes, int encoding, void *output, MMU32 capacity) -> MMI32 {
                       return CchTranslateRgb(const_cast<void *>(input), bytes, static_cast<short>(encoding),

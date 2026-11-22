@@ -5,6 +5,25 @@ static MMU32 swap(MMU32 v)
 {
     return (v >> 24) | ((v >> 8) & 0xff00UL) | ((v << 8) & 0xff0000UL) | (v << 24);
 }
+
+static void materialize_properties(MMTextCollection *collection, int order)
+{
+    MMArray *rows = mm_text_collection_property_array(collection, NULL);
+    unsigned char *bytes = rows->storage->buffers[0].data;
+    MMU32 i, words[2];
+    rows->storage->min_grow[0] = 128;
+    rows->storage->min_grow[1] = 16;
+    if (order != 256)
+        return;
+    for (i = 0; i < rows->count; ++i, bytes += sizeof(words))
+    {
+        memcpy(words, bytes, sizeof(words));
+        words[0] = swap(words[0]);
+        words[1] = swap(words[1]);
+        memcpy(bytes, words, sizeof(words));
+    }
+}
+
 int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 number, int copy,
                         const MMTextMaterializeServices *s)
 {
@@ -12,12 +31,12 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
     MMTextLocation location;
     MMFilePiece piece;
     MMPieceTable *pieces;
-    MMArray properties;
-    MMGroup arguments;
+    MMTextCollection *collection;
+    MMGroup *arguments;
     const MMTextDocumentObjects *objects = &s->base.objects;
     MMGroupLocation entry;
-    void *original, *group;
-    MMU32 i, words[2], fixed;
+    void *original;
+    MMU32 i, fixed;
     unsigned char *bytes;
     int result, slot;
     result = s->init_base(s->context);
@@ -47,30 +66,22 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
         s->base.objects.release(s->base.objects.context, MM_TEXT_OWNER_FILE, location.file);
     if (result <= 0)
         goto done;
-    group = stored.properties;
-    s->base.objects.set(s->base.objects.context, MM_TEXT_OWNER_PROPERTIES, group);
+    collection = stored.properties;
+    mm_text_collection_use_native_order(collection);
+    objects->set(objects->context, MM_TEXT_OWNER_PROPERTIES, collection);
     stored.properties = 0;
-    if (stored.property_order == 256)
+    materialize_properties(collection, stored.property_order);
+    collection = stored.arguments;
+    if (collection)
     {
-        properties = s->properties(group);
-        bytes = properties.storage->buffers[0].data;
-        for (i = 0; i < properties.count; ++i, bytes += sizeof(words))
-        {
-            memcpy(words, bytes, sizeof(words));
-            words[0] = swap(words[0]);
-            words[1] = swap(words[1]);
-            memcpy(bytes, words, sizeof(words));
-        }
-    }
-    group = stored.arguments;
-    if (group)
-    {
-        s->base.objects.set(s->base.objects.context, MM_TEXT_OWNER_ARGUMENTS, group);
+        mm_text_collection_use_native_order(collection);
+        objects->set(objects->context, MM_TEXT_OWNER_ARGUMENTS, collection);
         stored.arguments = 0;
-        arguments = s->arguments(group);
-        for (i = arguments.count; i-- > 0; arguments = s->arguments(group))
+        arguments = mm_text_collection_argument_group(collection);
+        arguments->storage->min_grow[1] = 16 * sizeof(MMGroupLocation);
+        for (i = arguments->count; i-- > 0;)
         {
-            slot = mm_group_read_slot(&arguments, i, &entry);
+            slot = mm_group_read_slot(arguments, i, &entry);
             if (slot == MM_GROUP_SLOT_FREE)
                 continue;
             if (slot != MM_GROUP_SLOT_PRESENT)
@@ -78,7 +89,7 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
                 result = 0;
                 goto done;
             }
-            bytes = arguments.storage->buffers[0].data + entry.offset;
+            bytes = arguments->storage->buffers[0].data + entry.offset;
             memcpy(&fixed, bytes, sizeof(fixed));
             if (stored.argument_order == 256)
             {
@@ -96,9 +107,10 @@ done:
     mm_rich_text_dispose(&stored, &s->read.objects);
     return result;
 }
-int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgumentServices *s)
+int mm_text_open_font_argument(MMTextCollection *collection, MMI32 index, unsigned kind,
+                               const MMTextFontArgumentServices *s)
 {
-    MMGroup arguments;
+    MMGroup *arguments = mm_text_collection_argument_group(collection);
     MMStringWire wire;
     MMMemoryStream memory;
     MMMovieTitle name;
@@ -108,8 +120,7 @@ int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgum
     MMI32 bytes, font;
     unsigned char *data;
     int result;
-    arguments = s->arguments(s->context);
-    data = mm_text_argument_payload(&arguments, index, &bytes);
+    data = mm_text_argument_payload(arguments, index, &bytes);
     if (!data || kind != 2)
         return 0;
     if (bytes < 6)
@@ -117,7 +128,7 @@ int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgum
         s->bad_entry(s->context);
         return 0;
     }
-    if (mm_storage_lock(arguments.storage, 0) != MM_STORAGE_OK)
+    if (mm_storage_lock(arguments->storage, 0) != MM_STORAGE_OK)
         return 0;
     memcpy(&system, data + 4, 2);
     wire = s->wire;
@@ -129,7 +140,7 @@ int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgum
         s->bad_string(s->context);
         s->bad_entry(s->context);
     }
-    mm_storage_unlock(arguments.storage, 0);
+    mm_storage_unlock(arguments->storage, 0);
     if (!result)
         return 0;
     mm_movie_title_init(&name, wire.unit);
@@ -138,8 +149,7 @@ int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgum
     result = s->map(s->context, &name, system, &font);
     if (result <= 0)
         return result;
-    arguments = s->arguments(s->context);
-    data = mm_text_argument_payload(&arguments, index, &bytes);
+    data = mm_text_argument_payload(arguments, index, &bytes);
     if (!data || bytes < (MMI32)sizeof(font))
         return 0;
     memcpy(data, &font, sizeof(font));
