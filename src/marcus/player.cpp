@@ -113,8 +113,13 @@ struct MarcusPlayer
     std::string propCatalogDirectory, actorCatalogDirectory, fontCatalogDirectory, materialCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
     std::vector<MM::PreviewAction> objectActions;
-    std::map<int, MM::PreviewObject> propPreviews;
-    std::map<int, MM::PreviewObjectShape> shapePreviews;
+    struct PlacementDrafts : MMMoviePlacementDrafts
+    {
+        PlacementDrafts() { mm_movie_placement_init(this, nullptr); }
+        ~PlacementDrafts() { mm_movie_placement_dispose(this); }
+        PlacementDrafts(const PlacementDrafts &) = delete;
+        PlacementDrafts &operator=(const PlacementDrafts &) = delete;
+    } placementDrafts;
     struct AnimationCache
     {
         MM::PreviewAnimationTimeline timeline;
@@ -202,6 +207,128 @@ struct EditHistory : KeepHistory
     {
         mm_movie_snapshot_put(&player.undo.stack, record.release(), MarcusPlayer::UndoHistory::Release);
         player.modified = true;
+    }
+};
+MM::PreviewObjectShape NativePlacementShape(const MMPreviewActorShape &shape)
+{
+    MM::PreviewObjectShape result;
+    std::copy_n(shape.rotation, 9, result.rotation);
+    std::copy_n(shape.scale, 3, result.scale);
+    return result;
+}
+template <typename Shape> MMPreviewActorShape CorePlacementShape(const Shape &shape)
+{
+    MMPreviewActorShape result;
+    std::copy_n(shape.rotation, 9, result.rotation);
+    std::copy_n(shape.scale, 3, result.scale);
+    return result;
+}
+void ReadPlacementPosition(const MM::PreviewObject &object, float position[3])
+{
+    position[0] = object.x;
+    position[1] = object.y;
+    position[2] = object.z;
+}
+const MM::PreviewObject *VisiblePlacementObject(const MarcusPlayer &player, int object)
+{
+    if (object < 0 || static_cast<std::size_t>(object) >= player.objects.size() || !player.objects[object].visible)
+        return nullptr;
+    return &player.objects[object];
+}
+struct PlacementHost
+{
+    MarcusPlayer &movie;
+    MM::Error &error;
+    std::shared_ptr<MarcusEditedPoses> poses;
+    std::optional<EditHistory> history;
+    std::exception_ptr failure;
+
+    MMMoviePlacementServices Services()
+    {
+        return {this,
+            [](void *p, MMI32 object, float position[3]) -> int {
+                const auto &movie = static_cast<PlacementHost *>(p)->movie;
+                if (object < 0 || static_cast<std::size_t>(object) >= movie.objects.size())
+                    return 0;
+                ReadPlacementPosition(movie.objects[object], position);
+                return 1;
+            },
+            [](void *p, MMI32 object, const float value[3], int absolute, float position[3]) -> int {
+                auto &h = *static_cast<PlacementHost *>(p);
+                auto &preview = h.movie.preview;
+                try
+                {
+                    if (absolute ? !preview.SetObjectOffset(object, value, h.error)
+                                 : !preview.TranslateObject(object, value, h.error))
+                        return 0;
+                    auto &published = h.movie.objects[object];
+                    if (!preview.ObjectAt(object, published))
+                        return 0;
+                    if (position) ReadPlacementPosition(published, position);
+                    return 1;
+                }
+                catch (...) { h.failure = std::current_exception(); return 0; }
+            },
+            [](void *p, MMI32 object, const MMPreviewActorShape *shape) -> int {
+                auto &h = *static_cast<PlacementHost *>(p);
+                try { return h.movie.preview.SetObjectShape(object, NativePlacementShape(*shape), h.error); }
+                catch (...) { h.failure = std::current_exception(); return 0; }
+            },
+            [](void *p) { static_cast<PlacementHost *>(p)->movie.playback.InvalidateMovieFrame(); },
+            [](void *p) -> MMMoviePoseJournal * {
+                auto &h = *static_cast<PlacementHost *>(p);
+                try
+                {
+                    h.poses = std::make_shared<MarcusEditedPoses>(*h.movie.poses);
+                    h.history.emplace(h.movie);
+                    return h.poses.get();
+                }
+                catch (...) { h.failure = std::current_exception(); return nullptr; }
+            },
+            [](void *p, int moved) {
+                auto &h = *static_cast<PlacementHost *>(p);
+                h.movie.poses = std::move(h.poses);
+                ++h.movie.document;
+                h.history->Commit();
+                if (moved) h.movie.preview.ReusePlacementPoint();
+            }};
+    }
+    bool Result(int status)
+    {
+        if (failure)
+            std::rethrow_exception(failure);
+        if (status == MM_MOVIE_PLACEMENT_MEMORY)
+            throw std::bad_alloc();
+        return status == MM_MOVIE_PLACEMENT_OK;
+    }
+    bool Position(int object, const float requested[3], bool commit)
+    {
+        const auto entry = VisiblePlacementObject(movie, object);
+        if (!entry || !mm_movie_placement_valid_position(requested))
+        {
+            error.message = "Select a visible object and a position within +/-32700 world units.";
+            return false;
+        }
+        float current[3];
+        ReadPlacementPosition(*entry, current);
+        const auto services = Services();
+        return Result(commit ? mm_movie_placement_commit_position(&movie.placementDrafts, object,
+                                    movie.scenes[movie.selected].number, entry->asset.number, current, requested, &services)
+                             : mm_movie_placement_preview_position(&movie.placementDrafts, object,
+                                    current, requested, &services));
+    }
+    bool Shape(int object, const MarcusObjectShape *requested, bool commit)
+    {
+        const auto entry = VisiblePlacementObject(movie, object);
+        MM::PreviewObjectShape evaluated;
+        if (!requested || !entry || !movie.preview.ObjectShape(object, evaluated, nullptr, nullptr, error))
+            return false;
+        const auto current = CorePlacementShape(evaluated), desired = CorePlacementShape(*requested);
+        const auto services = Services();
+        return Result(commit ? mm_movie_placement_commit_shape(&movie.placementDrafts, object,
+                                    movie.scenes[movie.selected].number, entry->asset.number, &current, &desired, &services)
+                             : mm_movie_placement_preview_shape(&movie.placementDrafts, object,
+                                    &current, &desired, &services));
     }
 };
 // Native archives are needed for structural edits and isolated thumbnail helpers,
@@ -330,13 +457,7 @@ bool ApplyCameras(MarcusPlayer &player, int index, MM::Error &error)
 }
 MM::PreviewObjectShape PoseShape(const MMMovieActorPoseEdit *pose)
 {
-    MM::PreviewObjectShape shape;
-    if (pose)
-    {
-        std::copy_n(pose->shape.rotation, 9, shape.rotation);
-        std::copy_n(pose->shape.scale, 3, shape.scale);
-    }
-    return shape;
+    return pose ? NativePlacementShape(pose->shape) : MM::PreviewObjectShape{};
 }
 bool ApplyPlacements(MarcusPlayer &player, int scene, const MMMoviePoseJournal &poses, MM::Error &error)
 {
@@ -605,7 +726,7 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     const MarcusRenderRequest request{view.width, view.height, player->renderer, view.authoredCamera, view.freeCamera,
         player->playback.PaletteAnimating(), player->playback.Transitioning(),
         player->edits->storyboards->count || player->edits->costumes->count,
-        !player->propPreviews.empty() || !player->shapePreviews.empty()};
+        player->placementDrafts.count != 0};
     MarcusRenderPlan plan;
     if (!marcus_render_plan(&request, &settings, &plan))
     {
@@ -643,19 +764,14 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
             const auto &object = player->objects[index];
             const auto pose = mm_movie_pose_journal_find(player->poses.get(), player->scenes[player->selected].number,
                                                          object.asset.number);
-            float offset[3] = {};
-            if (pose) std::copy_n(pose->offset, 3, offset);
-            const auto preview = player->propPreviews.find(static_cast<int>(index));
-            if (preview != player->propPreviews.end())
+            float position[3];
+            ReadPlacementPosition(object, position);
+            MarcusASM::PropOffset change;
+            change.object = static_cast<MMI32>(index);
+            int shaped;
+            if (mm_movie_placement_worker(&player->placementDrafts, change.object, position,
+                                           pose, change.offset, &shaped))
             {
-                offset[0] += object.x - preview->second.x;
-                offset[1] += object.y - preview->second.y;
-                offset[2] += object.z - preview->second.z;
-            }
-            const bool shaped = (pose && pose->has_shape) || player->shapePreviews.count(static_cast<int>(index));
-            if (offset[0] != 0 || offset[1] != 0 || offset[2] != 0 || shaped)
-            {
-                MarcusASM::PropOffset change{static_cast<std::int32_t>(index), {offset[0], offset[1], offset[2]}};
                 if (shaped && !player->preview.ObjectShape(static_cast<int>(index), change.shape, nullptr, nullptr, error)) return false;
                 offsets.push_back(change);
             }
@@ -738,24 +854,9 @@ template <typename F> int Guard(MarcusPlayer *player, F operation)
 }
 bool CancelPropPreviews(MarcusPlayer *player, MM::Error &error)
 {
-    for (const auto &entry : player->shapePreviews)
-        if (!player->preview.SetObjectShape(entry.first, entry.second, error)) return false;
-    if (!player->shapePreviews.empty()) player->playback.InvalidateMovieFrame();
-    player->shapePreviews.clear();
-    for (const auto &entry : player->propPreviews)
-    {
-        const auto &before = entry.second;
-        const auto &current = player->objects[entry.first];
-        const float delta[3] = {before.x - current.x, before.y - current.y, before.z - current.z};
-        if (!player->preview.TranslateObject(entry.first, delta, error)) return false;
-    }
-    if (!player->propPreviews.empty())
-    {
-        player->objects = player->preview.Objects();
-        player->playback.InvalidateMovieFrame();
-    }
-    player->propPreviews.clear();
-    return true;
+    PlacementHost host{*player, error, {}, {}, {}};
+    const auto services = host.Services();
+    return host.Result(mm_movie_placement_cancel(&player->placementDrafts, &services));
 }
 struct RangeEditHost
 {
@@ -859,8 +960,7 @@ struct SceneCursorHost
             {
             case MM_MOVIE_SCENE_CLEAR_VIEW:
                 movie.objects.clear();
-                movie.propPreviews.clear();
-                movie.shapePreviews.clear();
+                mm_movie_placement_clear(&movie.placementDrafts);
                 if (!movie.preserveEditFraming) movie.orbitObject = -1;
                 movie.animations.clear();
                 movie.soundSheet.sounds.clear();
@@ -2295,117 +2395,27 @@ extern "C"
     int marcus_preview_object_shape(MarcusPlayer *player, int object, const MarcusObjectShape *shape)
     {
         return Guard(player, [&](MM::Error &error) {
-            MarcusObject current;
-            if (!shape || !marcus_object(player, object, &current) || !current.visible) return false;
-            MM::PreviewObjectShape before, value;
-            if (!player->preview.ObjectShape(object, before, nullptr, nullptr, error)) return false;
-            std::copy(shape->rotation, shape->rotation+9, value.rotation);
-            std::copy(shape->scale, shape->scale+3, value.scale);
-            if (!player->preview.SetObjectShape(object, value, error)) return false;
-            const auto saved=player->shapePreviews.emplace(object,before);
-            if (std::equal(value.rotation,value.rotation+9,saved.first->second.rotation) &&
-                std::equal(value.scale,value.scale+3,saved.first->second.scale)) player->shapePreviews.erase(saved.first);
-            player->playback.InvalidateMovieFrame();
-            return true;
+            return PlacementHost{*player, error, {}, {}, {}}.Shape(object, shape, false);
         });
     }
     int marcus_set_object_shape(MarcusPlayer *player, int object, const MarcusObjectShape *shape)
     {
         return Guard(player, [&](MM::Error &error) {
-            MarcusObject current;
-            if (!shape || !marcus_object(player, object, &current) || !current.visible) return false;
-            MM::PreviewObjectShape value, before;
-            if (!player->preview.ObjectShape(object, before, nullptr, nullptr, error)) return false;
-            const auto preview = player->shapePreviews.find(object);
-            if (preview != player->shapePreviews.end()) before = preview->second;
-            std::copy(shape->rotation, shape->rotation+9, value.rotation);
-            std::copy(shape->scale, shape->scale+3, value.scale);
-            if (std::equal(value.rotation,value.rotation+9,before.rotation) && std::equal(value.scale,value.scale+3,before.scale))
-            {
-                if (!player->preview.SetObjectShape(object, before, error)) return false;
-                player->shapePreviews.erase(object);
-                player->playback.InvalidateMovieFrame();
-                return true;
-            }
-            auto poses = std::make_shared<MarcusEditedPoses>(*player->poses);
-            MMPreviewActorShape stored;
-            std::copy_n(value.rotation, 9, stored.rotation);
-            std::copy_n(value.scale, 3, stored.scale);
-            if (!mm_movie_pose_journal_shape(poses.get(), player->scenes[player->selected].number,
-                                             static_cast<MMU32>(current.chunk), &stored))
-                throw std::bad_alloc();
-            EditHistory history(*player);
-            if (!player->preview.SetObjectShape(object, value, error)) return false;
-            player->poses = std::move(poses);
-            player->shapePreviews.erase(object);
-            player->playback.InvalidateMovieFrame();
-            ++player->document;
-            history.Commit();
-            return true;
+            return PlacementHost{*player, error, {}, {}, {}}.Shape(object, shape, true);
         });
     }
     int marcus_preview_object_position(MarcusPlayer *player, int object, float x, float y, float z)
     {
         return Guard(player, [&](MM::Error &error) {
-            MarcusObject before;
-            if (!marcus_object(player, object, &before) || !before.visible ||
-                !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
-                std::abs(x) > 32700 || std::abs(y) > 32700 || std::abs(z) > 32700)
-            { error.message = "Select a visible object and a position within +/-32700 world units."; return false; }
-            const float delta[3] = {x - before.x, y - before.y, z - before.z};
-            if (delta[0] == 0 && delta[1] == 0 && delta[2] == 0) return true;
-            const auto inserted = player->propPreviews.emplace(object, player->objects[object]);
-            if (!player->preview.TranslateObject(object, delta, error))
-            {
-                if (inserted.second) player->propPreviews.erase(inserted.first);
-                return false;
-            }
-            player->objects = player->preview.Objects();
-            const auto &original = inserted.first->second;
-            const auto &current = player->objects[object];
-            if (std::abs(current.x - original.x) < .0001f && std::abs(current.y - original.y) < .0001f &&
-                std::abs(current.z - original.z) < .0001f) player->propPreviews.erase(inserted.first);
-            player->playback.InvalidateMovieFrame();
-            return true;
+            const float requested[3] = {x, y, z};
+            return PlacementHost{*player, error, {}, {}, {}}.Position(object, requested, false);
         });
     }
     int marcus_move_object(MarcusPlayer *player, int object, float x, float y, float z)
     {
         return Guard(player, [&](MM::Error &error) {
-            MarcusObject current;
-            if (!marcus_object(player, object, &current) || !current.visible ||
-                !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
-                std::abs(x) > 32700 || std::abs(y) > 32700 || std::abs(z) > 32700)
-            { error.message = "Select a visible object and a position within +/-32700 world units."; return false; }
-            const auto preview = player->propPreviews.find(object);
-            const auto &before = preview == player->propPreviews.end() ? player->objects[object] : preview->second;
-            const float delta[3] = {x - before.x, y - before.y, z - before.z};
-            if (std::abs(delta[0]) < 1e-6f && std::abs(delta[1]) < 1e-6f && std::abs(delta[2]) < 1e-6f)
-            {
-                if (preview != player->propPreviews.end())
-                {
-                    const float restore[3] = {before.x - current.x, before.y - current.y, before.z - current.z};
-                    if (!player->preview.TranslateObject(object, restore, error)) return false;
-                    player->objects = player->preview.Objects();
-                    player->propPreviews.erase(preview);
-                }
-                return true;
-            }
-            EditHistory history(*player);
-            auto poses = std::make_shared<MarcusEditedPoses>(*player->poses);
-            float offset[3];
-            if (!mm_movie_pose_journal_move(poses.get(), player->scenes[player->selected].number,
-                                            static_cast<MMU32>(current.chunk), delta, offset))
-                throw std::bad_alloc();
-            if (!player->preview.SetObjectOffset(object, offset, error)) return false;
-            player->poses = std::move(poses);
-            player->objects = player->preview.Objects();
-            player->propPreviews.erase(object);
-            player->playback.InvalidateMovieFrame();
-            ++player->document;
-            history.Commit();
-            player->preview.ReusePlacementPoint();
-            return true;
+            const float requested[3] = {x, y, z};
+            return PlacementHost{*player, error, {}, {}, {}}.Position(object, requested, true);
         });
     }
     // Retain the narrower prop-only C API for existing callers.
@@ -2752,8 +2762,7 @@ extern "C"
             player->scenes.clear();
             player->sceneInfo.clear();
             player->objects.clear();
-            player->propPreviews.clear();
-            player->shapePreviews.clear();
+            mm_movie_placement_clear(&player->placementDrafts);
             player->poses = std::make_shared<MarcusEditedPoses>();
             player->frameRanges = std::make_shared<MarcusPlayer::FrameRanges>();
             auto initialEdits = std::make_shared<MarcusLiveEdits>();

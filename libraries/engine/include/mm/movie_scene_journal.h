@@ -219,6 +219,51 @@ int mm_movie_pose_journal_include(MMMoviePoseJournal *, MMU32 scene, MMU32 actor
 int mm_movie_pose_journal_export(MMMoviePoseJournal *, const MMMoviePoseJournal *,
                                  const MMMovieTextJournal *, const MMMovieActorTrackJournal *);
 
+typedef struct MMMoviePlacementDrafts
+{
+    MMCollectionStorage storage;
+    MMU32 count;
+} MMMoviePlacementDrafts;
+
+typedef struct MMMoviePlacementServices
+{
+    void *context;
+    int (*read_position)(void *, MMI32 object, float position[3]);
+    int (*apply_position)(void *, MMI32 object, const float value[3], int absolute, float result[3]);
+    int (*apply_shape)(void *, MMI32 object, const MMPreviewActorShape *);
+    void (*invalidate_frame)(void *);
+    MMMoviePoseJournal *(*prepare_commit)(void *);
+    void (*publish_commit)(void *, int moved);
+} MMMoviePlacementServices;
+
+enum { MM_MOVIE_PLACEMENT_FAILED, MM_MOVIE_PLACEMENT_OK, MM_MOVIE_PLACEMENT_MEMORY };
+/* Drafts retain the original transforms for one open scene. Object indices
+ * stay stable until cancellation or clear. Effects are synchronous and do
+ * not reenter or unwind through C. apply_position returns the evaluated
+ * position when result is supplied. prepare_commit borrows a private
+ * journal copy which the caller releases or publishes with the undo record. */
+int mm_movie_placement_init(MMMoviePlacementDrafts *, const MMStorageAllocator *);
+void mm_movie_placement_dispose(MMMoviePlacementDrafts *);
+void mm_movie_placement_clear(MMMoviePlacementDrafts *);
+int mm_movie_placement_valid_position(const float position[3]);
+int mm_movie_placement_preview_position(MMMoviePlacementDrafts *, MMI32 object, const float current[3],
+                                        const float requested[3], const MMMoviePlacementServices *);
+int mm_movie_placement_preview_shape(MMMoviePlacementDrafts *, MMI32 object, const MMPreviewActorShape *current,
+                                     const MMPreviewActorShape *requested, const MMMoviePlacementServices *);
+int mm_movie_placement_commit_position(MMMoviePlacementDrafts *, MMI32 object, MMU32 scene, MMU32 actor,
+                                       const float current[3], const float requested[3],
+                                       const MMMoviePlacementServices *);
+int mm_movie_placement_commit_shape(MMMoviePlacementDrafts *, MMI32 object, MMU32 scene, MMU32 actor,
+                                    const MMPreviewActorShape *current, const MMPreviewActorShape *requested,
+                                    const MMMoviePlacementServices *);
+/* Restore shapes first, then positions, in object order. Successful
+ * restores are retired even if a later effect fails. */
+int mm_movie_placement_cancel(MMMoviePlacementDrafts *, const MMMoviePlacementServices *);
+/* Combine the committed offset with the live position delta for the
+ * source-movie worker. shape indicates whether it needs the evaluated shape. */
+int mm_movie_placement_worker(const MMMoviePlacementDrafts *, MMI32 object, const float current[3],
+                              const MMMovieActorPoseEdit *, float offset[3], int *shape);
+
 #ifdef __cplusplus
 }
 #endif

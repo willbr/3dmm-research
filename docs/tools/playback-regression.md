@@ -22679,3 +22679,31 @@ transition-pixel and timing parity remain unverified. The existing
 `0D666753`.
 
 Evidence is under `tmp/c89-render-plan` and `tmp/c89-transition-frames`.
+
+## C89 live actor placement previews (22 November 2026)
+
+C89 retains the starting position and shape for each edited object. It
+restores shapes and then positions, stages the pose journal before applying
+a commit, and calculates the live offset passed to the ASM renderer. A
+partial cancellation retires each successful restore before a retry. The
+Preview adapter refreshes the affected actor after a move.
+
+All 239 selected x64, x86 and SDL Studio checks passed. The C test covers
+allocation failure before applying a preview, retry after a partial
+cancel, failed commit preparation and application, mixed position and
+shape previews, and ASM offset calculation. The headless move and shape
+checks exercised actors, props and 3D text with both renderers, including
+undo, reload, timing retention and native snapshot rendering. Four generated
+movie fixtures and the Marcus startup capture matched the previous build
+byte for byte.
+
+The `resource-actors` candidate `20261122T194707Z-a0c6a40e` matched
+`20261122T190516Z-c1b3f1dc` on all 60 seek canvases and recorded states per
+port. Both ports reproduced the frame order in seek and continuous playback
+from retail and V3DMM suite `20261122T081603Z-7ffc4e8e`. This comparison
+covers authored playback. The placement workflows use the native headless
+integration checks. The existing `scene-load` assertion repeated its
+63,224-byte trace and fingerprint `0D666753`.
+
+Evidence is under `tmp/c89-live-placement` and `tmp/c89-kd`. The retained
+retail and V3DMM captures are under `tmp/c89-rscap`.

@@ -256,6 +256,13 @@ std::vector<PreviewObject> Preview::Objects() const
             result.push_back(actor->Snapshot());
     return result;
 }
+bool Preview::ObjectAt(int index, PreviewObject &out) const
+{
+    if (!_impl->live.status.ready || index < 0 || std::size_t(index) >= _impl->actors.size())
+        return false;
+    out = _impl->actors[index]->Snapshot();
+    return true;
+}
 bool Preview::ObjectText(int object, PreviewObjectText &text, Error &error) const
 {
     error = {};

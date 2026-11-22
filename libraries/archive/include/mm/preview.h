@@ -296,6 +296,7 @@ class Preview
     bool Select(Id asset, Error &error, bool preserveFraming = false);
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
+    bool ObjectAt(int index, PreviewObject &) const;
     bool ObjectText(int object, PreviewObjectText &, Error &) const;
     bool ObjectCostumes(int object, std::vector<PreviewCostume> &, Error &) const;
     bool ObjectActions(int object, std::vector<PreviewAction> &, Error &) const;

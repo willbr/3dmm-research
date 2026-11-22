@@ -1276,6 +1276,135 @@ static int pose_journal(void)
     return 0;
 }
 
+typedef struct PlacementHost
+{
+    float position[3][3];
+    MMPreviewActorShape shape[3];
+    MMMoviePoseJournal live, pending;
+    int reject_object, reject_prepare, applied, invalidated, committed, moved;
+} PlacementHost;
+
+static int placement_read(void *context, MMI32 object, float value[3])
+{
+    PlacementHost *host = (PlacementHost *)context;
+    memcpy(value, host->position[object], sizeof(host->position[object]));
+    return 1;
+}
+
+static int placement_position(void *context, MMI32 object, const float value[3], int absolute, float result[3])
+{
+    PlacementHost *host = (PlacementHost *)context;
+    unsigned i;
+    if (object == host->reject_object)
+        return 0;
+    for (i = 0; i < 3; ++i)
+        host->position[object][i] = absolute ? value[i] : host->position[object][i] + value[i];
+    if (result)
+        placement_read(context, object, result);
+    ++host->applied;
+    return 1;
+}
+
+static int placement_shape(void *context, MMI32 object, const MMPreviewActorShape *shape)
+{
+    PlacementHost *host = (PlacementHost *)context;
+    if (object == host->reject_object)
+        return 0;
+    host->shape[object] = *shape;
+    ++host->applied;
+    return 1;
+}
+
+static void placement_invalidate(void *context)
+{
+    ++((PlacementHost *)context)->invalidated;
+}
+
+static MMMoviePoseJournal *placement_prepare(void *context)
+{
+    PlacementHost *host = (PlacementHost *)context;
+    return !host->reject_prepare && mm_movie_pose_journal_copy(&host->pending, &host->live) ? &host->pending : NULL;
+}
+
+static void placement_publish(void *context, int moved)
+{
+    PlacementHost *host = (PlacementHost *)context;
+    MMMoviePoseJournal previous = host->live;
+    host->live = host->pending;
+    host->pending = previous;
+    ++host->committed;
+    host->moved += moved;
+}
+
+static int placement_drafts(void)
+{
+    const MMPreviewActorShape identity = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {1, 1, 1}};
+    const MMPreviewActorShape scaled = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {2, 1, 1}};
+    const float zero[3] = {0, 0, 0}, target[3] = {3, -4, 5}, final[3] = {6, -2, 0}, bad[3] = {0, 32701, 0};
+    float offset[3];
+    int shaped;
+    PlacementHost host;
+    MaterialGraph memory;
+    MMMoviePlacementDrafts drafts;
+    MMStorageAllocator allocator = {NULL, material_resize, material_release};
+    MMMoviePlacementServices s = {NULL, placement_read, placement_position, placement_shape,
+                                  placement_invalidate, placement_prepare, placement_publish};
+    const MMMovieActorPoseEdit *pose;
+    memset(&host, 0, sizeof(host));
+    memset(&memory, 0, sizeof(memory));
+    allocator.context = &memory;
+    s.context = &host;
+    host.reject_object = -1;
+    host.shape[0] = host.shape[1] = host.shape[2] = identity;
+    CHECK(mm_movie_placement_init(&drafts, &allocator));
+    CHECK(mm_movie_pose_journal_init(&host.live, NULL) && mm_movie_pose_journal_init(&host.pending, NULL));
+    CHECK(mm_movie_placement_valid_position(target) && !mm_movie_placement_valid_position(bad));
+    memory.failAt = 1;
+    CHECK(mm_movie_placement_preview_shape(&drafts, 0, &identity, &scaled, &s) == MM_MOVIE_PLACEMENT_MEMORY);
+    CHECK(!drafts.count && !host.applied && !host.invalidated);
+    memory.failAt = 0;
+    host.reject_object = 0;
+    CHECK(!mm_movie_placement_preview_position(&drafts, 0, zero, target, &s));
+    CHECK(!drafts.count && !host.applied && !host.invalidated);
+    host.reject_object = -1;
+    CHECK(mm_movie_placement_preview_position(&drafts, 2, zero, target, &s) == MM_MOVIE_PLACEMENT_OK);
+    CHECK(mm_movie_placement_preview_position(&drafts, 0, zero, target, &s) == MM_MOVIE_PLACEMENT_OK);
+    CHECK(mm_movie_placement_preview_shape(&drafts, 0, &identity, &scaled, &s) == MM_MOVIE_PLACEMENT_OK);
+    CHECK(drafts.count == 2 && host.shape[0].scale[0] == 2);
+    CHECK(mm_movie_placement_worker(&drafts, 0, host.position[0], NULL, offset, &shaped));
+    CHECK(shaped && !memcmp(offset, target, sizeof(offset)));
+    host.reject_object = 2;
+    CHECK(!mm_movie_placement_cancel(&drafts, &s));
+    CHECK(drafts.count == 1 && host.shape[0].scale[0] == 1 && !host.position[0][0] && host.position[2][0] == 3);
+    host.reject_object = -1;
+    CHECK(mm_movie_placement_cancel(&drafts, &s) && !drafts.count && !host.position[2][0] && host.applied == 6);
+
+    CHECK(mm_movie_placement_preview_position(&drafts, 1, zero, target, &s) == MM_MOVIE_PLACEMENT_OK);
+    host.reject_prepare = 1;
+    CHECK(mm_movie_placement_commit_position(&drafts, 1, 8, 9, target, final, &s) == MM_MOVIE_PLACEMENT_MEMORY);
+    host.reject_prepare = 0;
+    host.reject_object = 1;
+    CHECK(!mm_movie_placement_commit_position(&drafts, 1, 8, 9, target, final, &s));
+    CHECK(drafts.count == 1 && !host.live.count && !host.committed && host.position[1][0] == 3);
+    host.reject_object = -1;
+    CHECK(mm_movie_placement_commit_position(&drafts, 1, 8, 9, target, final, &s) == MM_MOVIE_PLACEMENT_OK);
+    CHECK(!drafts.count && host.committed == 1 && host.moved == 1 && host.position[1][0] == 6);
+    CHECK(mm_movie_placement_preview_position(&drafts, 1, final, target, &s) == MM_MOVIE_PLACEMENT_OK);
+    CHECK(mm_movie_placement_commit_shape(&drafts, 1, 8, 9, &identity, &scaled, &s) == MM_MOVIE_PLACEMENT_OK);
+    pose = mm_movie_pose_journal_find(&host.live, 8, 9);
+    CHECK(pose && pose->has_shape && pose->offset[0] == 6 && pose->shape.scale[0] == 2);
+    CHECK(mm_movie_placement_worker(&drafts, 1, host.position[1], pose, offset, &shaped));
+    CHECK(shaped && !memcmp(offset, target, sizeof(offset)));
+    CHECK(mm_movie_placement_commit_position(&drafts, 1, 8, 9, target, final, &s) == MM_MOVIE_PLACEMENT_OK);
+    CHECK(!drafts.count && host.committed == 2 && host.moved == 1 && host.position[1][0] == 6);
+    CHECK(host.invalidated == host.applied);
+    mm_movie_pose_journal_dispose(&host.pending);
+    mm_movie_pose_journal_dispose(&host.live);
+    mm_movie_placement_dispose(&drafts);
+    CHECK(!memory.liveBlocks);
+    return 0;
+}
+
 static int text_journal(void)
 {
     const MMMovieEditFileServices files = {edit_file_retain, edit_file_release};
@@ -1390,7 +1519,8 @@ int main(void)
 {
     if (switching() || insertion() || removal() || remove_materials() || undoing() || undo_insertion_ownership() ||
         cursor_operations() ||
-        extending() || journal() || range_journal() || prop_journal() || track_journal() || pose_journal() || text_journal())
+        extending() || journal() || range_journal() || prop_journal() || track_journal() || pose_journal() ||
+        placement_drafts() || text_journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

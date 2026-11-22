@@ -1,5 +1,6 @@
 #include "mm/movie_scene_journal.h"
 #include "mm/material_resource.h"
+#include <math.h>
 #include <string.h>
 
 static MMArray array(MMCollectionStorage *storage, MMU32 width, MMU32 count)
@@ -707,4 +708,278 @@ int mm_movie_pose_journal_export(MMMoviePoseJournal *destination, const MMMovieP
 failure:
     mm_movie_pose_journal_dispose(&result);
     return 0;
+}
+
+enum { PLACEMENT_POSITION = 1, PLACEMENT_SHAPE = 2 };
+typedef struct PlacementDraft
+{
+    MMI32 object;
+    int flags;
+    float position[3];
+    MMPreviewActorShape shape;
+} PlacementDraft;
+
+int mm_movie_placement_init(MMMoviePlacementDrafts *drafts, const MMStorageAllocator *allocator)
+{
+    drafts->count = 0;
+    return mm_storage_init(&drafts->storage, allocator) == MM_STORAGE_OK;
+}
+
+void mm_movie_placement_clear(MMMoviePlacementDrafts *drafts)
+{
+    drafts->count = 0;
+}
+
+void mm_movie_placement_dispose(MMMoviePlacementDrafts *drafts)
+{
+    mm_storage_dispose(&drafts->storage);
+    mm_movie_placement_clear(drafts);
+}
+
+static MMU32 placement_lower(const MMMoviePlacementDrafts *drafts, MMI32 object)
+{
+    const PlacementDraft *entries = (const PlacementDraft *)drafts->storage.buffers[0].data;
+    MMU32 first = 0, last = drafts->count, middle;
+    while (first < last)
+    {
+        middle = first + (last - first) / 2;
+        if (entries[middle].object < object)
+            first = middle + 1;
+        else
+            last = middle;
+    }
+    return first;
+}
+
+static PlacementDraft *placement_at(const MMMoviePlacementDrafts *drafts, MMU32 row)
+{
+    return (PlacementDraft *)drafts->storage.buffers[0].data + row;
+}
+
+static PlacementDraft *placement_find(const MMMoviePlacementDrafts *drafts, MMU32 row, MMI32 object)
+{
+    return row < drafts->count && placement_at(drafts, row)->object == object ? placement_at(drafts, row) : NULL;
+}
+
+static PlacementDraft *placement_reserve(MMMoviePlacementDrafts *drafts, MMU32 row, MMI32 object)
+{
+    PlacementDraft *entry = placement_find(drafts, row, object);
+    PlacementDraft blank = {0};
+    MMArray records;
+    if (entry)
+        return entry;
+    blank.object = object;
+    records = array(&drafts->storage, sizeof(blank), drafts->count);
+    if (!insert(&records, row, &blank))
+        return NULL;
+    drafts->count = records.count;
+    return placement_at(drafts, row);
+}
+
+static void placement_remove(MMMoviePlacementDrafts *drafts, MMU32 row, int flag)
+{
+    MMArray records;
+    PlacementDraft *entry = placement_at(drafts, row);
+    entry->flags &= ~flag;
+    if (entry->flags)
+        return;
+    records = array(&drafts->storage, sizeof(*entry), drafts->count);
+    mm_array_delete(&records, row, 1);
+    drafts->count = records.count;
+}
+
+static void difference(const float position[3], const float origin[3], float delta[3])
+{
+    unsigned axis;
+    for (axis = 0; axis < 3; ++axis)
+        delta[axis] = position[axis] - origin[axis];
+}
+
+static int near_zero(const float delta[3], float tolerance)
+{
+    return fabs(delta[0]) < tolerance && fabs(delta[1]) < tolerance && fabs(delta[2]) < tolerance;
+}
+
+static int same_shape(const MMPreviewActorShape *left, const MMPreviewActorShape *right)
+{
+    unsigned i;
+    for (i = 0; i < 9; ++i)
+        if (left->rotation[i] != right->rotation[i])
+            return 0;
+    return left->scale[0] == right->scale[0] && left->scale[1] == right->scale[1] && left->scale[2] == right->scale[2];
+}
+
+int mm_movie_placement_valid_position(const float position[3])
+{
+    unsigned i;
+    for (i = 0; i < 3; ++i)
+        if (!(position[i] >= -32700 && position[i] <= 32700))
+            return 0;
+    return 1;
+}
+
+int mm_movie_placement_preview_position(MMMoviePlacementDrafts *drafts, MMI32 object, const float current[3],
+                                        const float requested[3], const MMMoviePlacementServices *s)
+{
+    MMU32 row;
+    PlacementDraft *entry;
+    float delta[3], after[3];
+    difference(requested, current, delta);
+    if (!delta[0] && !delta[1] && !delta[2])
+        return MM_MOVIE_PLACEMENT_OK;
+    row = placement_lower(drafts, object);
+    entry = placement_reserve(drafts, row, object);
+    if (!entry)
+        return MM_MOVIE_PLACEMENT_MEMORY;
+    if (!(entry->flags & PLACEMENT_POSITION))
+        memcpy(entry->position, current, sizeof(entry->position));
+    if (!s->apply_position(s->context, object, delta, 0, after))
+    {
+        placement_remove(drafts, row, 0);
+        return MM_MOVIE_PLACEMENT_FAILED;
+    }
+    entry->flags |= PLACEMENT_POSITION;
+    difference(after, entry->position, delta);
+    if (near_zero(delta, .0001f))
+        placement_remove(drafts, row, PLACEMENT_POSITION);
+    s->invalidate_frame(s->context);
+    return MM_MOVIE_PLACEMENT_OK;
+}
+
+int mm_movie_placement_preview_shape(MMMoviePlacementDrafts *drafts, MMI32 object, const MMPreviewActorShape *current,
+                                     const MMPreviewActorShape *requested, const MMMoviePlacementServices *s)
+{
+    MMU32 row = placement_lower(drafts, object);
+    PlacementDraft *entry = placement_reserve(drafts, row, object);
+    if (!entry)
+        return MM_MOVIE_PLACEMENT_MEMORY;
+    if (!s->apply_shape(s->context, object, requested))
+    {
+        placement_remove(drafts, row, 0);
+        return MM_MOVIE_PLACEMENT_FAILED;
+    }
+    if (!(entry->flags & PLACEMENT_SHAPE))
+        entry->shape = *current;
+    entry->flags |= PLACEMENT_SHAPE;
+    if (same_shape(requested, &entry->shape))
+        placement_remove(drafts, row, PLACEMENT_SHAPE);
+    s->invalidate_frame(s->context);
+    return MM_MOVIE_PLACEMENT_OK;
+}
+
+int mm_movie_placement_commit_position(MMMoviePlacementDrafts *drafts, MMI32 object, MMU32 scene, MMU32 actor,
+                                       const float current[3], const float requested[3],
+                                       const MMMoviePlacementServices *s)
+{
+    MMU32 row = placement_lower(drafts, object);
+    PlacementDraft *entry = placement_find(drafts, row, object);
+    int previewed = entry && (entry->flags & PLACEMENT_POSITION);
+    const float *original = previewed ? entry->position : current;
+    MMMoviePoseJournal *poses;
+    float delta[3], offset[3];
+    difference(requested, original, delta);
+    if (near_zero(delta, 1e-6f))
+    {
+        if (previewed)
+        {
+            difference(original, current, delta);
+            if (!s->apply_position(s->context, object, delta, 0, NULL))
+                return MM_MOVIE_PLACEMENT_FAILED;
+            placement_remove(drafts, row, PLACEMENT_POSITION);
+            s->invalidate_frame(s->context);
+        }
+        return MM_MOVIE_PLACEMENT_OK;
+    }
+    poses = s->prepare_commit(s->context);
+    if (!poses || !mm_movie_pose_journal_move(poses, scene, actor, delta, offset))
+        return MM_MOVIE_PLACEMENT_MEMORY;
+    if (!s->apply_position(s->context, object, offset, 1, NULL))
+        return MM_MOVIE_PLACEMENT_FAILED;
+    if (previewed)
+        placement_remove(drafts, row, PLACEMENT_POSITION);
+    s->invalidate_frame(s->context);
+    s->publish_commit(s->context, 1);
+    return MM_MOVIE_PLACEMENT_OK;
+}
+
+int mm_movie_placement_commit_shape(MMMoviePlacementDrafts *drafts, MMI32 object, MMU32 scene, MMU32 actor,
+                                    const MMPreviewActorShape *current, const MMPreviewActorShape *requested,
+                                    const MMMoviePlacementServices *s)
+{
+    MMU32 row = placement_lower(drafts, object);
+    PlacementDraft *entry = placement_find(drafts, row, object);
+    int previewed = entry && (entry->flags & PLACEMENT_SHAPE);
+    const MMPreviewActorShape *original = previewed ? &entry->shape : current;
+    int changed = !same_shape(requested, original);
+    MMMoviePoseJournal *poses;
+    if (changed)
+    {
+        poses = s->prepare_commit(s->context);
+        if (!poses || !mm_movie_pose_journal_shape(poses, scene, actor, requested))
+            return MM_MOVIE_PLACEMENT_MEMORY;
+    }
+    if (!s->apply_shape(s->context, object, changed ? requested : original))
+        return MM_MOVIE_PLACEMENT_FAILED;
+    if (previewed)
+        placement_remove(drafts, row, PLACEMENT_SHAPE);
+    s->invalidate_frame(s->context);
+    if (changed)
+        s->publish_commit(s->context, 0);
+    return MM_MOVIE_PLACEMENT_OK;
+}
+
+static int placement_restore(MMMoviePlacementDrafts *drafts, int flag, const MMMoviePlacementServices *s)
+{
+    MMU32 row = 0;
+    while (row < drafts->count)
+    {
+        const PlacementDraft *entry = placement_at(drafts, row);
+        if (entry->flags & flag)
+        {
+            MMU32 count = drafts->count;
+            if (flag == PLACEMENT_SHAPE)
+            {
+                if (!s->apply_shape(s->context, entry->object, &entry->shape))
+                    return 0;
+            }
+            else
+            {
+                float position[3], delta[3];
+                if (!s->read_position(s->context, entry->object, position))
+                    return 0;
+                difference(entry->position, position, delta);
+                if (!s->apply_position(s->context, entry->object, delta, 0, NULL))
+                    return 0;
+            }
+            placement_remove(drafts, row, flag);
+            s->invalidate_frame(s->context);
+            if (count != drafts->count)
+                continue;
+        }
+        ++row;
+    }
+    return 1;
+}
+
+int mm_movie_placement_cancel(MMMoviePlacementDrafts *drafts, const MMMoviePlacementServices *s)
+{
+    return placement_restore(drafts, PLACEMENT_SHAPE, s) && placement_restore(drafts, PLACEMENT_POSITION, s);
+}
+
+int mm_movie_placement_worker(const MMMoviePlacementDrafts *drafts, MMI32 object, const float current[3],
+                              const MMMovieActorPoseEdit *pose, float offset[3], int *shape)
+{
+    const PlacementDraft *entry = placement_find(drafts, placement_lower(drafts, object), object);
+    float delta[3];
+    unsigned axis;
+    for (axis = 0; axis < 3; ++axis)
+        offset[axis] = pose ? pose->offset[axis] : 0;
+    if (entry && (entry->flags & PLACEMENT_POSITION))
+    {
+        difference(current, entry->position, delta);
+        for (axis = 0; axis < 3; ++axis)
+            offset[axis] += delta[axis];
+    }
+    *shape = (pose && pose->has_shape) || (entry && (entry->flags & PLACEMENT_SHAPE));
+    return *shape || offset[0] || offset[1] || offset[2];
 }

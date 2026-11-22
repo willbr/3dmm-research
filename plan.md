@@ -1234,6 +1234,10 @@ open, install and save the edited tracks in C89, including both archive
 lifetimes and the existing actor and scene range updates.
 Actor offsets and shapes now share a C89 journal keyed by scene and actor.
 Undo, preview, worker rendering and thumbnail invalidation read that journal.
+The C89 placement controller holds the original transforms for live gestures,
+restores them on cancellation, stages commits, and combines temporary offsets
+with saved placements for the ASM worker. Preview refreshes the edited actor's
+snapshot directly after each position change.
 Marcus's generated 3D text edits retain the validated UTF-8 and retail names
 with the draft archive in a C89 journal. C89 decides whether a font can be
 replaced and whether an edit needs to write or retain an appearance override.
