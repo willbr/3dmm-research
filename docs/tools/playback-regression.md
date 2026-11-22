@@ -22571,3 +22571,30 @@ previous port runs and the retained retail and V3DMM captures in
 the same 63,224-byte trace and fingerprint `0D666753`.
 
 Evidence is under `tmp/c89-live-text`.
+
+## C89 live storyboard store (22 November 2026)
+
+C89 owns the immutable paint, camera and light data and its generated
+background archive lease. Undo shares that data. The editor and both save
+paths consume the same scene-ordered entries. Movie open discovers embedded
+storyboard and background links through the C archive reader and stages
+regenerated backgrounds before publishing the movie.
+
+All 237 selected x64 and SDL Studio checks passed. The headless integration
+suite exercised undo, reopening multi-scene board data, and rendering with
+the rebuilt 32-bit ASM worker. Allocation-failure coverage verified that
+an unsuccessful snapshot copy preserves the stored board and archive lease.
+The default Marcus startup capture matched byte for byte.
+
+The single-scene, multi-scene and resaved VMM exports reproduced four editor
+records and 48 packaged payloads and their child links after matching package
+chunks by content. Original V3DMM reopened all three exports on a private
+Windows desktop and reproduced five captured frames and their scene state.
+
+Suite `20261122T190516Z-c1b3f1dc` reproduced both ports' 60 seek canvases and
+recorded scene state. The seek and continuous playback order matched the
+previous port runs and retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`. The existing `scene-load` assertion repeated
+its 63,224-byte trace and fingerprint `0D666753`.
+
+Evidence is under `tmp/c89-storyboard-store`.

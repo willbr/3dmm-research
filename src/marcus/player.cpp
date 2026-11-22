@@ -210,7 +210,7 @@ std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
     if (!player.poses->count && !player.frameRanges->count && !player.edits->scenes->count &&
         !player.edits->props->count && !player.edits->cameras->count && !player.edits->texts->count &&
-        !player.edits->costumes->count && player.edits->storyboards->empty()) return player.timingInput;
+        !player.edits->costumes->count && !player.edits->storyboards->count) return player.timingInput;
     if (player.materializedPoses == player.poses && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
     MarcusEditedPoses changes;
@@ -295,8 +295,9 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
     if (!EnsureResources(player, error)) return false;
     const bool retailScene = mm_movie_scene_definitions_uses_source(player.edits->scenes.get(), player.retailSource);
     if ((retailScene || player.edits->props->count) && !EnsureRetailContent(player, error)) return false;
-    for (const auto &entry : *player.edits->storyboards)
-        if (entry.second.source && !MountGeneratedSource(player, entry.second.source, entry.second.file, error))
+    for (const auto &board : *player.edits->storyboards)
+        if (board.source && !MountGeneratedSource(player, board.source,
+                                                  MarcusEditFile::File(marcus_stored_board_file(&board)), error))
             return false;
     for (const auto &prop : *player.edits->props)
         if (prop.file && !MountGeneratedSource(player, prop.definition.source, MarcusEditFile::File(prop.file), error))
@@ -620,7 +621,7 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     player->image.paletteIndices.clear();
     // Send live placements to the same worker as committed ones. Switching to
     // a different evaluator during a drag loses its cached orbit framing.
-    const bool nativeBoards = !player->edits->storyboards->empty() || player->edits->costumes->count;
+    const bool nativeBoards = player->edits->storyboards->count || player->edits->costumes->count;
     if (player->renderer == MARCUS_RENDERER_BRENDER_ASM &&
         !(nativeBoards && (!player->propPreviews.empty() || !player->shapePreviews.empty())))
     {
@@ -885,9 +886,8 @@ struct SceneCursorHost
                 return movie.preview.Select(movie.scenes[request->scene], host.error, request->keep_framing != 0);
             case MM_MOVIE_SCENE_BACKGROUND:
             {
-                const auto board = movie.edits->storyboards->find(movie.scenes[request->scene].number);
-                return board == movie.edits->storyboards->end() ||
-                       movie.preview.SetBackground(board->second.source, board->second.background, host.error);
+                const auto board = marcus_board_store_find(movie.edits->storyboards.get(), movie.scenes[request->scene].number);
+                return !board || movie.preview.SetBackground(board->source, board->background, host.error);
             }
             case MM_MOVIE_SCENE_READ_RANGE:
             {
@@ -1247,19 +1247,31 @@ bool Strings(MM::Archive &archive, MM::Id id, std::vector<MM::StringTableEntry> 
     }
 }
 } // namespace
+const MarcusBoardWire *MarcusGetStoryboardView(const MarcusPlayer *player)
+{
+    if (!player || player->selected < 0) return nullptr;
+    const auto board = marcus_board_store_find(player->edits->storyboards.get(), player->scenes[player->selected].number);
+    return board ? marcus_stored_board_view(board) : nullptr;
+}
 bool MarcusGetStoryboard(MarcusPlayer *player, MarcusStoryboard &board)
 {
-    if (!player || player->selected < 0) return false;
-    const auto found = player->edits->storyboards->find(player->scenes[player->selected].number);
-    if (found == player->edits->storyboards->end()) return false;
-    board = *found->second.board;
+    const auto view = MarcusGetStoryboardView(player);
+    if (!view) return false;
+    board = MarcusBoardFromWire(*view);
     return true;
 }
 bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, bool newScene,
     unsigned long camera, const char *resources, const char *content)
 {
+    MarcusBoardWire wire{};
+    if (!MarcusBoardView(board, wire)) wire = {};
+    return MarcusApplyStoryboardView(player, wire, newScene, camera, resources, content);
+}
+bool MarcusApplyStoryboardView(MarcusPlayer *player, const MarcusBoardWire &wire, bool newScene,
+    unsigned long camera, const char *resources, const char *content)
+{
     return Guard(player, [&](MM::Error &error) {
-        if (!resources || !content || !MarcusBoardValid(board) || camera >= board.angles.size() ||
+        if (!resources || !content || !marcus_board_wire_size(&wire) || camera >= static_cast<unsigned>(wire.values.angle_count) ||
             (!newScene && !marcus_is_storyboard(player)))
         { error.message = "Select a storyboard scene and valid camera settings."; return false; }
         if (newScene && player->nextScene > 0xffffffffULL)
@@ -1269,22 +1281,22 @@ bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, 
         MMI32 source;
         if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &source))
         { error.message = "No background source IDs are available."; return false; }
-        const auto resource = MarcusBoardContent(board, source, player->timingResources, player->timingContent);
-        const auto scene = newScene ? static_cast<unsigned long>(player->nextScene++) : player->scenes[player->selected].number;
+        const auto resource = MarcusBoardContent(wire, player->timingResources, player->timingContent);
+        const auto scene = newScene ? static_cast<MMU32>(player->nextScene++) : player->scenes[player->selected].number;
         const auto selected = newScene ? static_cast<int>(player->scenes.size()) : player->selected;
         const auto frame = newScene ? 1 : player->preview.Info().currentFrame;
         auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
         auto boards = std::make_shared<MarcusStoryboards>(*edits->storyboards);
-        (*boards)[scene] = resource; edits->storyboards = boards;
+        boards->Set(scene, source, resource, wire);
+        edits->storyboards = boards;
         auto scenes = std::make_shared<MarcusLiveEdits::Scenes>(*edits->scenes);
-        const MMPreviewLiveScene definition{static_cast<MMU32>(scene), static_cast<MMU32>(resource.background),
-                                            static_cast<MMI32>(resource.source)};
+        const MMPreviewLiveScene definition{scene, resource.background, source};
         if (newScene) scenes->Append(definition);
         else mm_movie_scene_definitions_retarget(scenes.get(), &definition);
         edits->scenes = scenes;
         auto cameras = std::make_shared<MarcusLiveEdits::Cameras>(*edits->cameras);
         const auto first = newScene ? 1 : player->preview.Info().firstFrame;
-        cameras->Set({static_cast<MMU32>(scene), mm_scene_camera_key(first, static_cast<MMI32>(frame)),
+        cameras->Set({scene, mm_scene_camera_key(first, static_cast<MMI32>(frame)),
                       static_cast<MMU32>(camera)});
         edits->cameras = cameras; edits->revision = player->nextEditRevision++;
         return ApplySceneEdit(*player, std::move(edits), selected, static_cast<MMI32>(frame), true, true, error);
@@ -1347,9 +1359,9 @@ bool MarcusRenderStoryboardView(MarcusPlayer *player, const MarcusBoardWire &boa
 }
 bool MarcusGetStoryboardColours(MarcusPlayer *player, MarcusBoardPaintColours &colours)
 {
-    MarcusStoryboard board;
-    if (!MarcusGetStoryboard(player, board) || !PrepareBoardPaint(player, board.colours.data(), board.colours.size())) return false;
-    colours.resize(board.colours.size());
+    const auto board = MarcusGetStoryboardView(player);
+    if (!board || !PrepareBoardPaint(player, board->values.colours, board->values.colour_count)) return false;
+    colours.resize(board->values.colour_count);
     for (unsigned i = 0; i < colours.size(); ++i) colours[i] = player->paintInks[i].rgb;
     return true;
 }
@@ -1542,7 +1554,7 @@ extern "C"
     }
     int marcus_is_storyboard(const MarcusPlayer *player)
     {
-        return player && player->selected >= 0 && player->edits->storyboards->count(player->scenes[player->selected].number) != 0;
+        return MarcusGetStoryboardView(player) != nullptr;
     }
     int marcus_board_copy_camera(MarcusPlayer *player, const MarcusImage *work)
     {
@@ -1554,16 +1566,15 @@ extern "C"
             if (!work || work->scene != player->selected || work->frame != info.currentFrame ||
                 work->document != player->document || !marcus_board_pose_from_view(work, &pose))
             { error.message = "Use a current perspective work view."; return false; }
-            MarcusStoryboard board;
-            if (!MarcusGetStoryboard(player, board) || info.currentCamera >= board.angles.size())
+            const auto board = MarcusGetStoryboardView(player);
+            if (!board || info.currentCamera >= static_cast<unsigned>(board->values.angle_count))
             { error.message = "The active storyboard angle is unavailable."; return false; }
             const auto camera = info.currentCamera;
-            auto &angle = board.angles[camera];
-            pose.camera.move_speed = angle.camera.move_speed;
-            angle.camera = pose.camera; angle.roll = pose.roll; angle.fov = pose.fov;
-            angle.nearClip = pose.near_clip; angle.farClip = pose.far_clip;
-            if (MarcusApplyStoryboard(player, board, false, camera, player->timingResources.c_str(),
-                                      player->timingContent.c_str())) return true;
+            auto changed = *board;
+            pose.camera.move_speed = changed.values.angles[camera].camera.move_speed;
+            changed.values.angles[camera] = pose;
+            if (MarcusApplyStoryboardView(player, changed, false, camera, player->timingResources.c_str(),
+                                          player->timingContent.c_str())) return true;
             error.message = player->error;
             return false;
         });
@@ -1571,7 +1582,7 @@ extern "C"
     int marcus_requires_vmm(const MarcusPlayer *player)
     {
         if (!player) return 0;
-        if (!player->edits->storyboards->empty()) return 1;
+        if (player->edits->storyboards->count) return 1;
         if (!player->content) return 0;
         if (player->content->bundled) return 1;
         const auto dependencies = player->content->Dependencies();
@@ -1611,7 +1622,7 @@ extern "C"
                 }
                 const auto dependencies = player->content ? player->content->Dependencies()
                     : std::vector<MM::V3dmm::Dependency>{{mm_vmm_library_name(MM_VMM_BASE_LIBRARY), {}}};
-                if (player->edits->storyboards->empty()) MM::V3dmm::WriteBundle(MM::V3dmm::WholeFile(
+                if (!player->edits->storyboards->count) MM::V3dmm::WriteBundle(MM::V3dmm::WholeFile(
                     player->content && player->content->bundled && file == player->timingInput ? player->content->movie : file->path), dependencies, temporary);
                 else MarcusWriteStoryboardBundle(*file, *player->edits->storyboards, player->timingResources, player->timingContent,
                     dependencies, player->content ? player->content->files.Files("v3dmm", ".3cn") : std::vector<std::filesystem::path>{}, temporary);
@@ -2706,15 +2717,38 @@ extern "C"
             { error.message = "No retail source ID is available."; return false; }
             for (const auto &source : sources)
                 content->PrepareSource(source.name);
-            auto loadedBoards = MarcusReadBoards(archive, materialized);
-            for (auto &entry : loadedBoards)
+            const auto loadedBoards = std::make_shared<MarcusStoryboards>();
+            struct BoardLoad
             {
-                MMI32 source;
-                if (!mm_movie_source_ids_take(&sourceIds, retailSource, &source))
-                { error.message = "No background source IDs are available."; return false; }
-                // Rebuild from editable pixels, repairing old palettes. Never
-                // treat an outer VMM file as a native chunky resource file.
-                entry.second = MarcusBoardContent(*entry.second.board, source, resources, directory);
+                MarcusStoryboards &boards;
+                MMMovieSourceIds &ids;
+                MMI32 retail;
+                const char *resources, *directory;
+                MM::Error &error;
+                std::exception_ptr failure;
+            } load{*loadedBoards, sourceIds, retailSource, resources, directory, error, {}};
+            const auto boardStatus = marcus_board_read_archive(archive.Reader(),
+                [](void *p, MMU32 scene, const MarcusBoardWire *board) -> int {
+                    auto &load = *static_cast<BoardLoad *>(p);
+                    try
+                    {
+                        MMI32 source;
+                        if (!mm_movie_source_ids_take(&load.ids, load.retail, &source))
+                        { load.error.message = "No background source IDs are available."; return 0; }
+                        // Regenerate from the editable planes to repair older palettes.
+                        const auto resource = MarcusBoardContent(*board, load.resources, load.directory);
+                        load.boards.Set(scene, source, resource, *board);
+                        return 1;
+                    }
+                    catch (...) { load.failure = std::current_exception(); return 0; }
+                }, &load);
+            if (load.failure)
+                std::rethrow_exception(load.failure);
+            if (boardStatus != MARCUS_BOARD_WIRE_OK)
+            {
+                if (boardStatus != MARCUS_BOARD_READ_STOPPED || error.message.empty())
+                    error.message = MarcusBoardReadError(boardStatus);
+                return false;
             }
             if (!player->preview.Open(std::move(archive), resources, error, player->preserveEditFraming))
                 return false;
@@ -2737,7 +2771,7 @@ extern "C"
             player->poses = std::make_shared<MarcusEditedPoses>();
             player->frameRanges = std::make_shared<MarcusPlayer::FrameRanges>();
             auto initialEdits = std::make_shared<MarcusLiveEdits>();
-            initialEdits->storyboards = std::make_shared<MarcusStoryboards>(std::move(loadedBoards));
+            initialEdits->storyboards = loadedBoards;
             player->edits = initialEdits;
             mm_movie_source_ids_swap(&player->sourceIds, &sourceIds);
             player->asmBoardFile.reset();
@@ -2768,11 +2802,10 @@ extern "C"
             player->baseSceneInfo = player->sceneInfo;
             player->names.swap(names);
             player->baseNames = player->names;
-            for (const auto &entry : *player->edits->storyboards)
-            {
-                const auto &resource = entry.second;
-                if (!MountGeneratedSource(*player, resource.source, resource.file, error)) return false;
-            }
+            for (const auto &board : *player->edits->storyboards)
+                if (!MountGeneratedSource(*player, board.source,
+                                          MarcusEditFile::File(marcus_stored_board_file(&board)), error))
+                    return false;
             unsigned flags = MM_MOVIE_SCENE_INITIAL;
             if (player->preserveEditFraming) flags |= MM_MOVIE_SCENE_KEEP_FRAMING;
             if (!SceneCursorHost{*player, error, {}}.Select(0, flags))

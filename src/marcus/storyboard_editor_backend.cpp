@@ -53,18 +53,17 @@ int marcus_board_editor_load(MarcusBoardEditorBackend *draft, MarcusPlayer *play
                             unsigned swatches[MARCUS_BOARD_SWATCH_COUNT])
 try
 {
-    MarcusStoryboard board;
-    MarcusBoardWire wire{};
-    if (!MarcusGetStoryboard(player, board)) return Error("Cannot load the selected storyboard.");
+    const auto board = MarcusGetStoryboardView(player);
+    if (!board) return Error("Cannot load the selected storyboard.");
     auto colours = MarcusBoardColours;
     MarcusBoardPalette palette{};
     MarcusGetStoryboardColours(player, colours);
     MarcusGetStoryboardPalette(player, palette);
-    if (!MarcusBoardView(board, wire) || !marcus_board_draft_load(&draft->paint, &wire))
+    if (!marcus_board_draft_load(&draft->paint, board))
         return Error("Cannot copy the selected storyboard.");
     draft->palette = palette;
     draft->paintColours = std::move(colours);
-    *values = wire.values;
+    *values = board->values;
     std::copy_n(draft->paintColours.begin(), MARCUS_BOARD_SWATCH_COUNT, swatches);
     return 1;
 }
@@ -96,7 +95,7 @@ try
 {
     MarcusBoardWire wire;
     if (!marcus_board_draft_staged(&draft->paint, &wire)) return Error("No valid storyboard settings were staged.");
-    if (!MarcusApplyStoryboard(player, MarcusBoardFromWire(wire), false, angle, resources, content))
+    if (!MarcusApplyStoryboardView(player, wire, false, angle, resources, content))
         return Error(marcus_error(player));
     return 1;
 }

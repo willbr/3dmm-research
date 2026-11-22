@@ -154,7 +154,6 @@ class Archive
     bool CanPreview() const;
     MMResourceCache *NewResourceCache(std::int32_t budget) const;
     bool OpenResources(const std::string &utf8Path, Error &);
-    MMArchiveReader *Reader() const;
     MMMovieSessionGraph PlaybackGraph() const;
     MMMovieSession *MovieSession() const;
     enum class OpenMode { live, inspection, preview, resources };
@@ -180,6 +179,8 @@ class Archive
     const std::vector<Chunk> &Chunks() const;
     const std::string &Path() const;
     std::uint32_t NameCodeUnitBits() const;
+    // Borrow the C reader on the archive's owning thread until Open or Close.
+    MMArchiveReader *Reader() const;
     // Outputs are cleared on failure. Payload offsets beyond EOF return empty
     // data at EOF. String pages cap count at 128; payload pages cap at 1 MiB.
     bool ReadPayload(std::size_t index, std::uint32_t offset, std::uint32_t count, PayloadPage &page, Error &error);

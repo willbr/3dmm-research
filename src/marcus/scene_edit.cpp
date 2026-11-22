@@ -539,7 +539,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
     Require(bool(file), "Cannot open the movie working file.");
     const auto editor = mm_private_archive_editor(file.get());
     for (const auto &scene : *edits.scenes) ApplyNewScene(editor, scene, source.empty());
-    for (const auto &entry : *edits.storyboards) MarcusEmbedBoard(file.get(), entry.first, entry.second);
+    for (const auto &board : *edits.storyboards) MarcusEmbedBoard(file.get(), board);
     const auto sceneRanges = mm_movie_range_journal_data(&ranges);
     for (MMU32 i = 0; i < ranges.count; ++i)
     {

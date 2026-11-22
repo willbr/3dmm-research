@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <limits>
 #include <stdexcept>
@@ -56,6 +57,42 @@ int main(int argc, char **argv)
                   marcus_board_draft_staged(&draft, &staged) && staged.values.angle_count == 2 &&
                   staged.pixels[0][0] == 4 && staged.pixels[1][0] == 0,
                 "Staged multi-angle drafts preserve paint independently");
+        }
+        {
+            bool deny = false;
+            int file = 1, replacement = 1;
+            const MMMovieEditFileServices files{
+                [](void *p) { ++*static_cast<int *>(p); },
+                [](void *p) { --*static_cast<int *>(p); }};
+            const MMStorageAllocator allocator{&deny,
+                [](void *p, void *bytes, MMU32, MMU32 size, int) -> void * {
+                    return *static_cast<bool *>(p) ? nullptr : std::realloc(bytes, size);
+                },
+                [](void *, void *bytes, MMU32) { std::free(bytes); }};
+            MarcusBoardStore live{}, undo{};
+            using StoreGuard = std::unique_ptr<MarcusBoardStore, decltype(&marcus_board_store_dispose)>;
+            StoreGuard liveStore(&live, marcus_board_store_dispose), undoStore(&undo, marcus_board_store_dispose);
+            check(marcus_board_store_init(&live, nullptr, &files) &&
+                  marcus_board_store_init(&undo, &allocator, &files), "Initialize board snapshots");
+            MarcusStoryboard draft;
+            MarcusBoardWire wire{};
+            check(MarcusBoardView(draft, wire) && marcus_board_store_set(&live, 3, 7, 11, &file, &wire) && file == 2,
+                  "Store one immutable board and retain its background");
+            deny = true;
+            check(!marcus_board_store_copy(&undo, &live) && !undo.count && file == 2,
+                  "Allocation failure preserves the old snapshot");
+            deny = false;
+            check(marcus_board_store_copy(&undo, &live) &&
+                  marcus_stored_board_view(marcus_board_store_find(&undo, 3)) ==
+                  marcus_stored_board_view(marcus_board_store_find(&live, 3)),
+                  "Undo retains the same immutable paint data");
+            draft.angles[0].pixels[0] = 4;
+            check(marcus_board_store_set(&live, 3, 8, 12, &replacement, &wire) && file == 2 && replacement == 2 &&
+                  marcus_stored_board_view(marcus_board_store_find(&undo, 3))->pixels[0][0] == 0,
+                  "Editing a scene preserves the old paint and archive lease");
+            liveStore.reset();
+            undoStore.reset();
+            check(file == 1 && replacement == 1, "Release both background leases");
         }
         // Colour math and picker geometry only; these checks use no UI input.
         for (unsigned red = 0; red <= 255; red += 17)

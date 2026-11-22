@@ -1440,6 +1440,12 @@ inverse and insertion-point transforms. The host supplies archive I/O.
 The storyboard draft owns editable paint planes and its staged and accepted
 snapshots in C89. Preview borrows the live planes. Apply reads the validated
 snapshot, and a failed stage preserves the previously staged edit.
+The live storyboard store now owns immutable paint, camera and light data
+and retains the generated background archives through undo. The editor works
+from borrowed C views. Movie open finds the embedded storyboard and background
+links through the C archive reader and stages regenerated resources for each
+scene. Native working-copy embedding and portable export consume the same
+scene-ordered store.
 Storyboard export now allocates portable chunk numbers and rewrites the
 whole index in C89. The pass checks existing source-6 indexes, reorders
 renumbered rows and child links, and preserves payload bytes and the free map.

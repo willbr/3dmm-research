@@ -125,6 +125,7 @@ int marcus_board_decode(const unsigned char *bytes, size_t length, MarcusBoardWi
         MarcusBoardPose *pose = &v->angles[i];
         pose->camera.x = get_float(&at); pose->camera.y = get_float(&at); pose->camera.z = get_float(&at);
         pose->camera.yaw = get_float(&at); pose->camera.pitch = get_float(&at); pose->roll = get_float(&at);
+        pose->camera.move_speed = MARCUS_BOARD_MOVE_SPEED;
         pose->fov = get_float(&at); pose->near_clip = get_float(&at); pose->far_clip = get_float(&at);
         decoded.pixels[i] = at;
         if (version == 1)

@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include "storyboard_native.h"
 #include "storyboard_resource.h"
+#include "live_edits.h"
 #undef size
 ASSERTNAME
 
@@ -50,7 +51,7 @@ std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board)
     return output;
 }
 
-MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
+const char *MarcusBoardReadError(int status)
 {
     static const char *const messages[] = {
         nullptr,
@@ -58,11 +59,20 @@ MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
         "Invalid storyboard size.",
         "Invalid storyboard paint palette.",
         "Invalid legacy paint colour.",
-        "Invalid storyboard settings."
+        "Invalid storyboard settings.",
+        "Storyboard resources are missing.",
+        "Cannot read storyboard data.",
+        "Cannot rebuild storyboard data."
     };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MARCUS_BOARD_READ_STOPPED + 1, "storyboard diagnostics");
+    return messages[status];
+}
+
+MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes)
+{
     MarcusBoardWire view;
     const int status = marcus_board_decode(bytes.data(), bytes.size(), &view);
-    Require(status == MARCUS_BOARD_WIRE_OK, messages[status]);
+    Require(status == MARCUS_BOARD_WIRE_OK, MarcusBoardReadError(status));
     return MarcusBoardFromWire(view);
 }
 
@@ -77,8 +87,7 @@ MarcusStoryboard MarcusBoardFromWire(const MarcusBoardWire &view)
     {
         auto &angle = board.angles[i];
         const auto &pose = values.angles[i];
-        angle.camera.x = pose.camera.x; angle.camera.y = pose.camera.y; angle.camera.z = pose.camera.z;
-        angle.camera.yaw = pose.camera.yaw; angle.camera.pitch = pose.camera.pitch;
+        angle.camera = pose.camera;
         angle.roll = pose.roll; angle.fov = pose.fov; angle.nearClip = pose.near_clip; angle.farClip = pose.far_clip;
         std::copy_n(view.pixels[i], MARCUS_BOARD_PIXELS, angle.pixels.begin());
     }
@@ -213,7 +222,7 @@ int MarcusBoardAddColour(MarcusStoryboard &board, unsigned rgb)
     else if (slot >= 0) board.colours[slot] = rgb;
     return slot;
 }
-MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources, const std::string &content)
+MarcusBoardArchive MarcusBoardContent(const MarcusBoardWire &board, const std::string &resources, const std::string &content)
 {
     auto file = std::make_shared<MarcusMovieFile>(std::filesystem::path{});
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
@@ -233,53 +242,17 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     const auto resourceEditor = mm_private_archive_editor(resourceFile.get());
     const auto retailEditor = mm_private_archive_editor(backgrounds.get());
     const auto outputEditor = mm_private_archive_editor(chunks.get());
-    MarcusBoardWire view{};
-    Require(MarcusBoardView(board, view), "Invalid storyboard.");
     ChunkNumber background;
-    const auto error = marcus_board_write_resources(&view, &resourceEditor, &retailEditor, &outputEditor, &background);
+    const auto error = marcus_board_write_resources(&board, &resourceEditor, &retailEditor, &outputEditor, &background);
     Require(!error, error);
     Require(mm_private_archive_save(chunks.get(), kctgSoc), "Cannot save storyboard working file.");
-    return {std::make_shared<MarcusStoryboard>(board), file, background, source};
+    return {file, background};
 }
-void MarcusEmbedBoard(MMPrivateArchive *file, ChunkNumber scene, const MarcusBoardResource &resource)
+void MarcusEmbedBoard(MMPrivateArchive *file, const MarcusStoredBoard &board)
 {
-    auto source = MarcusOpenArchive(resource.file->path, MM_PRIVATE_ARCHIVE_READ);
-    ChunkNumber background;
-    Require(source && mm_private_archive_copy(source.get(), file, kctgBkgd, resource.background, 0, &background),
-            "Cannot embed storyboard resources.");
-    const auto bytes = MarcusEncodeBoard(*resource.board);
-    const auto editor = mm_private_archive_editor(file);
-    Require(mm_movie_archive_embed_storyboard(&editor, scene, background, bytes.data(), static_cast<MMU32>(bytes.size())),
-            "Cannot embed storyboard data.");
-}
-MarcusStoryboards MarcusReadBoards(MM::Archive &archive, const std::shared_ptr<MarcusMovieFile> &file)
-{
-    MarcusStoryboards result;
-    for (const auto &scene : archive.Chunks())
-    {
-        if (scene.id.type != 0x5343454e) continue;
-        const MM::Child *metadata = nullptr, *background = nullptr;
-        for (const auto &child : scene.children)
-        {
-            if (child.slot == 0 && child.target.type == MarcusBoardChunk) metadata = &child;
-            if (child.slot == 0 && child.target.type == 0x424b4744) background = &child;
-        }
-        if (!metadata) continue;
-        Require(metadata->present && background && background->present, "Storyboard resources are missing.");
-        const auto &chunks = archive.Chunks();
-        const auto found = std::find_if(chunks.begin(), chunks.end(), [&](const auto &c) { return c.id == metadata->target; });
-        MM::PayloadPage page; MM::Error error;
-        Require(found != chunks.end() && archive.ReadPayload(static_cast<size_t>(found - chunks.begin()), 0, 1024 * 1024, page, error) &&
-            page.totalBytes <= 12 * 1024 * 1024, "Cannot read storyboard data.");
-        auto bytes = std::move(page.bytes);
-        const auto total = page.totalBytes;
-        while (bytes.size() < total)
-        {
-            Require(archive.ReadPayload(static_cast<size_t>(found - chunks.begin()), static_cast<unsigned>(bytes.size()), 1024 * 1024, page, error) &&
-                !page.bytes.empty(), "Cannot read storyboard data.");
-            bytes.insert(bytes.end(), page.bytes.begin(), page.bytes.end());
-        }
-        result[scene.id.number] = {std::make_shared<MarcusStoryboard>(MarcusDecodeBoard(bytes)), file, background->target.number, 0};
-    }
-    return result;
+    const auto &archive = MarcusEditFile::File(marcus_stored_board_file(&board));
+    auto source = MarcusOpenArchive(archive->path, MM_PRIVATE_ARCHIVE_READ);
+    Require(bool(source), "Cannot embed storyboard resources.");
+    const auto error = marcus_board_embed(file, source.get(), &board);
+    Require(!error, error);
 }

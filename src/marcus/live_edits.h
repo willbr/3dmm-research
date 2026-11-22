@@ -145,6 +145,24 @@ struct MarcusEditedTexts : MMMovieTextJournal
         if (!mm_movie_text_journal_set(this, &edit)) throw std::bad_alloc();
     }
 };
+struct MarcusStoryboards : MarcusBoardStore
+{
+    MarcusStoryboards() { marcus_board_store_init(this, nullptr, MarcusEditFile::Services()); }
+    MarcusStoryboards(const MarcusStoryboards &other) : MarcusStoryboards()
+    {
+        if (!marcus_board_store_copy(this, &other)) throw std::bad_alloc();
+    }
+    MarcusStoryboards &operator=(const MarcusStoryboards &) = delete;
+    ~MarcusStoryboards() { marcus_board_store_dispose(this); }
+    const MarcusStoredBoard *begin() const { return marcus_board_store_data(this); }
+    const MarcusStoredBoard *end() const { return count ? begin() + count : begin(); }
+    void Set(MMU32 scene, MMI32 source, const MarcusBoardArchive &archive, const MarcusBoardWire &wire)
+    {
+        const auto file = MarcusEditFile::Hold(archive.file);
+        if (!marcus_board_store_set(this, scene, source, archive.background, file.get(), &wire))
+            throw std::bad_alloc();
+    }
+};
 struct MarcusLiveEdits
 {
     using Scenes = MarcusEditedScenes;

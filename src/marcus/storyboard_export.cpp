@@ -99,7 +99,7 @@ void RekeyBackgrounds(const fs::path &contentPath, const std::vector<fs::path> &
 }
 }
 
-void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStoryboards &boards,
+void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusBoardStore &boards,
     const std::string &resources, const std::string &content, const std::vector<V::Dependency> &dependencies,
     const std::vector<fs::path> &portableContent, const fs::path &destination)
 {
@@ -109,15 +109,17 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
     fs::permissions(innerPath, fs::perms::owner_write, fs::perm_options::add);
     auto inner = Open(innerPath, MM_PRIVATE_ARCHIVE_EDIT), contents = Open(contentPath, MM_PRIVATE_ARCHIVE_CREATE);
     SceneBackgrounds backgrounds;
-    for (const auto &entry : boards)
+    const auto entries = marcus_board_store_data(&boards);
+    for (MMU32 i = 0; i < boards.count; ++i)
     {
         // Regenerate from editor data, repairing older storyboard palettes too.
-        const auto resource = MarcusBoardContent(*entry.second.board, MM_PORTABLE_SOURCE_ID, resources, content);
+        const auto &entry = entries[i];
+        const auto resource = MarcusBoardContent(*marcus_stored_board_view(&entry), resources, content);
         auto source = Open(resource.file->path, MM_PRIVATE_ARCHIVE_READ);
         ChunkNumber background;
         Require(mm_private_archive_copy(source.get(), contents.get(), kctgBkgd, resource.background, 0, &background),
                 "Cannot package storyboard background.");
-        backgrounds.emplace_back(entry.first, background);
+        backgrounds.emplace_back(entry.scene, background);
     }
     Require(mm_private_archive_save(contents.get(), kctgSoc), "Cannot finish portable storyboard content.");
     contents.reset();

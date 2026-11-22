@@ -4,20 +4,19 @@
 #include "storyboard_edit_data.h"
 #ifdef __cplusplus
 #include "movie_input.h"
+#include "storyboard_store.h"
 #include "mm/archive.h"
 #include "mm/v3dmm.h"
 #include <array>
-#include <map>
 
 constexpr int MarcusBoardWidth = MARCUS_BOARD_WIDTH, MarcusBoardHeight = MARCUS_BOARD_HEIGHT;
-constexpr unsigned MarcusBoardChunk = 0x53544244; // STBD, versioned editor data.
 constexpr unsigned MarcusBoardColourCount = MARCUS_BOARD_SWATCH_COUNT;
 using MarcusBoardPaintColours = std::vector<unsigned>;
 inline const MarcusBoardPaintColours MarcusBoardColours(marcus_board_swatches, marcus_board_swatches + MarcusBoardColourCount);
 struct MarcusBoardAngle
 {
     // GE-Black's first camera position, downward pitch and lens.
-    MarcusCamera camera = {0, 20, 20, 0, 5.71198516f, 5};
+    MarcusCamera camera = {0, 20, 20, 0, 5.71198516f, MARCUS_BOARD_MOVE_SPEED};
     float roll = 0, fov = 41.5338134765625f, nearClip = 1, farClip = 5000;
     std::vector<unsigned char> pixels = std::vector<unsigned char>(MarcusBoardWidth * MarcusBoardHeight, 0);
 };
@@ -44,20 +43,18 @@ struct MarcusStoryboard
     std::vector<MarcusBoardAngle> angles = {MarcusBoardAngle{}};
     std::vector<MarcusBoardLight> lights = {MarcusBoardLight{}};
 };
-struct MarcusBoardResource
+struct MarcusBoardArchive
 {
-    std::shared_ptr<const MarcusStoryboard> board;
     std::shared_ptr<MarcusMovieFile> file;
-    unsigned long background = 0;
-    long source = 0;
+    MMU32 background;
 };
-using MarcusStoryboards = std::map<unsigned long, MarcusBoardResource>;
 bool MarcusBoardValid(const MarcusStoryboard &board);
 bool MarcusBoardView(const MarcusStoryboard &board, MarcusBoardWire &view);
 MarcusStoryboard MarcusBoardFromWire(const MarcusBoardWire &view);
 std::vector<unsigned char> MarcusEncodeBoard(const MarcusStoryboard &board);
 MarcusStoryboard MarcusDecodeBoard(const std::vector<unsigned char> &bytes);
-MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long source, const std::string &resources, const std::string &content);
+MarcusBoardArchive MarcusBoardContent(const MarcusBoardWire &board, const std::string &resources, const std::string &content);
+const char *MarcusBoardReadError(int status);
 using MarcusBoardPalette = std::array<unsigned, 256>;
 using MarcusBoardInks = std::vector<MarcusBoardInk>;
 MarcusBoardInk MarcusBoardMatchColour(const MarcusBoardPalette &palette, unsigned rgb);
@@ -70,10 +67,9 @@ bool MarcusGetStoryboardPalette(MarcusPlayer *player, MarcusBoardPalette &palett
 // Private, self-contained template for the isolated text-dialog preview.
 std::shared_ptr<MarcusMovieFile> MarcusPrepareTextPreview(MarcusPlayer *player, int object, const MarcusText &text);
 bool MarcusGetStoryboardColours(MarcusPlayer *player, MarcusBoardPaintColours &colours);
-void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStoryboards &boards,
+void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusBoardStore &boards,
     const std::string &resources, const std::string &content, const std::vector<MM::V3dmm::Dependency> &dependencies,
     const std::vector<std::filesystem::path> &portableContent, const std::filesystem::path &destination);
-MarcusStoryboards MarcusReadBoards(MM::Archive &archive, const std::shared_ptr<MarcusMovieFile> &file);
 // Drawing uses integer stamps and interpolation, with no smoothing or alpha blending.
 void MarcusBoardStroke(MarcusBoardAngle &angle, int x0, int y0, int x1, int y1, int size, unsigned char colour);
 // Clipped ground-grid segments in normalized image coordinates, shared by the guide and baking.
@@ -82,11 +78,14 @@ std::vector<std::array<double, 4>> MarcusBoardGridLines(const MarcusBoardAngle &
 void MarcusBoardBakeGrid(MarcusBoardAngle &angle, unsigned char colour);
 void MarcusBoardBakeGrid(const MarcusBoardAngle &angle, unsigned char *pixels, unsigned char colour);
 bool MarcusGetStoryboard(MarcusPlayer *player, MarcusStoryboard &board);
+const MarcusBoardWire *MarcusGetStoryboardView(const MarcusPlayer *player);
 bool MarcusRenderStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, unsigned long camera, MarcusImage &image,
     std::vector<float> *depth = nullptr, const MarcusBoardAngle *inspection = nullptr);
 bool MarcusRenderStoryboardView(MarcusPlayer *player, const MarcusBoardWire &board, unsigned long camera, MarcusImage &image,
     std::vector<float> *depth, const MarcusBoardPose *inspection);
 bool MarcusApplyStoryboard(MarcusPlayer *player, const MarcusStoryboard &board, bool newScene,
+    unsigned long camera, const char *resources, const char *content);
+bool MarcusApplyStoryboardView(MarcusPlayer *player, const MarcusBoardWire &board, bool newScene,
     unsigned long camera, const char *resources, const char *content);
 extern "C" {
 #endif
