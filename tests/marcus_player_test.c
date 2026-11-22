@@ -5,6 +5,7 @@
 #include "caption_runs.h"
 #include "caption_raster.h"
 #include "caption_faces.h"
+#include "caption_scene.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -358,9 +359,9 @@ static int caption_run_mask(void *p, const unsigned short *text, MMI32 count, Ma
 static int check_caption_runs(MarcusPlayer *player)
 {
     unsigned short text[] = {'A', '\r', '\n', 'B'};
-    MarcusCaptionInput input = {{2, 4, 200, 36}, NULL, 4, 12, {"Test", 4}, 0};
+    MarcusCaptionInput input = {{2, 4, 200, 36}, NULL, 4, 12, {"Test", 4}, 0, NULL, NULL};
     CaptionRunProbe probe = {255, 0, 0, 0, 0};
-    MarcusCaptionFonts fonts = {NULL, NULL, caption_run_face, caption_run_measure, caption_run_mask};
+    MarcusCaptionFonts fonts = {NULL, caption_run_face, caption_run_measure, caption_run_mask};
     MarcusCaptionRuns first = {0}, second = {0};
     const MarcusCaptionRun *runs;
     const MarcusCaptionStop *stops;
@@ -443,7 +444,7 @@ static int check_caption_rasters(MarcusPlayer *player)
     const unsigned char smoothed[] = {2, 10, 22, 30}, expanded[] = {10, 10, 20, 20, 10, 10, 20, 20};
     const MMCaptionMask native = {-1, -2, 2, 1, 3};
     CaptionRasterProbe probe = {26, 8, 0, 0, 0};
-    MarcusCaptionFonts fonts = {NULL, NULL, caption_raster_face, caption_raster_measure, caption_raster_mask};
+    MarcusCaptionFonts fonts = {NULL, caption_raster_face, caption_raster_measure, caption_raster_mask};
     MarcusCaptionRasterCache cache = {0};
     MarcusCaptionRun run = {0};
     MarcusCaptionRaster raster;
@@ -592,6 +593,63 @@ failed:
     return ok && probe.released == 3 + MARCUS_CAPTION_FACE_LIMIT;
 }
 
+static int caption_scene_source(const void *p, size_t row, MarcusCaptionSource *out)
+{
+    if (row)
+        return 0;
+    *out = *(const MarcusCaptionSource *)p;
+    return 1;
+}
+
+static void caption_scene_property(const void *p, size_t index, MMCaptionProperty *out)
+{
+    *out = ((const MMCaptionProperty *)p)[index];
+}
+
+static int check_caption_scene(MarcusPlayer *player)
+{
+    unsigned short text[] = {'A', '\r', '\n', 'B'};
+    char font[] = "Default", property_font[] = "Selected";
+    MMCaptionProperty property = {0, 2, 0, {NULL, 8}};
+    MarcusCaptionSource source = {{{0, 0, 180, 40}, NULL, 4, 12, {NULL, 7}, 1, NULL, caption_scene_property},
+                                      1, 10, 42, 0xffffffffUL, 1};
+    CaptionRunProbe probe = {255, 0, 0, 0, 0};
+    MarcusCaptionFonts fonts = {NULL, caption_run_face, caption_run_measure, caption_run_mask};
+    MarcusCaptionScene scene = {0};
+    const MarcusStoredCaption *original;
+    MMU32 chunk;
+    MMI32 height;
+    int ok = 0;
+    property.font.name = property_font;
+    source.layout.text = text;
+    source.layout.font.name = font;
+    source.layout.property_context = &property;
+    fonts.context = &probe;
+    CHECK(marcus_caption_scene_init(&scene));
+    CHECK(marcus_caption_scene_load(&scene, 1, &source, caption_scene_source) == 0);
+    original = marcus_caption_scene_row(&scene, 1);
+    text[0] = 'Z';
+    font[0] = property_font[0] = 'X';
+    CHECK(original->source.layout.text[0] == 'A' && !memcmp(original->source.layout.font.name, "Default", 7));
+    CHECK(!memcmp(original->properties[0].font.name, "Selected", 8));
+    CHECK(marcus_caption_scene_load(&scene, 2, &source, caption_scene_source) == MM_CAPTION_LAYOUT_FAILED);
+    CHECK(scene.count == 1 && marcus_caption_scene_row(&scene, 1) == original);
+    mm_caption_presentation_observe(&scene.presentation, 1);
+    CHECK(mm_caption_presentation_hit(&scene.presentation, 10, 10, NULL, &chunk) && chunk == 42);
+    CHECK(marcus_caption_scene_measure(&source, &fonts, &height) == 0 && height > 12 && !scene.mask_bytes);
+    CHECK(marcus_caption_scene_layout(&scene, scene.rows, &fonts) == 0 && scene.mask_bytes == 2);
+    CHECK(marcus_caption_scene_draft(&scene, &source, &fonts) == 0);
+    CHECK(scene.draft->runs.stop_count > 2 && scene.mask_bytes == 4);
+    CHECK(marcus_caption_scene_draft(&scene, &scene.draft->source, &fonts) == 0 && scene.mask_bytes == 4);
+    probe.fail_at = probe.calls + 1;
+    CHECK(marcus_caption_scene_draft(&scene, &source, &fonts) == MARCUS_CAPTION_RUNS_RASTER);
+    CHECK(!scene.draft && scene.count == 1 && scene.rows == original && scene.mask_bytes == 2);
+    ok = 1;
+failed:
+    marcus_caption_scene_dispose(&scene);
+    return ok && !scene.mask_bytes && probe.available == probe.released;
+}
+
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
@@ -631,6 +689,7 @@ int main(int argc, char **argv)
     CHECK(check_caption_runs(player));
     CHECK(check_caption_rasters(player));
     CHECK(check_caption_faces(player));
+    CHECK(check_caption_scene(player));
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           movie_time.duration_seconds == 0);

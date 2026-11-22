@@ -6,6 +6,7 @@ typedef struct RunLayout
 {
     MarcusCaptionRuns *runs;
     const MarcusCaptionFonts *fonts;
+    const MarcusCaptionInput *input;
     size_t budget;
     MMCaptionCaretBuilder caret;
 } RunLayout;
@@ -53,8 +54,8 @@ static int reserve(MMCollectionStorage *storage, unsigned section, size_t count,
 
 static void read_property(void *p, size_t row, MMCaptionProperty *property)
 {
-    const MarcusCaptionFonts *fonts = ((RunLayout *)p)->fonts;
-    fonts->property(fonts->context, row, property);
+    const MarcusCaptionInput *input = ((RunLayout *)p)->input;
+    input->property(input->property_context, row, property);
 }
 
 static int set_face(void *p, const MMCaptionStyle *style)
@@ -191,6 +192,7 @@ int marcus_caption_runs_layout(MarcusCaptionRuns *out, const MarcusCaptionInput 
     next.scene_bytes = scene_bytes;
     layout.runs = &next;
     layout.fonts = fonts;
+    layout.input = input;
     layout.budget = budget;
     layout.caret.offsets = offsets;
     layout.caret.length = text.length;

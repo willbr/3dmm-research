@@ -1638,6 +1638,9 @@ The C89 caption face cache keeps faces scoped to the active font catalog. It
 checks bundled families first and falls back to installed fonts and System
 when the family is unavailable. The font host opens and rasterizes the
 selected face.
+The C89 caption scene owns the authored row table, source text and formatting,
+and the edit draft. Timing analysis borrows decoded text and uses the same
+layout without copying the scene's caption data.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

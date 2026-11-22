@@ -51,7 +51,7 @@ class MarcusPlayback
     bool Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image, MM::Error &error,
                    const std::uint32_t *hiddenCaption = nullptr, bool editDraft = false);
     bool CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const;
-    bool CaptionDraft(MM::PreviewCaption, MM::Error &);
+    bool CaptionDraft(const MM::PreviewCaption &, MM::Error &);
     void ClearCaptionDraft();
     const MarcusCaptionStop *CaptionPositions(int &count, int &scroll) const;
     bool CaptionCaret(int offset);

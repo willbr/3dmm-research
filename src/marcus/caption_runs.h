@@ -16,6 +16,8 @@ typedef struct MarcusCaptionInput
     MMI32 pixels;
     MMCaptionFont font;
     size_t properties;
+    const void *property_context;
+    void (*property)(const void *, size_t, MMCaptionProperty *);
 } MarcusCaptionInput;
 
 typedef struct MarcusCaptionMetrics
@@ -59,7 +61,6 @@ typedef struct MarcusCaptionRuns
 typedef struct MarcusCaptionFonts
 {
     void *context;
-    void (*property)(void *, size_t, MMCaptionProperty *);
     int (*face)(void *, const MMCaptionStyle *);
     int (*measure)(void *, const unsigned short *, MMI32, MarcusCaptionMetrics *);
     int (*mask)(void *, const unsigned short *, MMI32, MarcusCaptionMaskOwner *);

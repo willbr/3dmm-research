@@ -22984,3 +22984,23 @@ Marcus Text Acid candidate `20261122T213547Z-fa9451c5` matched
 It reproduced the 240-frame seek and playback order from retail and V3DMM
 in `20261122T033140Z-2abe2197` and `20261122T033233Z-5e23a412`. Evidence is
 under `tmp/c89-caption-faces` and `tmp/c89-caption-presentation/capture`.
+
+## C89 Marcus caption scene ownership (22 November 2026)
+
+C89 owns the authored caption rows, text, formatting, edit draft, and shared
+mask budget. It stages a replacement scene before releasing the old rows.
+Timing analysis borrows the decoded text and formatting and uses the same
+layout with temporary masks.
+
+All 226 selected native tests passed and the x86 worker built. The standalone
+x86 check covered retained text and font names, failed scene loads, draft
+replacement, and mask release after a failed raster. Three timing snapshots
+and the headless startup capture matched byte for byte.
+
+Marcus Text Acid candidate `20261122T214453Z-17d168c9` matched
+`20261122T213547Z-fa9451c5` on all 240 seek canvases and recorded caption and
+scene state. Both capture modes completed. A separate comparison to the
+retained retail and V3DMM captures `20261122T033140Z-2abe2197` and
+`20261122T033233Z-5e23a412` matched the 240-frame seek and playback order.
+Evidence is under `tmp/c89-caption-scene` and
+`tmp/c89-caption-presentation/capture`.
