@@ -1,5 +1,6 @@
 #include "playback.h"
 #include "playback_audio.h"
+#include "playback_scene.h"
 #include "mm/playback.h"
 #include "mm/frame_sound.h"
 #include "mm/caption_layout.h"
@@ -61,7 +62,7 @@ struct AudioDecodeContext
 {
     MarcusPlaybackAudio *audio;
     Preview &preview;
-    const PreviewSoundCue &cue;
+    const MMPreviewCue &cue;
     Error &error;
     std::exception_ptr failure;
 };
@@ -72,7 +73,7 @@ int ReadAudioMedia(void *p, MMMovieAudioMedia *out)
     try
     {
         PreviewAudio data;
-        if (!ctx.preview.ReadSound(ctx.cue, data, ctx.error))
+        if (!ctx.preview.ReadSoundCue(ctx.cue, data, ctx.error))
             return 0;
         auto media = std::make_unique<DecodedAudio>();
         MMMovieAudioClip clip{data.source, data.asset.type, data.asset.number, nullptr, 0, 0};
@@ -124,18 +125,14 @@ int CreateAudioSynth(void *p, MMMovieAudioSynth *out)
     catch (...) { ctx.failure = std::current_exception(); return 0; }
 }
 
-bool PlayAudio(MarcusPlaybackAudio *audio, Preview &preview, const PreviewSoundCue &cue, MMAudioCounter offset,
+bool PlayAudio(MarcusPlaybackAudio *audio, Preview &preview, const MMPreviewCue &cue, MMAudioCounter offset,
                Error &error, bool audition = false)
 {
     AudioDecodeContext ctx{audio, preview, cue, error, {}};
     const MMMovieAudioDecode decode{&ctx, ReadAudioMedia, CreateAudioSynth};
-    const MarcusPlaybackSound sound{
-        {cue.source, cue.sound.type, cue.sound.number,
-         cue.source == 0 && !cue.silent ? (cue.scene.type ? cue.scene.number : preview.Info().asset.number) : 0,
-         cue.child},
-        cue.actor, cue.style, cue.volume, cue.actorSound, cue.loop, cue.queue, cue.silent};
     char message[512];
-    const int status = marcus_playback_audio_play(audio, &sound, offset, &decode, audition, message, sizeof(message));
+    const int status = marcus_playback_audio_play(audio, &cue, preview.Info().asset.number, offset,
+                                                  &decode, audition, message, sizeof(message));
     if (ctx.failure)
         std::rethrow_exception(ctx.failure);
     if (status == MM_MOVIE_AUDIO_CACHE_LIMIT)
@@ -165,7 +162,7 @@ MarcusCaptionSource CaptionSource(const PreviewCaption &caption)
 } // namespace
 struct MarcusPlayback::Impl
 {
-    PreviewPresentation scene;
+    MarcusPlaybackScene scene;
     MarcusCaptionScene captionScene{};
     MarcusCaptionFaces faces{};
     std::shared_ptr<KauaiFonts::FontCatalog> fonts;
@@ -178,6 +175,7 @@ struct MarcusPlayback::Impl
     {
         if (!marcus_caption_scene_init(&captionScene))
             throw std::bad_alloc();
+        marcus_playback_scene_init(&scene);
         mm_graphics_movie_frames_init(&movieFrames);
     }
     ~Impl()
@@ -185,6 +183,7 @@ struct MarcusPlayback::Impl
         marcus_caption_faces_clear(&faces);
         marcus_caption_raster_clear(&captionRasters);
         marcus_caption_scene_dispose(&captionScene);
+        marcus_playback_scene_clear(&scene);
         mm_graphics_movie_frames_dispose(&movieFrames);
     }
     void ClearTransition()
@@ -406,7 +405,7 @@ bool MarcusPlayback::RestoreAudio(Preview &preview, const std::vector<MarcusResu
 {
     marcus_playback_audio_suspend(impl->audio.get(), 1);
     for (const auto &sound : sounds)
-        if (!PlayAudio(impl->audio.get(), preview, sound.cue, mm_frame_sound_resume_samples(sound.seconds), error))
+        if (!PlayAudio(impl->audio.get(), preview, sound.cue.Native(), mm_frame_sound_resume_samples(sound.seconds), error))
             return false;
     impl->clock.restore_music = 0;
     return true;
@@ -423,20 +422,45 @@ bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserv
         Stop();
     marcus_caption_scene_clear(&impl->captionScene);
     marcus_caption_raster_clear(&impl->captionRasters);
-    impl->scene = {};
-    PreviewPresentation presentation;
+    struct SceneOutput
+    {
+        MarcusPlaybackScene &scene;
+        std::vector<PreviewCaption> captions;
+        bool committed = false;
+        ~SceneOutput()
+        {
+            if (!committed)
+                marcus_playback_scene_clear(&scene);
+        }
+    } output{impl->scene, {}};
+    const PreviewPresentationOutput presentation{
+        &output,
+        [](void *p) {
+            auto &out = *static_cast<SceneOutput *>(p);
+            marcus_playback_scene_clear(&out.scene);
+            out.captions.clear();
+        },
+        [](void *p, MMI32 transition) { static_cast<SceneOutput *>(p)->scene.transition = transition; },
+        [](void *p, PreviewCaption &caption) {
+            static_cast<SceneOutput *>(p)->captions.push_back(std::move(caption));
+            return 1;
+        },
+        [](void *p, MMI32 frame, MMI32 kind, MMI32 milliseconds) {
+            return marcus_playback_scene_pause(&static_cast<SceneOutput *>(p)->scene, frame, kind, milliseconds);
+        },
+        [](void *p, const MMPreviewCue *cue) {
+            return marcus_playback_scene_cue(&static_cast<SceneOutput *>(p)->scene, cue);
+        }};
     if (!preview.ReadPresentation(presentation, error))
         return false;
-    const int status = marcus_caption_scene_load(&impl->captionScene, presentation.captions.size(),
-        &presentation.captions, [](const void *p, std::size_t index, MarcusCaptionSource *out) -> int {
+    const int status = marcus_caption_scene_load(&impl->captionScene, output.captions.size(),
+        &output.captions, [](const void *p, std::size_t index, MarcusCaptionSource *out) -> int {
             *out = CaptionSource((*static_cast<const std::vector<PreviewCaption> *>(p))[index]);
             return 1;
         });
-    if (!Impl::CaptionStatus(status, error))
-        return false;
-    impl->scene.transition = presentation.transition;
-    impl->scene.sounds = std::move(presentation.sounds);
-    impl->scene.pauses = std::move(presentation.pauses);
+    if (status)
+        return Impl::CaptionStatus(status, error);
+    output.committed = true;
     mm_caption_presentation_observe(&impl->captionScene.presentation, preview.Info().currentFrame);
     return true;
 }
@@ -449,7 +473,7 @@ void MarcusPlayback::Stop()
 bool MarcusPlayback::Audition(Preview &preview, PreviewSoundCue cue, Error &error)
 {
     Stop();
-    return PlayAudio(impl->audio.get(), preview, cue, {}, error, true);
+    return PlayAudio(impl->audio.get(), preview, cue.Native(), {}, error, true);
 }
 bool MarcusPlayback::Auditioning() const
 {
@@ -549,42 +573,26 @@ bool MarcusPlayback::Impl::EnterFrame(Preview &preview, MMI32 frame, int restore
         Preview &preview;
         MarcusPlaybackAudio *audio;
         Error &error;
-        const PreviewPresentation &scene;
-        std::vector<PreviewSoundCue> actors;
         std::exception_ptr failure;
-
-        const PreviewSoundCue &Cue(int actor, std::size_t index) const
-        {
-            return actor ? actors[index] : scene.sounds[index];
-        }
-    } context{preview, audio.get(), error, scene, {}, {}};
-    const MMFrameSoundServices services{
-        &context, scene.sounds.size(), scene.pauses.size(),
-        [](void *p, std::size_t *count) -> int {
+    } context{preview, audio.get(), error, {}};
+    const MarcusPlaybackFrameServices services{
+        &context,
+        [](void *p, void *out, MarcusPlaybackCueSink *append) -> int {
             auto &ctx = *static_cast<Context *>(p);
             try
             {
-                ctx.actors = ctx.preview.FrameSounds();
-                *count = ctx.actors.size();
+                if (!ctx.preview.VisitFrameSounds(out, append))
+                    throw std::bad_alloc();
                 return 1;
             }
             catch (...) { ctx.failure = std::current_exception(); return 0; }
         },
-        [](void *p, int actor, std::size_t index, MMFrameSoundCue *out) {
-            const auto &cue = static_cast<Context *>(p)->Cue(actor, index);
-            *out = {cue.frame, cue.style, cue.actor, cue.queue, cue.motion};
-        },
-        [](void *p, int actor, std::size_t index, MMAudioCounter offset) -> int {
+        [](void *p, const MMPreviewCue *cue, MMAudioCounter offset) -> int {
             auto &ctx = *static_cast<Context *>(p);
-            try { return PlayAudio(ctx.audio, ctx.preview, ctx.Cue(actor, index), offset, ctx.error); }
+            try { return PlayAudio(ctx.audio, ctx.preview, *cue, offset, ctx.error); }
             catch (...) { ctx.failure = std::current_exception(); return 0; }
-        },
-        [](void *p, std::size_t index, MMI32 *frame, MMPolledFrameWait *out) {
-            const auto &pause = static_cast<Context *>(p)->scene.pauses[index];
-            *frame = pause.frame;
-            *out = {pause.kind, static_cast<double>(pause.milliseconds)};
         }};
-    const bool ok = mm_frame_sound_enter(frame, restoreMusic, fps, &services, &wait) != 0;
+    const bool ok = marcus_playback_scene_enter(&scene, frame, restoreMusic, fps, &services, &wait) != 0;
     if (context.failure)
         std::rethrow_exception(context.failure);
     return ok;

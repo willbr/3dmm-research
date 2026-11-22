@@ -100,7 +100,8 @@ struct Preview::Impl
     bool IsVirtualScene(Id scene) const
     { return scene.type == kctgScen && mm_preview_live_scene(&live, scene.number); }
     bool SyncActors(Error &error);
-    bool StoredPresentation(ChunkNumber scene, PreviewPresentation &, bool soundSheet = false,
+    bool ReadScenePresentation(Id, const PreviewPresentationOutput &, Error &);
+    bool StoredPresentation(ChunkNumber scene, const PreviewPresentationOutput &, bool soundSheet = false,
                             bool includeCaptions = false) const;
     Id Asset() const
     {
@@ -689,12 +690,15 @@ catch (const std::bad_alloc &)
 {
     return Fail(error, ErrorCode::out_of_memory, "Cannot allocate scene picking.");
 }
-bool Preview::Impl::StoredPresentation(ChunkNumber scene, PreviewPresentation &out, bool soundSheet,
+bool Preview::Impl::StoredPresentation(ChunkNumber scene, const PreviewPresentationOutput &out, bool soundSheet,
                                        bool includeCaptions) const
 {
     auto reader = assets.Reader();
     if (!reader)
+    {
+        out.reset(out.context);
         return false;
+    }
     Internal::ClearDiagnostic();
     const auto graph = assets.PlaybackGraph();
     const auto stored = mm_archive_reader_wire_index(reader) ? mm_archive_reader_stored_payload : mm_movie_owner_stored;
@@ -705,15 +709,30 @@ bool Preview::ReadPresentation(PreviewPresentation &presentation, Error &error)
     return ReadPresentation(_impl->Asset(), presentation, error);
 }
 bool Preview::ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error)
+{
+    return _impl->ReadScenePresentation(scene, Internal::PresentationCollector(presentation), error);
+}
+bool Preview::ReadPresentation(const PreviewPresentationOutput &output, Error &error)
+{
+    return _impl->ReadScenePresentation(_impl->Asset(), output, error);
+}
+bool Preview::Impl::ReadScenePresentation(Id scene, const PreviewPresentationOutput &output, Error &error)
 try
 {
     error = {};
-    presentation = {};
-    if (_impl->IsVirtualScene(scene)) return true;
-    if (!_impl->live.status.ready || scene.type != kctgScen ||
-        !_impl->StoredPresentation(scene.number, presentation))
-        return Fail(error, ErrorCode::decode_failed, "Cannot read the movie's captions, sound cues or pauses.");
-    return true;
+    if (IsVirtualScene(scene))
+    {
+        output.reset(output.context);
+        return true;
+    }
+    if (live.status.ready && scene.type == kctgScen)
+    {
+        if (StoredPresentation(scene.number, output))
+            return true;
+    }
+    else
+        output.reset(output.context);
+    return Fail(error, ErrorCode::decode_failed, "Cannot read the movie's captions, sound cues or pauses.");
 }
 catch (const std::bad_alloc &)
 {
@@ -722,9 +741,19 @@ catch (const std::bad_alloc &)
 std::vector<PreviewSoundCue> Preview::FrameSounds() const
 {
     std::vector<PreviewSoundCue> result;
-    for (const auto &actor : _impl->actors)
-        result.insert(result.end(), actor->sounds.begin(), actor->sounds.end());
+    VisitFrameSounds(&result, [](void *p, const MMPreviewCue *cue) {
+        static_cast<std::vector<PreviewSoundCue> *>(p)->push_back(Internal::PreviewCue(*cue));
+        return 1;
+    });
     return result;
+}
+bool Preview::VisitFrameSounds(void *context, int (*visit)(void *, const MMPreviewCue *)) const
+{
+    for (const auto &actor : _impl->actors)
+        for (const auto &cue : actor->sounds)
+            if (visit(context, &cue) <= 0)
+                return false;
+    return true;
 }
 bool Preview::ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error)
 {
@@ -737,7 +766,7 @@ try
     presentation = {};
     if (_impl->IsVirtualScene(scene)) return true;
     if (!_impl->live.status.ready || scene.type != kctgScen ||
-        !_impl->StoredPresentation(scene.number, presentation, true, true))
+        !_impl->StoredPresentation(scene.number, Internal::PresentationCollector(presentation), true, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read scene timing.");
     Internal::OrderPreviewCues(presentation.sounds, scene);
     return true;
@@ -755,7 +784,7 @@ try
     if (_impl->IsVirtualScene(scene)) return true;
     PreviewPresentation presentation;
     if (!_impl->live.status.ready || scene.type != kctgScen ||
-        !_impl->StoredPresentation(scene.number, presentation, true))
+        !_impl->StoredPresentation(scene.number, Internal::PresentationCollector(presentation), true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the scene's sound events.");
     cues = std::move(presentation.sounds);
     Internal::OrderPreviewCues(cues, scene);
@@ -786,7 +815,15 @@ void Preview::OverlayTransitionPalette(unsigned char bgrx[1024]) const
     if (bgrx && _impl->live.assets.background)
         mm_background_preview_overlay_palette(_impl->live.assets.background, bgrx);
 }
+MMPreviewCue PreviewSoundCue::Native() const
+{
+    return Internal::PreviewCueCore(*this);
+}
 bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error)
+{
+    return ReadSoundCue(cue.Native(), audio, error);
+}
+bool Preview::ReadSoundCue(const MMPreviewCue &cue, PreviewAudio &audio, Error &error)
 try
 {
     error = {};
@@ -807,7 +844,6 @@ try
                 return host.impl.ResolveGraph({sid, 0, type, number}, *out);
             });
         }};
-    const auto input = Internal::PreviewCueCore(cue);
     MMChunkAccess chunks;
     const bool hasMovie = _impl->assets.Reader() != nullptr;
     if (hasMovie)
@@ -816,7 +852,7 @@ try
         graph.access(graph.context, &chunks);
     }
     MMU32 number;
-    const int result = mm_preview_sound(&input, _impl->live.status.ready, _impl->live.status.asset_number,
+    const int result = mm_preview_sound(&cue, _impl->live.status.ready, _impl->live.status.asset_number,
                                         hasMovie ? &chunks : nullptr, &number, &services, &audioServices);
     if (output.exception) std::rethrow_exception(output.exception);
     if (result > 0) return true;
@@ -825,7 +861,7 @@ try
     if (result == MM_PREVIEW_SOUND_MISSING)
         return Fail(error, ErrorCode::decode_failed, _impl->resolveError.c_str());
     return Fail(error, ErrorCode::decode_failed,
-                ("Cannot decode sound " + Identity({cue.sound.type, number}) + ".").c_str());
+                ("Cannot decode sound " + Identity({cue.type, number}) + ".").c_str());
 }
 catch (const std::bad_alloc &)
 {

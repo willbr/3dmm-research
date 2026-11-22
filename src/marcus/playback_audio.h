@@ -2,18 +2,13 @@
 #define MARCUS_PLAYBACK_AUDIO_H
 
 #include "mm/movie_audio_cache.h"
+#include "mm/preview_metadata.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct MarcusPlaybackAudio MarcusPlaybackAudio;
-typedef struct MarcusPlaybackSound
-{
-    MMMovieAudioKey key;
-    MMI32 actor, style, volume;
-    int actor_sound, loop, queue, silent;
-} MarcusPlaybackSound;
 
 enum { MARCUS_PLAYBACK_AUDIO_RATE = 48000 };
 /* The fallback bank path is borrowed for the lifetime of the audio owner. */
@@ -43,7 +38,7 @@ enum { MARCUS_PLAYBACK_AUDIO_DEVICE = MM_MOVIE_AUDIO_CACHE_LIMIT + 1 };
 /* Returns a cache status or DEVICE with a diagnostic. Audition is one-shot
  * and begins after the caller stops the previous presentation. Decoder calls
  * are synchronous and happen outside the mixer lock. */
-int marcus_playback_audio_play(MarcusPlaybackAudio *, const MarcusPlaybackSound *, MMAudioCounter offset,
+int marcus_playback_audio_play(MarcusPlaybackAudio *, const MMPreviewCue *, MMU32 active_scene, MMAudioCounter offset,
                                const MMMovieAudioDecode *, int audition, char *error, size_t capacity);
 
 #ifdef __cplusplus

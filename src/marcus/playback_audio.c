@@ -224,14 +224,20 @@ const void *marcus_playback_audio_bank(MarcusPlaybackAudio *audio, size_t *bytes
     return audio->bank;
 }
 
-int marcus_playback_audio_play(MarcusPlaybackAudio *audio, const MarcusPlaybackSound *sound, MMAudioCounter offset,
+int marcus_playback_audio_play(MarcusPlaybackAudio *audio, const MMPreviewCue *sound, MMU32 active_scene,
+                               MMAudioCounter offset,
                                const MMMovieAudioDecode *decode, int audition, char *error, size_t capacity)
 {
-    const MMMovieAudioKey *key = sound->silent ? NULL : &sound->key;
+    MMMovieAudioKey key;
     MMMovieAudioVoice *voice;
-    int submitted;
-    int status = mm_movie_audio_cache_voice(audio->clips, key, decode, offset, sound->volume,
-                                            sound->loop && !audition, &voice);
+    int submitted, status;
+    key.source = sound->source;
+    key.type = sound->type;
+    key.number = sound->number;
+    key.scene = sound->source == 0 ? (sound->scene_type ? sound->scene_number : active_scene) : 0;
+    key.child = sound->child;
+    status = mm_movie_audio_cache_voice(audio->clips, sound->silent ? NULL : &key, decode, offset, sound->volume,
+                                       sound->loop && !audition, &voice);
     if (status != MM_MOVIE_AUDIO_CACHE_OK)
         return status;
     if (voice && !open_device(audio, error, capacity))

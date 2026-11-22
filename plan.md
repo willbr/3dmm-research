@@ -1641,6 +1641,10 @@ selected face.
 The C89 caption scene owns the authored row table, source text and formatting,
 and the edit draft. Timing analysis borrows decoded text and uses the same
 layout without copying the scene's caption data.
+The preview reader streams authored sound cues and pauses into the C89
+playback scene. Frame entry gathers the current actor cues in C89 and calls
+the shared scheduler. The C audio owner builds each cache key from the
+authored cue and its origin scene.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

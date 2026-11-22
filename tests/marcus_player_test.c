@@ -6,6 +6,8 @@
 #include "caption_raster.h"
 #include "caption_faces.h"
 #include "caption_scene.h"
+#include "playback_scene.h"
+#include "mm/scene_events.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -650,6 +652,102 @@ failed:
     return ok && !scene.mask_bytes && probe.available == probe.released;
 }
 
+typedef struct PlaybackSceneProbe
+{
+    MMPreviewCue actors[3], played[5];
+    MMAudioCounter offsets[5];
+    unsigned actor_count, played_count;
+    int abort_actors;
+} PlaybackSceneProbe;
+
+static int playback_scene_actors(void *p, void *output, MarcusPlaybackCueSink *append)
+{
+    PlaybackSceneProbe *probe = p;
+    unsigned i;
+    for (i = 0; i < probe->actor_count; ++i)
+        if (append(output, probe->actors + i) <= 0 || probe->abort_actors)
+            return 0;
+    return 1;
+}
+
+static int playback_scene_play(void *p, const MMPreviewCue *cue, MMAudioCounter offset)
+{
+    PlaybackSceneProbe *probe = p;
+    if (probe->played_count == sizeof(probe->played) / sizeof(*probe->played))
+        return 0;
+    probe->played[probe->played_count] = *cue;
+    probe->offsets[probe->played_count++] = offset;
+    return 1;
+}
+
+static int check_playback_scene(MarcusPlayer *player)
+{
+    MarcusPlaybackScene scene;
+    PlaybackSceneProbe probe = {0};
+    MarcusPlaybackFrameServices services;
+    MMPolledFrameWait wait = {0};
+    MMPreviewCue cue = {0};
+    int ok = 0;
+    services.context = &probe;
+    services.actors = playback_scene_actors;
+    services.play = playback_scene_play;
+    marcus_playback_scene_init(&scene);
+    cue.frame = 2;
+    cue.style = MM_SCENE_EVENT_MIDI;
+    cue.number = 10;
+    cue.scene_type = 0x5343454eUL;
+    cue.scene_number = 13;
+    cue.child = 9;
+    CHECK(marcus_playback_scene_cue(&scene, &cue) == 1);
+    cue.number = 11;
+    cue.queue = 1;
+    CHECK(marcus_playback_scene_cue(&scene, &cue) == 1);
+    cue.number = 12;
+    cue.frame = 4;
+    cue.style = 0;
+    cue.queue = 0;
+    CHECK(marcus_playback_scene_cue(&scene, &cue) == 1);
+    CHECK(marcus_playback_scene_pause(&scene, 4, MM_PLAYBACK_WAIT_CLICK, 0) == 1);
+    CHECK(marcus_playback_scene_pause(&scene, 4, MM_PLAYBACK_WAIT_TIME, 250) == 1);
+    cue.actor_sound = 1;
+    cue.actor = 22;
+    cue.motion = 1;
+    cue.number = 20;
+    probe.actors[0] = cue;
+    cue.motion = 0;
+    cue.number = 21;
+    probe.actors[1] = cue;
+    cue.actor = 23;
+    cue.motion = 1;
+    cue.number = 22;
+    probe.actors[2] = cue;
+    probe.actor_count = 3;
+    CHECK(marcus_playback_scene_enter(&scene, 4, 1, 6, &services, &wait));
+    CHECK(probe.played_count == 5 && probe.played[0].number == 10 && probe.played[1].number == 11 &&
+          probe.played[2].number == 12 && probe.played[3].number == 21 && probe.played[4].number == 22);
+    CHECK(probe.offsets[0].low == 16000 && !probe.offsets[1].low && probe.played[1].queue &&
+          probe.played[0].scene_number == 13 && probe.played[0].child == 9);
+    CHECK(wait.kind == MM_PLAYBACK_WAIT_TIME && wait.milliseconds == 250);
+    probe.played_count = 0;
+    probe.abort_actors = 1;
+    wait.kind = MM_PLAYBACK_WAIT_NONE;
+    CHECK(!marcus_playback_scene_enter(&scene, 4, 0, 6, &services, &wait));
+    CHECK(probe.played_count == 1 && probe.played[0].number == 12 && wait.kind == MM_PLAYBACK_WAIT_NONE);
+    probe.played_count = probe.actor_count = 0;
+    probe.abort_actors = 0;
+    CHECK(marcus_playback_scene_enter(&scene, 4, 0, 6, &services, &wait));
+    CHECK(probe.played_count == 1 && probe.played[0].number == 12 && wait.kind == MM_PLAYBACK_WAIT_TIME);
+    marcus_playback_scene_clear(&scene);
+    probe.played_count = 0;
+    wait.kind = MM_PLAYBACK_WAIT_NONE;
+    CHECK(marcus_playback_scene_enter(&scene, 4, 1, 6, &services, &wait));
+    CHECK(!probe.played_count && wait.kind == MM_PLAYBACK_WAIT_NONE);
+    ok = 1;
+failed:
+    marcus_playback_scene_clear(&scene);
+    return ok;
+}
+
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
@@ -690,6 +788,7 @@ int main(int argc, char **argv)
     CHECK(check_caption_rasters(player));
     CHECK(check_caption_faces(player));
     CHECK(check_caption_scene(player));
+    CHECK(check_playback_scene(player));
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           movie_time.duration_seconds == 0);

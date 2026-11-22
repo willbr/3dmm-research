@@ -13,7 +13,6 @@
 #include "mm/preview_actor_edit.h"
 #include "preview_draft_host.h"
 #undef size
-#include "preview_cue_view.h"
 ASSERTNAME
 using namespace ActorEvent;
 
@@ -220,7 +219,7 @@ struct PreviewActor::DraftHost : PreviewActor::Host
 {
     const std::string &path;
     const SoundGraphResolver *resolveSound;
-    std::vector<PreviewSoundCue> cues;
+    std::vector<MMPreviewCue> cues;
 
     DraftHost(PreviewActor *actor, const std::string &path, const SoundGraphResolver *resolveSound = nullptr)
         : Host{actor}, path(path), resolveSound(resolveSound) {}

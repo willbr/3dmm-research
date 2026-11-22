@@ -23004,3 +23004,31 @@ retained retail and V3DMM captures `20261122T033140Z-2abe2197` and
 `20261122T033233Z-5e23a412` matched the 240-frame seek and playback order.
 Evidence is under `tmp/c89-caption-scene` and
 `tmp/c89-caption-presentation/capture`.
+
+## C89 Marcus scene sound and pause ownership (22 November 2026)
+
+The archive reader streams authored cues and pauses into the C89 playback
+scene. Frame entry gathers the current actor cues in order and delegates
+music restore, cue dispatch and waits to the shared frame-sound evaluator.
+The C audio owner builds the cache key directly from the authored cue and
+uses the origin scene for local sounds.
+
+All 226 selected native tests and three SDL archive and preview tests
+passed. The native playback test exercised resumed audio and authored
+waits through the player. The x86 worker built, and the standalone x86
+check covered queued MIDI restore offsets, actor motion overrides, the
+last authored pause, and cleanup after a failed actor read. Three timing
+snapshots and the headless Marcus startup image matched byte for byte.
+
+Actor-audio candidate `20261122T215552Z-96466f3f` matched the previous
+ports in `20261122T211024Z-fd8aa962` on all 60 seek canvases and
+recorded states per port. Both ports reproduced the 60-frame seek and
+playback order in retained retail and V3DMM run `20261122T082301Z-c465fa98`.
+SDL reproduced all 12 ordered sound requests.
+
+Marcus Text Acid candidate `20261122T215552Z-3371c2d3` matched
+`20261122T214453Z-17d168c9` on all 240 seek canvases and recorded scene
+states. Seek and playback order matched retained retail and V3DMM runs
+`20261122T033140Z-2abe2197` and `20261122T033233Z-5e23a412`. Evidence is
+under `tmp/c89-playback-scene`, `tmp/c89-aqcap` and
+`tmp/c89-caption-presentation/capture`.

@@ -149,7 +149,7 @@ struct PreviewActor::Host
         s.cue = [](void *v, const MMPreviewCue *cue) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                h.actor->sounds.push_back(PreviewCue(*cue));
+                h.actor->sounds.push_back(*cue);
                 return 1;
             });
         };

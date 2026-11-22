@@ -10,6 +10,7 @@ struct MMPreviewLightValues;
 struct MMMovieActorEdits;
 struct MMMovieActorPlacement;
 struct MMMovieTextJournal;
+struct MMPreviewCue;
 
 namespace MM
 {
@@ -227,6 +228,7 @@ struct PreviewSoundCue
     std::uint32_t child = 0;
     bool actorSound = false, loop = false, queue = false, silent = false, motion = false;
     std::int32_t motionCel = -1; // Motion binding cel; -1 for an ordinary cue.
+    MMPreviewCue Native() const;
 };
 struct PreviewPause
 {
@@ -238,6 +240,18 @@ struct PreviewPresentation
     std::vector<PreviewCaption> captions;
     std::vector<PreviewPause> pauses;
     std::vector<PreviewSoundCue> sounds;
+};
+// Rows are borrowed for the duration of each callback, in authored order.
+// Reset and transition must not throw. A row callback returns 1 to proceed,
+// 0 to reject or -1 for allocation failure.
+struct PreviewPresentationOutput
+{
+    void *context;
+    void (*reset)(void *);
+    void (*transition)(void *, std::int32_t);
+    int (*caption)(void *, PreviewCaption &);
+    int (*pause)(void *, std::int32_t frame, std::int32_t kind, std::int32_t milliseconds);
+    int (*cue)(void *, const MMPreviewCue *);
 };
 struct PreviewMidiEvent
 {
@@ -338,6 +352,7 @@ class Preview
     bool ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error);
     bool ReadPresentation(PreviewPresentation &presentation, Error &error);
     bool ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error);
+    bool ReadPresentation(const PreviewPresentationOutput &output, Error &error);
     // Saved scene thumbnail; no scene selection, rendering or playback changes.
     // Missing thumbnails succeed with an empty image.
     bool ReadSceneThumbnail(Id scene, PreviewImage &image, Error &error);
@@ -349,8 +364,11 @@ class Preview
     // Read another scene's authored sound events without selecting or seeking it.
     bool ReadSoundCues(Id scene, std::vector<PreviewSoundCue> &cues, Error &error);
     std::vector<PreviewSoundCue> FrameSounds() const;
+    // Visits the current cues in actor order and stops on rejection.
+    bool VisitFrameSounds(void *context, int (*visit)(void *, const MMPreviewCue *)) const;
     bool SoundName(const PreviewSoundCue &, std::string &) const;
     bool ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error);
+    bool ReadSoundCue(const MMPreviewCue &cue, PreviewAudio &audio, Error &error);
     // Resolve stored indexed caption colours against the active movie palette.
     std::uint32_t PresentationColour(std::uint32_t colour) const;
     bool CopyPresentationPalette(unsigned char bgrx[1024]) const;
