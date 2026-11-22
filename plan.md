@@ -1756,9 +1756,10 @@ base lexer, including comments, line directives, token text, and raw
 quoted archive paths. Native adapters supply positional input, source
 diagnostics, and the listing text sink. The Chunky lexer resolves
 keywords and SET variable definitions with C89 string storage. C89
-applies string, numeric, byte-order and OSK modes and writes numeric
-payload bytes. The native Chunky compiler interprets the archive
-grammar and connects it to file, collection and resource services.
+applies string, numeric, byte-order and OSK modes, reads parenthesized
+headers, and emits payloads with numeric OR, string serialization and
+alignment. The native Chunky compiler drives archive assembly, collection
+and resource imports, file access, and source diagnostics.
 The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,

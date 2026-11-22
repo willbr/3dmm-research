@@ -1,7 +1,7 @@
 #include "mm/script_resource.h"
 #include "mm/script_compile.h"
 #include "mm/script_kidspace.h"
-#include "mm/chunky_lexer.h"
+#include "mm/chunky_source.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_strings.h"
@@ -2289,6 +2289,238 @@ static void chunky_modes(void)
     CHECK(mm_chunky_write_number(1, 0, 256, bytes) == MM_CHUNKY_NUMBER_BYTE_RANGE && !bytes[0]);
 }
 
+typedef struct ChunkySourceTrace
+{
+    const MMChunkySourceToken *tokens;
+    size_t count, index;
+    MMChunkyFormat format;
+    MMChunkyFormats codes;
+    int errors[8];
+    unsigned error_count, files;
+    int fail_append;
+    unsigned char bytes[MM_CHUNKY_ALIGN_MAX + 516];
+    MMU32 size;
+} ChunkySourceTrace;
+
+static void source_report(void *context, int error)
+{
+    ChunkySourceTrace *trace = context;
+    CHECK(trace->error_count < sizeof(trace->errors) / sizeof(*trace->errors));
+    trace->errors[trace->error_count++] = error;
+}
+
+static int source_read(void *context, MMChunkySourceToken *out, int mode)
+{
+    ChunkySourceTrace *trace = context;
+    int sign = 0;
+    while (trace->index < trace->count)
+    {
+        *out = trace->tokens[trace->index++];
+        if (mode == MM_CHUNKY_READ_RAW)
+            return 1;
+        if (out->kind == ttSemi || out->kind == ttComma)
+            continue;
+        if (mm_chunky_clean_token(&trace->format, &trace->codes, out->kind, &out->number, &sign))
+        {
+            if (sign)
+                source_report(context, ertSyntax);
+            return 1;
+        }
+    }
+    if (mode == MM_CHUNKY_READ_CLEAN)
+        source_report(context, ertEof);
+    return 0;
+}
+
+static void source_set_text(void *destination, const void *text, MMU32 count)
+{
+    MMLexText *written = destination;
+    CHECK(count <= MM_LEX_TEXT_CAPACITY);
+    written->length = count;
+    if (count)
+        memcpy(written->units.narrow, text, count);
+}
+
+static int source_append(void *context, const void *bytes, MMU32 count)
+{
+    ChunkySourceTrace *trace = context;
+    if (trace->fail_append)
+        return 0;
+    CHECK(count <= sizeof(trace->bytes) - trace->size);
+    memcpy(trace->bytes + trace->size, bytes, count);
+    trace->size += count;
+    return 1;
+}
+
+static MMU32 source_size(void *context)
+{
+    return ((ChunkySourceTrace *)context)->size;
+}
+
+static void source_file(void *context)
+{
+    ChunkySourceTrace *trace = context;
+    const unsigned char imported = 0xfe;
+    ++trace->files;
+    CHECK(source_append(context, &imported, 1));
+}
+
+static void source_init(MMChunkySource *source, ChunkySourceTrace *trace,
+                        const MMChunkySourceToken *tokens, size_t count)
+{
+    const unsigned short one = 1;
+    int big = *(const unsigned char *)&one == 0;
+    memset(trace, 0, sizeof(*trace));
+    trace->tokens = tokens;
+    trace->count = count;
+    trace->codes.mac_order = big ? 1 : 2;
+    trace->codes.windows_order = big ? 2 : 1;
+    trace->codes.mac_os_kind = MM_TEXT_MAC;
+    trace->codes.windows_os_kind = MM_TEXT_WINDOWS;
+    trace->format.string_mode = smStz;
+    trace->format.number_bytes = 2;
+    trace->format.byte_order = trace->codes.windows_order;
+    trace->format.os_kind = MM_TEXT_WINDOWS;
+    source->context = trace;
+    source->next = source_read;
+    source->report = source_report;
+    source->set_text = source_set_text;
+    source->append = source_append;
+    source->size = source_size;
+    source->import_file = source_file;
+    source->format = &trace->format;
+    source->unit_bytes = 1;
+    source->native_encoding = MM_TEXT_WINDOWS;
+    source->native_order = 1;
+}
+
+#define SOURCE_KIND(kind) {kind, 0, NULL, 0}
+#define SOURCE_NUMBER(word) {ttLong, word, NULL, 0}
+#define SOURCE_TEXT(text) {ttString, 0, text, sizeof(text) - 1}
+#define SOURCE_COUNT(tokens) (sizeof(tokens) / sizeof(*(tokens)))
+
+static void chunky_source_headers(void)
+{
+    static const MMChunkySourceToken good[] = {
+        SOURCE_KIND(ttOpenParen), SOURCE_KIND(ttSub), SOURCE_KIND(ttModeShort), SOURCE_NUMBER(7),
+        SOURCE_KIND(ttComma), SOURCE_TEXT("name"), SOURCE_KIND(ttCloseParen), SOURCE_KIND(ttEndChunk)
+    };
+    static const MMChunkySourceToken bad[] = {
+        SOURCE_KIND(ttOpenParen), SOURCE_TEXT("number"), SOURCE_NUMBER(3), SOURCE_KIND(ttName),
+        SOURCE_KIND(ttSemi), SOURCE_KIND(ttModeByte), SOURCE_KIND(ttCloseParen), SOURCE_KIND(ttEndChunk)
+    };
+    MMChunkySource source;
+    ChunkySourceTrace trace;
+    MMChunkyHeaderField fields[3];
+    MMLexText name, omitted;
+
+    memset(fields, 0, sizeof(fields));
+    fields[1].text = &name;
+    fields[2].text = &omitted;
+    omitted.length = 1;
+    source_init(&source, &trace, good, SOURCE_COUNT(good));
+    CHECK(mm_chunky_parse_header(&source, fields, SOURCE_COUNT(fields)) == 2 && !trace.error_count);
+    CHECK(fields[0].number == -7 && trace.index == 7 && trace.format.number_bytes == 2);
+    check_lex_text(&name, 1, "name");
+    CHECK(!omitted.length);
+
+    fields[0].number = 42;
+    omitted.length = 1;
+    source_init(&source, &trace, bad, SOURCE_COUNT(bad));
+    CHECK(mm_chunky_parse_header(&source, fields, SOURCE_COUNT(fields)) == -1);
+    CHECK(trace.error_count == 4 && trace.errors[0] == ertNeedNumber && trace.errors[1] == ertNeedString &&
+          trace.errors[2] == ertBadToken && trace.errors[3] == ertParenClose);
+    CHECK(!fields[0].number && !name.length && omitted.length == 1);
+    CHECK(trace.index == 7 && trace.format.number_bytes == 1);
+}
+
+static void chunky_source_payload(void)
+{
+    static const MMChunkySourceToken valid[] = {
+        SOURCE_NUMBER(0x1234), SOURCE_KIND(ttMacBo), SOURCE_KIND(ttModeByte), SOURCE_NUMBER(0x10),
+        SOURCE_KIND(ttBOr), SOURCE_NUMBER(3), SOURCE_KIND(ttAlign), SOURCE_NUMBER(5),
+        SOURCE_KIND(ttFile), SOURCE_KIND(ttBo), SOURCE_KIND(ttMacOsk), SOURCE_KIND(ttOsk), SOURCE_KIND(ttEndChunk)
+    };
+    static const unsigned char expected[] = {0x12, 0x34, 0x13, 0, 0, 0xfe, 0, 1, 2, 2};
+    static const MMChunkySourceToken bad_or[] = {
+        SOURCE_NUMBER(1), SOURCE_KIND(ttBOr), SOURCE_KIND(ttModeLong), SOURCE_NUMBER(2), SOURCE_KIND(ttEndChunk)
+    };
+    static const MMChunkySourceToken align_range[] = {
+        SOURCE_KIND(ttAlign), SOURCE_NUMBER(1), SOURCE_KIND(ttEndChunk)
+    };
+    static const MMChunkySourceToken single[] = {SOURCE_NUMBER(4), SOURCE_KIND(ttEndChunk)};
+    MMChunkySource source;
+    ChunkySourceTrace trace;
+    MMChunkySourceToken token;
+
+    source_init(&source, &trace, valid, SOURCE_COUNT(valid));
+    CHECK(source_read(&trace, &token, MM_CHUNKY_READ_CLEAN));
+    CHECK(mm_chunky_parse_data(&source, &token) && token.kind == ttEndChunk);
+    CHECK(trace.size == sizeof(expected) && !memcmp(trace.bytes, expected, sizeof(expected)));
+    CHECK(trace.files == 1 && !trace.error_count && trace.format.number_bytes == 1);
+
+    source_init(&source, &trace, bad_or, SOURCE_COUNT(bad_or));
+    CHECK(source_read(&trace, &token, MM_CHUNKY_READ_CLEAN));
+    CHECK(mm_chunky_parse_data(&source, &token) && token.kind == ttError);
+    CHECK(!trace.size && trace.index == 4 && trace.format.number_bytes == 4);
+
+    source_init(&source, &trace, align_range, SOURCE_COUNT(align_range));
+    CHECK(source_read(&trace, &token, MM_CHUNKY_READ_CLEAN));
+    CHECK(mm_chunky_parse_data(&source, &token) && token.kind == ttEndChunk);
+    CHECK(!trace.size && trace.error_count == 1 && trace.errors[0] == ertBodyAlignRange);
+
+    source_init(&source, &trace, single, SOURCE_COUNT(single));
+    trace.fail_append = 1;
+    CHECK(source_read(&trace, &token, MM_CHUNKY_READ_CLEAN));
+    CHECK(mm_chunky_parse_data(&source, &token) && token.kind == ttEndChunk);
+    CHECK(!trace.size && trace.error_count == 1 && trace.errors[0] == ertOom);
+
+    source_init(&source, &trace, single, 1);
+    CHECK(source_read(&trace, &token, MM_CHUNKY_READ_CLEAN));
+    CHECK(mm_chunky_parse_data(&source, &token) && token.kind == ttError);
+    CHECK(!trace.size && !trace.error_count);
+}
+
+static void chunky_source_strings(void)
+{
+    static const unsigned char narrow[] = {2, 'X', 0xe9, 0};
+    static const unsigned short wide[] = {2, 'X', 0x263a, 0};
+    static const MMChunkySourceToken end[] = {SOURCE_KIND(ttEndChunk)};
+    unsigned unit, mode, prefix, start, count;
+    ChunkySourceTrace trace;
+    MMChunkySource source;
+    MMChunkySourceToken token;
+    const unsigned char *counted;
+
+    for (unit = 1; unit <= 2; ++unit)
+        for (mode = smStn; mode <= smSt; ++mode)
+        {
+            counted = unit == 1 ? narrow : (const unsigned char *)wide;
+            source_init(&source, &trace, end, SOURCE_COUNT(end));
+            source.unit_bytes = unit;
+            source.native_encoding = unit == 1 ? MM_TEXT_WINDOWS : MM_TEXT_UTF16_LE;
+            trace.format.os_kind = unit == 1 ? MM_TEXT_MAC : MM_TEXT_UTF16_BE;
+            trace.format.string_mode = mode;
+            token.kind = ttString;
+            token.number = 0;
+            token.text = counted + unit;
+            token.length = 2;
+            CHECK(mm_chunky_parse_data(&source, &token) && token.kind == ttEndChunk);
+            prefix = mode == smStn ? 2 : 0;
+            start = mode == smSz ? unit : 0;
+            count = mode == smSz || mode == smSt ? 3 : 4;
+            CHECK(!trace.error_count && trace.size == prefix + count * unit);
+            if (prefix)
+                CHECK(trace.bytes[0] == (unsigned char)source.native_encoding && trace.bytes[1] == trace.bytes[0]);
+            CHECK(!memcmp(trace.bytes + prefix, counted + start, count * unit));
+        }
+}
+
+#undef SOURCE_KIND
+#undef SOURCE_NUMBER
+#undef SOURCE_TEXT
+#undef SOURCE_COUNT
+
 int main(void)
 {
     scripts();
@@ -2310,6 +2542,9 @@ int main(void)
     lexer_tokens();
     chunky_tokens();
     chunky_modes();
+    chunky_source_headers();
+    chunky_source_payload();
+    chunky_source_strings();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

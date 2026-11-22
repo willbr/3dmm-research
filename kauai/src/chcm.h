@@ -16,7 +16,7 @@
 ***************************************************************************/
 #ifndef CHCM_H
 #define CHCM_H
-#include "mm/chunky_lexer.h"
+#include "mm/chunky_source.h"
 
 namespace Chunky {
 
@@ -51,60 +51,6 @@ class CompilerLexer : public CompilerLexer_PAR
     virtual bool FGetTokSkipSemi(PToken ptok); // also skip ';' & ','
     virtual bool FGetPath(Filename *pfni);        // read a path
 };
-
-// error types
-enum
-{
-    ertNil = 0,
-    ertOom,
-    ertOpenFile,
-    ertReadMeta,
-    ertRangeByte,
-    ertRangeShort,
-    ertBufData,
-    ertParenOpen,
-    ertEof,
-    ertNeedString,
-    ertNeedNumber,
-    ertBadToken,
-    ertParenClose,
-    ertChunkHead,
-    ertDupChunk,
-    ertBodyChildHead,
-    ertChildMissing,
-    ertCycle,
-    ertBodyParentHead,
-    ertParentMissing,
-    ertBodyAlignRange,
-    ertBodyFile,
-    ertNeedEndChunk,
-    ertListHead,
-    ertListEntrySize,
-    ertVarUndefined,
-    ertItemOverflow,
-    ertBadFree,
-    ertSyntax,
-    ertGroupHead,
-    ertGroupEntrySize,
-    ertGstHead,
-    ertGstEntrySize,
-    ertScript,
-    ertAdoptHead,
-    ertNeedChunk,
-    ertBodyBitmapHead,
-    ertReadBitmap,
-    ertBadScript,
-    ertReadCursor,
-    ertPackedFile,
-    ertReadMidi,
-    ertBadPackFmt,
-    ertLonerInSub,
-    ertNoEndSubFile,
-    ertLim
-};
-
-#define kcbMinAlign 2
-#define kcbMaxAlign 1024
 
 /***************************************************************************
     Base chunky compiler class
@@ -141,24 +87,24 @@ class Compiler : public Compiler_PAR
     LegacyLong _cactError;   // how many errors we've encountered
 
   protected:
-    struct PHP // parenthesized header parameter
+    using PHP = MMChunkyHeaderField;
+
+    struct SourceCursor
     {
-        LegacyLong lw;
-        PString pstn;
+        Compiler *compiler;
+        PToken token;
     };
 
+    static MMChunkySourceToken _SourceToken(PToken ptok);
+    MMChunkySource _ChunkySource(SourceCursor *cursor);
     void _Error(LegacyLong ert, PZString pszMessage = pvNil);
-    void _GetRgbFromLw(LegacyLong lw, byte *prgb);
     void _ErrorOnData(PZString pszPreceed);
     bool _FParseParenHeader(PHP *prgphp, LegacyLong cphpMax, LegacyLong *pcphp);
     bool _FGetCleanTok(Token *ptok, bool fEofOk = fFalse);
     void _SkipPastTok(LegacyLong tt);
     void _ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno);
-    void _AppendString(PString pstnValue);
-    void _AppendNumber(LegacyLong lwValue);
     void _ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno);
-    void _ParseBodyAlign(void);
     void _ParseBodyFile(void);
 
     void _StartSubFile(bool fPack, ChunkTagOrType ctg, ChunkNumber cno);

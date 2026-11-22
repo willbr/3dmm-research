@@ -21732,3 +21732,45 @@ order matched the retained retail and V3DMM captures in
 
 The Chunky fixtures, traces, and Studio canvases are under
 `tmp/c89-chunky-lexer`. Playback captures are under `tmp/c89-kd`.
+
+## C89 Chunky headers and payloads (22 November 2026)
+
+C89 parses parenthesized headers, including optional fields, type
+diagnostics, and recovery. It also parses payload data for standalone
+chunks and collection entries. It handles numeric OR, native string
+forms, byte-order and OSK fields, and alignment. Chomp supplies tokens
+and connects file imports, payload appends, and diagnostics to Kauai.
+
+The C fixture checks all four string forms with narrow and wide text.
+It also checks raw closing parentheses after full headers, recovery after
+a field type error, width changes across lookahead, non-power-of-two
+alignment, file import dispatch, and a failed append. Pending numbers
+take their width from the number token and their byte order from the
+lookahead state. A serialized String uses the native encoding even
+after an OSK directive.
+
+The rebuilt Chomp matched the retained build's payload regions, listings,
+and diagnostics for nine valid fixtures. These include an array,
+allocated group, string table, child and parent references, file import,
+and padding to 1,024 bytes. The 1,028-byte standalone payload matched
+the expected wire layout, including the native String prefix and zeros
+through the alignment boundary. Twelve malformed fixtures matched the
+retained exit status and diagnostics, including header recovery,
+misplaced OR operators, alignment range and type errors, and EOF.
+All 470 generated Studio script payloads matched.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. The headless room, F1 Help, ISO, and authoring workflows passed.
+Nine movie saves, Help and cache traces, five smoke canvases, and the
+Marcus startup canvas matched retained results. The ticket booth AVI
+frame matched the previous run and the post-video frame matched earlier
+captures. The separate `scene-load` failure reproduced its 63,224-byte
+trace and fingerprint `0D666753`.
+
+Silent suite `20261122T135911Z-03cec5c1` matched both ports' preceding
+60 seek canvases and camera and actor state. Seek and continuous frame
+order matched the retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`.
+
+The Chunky fixtures, traces, and Studio canvases are under
+`tmp/c89-chunky-source`. Playback captures are under `tmp/c89-kd`.

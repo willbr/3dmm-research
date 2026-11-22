@@ -160,19 +160,59 @@ void Compiler::_Error(LegacyLong ert, PZString pszMessage)
     _pmsnkError->ReportLine(stn.Psz());
 }
 
-/***************************************************************************
-    Checks that lw could be accepted under the current numerical mode.
-***************************************************************************/
-void Compiler::_GetRgbFromLw(LegacyLong lw, byte *prgb)
+MMChunkySourceToken Compiler::_SourceToken(PToken ptok)
 {
-    AssertThis(0);
-    AssertPvCb(prgb, size(LegacyLong));
+    const bool text = ptok->tt == ttString;
+    return {static_cast<int>(ptok->tt), ptok->tt == ttLong ? static_cast<MMI32>(ptok->lw) : 0,
+            text ? ptok->stn.Prgch() : nullptr, text ? static_cast<MMU32>(ptok->stn.Cch()) : 0};
+}
 
-    const int result = mm_chunky_write_number(_format.number_bytes, _format.byte_order != kboCur, lw, prgb);
-    if (result == MM_CHUNKY_NUMBER_BYTE_RANGE)
-        _Error(ertRangeByte);
-    if (result == MM_CHUNKY_NUMBER_SHORT_RANGE)
-        _Error(ertRangeShort);
+MMChunkySource Compiler::_ChunkySource(SourceCursor *cursor)
+{
+    MMChunkySource source{};
+    source.context = cursor;
+    source.next = [](void *context, MMChunkySourceToken *out, int mode) -> int {
+        auto input = static_cast<SourceCursor *>(context);
+        const bool found = mode == MM_CHUNKY_READ_RAW ? input->compiler->_pchlx->FGetTok(input->token)
+            : input->compiler->_FGetCleanTok(input->token, mode == MM_CHUNKY_READ_CLEAN_EOF);
+        if (found)
+            *out = _SourceToken(input->token);
+        return found;
+    };
+    source.report = [](void *context, int error) {
+        auto compiler = static_cast<SourceCursor *>(context)->compiler;
+        if (error == ertBodyAlignRange)
+        {
+            String format;
+            format.FFormatSz(PszLit("legal range for alignment is (%d, %d)"),
+                             static_cast<LegacyLong>(MM_CHUNKY_ALIGN_MIN), static_cast<LegacyLong>(MM_CHUNKY_ALIGN_MAX));
+            compiler->_Error(error, format.Psz());
+        }
+        else
+            compiler->_Error(error);
+    };
+    source.set_text = [](void *destination, const void *text, MMU32 count) {
+        auto string = static_cast<PString>(destination);
+        if (count)
+            string->SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
+        else
+            string->SetNil();
+    };
+    source.append = [](void *context, const void *bytes, MMU32 size) -> int {
+        auto compiler = static_cast<SourceCursor *>(context)->compiler;
+        return compiler->FError() || compiler->_bsf.FReplace(const_cast<void *>(bytes), size, compiler->_bsf.IbMac(), 0);
+    };
+    source.size = [](void *context) -> MMU32 {
+        return static_cast<SourceCursor *>(context)->compiler->_bsf.IbMac();
+    };
+    source.import_file = [](void *context) {
+        static_cast<SourceCursor *>(context)->compiler->_ParseBodyFile();
+    };
+    source.format = &_format;
+    source.unit_bytes = sizeof(achar);
+    source.native_encoding = koskCur;
+    source.native_order = kboCur;
+    return source;
 }
 
 /***************************************************************************
@@ -245,91 +285,16 @@ bool Compiler::_FParseParenHeader(PHP *prgphp, LegacyLong cphpMax, LegacyLong *p
     AssertPvCb(prgphp, LwMul(cphpMax, size(PHP)));
     AssertVarMem(pcphp);
 
-    Token tok;
-    LegacyLong iphp;
-
-    if (!_pchlx->FGetTok(&tok))
+    Token token;
+    SourceCursor cursor{this, &token};
+    const auto source = _ChunkySource(&cursor);
+    const MMI32 count = mm_chunky_parse_header(&source, prgphp, cphpMax);
+    if (count < 0)
     {
         TrashVar(pcphp);
         return fFalse;
     }
-
-    if (ttOpenParen != tok.tt)
-    {
-        _Error(ertParenOpen);
-        goto LFail;
-    }
-
-    for (iphp = 0; iphp < cphpMax; iphp++)
-    {
-        AssertNilOrPo(prgphp[iphp].pstn, 0);
-
-        if (!_FGetCleanTok(&tok))
-        {
-            TrashVar(pcphp);
-            return fFalse;
-        }
-
-        if (ttCloseParen == tok.tt)
-        {
-            // close paren = end of header
-            *pcphp = iphp;
-
-            // empty remaining strings
-            for (; iphp < cphpMax; iphp++)
-            {
-                AssertNilOrPo(prgphp[iphp].pstn, 0);
-                if (pvNil != prgphp[iphp].pstn)
-                    prgphp[iphp].pstn->SetNil();
-            }
-            return fTrue;
-        }
-
-        if (ttLong == tok.tt)
-        {
-            // numerical value
-            if (prgphp[iphp].pstn == pvNil)
-                prgphp[iphp].lw = tok.lw;
-            else
-            {
-                _Error(ertNeedString);
-                prgphp[iphp].pstn->SetNil();
-            }
-        }
-        else if (ttString == tok.tt)
-        {
-            // string
-            if (prgphp[iphp].pstn != pvNil)
-                *prgphp[iphp].pstn = tok.stn;
-            else
-            {
-                _Error(ertNeedNumber);
-                prgphp[iphp].lw = 0;
-            }
-        }
-        else
-        {
-            // invalid token in header
-            _Error(ertBadToken);
-        }
-    }
-
-    // get closing paren
-    if (!_pchlx->FGetTok(&tok))
-    {
-        TrashVar(pcphp);
-        return fFalse;
-    }
-
-    if (ttCloseParen != tok.tt)
-    {
-        _Error(ertParenClose);
-    LFail:
-        _SkipPastTok(ttCloseParen);
-        return fFalse;
-    }
-
-    *pcphp = cphpMax;
+    *pcphp = count;
     return fTrue;
 }
 
@@ -347,15 +312,15 @@ void Compiler::_ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno)
     LegacyLong cphp;
 
     ClearPb(rgphp, size(rgphp));
-    rgphp[2].pstn = &stnChunkName;
+    rgphp[2].text = &stnChunkName;
     if (!_FParseParenHeader(rgphp, 3, &cphp) || cphp < 2)
     {
         _Error(ertChunkHead);
         goto LFail;
     }
 
-    *pctg = rgphp[0].lw;
-    *pcno = rgphp[1].lw;
+    *pctg = rgphp[0].number;
+    *pcno = rgphp[1].number;
 
     // write empty chunk
     if (_pcfl->FFind(*pctg, *pcno))
@@ -378,59 +343,6 @@ void Compiler::_ParseChunkHeader(ChunkTagOrType *pctg, ChunkNumber *pcno)
 }
 
 /***************************************************************************
-    Append a string to the chunk data stream.
-***************************************************************************/
-void Compiler::_AppendString(PString pstnValue)
-{
-    AssertThis(0);
-    AssertPo(pstnValue, 0);
-
-    void *pv;
-    LegacyLong cb;
-    byte rgb[kcbMaxDataStn];
-
-    switch (_format.string_mode)
-    {
-    default:
-        Bug("Invalid string mode");
-        // fall through
-    case smStn:
-        cb = pstnValue->CbData();
-        pstnValue->GetData(rgb);
-        pv = rgb;
-        break;
-    case smStz:
-        pv = pstnValue->Pstz();
-        cb = CchTotStz((PSTZ)pv) * size(achar);
-        break;
-    case smSz:
-        pv = pstnValue->Psz();
-        cb = CchTotSz((PZString)pv) * size(achar);
-        break;
-    case smSt:
-        pv = pstnValue->Pst();
-        cb = CchTotSt((PPascalString)pv) * size(achar);
-        break;
-    }
-
-    if (!FError() && !_bsf.FReplace(pv, cb, _bsf.IbMac(), 0))
-        _Error(ertOom);
-}
-
-/***************************************************************************
-    Stores a numerical value in the chunk data stream.
-***************************************************************************/
-void Compiler::_AppendNumber(LegacyLong lwValue)
-{
-    AssertThis(0);
-    byte rgb[size(LegacyLong)];
-
-    _GetRgbFromLw(lwValue, rgb);
-    if (!FError() && !_bsf.FReplace(rgb, _format.number_bytes, _bsf.IbMac(), 0))
-        _Error(ertOom);
-}
-
-/***************************************************************************
     Parse a child statement from the source file.
 ***************************************************************************/
 void Compiler::_ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno)
@@ -449,9 +361,9 @@ void Compiler::_ParseBodyChild(ChunkTagOrType ctg, ChunkNumber cno)
         return;
     }
 
-    ctgChild = rgphp[0].lw;
-    cnoChild = rgphp[1].lw;
-    chid = rgphp[2].lw;
+    ctgChild = rgphp[0].number;
+    cnoChild = rgphp[1].number;
+    chid = rgphp[2].number;
 
     // check if chunk exists
     if (!_pcfl->FFind(ctgChild, cnoChild))
@@ -493,9 +405,9 @@ void Compiler::_ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno)
         return;
     }
 
-    ctgParent = rgphp[0].lw;
-    cnoParent = rgphp[1].lw;
-    chid = rgphp[2].lw;
+    ctgParent = rgphp[0].number;
+    cnoParent = rgphp[1].number;
+    chid = rgphp[2].number;
 
     // check if chunk exists
     if (!_pcfl->FFind(ctgParent, cnoParent))
@@ -515,54 +427,6 @@ void Compiler::_ParseBodyParent(ChunkTagOrType ctg, ChunkNumber cno)
     if (!FError() && !_pcfl->FAdoptChild(ctgParent, cnoParent, ctg, cno, chid, fTrue))
     {
         _Error(ertOom);
-    }
-}
-
-/***************************************************************************
-    Parse an align statement from the source file.
-***************************************************************************/
-void Compiler::_ParseBodyAlign(void)
-{
-    AssertThis(0);
-    Token tok;
-
-    if (!_FGetCleanTok(&tok))
-        return;
-
-    if (tok.tt != ttLong)
-    {
-        _Error(ertNeedNumber);
-        return;
-    }
-
-    if (!FIn(tok.lw, kcbMinAlign, kcbMaxAlign + 1))
-    {
-        String stn;
-
-        stn.FFormatSz(PszLit("legal range for alignment is (%d, %d)"), kcbMinAlign, kcbMaxAlign);
-        _Error(ertBodyAlignRange, stn.Psz());
-        return;
-    }
-
-    if (!FError())
-    {
-        // actually do the padding
-        byte rgb[100];
-        LegacyLong cb;
-        LegacyLong ibMac = _bsf.IbMac();
-        LegacyLong ibMacNew = LwRoundAway(ibMac, tok.lw);
-
-        AssertIn(ibMacNew, ibMac, ibMac + tok.lw);
-        while ((ibMac = _bsf.IbMac()) < ibMacNew)
-        {
-            cb = LwMin(ibMacNew - ibMac, size(rgb));
-            ClearPb(rgb, cb);
-            if (!_bsf.FReplace(rgb, cb, ibMac, 0))
-            {
-                _Error(ertOom);
-                return;
-            }
-        }
     }
 }
 
@@ -702,7 +566,7 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTagOrType ctg, Chun
         goto LFail;
     }
 
-    if (pvNil == (pmbmp = ImportMaskedBitmap(&fni, (byte)rgphp[0].lw, rgphp[1].lw, rgphp[2].lw,
+    if (pvNil == (pmbmp = ImportMaskedBitmap(&fni, (byte)rgphp[0].number, rgphp[1].number, rgphp[2].number,
                                                 fMask ? fmbmpMask : fmbmpNil)))
     {
         String stn;
@@ -986,116 +850,14 @@ LFail:
 ***************************************************************************/
 bool Compiler::_FParseData(PToken ptok)
 {
-    enum
-    {
-        psNil,
-        psHaveLw,
-        psHaveBOr,
-    };
-
     AssertThis(0);
     AssertVarMem(ptok);
-
-    LegacyLong cbNum;
-    LegacyLong lw;
-    LegacyLong cbNumPrev = _format.number_bytes;
-    LegacyLong ps = psNil;
-    bool fRet = fFalse;
-
-    for (;;)
-    {
-        switch (ptok->tt)
-        {
-        case ttBOr:
-            if (ps == psNil)
-                return fRet;
-            if (ps != psHaveLw)
-            {
-                ptok->tt = ttError;
-                return fRet;
-            }
-            ps = psHaveBOr;
-            break;
-
-        case ttLong:
-            if (ps == psHaveLw)
-            {
-                SwapVars(&_format.number_bytes, &cbNumPrev);
-                _AppendNumber(lw);
-                _format.number_bytes = cbNumPrev;
-                ps = psNil;
-            }
-            if (ps == psNil)
-            {
-                lw = ptok->lw;
-                cbNumPrev = _format.number_bytes;
-                ps = psHaveLw;
-            }
-            else
-            {
-                Assert(ps == psHaveBOr, 0);
-                if (cbNumPrev != _format.number_bytes)
-                {
-                    ptok->tt = ttError;
-                    return fRet;
-                }
-                lw |= ptok->lw;
-                ps = psHaveLw;
-            }
-            break;
-
-        default:
-            if (ps == psHaveBOr)
-            {
-                ptok->tt = ttError;
-                return fRet;
-            }
-            if (ps == psHaveLw)
-            {
-                SwapVars(&_format.number_bytes, &cbNumPrev);
-                _AppendNumber(lw);
-                _format.number_bytes = cbNumPrev;
-                ps = psNil;
-            }
-
-            switch (ptok->tt)
-            {
-            case ttString:
-                _AppendString(&ptok->stn);
-                break;
-            case ttAlign:
-                _ParseBodyAlign();
-                break;
-            case ttFile:
-                _ParseBodyFile();
-                break;
-            case ttBo:
-                // insert the current byte order
-                cbNum = _format.number_bytes;
-                _format.number_bytes = size(short);
-                _AppendNumber(kboCur);
-                _format.number_bytes = cbNum;
-                break;
-            case ttOsk:
-                // insert the current osk
-                cbNum = _format.number_bytes;
-                _format.number_bytes = size(short);
-                _AppendNumber(_format.os_kind);
-                _format.number_bytes = cbNum;
-                break;
-            default:
-                return fRet;
-            }
-            break;
-        }
-
-        fRet = fTrue;
-        if (!_FGetCleanTok(ptok, fTrue))
-        {
-            ptok->tt = ttError;
-            return fRet;
-        }
-    }
+    SourceCursor cursor{this, ptok};
+    const auto source = _ChunkySource(&cursor);
+    auto token = _SourceToken(ptok);
+    const bool consumed = mm_chunky_parse_data(&source, &token) != 0;
+    ptok->tt = token.kind;
+    return consumed;
 }
 
 /***************************************************************************
@@ -1123,7 +885,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNum
         return;
     }
 
-    if (!FIn(cbEntry = rgphp[0].lw, 1, kcbMax))
+    if (!FIn(cbEntry = rgphp[0].number, 1, kcbMax))
     {
         _Error(ertListEntrySize);
         _SkipPastTok(ttEndChunk);
@@ -1255,7 +1017,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNu
         return;
     }
 
-    if (!FIn(cbFixed = rgphp[0].lw, 0, kcbMax))
+    if (!FIn(cbFixed = rgphp[0].number, 0, kcbMax))
     {
         _Error(ertGroupEntrySize);
         _SkipPastTok(ttEndChunk);
@@ -1413,7 +1175,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, 
         return;
     }
 
-    if (!FIn(cbExtra = rgphp[0].lw, 0, kcbMax) || cbExtra % size(LegacyLong) != 0)
+    if (!FIn(cbExtra = rgphp[0].number, 0, kcbMax) || cbExtra % size(LegacyLong) != 0)
     {
         _Error(ertGstEntrySize);
         _SkipPastTok(ttEndChunk);
@@ -1732,7 +1494,7 @@ void Compiler::_ParsePackFmt(void)
         return;
     }
 
-    cfmt = rgphp[0].lw;
+    cfmt = rgphp[0].number;
     if (!vpcodmUtil->FCanDo(cfmt, fTrue))
         _Error(ertBadPackFmt);
     else
@@ -1893,11 +1655,11 @@ void Compiler::_ParseAdopt(void)
         return;
     }
 
-    ctgParent = rgphp[0].lw;
-    cnoParent = rgphp[1].lw;
-    ctgChild = rgphp[2].lw;
-    cnoChild = rgphp[3].lw;
-    chid = rgphp[4].lw;
+    ctgParent = rgphp[0].number;
+    cnoParent = rgphp[1].number;
+    ctgChild = rgphp[2].number;
+    cnoChild = rgphp[3].number;
+    chid = rgphp[4].number;
 
     // check if parent exists
     if (!_pcfl->FFind(ctgParent, cnoParent))
