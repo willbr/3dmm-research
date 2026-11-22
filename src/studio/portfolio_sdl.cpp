@@ -241,7 +241,7 @@ bool Choose(Filename *selection, const Request &request)
             {
                 auto resource = vapp.PcrmAll()->FindChunk(kctgWave, request.sound);
                 if (resource)
-                    vpsndm->SiiPlay(resource, kctgWave, request.sound);
+                    vpsndm->SiiPlay({resource, nullptr}, kctgWave, request.sound);
             }
             host.FlushInput(true, true);
             host.SuspendFocusEvents(true);

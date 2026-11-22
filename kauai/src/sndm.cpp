@@ -232,17 +232,7 @@ LegacyLong SoundManager::VlmCur(void)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-PBaseCacheableObject SoundChunkSource::Fetch(ChunkTagOrType type, ChunkNumber number, ResourceReader reader) const
-{
-    if (_legacy)
-        return _legacy->PbacoFetch(type, number, reader);
-    return _cache ? static_cast<PBaseCacheableObject>(
-                        mm_resource_cache_fetch_owned_chunk(_cache, type, number, reader,
-                                                            BaseCacheableObject::ObjectServices()))
-                  : nullptr;
-}
-
-LegacyLong SoundManager::SiiPlay(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
+LegacyLong SoundManager::SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
                                  LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr,
                                  LegacyLong scl)
 {
@@ -250,7 +240,7 @@ LegacyLong SoundManager::SiiPlay(SoundChunkSource source, ChunkTagOrType ctg, Ch
     if (_playObserver)
         _playObserver(ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl);
 #endif
-    MMSoundPlay p = {&source, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl};
+    const MMSoundPlay p = {source, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl};
     auto s = _Services();
     return mm_sound_manager_play(&s, &p, _sclFirst, _sclLast);
 }
@@ -469,12 +459,12 @@ void SoundManagerQueue::Suspend(bool fSuspend)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-LegacyLong SoundManagerQueue::SiiPlay(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
+LegacyLong SoundManagerQueue::SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
                                       LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr,
                                       LegacyLong scl)
 {
     AssertThis(0);
-    Assert(source, "missing sound resource source");
+    Assert(source.cache || source.manager, "missing sound resource source");
     LegacyLong isnqd;
     SNQD snqd;
     LegacyLong sii = _SiiAlloc();
@@ -484,7 +474,8 @@ LegacyLong SoundManagerQueue::SiiPlay(SoundChunkSource source, ChunkTagOrType ct
 
     if (_FEnsureQueue(sqn, &snqd, &isnqd))
     {
-        snqd.psnque->Enqueue(sii, source, ctg, cno, vlm, cactPlay, dtsStart, spr, scl);
+        const MMSoundPlay play = {source, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl};
+        snqd.psnque->Enqueue(sii, play);
     }
     else
         Warn("couldn't allocate queue");
@@ -684,17 +675,12 @@ void SoundQueue::_Flush(void)
 /***************************************************************************
     Put the given sound on the queue.
 ***************************************************************************/
-void SoundQueue::Enqueue(LegacyLong sii, SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong vlm,
-                         LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl)
+void SoundQueue::Enqueue(LegacyLong sii, const MMSoundPlay &play)
 {
     AssertThis(0);
-    Assert(source, "missing sound resource source");
-    auto object = _PbacoFetch(source, ctg, cno);
-    if (!object)
-        return;
-    MMSoundEntry e = {object, sii, vlm, cactPlay, dtsStart, spr, scl, 0};
+    Assert(play.source.cache || play.source.manager, "missing sound resource source");
     auto s = _Services();
-    mm_sound_queue_enqueue(&s, &e);
+    mm_sound_enqueue_resource(&s, &play, sii, _Reader(), BaseCacheableObject::ObjectServices());
 }
 
 /***************************************************************************
@@ -886,7 +872,7 @@ MMSoundManagerServices SoundManager::_Services()
     s.release = [](void *, void *p) { static_cast<PSoundDevice>(p)->Release(); };
     s.allocate_id = [](void *) -> MMI32 { return _SiiAlloc(); };
     s.play = [](void *, void *o, const MMSoundPlay *p) -> MMI32 {
-        return static_cast<PSoundDevice>(o)->SiiPlay(*static_cast<const SoundChunkSource *>(p->cache), p->type, p->number,
+        return static_cast<PSoundDevice>(o)->SiiPlay(p->source, p->type, p->number,
                                                      p->queue, p->volume, p->plays, p->offset, p->priority,
                                                      p->sound_class);
     };

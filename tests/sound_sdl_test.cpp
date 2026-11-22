@@ -54,17 +54,32 @@ int main()
           block.FWriteRgb(bytes.data(), static_cast<long>(bytes.size()), 0));
     CHECK(file->FPackData(kctgWave, number) && file->FPacked(kctgWave, number));
     auto resources = ChunkyResourceFile::PcrfNew(file, 1024 * 1024);
-    CHECK(resources);
+    auto emptyFile = ChunkyFile::PcflCreateTemp();
+    CHECK(resources && emptyFile);
+    auto empty = ChunkyResourceFile::PcrfNew(emptyFile, 0);
+    auto typed = NewTypedSiblingCache(resources->CoreCache(), 1024 * 1024);
+    auto catalog = mm_resource_manager_create(nullptr, nullptr);
+    CHECK(empty && typed && catalog);
+    CHECK(mm_resource_manager_add_cache(catalog, empty->CoreCache(), nullptr) == MM_STORAGE_OK &&
+          mm_resource_manager_add_cache(catalog, typed, nullptr) == MM_STORAGE_OK);
+    ReleasePpo(&empty);
+    ReleasePpo(&emptyFile);
+    ReleasePpo(&resources);
+    mm_resource_cache_release(typed);
+    const MMSoundSource single = {typed, nullptr};
+    const MMSoundSource ordered = {nullptr, catalog};
     auto device = KauaiAudio::NewWaveDevice();
     CHECK(device && KauaiAudio::StudioStats().active);
     device->BeginSynch();
-    const auto first = device->SiiPlay(resources, kctgWave, number, 7);
-    const auto second = device->SiiPlay(resources, kctgWave, number, 7, kvlmFull / 2);
+    const auto missing = device->SiiPlay(ordered, kctgWave, number + 1, 7);
+    CHECK(!device->FPlaying(missing) && !KauaiAudio::StudioStats().decoded);
+    const auto first = device->SiiPlay(ordered, kctgWave, number, 7);
+    const auto second = device->SiiPlay(single, kctgWave, number, 7, kvlmFull / 2);
     std::this_thread::sleep_for(std::chrono::milliseconds(120));
     CHECK(device->FPlaying(first) && device->FPlaying(second) && !KauaiAudio::StudioStats().started);
     device->EndSynch();
     CHECK(Wait(device, first) && Wait(device, second));
-    auto paused = device->SiiPlay(resources, kctgWave, number, 8, kvlmFull, 1, 0, 0, 42);
+    auto paused = device->SiiPlay(single, kctgWave, number, 8, kvlmFull, 1, 0, 0, 42);
     device->Pause(paused);
     device->Pause(paused);
     device->Resume(paused);
@@ -73,9 +88,9 @@ int main()
     device->Resume(paused);
     CHECK(Wait(device, paused));
     const auto started = KauaiAudio::StudioStats().started;
-    auto beyondEnd = device->SiiPlay(resources, kctgWave, number, 8, kvlmFull, 1, 200);
+    auto beyondEnd = device->SiiPlay(single, kctgWave, number, 8, kvlmFull, 1, 200);
     CHECK(Wait(device, beyondEnd) && KauaiAudio::StudioStats().started == started);
-    auto looping = device->SiiPlay(resources, kctgWave, number, 8, kvlmFull, 0, 0, 0, 42);
+    auto looping = device->SiiPlay(single, kctgWave, number, 8, kvlmFull, 0, 0, 0, 42);
     device->Activate(false);
     CHECK(device->FPlaying(looping));
     device->Activate(true);
@@ -94,13 +109,13 @@ int main()
     manager->BeginSynch();
     for (const auto soundClass : {-1, 0, 1, 2, 998, 10000})
     {
-        const auto id = manager->SiiPlay(resources, kctgWave, number, 9, kvlmFull, 1, 0, 0, soundClass);
+        const auto id = manager->SiiPlay(ordered, kctgWave, number, 9, kvlmFull, 1, 0, 0, soundClass);
         CHECK(manager->FPlaying(id) == (soundClass >= 0 && soundClass <= 2));
     }
     manager->EndSynch();
     manager->StopAll();
     manager->SetSoundClassRange(klwMin, klwMax);
-    const auto ui = manager->SiiPlay(resources, kctgWave, number, 9, kvlmFull, 0, 0, 0, 10000);
+    const auto ui = manager->SiiPlay(ordered, kctgWave, number, 9, kvlmFull, 0, 0, 0, 10000);
     CHECK(manager->FPlaying(ui));
     app->SetBackgroundPlayback(true);
     app->Focus(false);
@@ -114,7 +129,7 @@ int main()
     ReleasePpo(&manager);
     ReleasePpo(&device);
     CHECK(!KauaiAudio::StudioStats().active);
-    ReleasePpo(&resources);
+    mm_resource_manager_destroy(catalog);
     ReleasePpo(&file);
     ReleasePpo(&app);
     std::puts("Kauai SDL sound: packed chunky WAVE cache, queue chaining, grouped starts, nested pause, activation, "

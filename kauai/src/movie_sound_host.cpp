@@ -57,7 +57,7 @@ void mm_kauai_movie_sound_device(MMSoundResourceServices *s, void *manager)
     s->stop = [](void *p, MMI32 queue) { static_cast<PSoundManager>(p)->StopAll(queue, sclNil); };
     s->play = [](void *p, const MMSoundResource *sound, MMI32 queue, MMI32 volume, MMI32 repeat,
                  MMU32 start, MMI32 priority, MMI32 soundClass) -> MMI32 {
-        return static_cast<PSoundManager>(p)->SiiPlay(sound->cache, sound->type, sound->number, queue, volume,
+        return static_cast<PSoundManager>(p)->SiiPlay({sound->cache, nullptr}, sound->type, sound->number, queue, volume,
                                                      repeat, start, priority, soundClass);
     };
 }

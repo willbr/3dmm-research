@@ -2371,7 +2371,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
                 break;
             }
 
-            vpsndm->SiiPlay(pcrf, pcki->ctg, pcki->cno);
+            vpsndm->SiiPlay(pcrf->SoundSource(), pcki->ctg, pcki->cno);
             ReleasePpo(&pcrf);
             return;
         }

@@ -22,6 +22,7 @@
 #include "mm/chunk_copy.h"
 #include "mm/native_archive_file.h"
 #include "mm/private_archive_cache.h"
+#include "mm/sound_manager.h"
 #include "mm/string_value.h"
 #include "resource_archive_host.h"
 #include "util.h"
@@ -509,6 +510,10 @@ MMResourceCache *ChunkyResourceFile::FindChunk(ChunkTagOrType type, ChunkNumber 
     AssertThis(0);
     return mm_resource_cache_contains(&_cache, type, number, scope) ? &_cache : nullptr;
 }
+MMSoundSource ChunkyResourceFile::SoundSource()
+{
+    return {&_cache, nullptr};
+}
 MMChunkAccess ChunkyResourceFile::ReadChunkAccess()
 {
     AssertThis(0);
@@ -666,6 +671,10 @@ MMResourceCache *ChunkyResourceManager::FindChunk(ChunkTagOrType type, ChunkNumb
 {
     AssertThis(0);
     return mm_resource_manager_find_file(&_manager, type, number, scope);
+}
+MMSoundSource ChunkyResourceManager::SoundSource()
+{
+    return {nullptr, &_manager};
 }
 bool ChunkyResourceManager::FAddCfl(PChunkyFile file, LegacyLong budget, LegacyLong *position)
 {

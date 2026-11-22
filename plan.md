@@ -1830,6 +1830,10 @@ Studio's startup, room and browser archives now use C-owned resource
 caches. The resource manager returns the selected C cache directly. Sound
 playback, help assets, palettes and thumbnail readers use that cache, and
 preloading uses the same object lifetime operations as fetching.
+Native sound dispatch carries a C cache or ordered resource manager to the
+queue. C89 resolves the resource and transfers its reference to the queue
+before the device handles playback. Device adapters supply decoded payload
+readers and output services.
 Studio and Marcus share the C89 rich-text binding for stored TEXT extents,
 file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables

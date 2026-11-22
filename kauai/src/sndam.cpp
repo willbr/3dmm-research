@@ -494,10 +494,10 @@ void AudioManQueue::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as a CachedAudioManSound.
 ***************************************************************************/
-PBaseCacheableObject AudioManQueue::_PbacoFetch(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno)
+ResourceReader AudioManQueue::_Reader()
 {
     AssertThis(0);
-    return source.Fetch(ctg, cno, &CachedAudioManSound::FReadCams);
+    return &CachedAudioManSound::FReadCams;
 }
 
 /***************************************************************************

@@ -21,19 +21,6 @@ const LegacyLong siiNil = 0;
 const FileType kftgMidi = MacWin('MIDI', 'MID'); // REVIEW shonk: Mac: file type
 const FileType kftgWave = MacWin('WAVE', 'WAV'); // REVIEW shonk: Mac: file type
 
-// A borrowed source for synchronous sound queue lookup.
-class SoundChunkSource
-{
-    PResourceCache _legacy = nullptr;
-    MMResourceCache *_cache = nullptr;
-
-  public:
-    SoundChunkSource(PResourceCache resources) : _legacy(resources) {}
-    SoundChunkSource(MMResourceCache *cache) : _cache(cache) {}
-    explicit operator bool() const { return _legacy || _cache; }
-    PBaseCacheableObject Fetch(ChunkTagOrType, ChunkNumber, ResourceReader) const;
-};
-
 /***************************************************************************
     Sound device - like audioman or our midi player.
 ***************************************************************************/
@@ -59,7 +46,7 @@ class SoundDevice : public SoundDevice_PAR
     virtual void SetVlm(LegacyLong vlm) = 0;
     virtual LegacyLong VlmCur(void) = 0;
 
-    virtual LegacyLong SiiPlay(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
+    virtual LegacyLong SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
                                LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1, LegacyUlong dtsStart = 0,
                                LegacyLong spr = 0, LegacyLong scl = sclNil) = 0;
 
@@ -146,7 +133,7 @@ class SoundManager : public SoundManager_PAR
     virtual void SetVlm(LegacyLong vlm);
     virtual LegacyLong VlmCur(void);
 
-    virtual LegacyLong SiiPlay(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
+    virtual LegacyLong SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
                                LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1, LegacyUlong dtsStart = 0,
                                LegacyLong spr = 0, LegacyLong scl = sclNil);
 
@@ -208,7 +195,7 @@ class SoundManagerQueue : public SoundManagerQueue_PAR
     virtual void Activate(bool fActive);
     virtual void Suspend(bool fSuspend);
 
-    virtual LegacyLong SiiPlay(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
+    virtual LegacyLong SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
                                LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1, LegacyUlong dtsStart = 0,
                                LegacyLong spr = 0, LegacyLong scl = sclNil);
 
@@ -266,7 +253,7 @@ class SoundQueue : public SoundQueue_PAR
     virtual void _Queue(LegacyLong isndinMin) = 0;
     virtual void _PauseQueue(LegacyLong isndinMin) = 0;
     virtual void _ResumeQueue(LegacyLong isndinMin) = 0;
-    virtual PBaseCacheableObject _PbacoFetch(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno) = 0;
+    virtual ResourceReader _Reader() = 0;
 
     virtual void _Enter(void);
     virtual void _Leave(void);
@@ -275,8 +262,7 @@ class SoundQueue : public SoundQueue_PAR
   public:
     ~SoundQueue(void);
 
-    void Enqueue(LegacyLong sii, SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong vlm,
-                 LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr, LegacyLong scl);
+    void Enqueue(LegacyLong sii, const MMSoundPlay &);
 
     LegacyLong SprCur(void);
     void Stop(LegacyLong sii);

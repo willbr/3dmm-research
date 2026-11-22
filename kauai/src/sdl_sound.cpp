@@ -122,9 +122,9 @@ class SDLWaveQueue : public SDLWaveQueue_PAR
     {
         Sync();
     }
-    PBaseCacheableObject _PbacoFetch(SoundChunkSource source, ChunkTagOrType type, ChunkNumber number) override
+    ResourceReader _Reader() override
     {
-        return source.Fetch(type, number, SDLWave::Read);
+        return SDLWave::Read;
     }
 
   public:

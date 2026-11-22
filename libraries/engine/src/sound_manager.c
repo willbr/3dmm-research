@@ -108,6 +108,33 @@ MMI32 mm_sound_manager_play(const MMSoundManagerServices *s, const MMSoundPlay *
         return s->allocate_id(s->context);
     return s->play(s->context, e.object, p);
 }
+void mm_sound_enqueue_resource(const MMSoundQueueServices *s, const MMSoundPlay *p, MMI32 id,
+                               MMResourceBlockReader reader, const MMResourceObjectServices *objects)
+{
+    MMResourceRequest request;
+    MMSoundEntry e;
+    request.type = p->type;
+    request.number = p->number;
+    request.scope = 0;
+    request.reader = reader;
+    request.priority = MM_RESOURCE_NORMAL_PRIORITY;
+    if (p->source.cache)
+        e.object = mm_resource_cache_fetch_owned(p->source.cache, &request, objects, NULL);
+    else if (p->source.manager)
+        e.object = mm_resource_manager_fetch_owned(p->source.manager, &request, objects, NULL);
+    else
+        return;
+    if (!e.object)
+        return;
+    e.id = id;
+    e.volume = p->volume;
+    e.plays = p->plays;
+    e.offset = p->offset;
+    e.priority = p->priority;
+    e.sound_class = p->sound_class;
+    e.pause = 0;
+    mm_sound_queue_enqueue(s, &e);
+}
 int mm_sound_ensure_queue(const MMSoundManagerServices *s, MMI32 queue, MMI32 anonymous,
                                 MMI32 any_class, MMSoundEndpoint *out, MMI32 *index)
 {

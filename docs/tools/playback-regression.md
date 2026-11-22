@@ -21136,3 +21136,32 @@ retained retail and V3DMM captures and reran SDL Studio and Marcus.
 
 Traces and Studio canvases are under `tmp/c89-studio-resource-owners`.
 Playback captures are under `tmp/c89-rscap`.
+
+## C89 sound resource lookup (22 November 2026)
+
+The sound queue resolves payloads through a C89 resource cache or ordered
+resource manager before taking the queue lock. The existing SDL sound test
+exercises a missing resource and a packed WAVE found after an empty cache.
+Direct and ordered lookup share one decoded object. The test also covers
+queued starts, pause, volume, and sound class admission.
+
+All 199 engine, core link, and C89 checks passed, along with 13 native x64,
+11 SDL, and four native x86 checks. The retail ISO workflow passed cold and
+warm, including bundled MIDI preview. Seven Studio smoke-test canvases, the
+ISO lobby canvas, and nine movie saves matched `5dffca1d` byte for byte.
+The separate native x64 `scene-load` test reproduced the existing fingerprint
+mismatch and produced the same 63,224-byte trace.
+
+The audible actor fixture covered 60 authored frames in each of the eight
+retail, V3DMM, SDL Studio, and Marcus seek and playback runs. Candidate suite
+`20261122T101907Z-2e85eee2` matched the seek canvases, camera and actor state,
+and continuous frame order from baseline `20261122T082301Z-c465fa98`.
+SDL Studio emitted the same 12 requests as retail and V3DMM. The first scene's
+loopback recordings contained both authored tones in all four players, and
+each tone's peak changed by less than one PCM16 amplitude unit between the
+before and after captures for both ports. Marcus coverage used loopback audio
+and frame captures. The comparison statuses for timing, presentation and
+mixed PCM were consistent with the baseline.
+
+Traces and Studio canvases are under `tmp/c89-sound-source-dispatch`.
+Playback captures are under `tmp/c89-aqcap`.

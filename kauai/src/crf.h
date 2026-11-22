@@ -25,6 +25,7 @@ struct MMChunkOwnerRead;
 struct MMArchiveWriter;
 struct MMPrivateArchive;
 struct MMStringValue;
+struct MMSoundSource;
 
 namespace Chunky
 {
@@ -116,6 +117,7 @@ class ResourceCache : public ResourceCache_PAR
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil) = 0;
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil) = 0;
     virtual MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
+    virtual MMSoundSource SoundSource() = 0;
 };
 
 /***************************************************************************
@@ -163,6 +165,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) override;
+    MMSoundSource SoundSource() override;
     MMResourceCache *CoreCache() { return &_cache; }
     MMChunkAccess ReadChunkAccess();
     MMChunkOwnerRead *ReadOwner();
@@ -213,6 +216,7 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) override;
+    MMSoundSource SoundSource() override;
 
     bool FAddCfl(PChunkyFile pcfl, LegacyLong cbMax, LegacyLong *piv = pvNil);
     LegacyLong Ccrf(void)

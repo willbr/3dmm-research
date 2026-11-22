@@ -829,7 +829,7 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
                 // There is a sound for the portfolio, so find it.
                 if (auto cache = ((Application *)vpappb)->PcrmAll()->FindChunk(kctgWave, pdiPortfolio->cnoWave))
                 {
-                    vpsndm->SiiPlay(cache, kctgWave, pdiPortfolio->cnoWave);
+                    vpsndm->SiiPlay({cache, nullptr}, kctgWave, pdiPortfolio->cnoWave);
                 }
             }
 

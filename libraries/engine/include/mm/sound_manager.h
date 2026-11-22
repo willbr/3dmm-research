@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_SOUND_MANAGER_H
 #define MM_SOUND_MANAGER_H
+#include "resource_cache.h"
 #include "sound_queue.h"
 #ifdef __cplusplus
 extern "C"
@@ -35,9 +36,15 @@ extern "C"
         void *object;
         MMU32 tag;
     } MMSoundEndpoint;
+    /* Borrow one cache or an ordered manager during synchronous lookup. */
+    typedef struct MMSoundSource
+    {
+        MMResourceCache *cache;
+        MMResourceManager *manager;
+    } MMSoundSource;
     typedef struct MMSoundPlay
     {
-        void *cache;
+        MMSoundSource source;
         MMU32 type, number;
         MMI32 queue, volume, plays;
         MMU32 offset;
@@ -71,6 +78,10 @@ extern "C"
     MMI32 mm_sound_next_id(MMI32 previous);
     MMI32 mm_sound_manager_play(const MMSoundManagerServices *, const MMSoundPlay *,
                                            MMI32 first_class, MMI32 last_class);
+    /* Resolve a sound before entering the queue lock. On a miss leave the
+     * queue untouched. On a hit the queue takes the fetched reference. */
+    void mm_sound_enqueue_resource(const MMSoundQueueServices *, const MMSoundPlay *, MMI32 id,
+                                   MMResourceBlockReader, const MMResourceObjectServices *);
     int mm_sound_ensure_queue(const MMSoundManagerServices *, MMI32 queue, MMI32 anonymous,
                                     MMI32 any_class, MMSoundEndpoint *, MMI32 *);
     void mm_sound_queues_flush(const MMSoundManagerServices *, MMI32 any_class);

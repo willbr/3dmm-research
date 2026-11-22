@@ -340,10 +340,10 @@ void MidiStreamQueue::_Leave(void)
 /***************************************************************************
     Fetch the given sound chunk as an MidiStreamCached.
 ***************************************************************************/
-PBaseCacheableObject MidiStreamQueue::_PbacoFetch(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno)
+ResourceReader MidiStreamQueue::_Reader()
 {
     AssertThis(0);
-    return source.Fetch(ctg, cno, &MidiStreamCached::FReadMdws);
+    return &MidiStreamCached::FReadMdws;
 }
 
 /***************************************************************************

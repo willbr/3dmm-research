@@ -2489,7 +2489,7 @@ void Studio::PlayUISound(long tool, long grfcust)
     // Find the sound and play it
     //
     if (auto cache = _pcrm->FindChunk(kctgWave, cno))
-        vpsndm->SiiPlay(cache, kctgWave, cno, ksqnNone, kvlmFull, cactRepeat, 0, 0, ksclUISound);
+        vpsndm->SiiPlay({cache, nullptr}, kctgWave, cno, ksqnNone, kvlmFull, cactRepeat, 0, 0, ksclUISound);
 }
 
 /***************************************************************************

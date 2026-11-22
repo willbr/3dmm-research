@@ -1780,7 +1780,7 @@ long KidspaceGraphicObject::SiiPlaySound(ChunkTagOrType ctg, ChunkNumber cno, lo
     if (cnoNil != cno)
     {
         return siiNil; // hack to disable tooltips
-        _siiSound = vpsndm->SiiPlay(_prca, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl);
+        _siiSound = vpsndm->SiiPlay(_prca->SoundSource(), ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl);
     }
     else
         _siiSound = siiNil;
@@ -1825,7 +1825,7 @@ long KidspaceGraphicObject::SiiPlayMouseSound(ChunkTagOrType ctg, ChunkNumber cn
 
     if (cnoNil != cno) {
         return siiNil; // hack to disable mouse sounds
-        _siiMouse = vpsndm->SiiPlay(_prca, ctg, cno);
+        _siiMouse = vpsndm->SiiPlay(_prca->SoundSource(), ctg, cno);
     } else
         _siiMouse = siiNil;
 

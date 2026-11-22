@@ -104,8 +104,8 @@ class SoundResourceTestManager : public SoundManager
     void Reset() { stops=plays=queries=0; }
     void StopAll(LegacyLong sqn,LegacyLong scl) override { ++stops; queue=sqn; Assert(scl==sclNil,"unexpected stop class"); }
     bool FPlaying(LegacyLong sii) override { ++queries; instance=sii; return playing; }
-    LegacyLong SiiPlay(SoundChunkSource source,ChunkTagOrType ctg,ChunkNumber cno,LegacyLong sqn,LegacyLong vlm,LegacyLong count,LegacyUlong at,LegacyLong spr,LegacyLong scl) override
-    { Assert(!source,"unexpected cache"); ++plays; type=ctg; number=cno; queue=sqn; volume=vlm; repeat=count; start=at; priority=spr; soundClass=scl; return 9; }
+    LegacyLong SiiPlay(MMSoundSource source,ChunkTagOrType ctg,ChunkNumber cno,LegacyLong sqn,LegacyLong vlm,LegacyLong count,LegacyUlong at,LegacyLong spr,LegacyLong scl) override
+    { Assert(!source.cache && !source.manager,"unexpected sound source"); ++plays; type=ctg; number=cno; queue=sqn; volume=vlm; repeat=count; start=at; priority=spr; soundClass=scl; return 9; }
 };
 static bool TestSoundResourceDispatch()
 {

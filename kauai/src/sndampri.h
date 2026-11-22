@@ -197,7 +197,7 @@ class AudioManQueue : public AudioManQueue_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(void);
-    virtual PBaseCacheableObject _PbacoFetch(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno);
+    ResourceReader _Reader() override;
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);

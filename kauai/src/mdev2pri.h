@@ -82,7 +82,7 @@ class MidiStreamQueue : public MidiStreamQueue_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(PMidiStreamMixer pmsmix);
-    virtual PBaseCacheableObject _PbacoFetch(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno);
+    ResourceReader _Reader() override;
     virtual void _Queue(LegacyLong isndinMin);
     virtual void _PauseQueue(LegacyLong isndinMin);
     virtual void _ResumeQueue(LegacyLong isndinMin);
