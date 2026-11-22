@@ -649,6 +649,14 @@ static void depth_projection(void *context, void *actor, MMI32 out[16])
     memcpy(out, &matrix, sizeof(matrix));
 }
 
+static void preview_light_rotation(unsigned short pitch, unsigned short yaw, MMActorMatrix *out)
+{
+    br_matrix34 matrix;
+    BrMatrix34RotateX(&matrix, pitch);
+    BrMatrix34PostRotateY(&matrix, yaw);
+    memcpy(out->m, matrix.m, sizeof(out->m));
+}
+
 void mm_brender_preview_services(MMPreviewRenderServices *s)
 {
     mm_brender_preview_tree(&s->tree);
@@ -663,6 +671,8 @@ void mm_brender_preview_services(MMPreviewRenderServices *s)
     s->update_camera = update_camera;
     s->light_bytes = sizeof(br_light);
     s->direct_light_type = BR_LIGHT_DIRECT;
+    s->point_light_type = BR_LIGHT_POINT;
+    s->light_rotation = preview_light_rotation;
     s->light = attach_light;
     s->enable_light = enable_light;
     s->disable_light = disable_light;

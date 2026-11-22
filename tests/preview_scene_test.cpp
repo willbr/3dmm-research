@@ -88,12 +88,37 @@ int main(int argc, char **argv)
     MM::PreviewLight light;
     light.yaw = 42;
     light.pitch = -20;
-    MM::PreviewImage lit, unlit;
+    MM::PreviewLight point;
+    point.x = -6;
+    point.y = 13;
+    point.z = 27;
+    point.intensity = .4f;
+    point.point = true;
+    MM::PreviewLight inactive = point;
+    inactive.intensity = 0;
+    MM::PreviewImage lit, litPoint, mixed, unlit, inactiveOnly;
     if (!check(preview.RenderWithLights(view, {light}, lit, error)) ||
+        !check(preview.RenderWithLights(view, {point}, litPoint, error)) ||
+        !check(preview.RenderWithLights(view, {light, point, inactive}, mixed, error)) ||
         !check(preview.RenderWithLights(view, {}, unlit, error)) || !lit.coveredPixels ||
-        lit.depth != unlit.depth || !check(preview.Render(view, repeated, error)) || repeated.rgba != later.rgba ||
-        repeated.depth != later.depth)
+        !check(preview.RenderWithLights(view, {inactive}, inactiveOnly, error)) ||
+        inactiveOnly.rgba != unlit.rgba || lit.depth != unlit.depth || litPoint.depth != unlit.depth ||
+        mixed.depth != unlit.depth || !check(preview.Render(view, repeated, error)) ||
+        repeated.rgba != later.rgba || repeated.depth != later.depth)
         return 1;
+    if (const auto *path = std::getenv("MM_PREVIEW_LIGHT_SNAPSHOT"))
+    {
+        FILE *snapshot = std::fopen(path, "wb");
+        if (!snapshot)
+            return 1;
+        bool written = true;
+        for (const auto *frame : {&lit, &litPoint, &mixed, &unlit, &repeated})
+            written = std::fwrite(frame->rgba.data(), 1, frame->rgba.size(), snapshot) == frame->rgba.size() &&
+                      std::fwrite(frame->depth.data(), sizeof(float), frame->depth.size(), snapshot) == frame->depth.size() &&
+                      written;
+        if (std::fclose(snapshot) || !written)
+            return 1;
+    }
     const auto cameras = info.cameraCount;
     if (preview.SetBackground(999, 0, error) || error.code != MM::ErrorCode::decode_failed ||
         info.currentFrame != 5 || info.currentCamera != 1 || info.cameraCount != cameras ||

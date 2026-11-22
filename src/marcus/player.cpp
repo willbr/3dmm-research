@@ -1348,13 +1348,8 @@ bool MarcusRenderStoryboardView(MarcusPlayer *player, const MarcusBoardWire &boa
         view.authoredCamera = false; view.freeCamera = true; view.includeDepth = true;
         view.cameraX = a.camera.x; view.cameraY = a.camera.y; view.cameraZ = a.camera.z;
         view.yaw = a.camera.yaw; view.pitch = a.camera.pitch; view.roll = a.roll; view.verticalFov = a.fov; view.nearClip = a.near_clip;
-        std::vector<MM::PreviewLight> lights;
-        for (int i = 0; i < values.light_count; ++i)
-        {
-            const auto &l = values.lights[i];
-            lights.push_back({l.x, l.y, l.z, l.yaw, l.pitch, l.intensity, l.point != 0});
-        }
-        if (!player->preview.RenderWithLights(view, lights, player->thumbnail, error)) return false;
+        if (!player->preview.RenderWithLightValues(view, values.lights, values.light_count, player->thumbnail, error))
+            return false;
         auto &rendered = player->thumbnail;
         const auto pixels = board.pixels[camera];
         for (size_t i = 0; i < MARCUS_BOARD_PIXELS; ++i)

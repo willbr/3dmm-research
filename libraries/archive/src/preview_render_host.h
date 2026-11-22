@@ -9,8 +9,6 @@ struct Preview::Impl::RenderHost
     Error *error;
     PreviewImage image;
     br_camera camera = {};
-    const MMBackgroundLight *lights = nullptr;
-    MMU32 lightCount = 0;
     std::exception_ptr exception;
     bool readBodyBounds = true;
     int onlyObject = view ? view->onlyObject : -1;
@@ -37,8 +35,6 @@ struct Preview::Impl::RenderHost
         s.movie = impl->assets.MovieSession();
         s.base_palette = impl->palette;
         s.background = impl->background.get();
-        s.light_override = lights;
-        s.light_override_count = lightCount;
         s.omit_background = onlyObject >= 0;
         if (impl->live.publication.phase && impl->live.publication.frame == impl->live.status.frame)
             s.position = &impl->live.publication;

@@ -4,7 +4,9 @@
 #include "background_resource.h"
 #include "body_create.h"
 #include "collections.h"
+#include "preview_light.h"
 #include "render_frame.h"
+#include <stddef.h>
 #ifdef __cplusplus
 extern "C"
 {
@@ -37,6 +39,12 @@ extern "C"
         unsigned short (*angle)(float);
     } MMPreviewMath;
     typedef MMRenderBody MMPreviewBody;
+    enum { MM_PREVIEW_LIGHT_LIMIT = 16 };
+    typedef struct MMPreviewLightRig
+    {
+        MMBackgroundLight lights[MM_PREVIEW_LIGHT_LIMIT];
+        MMU32 count;
+    } MMPreviewLightRig;
     typedef struct MMPreviewData
     {
         int scene, background;
@@ -103,7 +111,9 @@ extern "C"
         MM_PREVIEW_RENDERER,
         MM_PREVIEW_HOST,
         MM_PREVIEW_ISOLATED_INVALID,
-        MM_PREVIEW_ISOLATED_FIT
+        MM_PREVIEW_ISOLATED_FIT,
+        MM_PREVIEW_LIGHT_RIG_INVALID,
+        MM_PREVIEW_LIGHT_VALUE_INVALID
     };
     struct MMBackgroundPreviewOwner;
     typedef struct MMPreviewRenderServices
@@ -113,13 +123,12 @@ extern "C"
         const MMMovieLiveFrame *position;
         /* With a base BGRX palette, the C frame reads its environment directly.
          * Otherwise describe/mesh/add_mesh supply an external environment.
-         * The palette, background and override are borrowed during the call.
-         * A non-null override with count zero suppresses the authored lights.
+         * The palette and background are borrowed during the call.
          * Isolated views omit the scenery and still use its palette. */
         const unsigned char *base_palette;
         struct MMBackgroundPreviewOwner *background;
-        const MMBackgroundLight *light_override;
-        MMU32 light_override_count;
+        /* A borrowed override with count zero suppresses the authored lights. */
+        const MMPreviewLightRig *light_override;
         int omit_background;
         MMStorageAllocator allocator;
         MMPreviewMath math;
@@ -139,7 +148,8 @@ extern "C"
         void *(*camera)(void *, void *world, const MMPreviewCamera *);
         void (*update_camera)(void *, void *camera, const MMPreviewCamera *);
         MMU32 light_bytes;
-        MMI32 direct_light_type;
+        MMI32 direct_light_type, point_light_type;
+        void (*light_rotation)(unsigned short pitch, unsigned short yaw, MMActorMatrix *);
         void *(*light)(void *, void *world, void *data, const MMBackgroundLight *);
         void (*enable_light)(void *, void *), (*disable_light)(void *, void *);
         int (*add_model)(void *, void *world, void *model), (*add_mesh)(void *, void *world);
@@ -188,6 +198,11 @@ extern "C"
     void mm_preview_depth_fit(const MMPreviewDepthRange *, double *near_clip, double *far_clip);
     int mm_preview_render(const MMPreviewView *, MMPreviewOrbit *, MMPreviewImage *,
                                 const MMPreviewRenderServices *);
+    /* Stage a temporary rig. Disabled lights are skipped after validation.
+     * Failure leaves the destination untouched. Rendering with a rig uses a
+     * private copy of the current orbit. */
+    int mm_preview_prepare_lights(const MMPreviewLightValues *, size_t count, int has_background,
+                                  MMPreviewLightRig *, const MMPreviewRenderServices *);
     /* Fit and render a view through services already bound to the one object
      * and its bounds. Use a private orbit so the live camera keeps its framing. */
     int mm_preview_render_isolated(const MMPreviewView *, const MMPreviewOrbit *, MMI32 object,

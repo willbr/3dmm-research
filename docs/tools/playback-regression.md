@@ -22213,3 +22213,27 @@ playback order. Seek and playback order also matched the retained retail
 and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-frame`.
+
+## C89 Preview custom lights (22 November 2026)
+
+Preview validates custom lights and converts work-camera angles and brightness
+to native rotation and attenuation in C89. Disabled lights contribute no
+actors. An empty rig suppresses the authored lights. Preview renders each rig
+with a private orbit, and Marcus passes the storyboard's C89 values directly.
+
+The native scene fixture compared 6,912,000 bytes of RGBA and depth with the
+preceding implementation. Directional, point, mixed, empty and subsequent
+authored renders matched byte for byte. C89 checks cover range failures, angle
+quantization, attenuation saturation and orbit preservation on success and
+failure. All 188 retail-content camera traces, five World snapshots, both
+Studio saves and the headless Studio and Marcus canvas captures matched their
+prior results. All 245 selected test runs passed, including the native Marcus
+storyboard round trip. The existing `scene-load` assertion reproduced its
+63,224-byte trace and fingerprint `0D666753`.
+
+The four runs in suite `20261122T162751Z-15d42058` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order also matched the retained retail and V3DMM
+captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-lights`.

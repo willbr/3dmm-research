@@ -341,9 +341,8 @@ void mm_preview_describe(MMPreviewData *d, const MMPreviewRenderServices *s)
     camera = &b->camera.data;
     d->width = b->width;
     d->height = b->height;
-    d->light_count = s->light_override ? s->light_override_count : b->light_count;
-    d->lights = s->light_override ? s->light_override :
-        (const MMBackgroundLight *)b->metadata.buffers[1].data;
+    d->light_count = b->light_count;
+    d->lights = (const MMBackgroundLight *)b->metadata.buffers[1].data;
     d->colours = b->images.buffers[0].data;
     d->depths = (const unsigned short *)b->images.buffers[1].data;
     memcpy(d->camera.matrix, camera->matrix.m, sizeof(d->camera.matrix));
@@ -512,6 +511,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     const MMPreviewRenderServices *s = f->s;
     const MMPreviewMath *m = &s->math;
     const MMPreviewData *d = &f->pose.scene;
+    const MMPreviewLightRig *rig = s->light_override;
     MMPreviewMesh mesh;
     MMPreviewBuffer buffers;
     MMPreviewCamera camera;
@@ -751,13 +751,13 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         camera.width = m->scalar(minf(30000.f, m->scalar_float(camera.height) * aspect));
     }
     s->update_camera(s->context, f->targets.camera, &camera);
-    n = d->background ? d->light_count : 1;
+    n = d->background ? (rig ? rig->count : d->light_count) : 1;
     if (!count(&f->light_data, n) || mm_array_reserve(&f->lights.array, n, 0) != MM_STORAGE_OK)
         return MM_PREVIEW_MEMORY;
     for (i = 0; i < n; ++i)
     {
         if (d->background)
-            light = d->lights[i];
+            light = rig ? rig->lights[i] : d->lights[i];
         else
         {
             memset(&light, 0, sizeof(light));
@@ -839,11 +839,49 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     output_pixels(image, v, d, &mesh, &buffers, s, f->targets.camera, width, height, bg, infinite);
     return MM_PREVIEW_OK;
 }
+static unsigned short light_angle(float degrees)
+{
+    /* Light controls use the full turn, including negative fractions of a degree. */
+    return (unsigned short)(int)(degrees * (65536.f / 360));
+}
+
+int mm_preview_prepare_lights(const MMPreviewLightValues *values, size_t count, int has_background,
+                              MMPreviewLightRig *out, const MMPreviewRenderServices *s)
+{
+    MMPreviewLightRig rig;
+    size_t i;
+    if (!has_background || count > MM_PREVIEW_LIGHT_LIMIT)
+        return MM_PREVIEW_LIGHT_RIG_INVALID;
+    if (count && !values)
+        return MM_PREVIEW_LIGHT_VALUE_INVALID;
+    memset(&rig, 0, sizeof(rig));
+    for (i = 0; i < count; ++i)
+    {
+        const MMPreviewLightValues *v = &values[i];
+        MMBackgroundLight *light;
+        if (!(fabs(v->x) <= 32700 && fabs(v->y) <= 32700 && fabs(v->z) <= 32700 &&
+              fabs(v->yaw) <= 360 && fabs(v->pitch) <= 89 && v->intensity >= 0 && v->intensity <= 1))
+            return MM_PREVIEW_LIGHT_VALUE_INVALID;
+        if (v->intensity == 0)
+            continue;
+        light = &rig.lights[rig.count++];
+        s->light_rotation(light_angle(-v->pitch), light_angle(v->yaw), &light->matrix);
+        light->matrix.m[3][0] = s->math.scalar(v->x);
+        light->matrix.m[3][1] = s->math.scalar(v->y);
+        light->matrix.m[3][2] = s->math.scalar(v->z);
+        light->intensity = s->math.scalar(minf(32700.f, 1.f / v->intensity));
+        light->type = v->point ? s->point_light_type : s->direct_light_type;
+    }
+    *out = rig;
+    return MM_PREVIEW_OK;
+}
+
 int mm_preview_render(const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewImage *output,
                             const MMPreviewRenderServices *s)
 {
     PreviewFrame frame;
     MMPreviewImage image;
+    MMPreviewOrbit framing;
     int result, axis;
     memset(output, 0, sizeof(*output));
     if (!s->ready(s->context))
@@ -859,6 +897,11 @@ int mm_preview_render(const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewIm
             if (!finitef(v->position[axis]) || fabs(v->position[axis]) > 32700)
                 return MM_PREVIEW_INVALID;
     memset(&image, 0, sizeof(image));
+    if (s->light_override)
+    {
+        framing = *orbit;
+        orbit = &framing;
+    }
     frame_init(&frame, s);
     result = render(&frame, v, orbit, &image);
     frame_dispose(&frame);

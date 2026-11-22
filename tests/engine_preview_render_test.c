@@ -37,7 +37,7 @@ typedef struct Host
 {
     int fail, allocations, fail_allocation, live_memory, pixels, world, lights, sink, restores, edges, copies, owners;
     int background, with_body, with_model;
-    int pose_refs, pose_retains, pose_releases;
+    int pose_refs, pose_retains, pose_releases, submitted_lights;
     MMU32 width, height;
     Node nodes[32];
     MMBodyPartBinding bindings[4][5];
@@ -333,12 +333,18 @@ static void update_camera(void *v, void *a, const MMPreviewCamera *c)
     CHECK(a);
     ((Host *)v)->camera = *c;
 }
+static void light_rotation(unsigned short pitch, unsigned short yaw, MMActorMatrix *matrix)
+{
+    matrix->m[0][0] = pitch;
+    matrix->m[1][0] = yaw;
+}
 static void *light(void *v, void *w, void *data, const MMBackgroundLight *source)
 {
     Host *h = (Host *)v;
     CHECK(data && source);
     if (h->fail == F_LIGHT)
         return NULL;
+    ++h->submitted_lights;
     h->light_payload = data;
     memset(data, 17, 16);
     return node(h, (Node *)w);
@@ -546,6 +552,8 @@ static MMPreviewRenderServices services(Host *h)
     s.update_camera = update_camera;
     s.light_bytes = 16;
     s.direct_light_type = 0;
+    s.point_light_type = 1;
+    s.light_rotation = light_rotation;
     s.light = light;
     s.enable_light = enable;
     s.disable_light = disable;
@@ -630,6 +638,49 @@ static void depth_test(void)
     mm_preview_depth_fit(&range, &n, &f);
     CHECK(n == 2 && f == 4.2);
 }
+static void lighting_test(Host *h)
+{
+    MMPreviewLightValues input[3] = {{-32700, .5f, 32700, 360, -89, .25f, 0},
+                                     {0, 0, 0, 0, 0, 0, 1},
+                                     {3, 2, 1, -42.5f, 89, .00001f, 1}};
+    MMPreviewLightRig rig;
+    MMPreviewView view;
+    MMPreviewOrbit orbit;
+    MMPreviewImage image;
+    MMPreviewRenderServices s;
+    init(h, &view, &orbit);
+    s = services(h);
+    CHECK(mm_preview_prepare_lights(input, 3, 1, &rig, &s) == MM_PREVIEW_OK);
+    CHECK(rig.count == 2);
+    CHECK(rig.lights[0].matrix.m[0][0] == 16201 && rig.lights[0].matrix.m[1][0] == 0);
+    CHECK(rig.lights[0].matrix.m[3][0] == scalar(-32700) && rig.lights[0].matrix.m[3][1] == scalar(.5f) &&
+          rig.lights[0].matrix.m[3][2] == scalar(32700) && rig.lights[0].intensity == scalar(4) &&
+          rig.lights[0].type == s.direct_light_type);
+    CHECK(rig.lights[1].matrix.m[0][0] == 49335 && rig.lights[1].matrix.m[1][0] == 57800 &&
+          rig.lights[1].intensity == scalar(32700) && rig.lights[1].type == s.point_light_type);
+    CHECK(mm_preview_prepare_lights(input, 3, 0, &rig, &s) == MM_PREVIEW_LIGHT_RIG_INVALID);
+    CHECK(mm_preview_prepare_lights(input, MM_PREVIEW_LIGHT_LIMIT + 1, 1, &rig, &s) == MM_PREVIEW_LIGHT_RIG_INVALID);
+    input[1].pitch = 90;
+    CHECK(mm_preview_prepare_lights(input, 3, 1, &rig, &s) == MM_PREVIEW_LIGHT_VALUE_INVALID);
+    input[1].pitch = (float)HUGE_VAL;
+    CHECK(mm_preview_prepare_lights(input, 3, 1, &rig, &s) == MM_PREVIEW_LIGHT_VALUE_INVALID);
+    CHECK(rig.count == 2 && rig.lights[1].type == s.point_light_type);
+
+    s.light_override = &rig;
+    CHECK(mm_preview_render(&view, &orbit, &image, &s) == MM_PREVIEW_OK);
+    CHECK(!orbit.framed && h->submitted_lights == 2);
+    clean(h);
+    init(h, &view, &orbit);
+    h->fail = F_LIGHT;
+    CHECK(mm_preview_render(&view, &orbit, &image, &s) == MM_PREVIEW_LIGHTS);
+    CHECK(!orbit.framed);
+    clean(h);
+    init(h, &view, &orbit);
+    CHECK(mm_preview_prepare_lights(NULL, 0, 1, &rig, &s) == MM_PREVIEW_OK);
+    CHECK(mm_preview_render(&view, &orbit, &image, &s) == MM_PREVIEW_OK);
+    CHECK(!orbit.framed && !h->submitted_lights);
+    clean(h);
+}
 int main(void)
 {
     static Host h;
@@ -640,6 +691,7 @@ int main(void)
     MMRenderFrame frame;
     int result, fail, allocations;
     depth_test();
+    lighting_test(&h);
     init(&h, &v, &orbit);
     s = services(&h);
     CHECK(mm_preview_render(&v, &orbit, &image, &s) == MM_PREVIEW_OK);

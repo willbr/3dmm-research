@@ -1187,7 +1187,9 @@ background palette.
 Preview frame allocation/lifetime, camera framing and stable-orbit state, body
 instance ordering/tree copying, lighting/material overrides, frustum depth fitting,
 raster dispatch and indexed/depth output composition now also use C89. Typed
-BRender and host rasterizer/image services remain adapters. Preview picking now
+BRender and host rasterizer/image services remain adapters. Preview validates
+and prepares custom light rigs in C89 and renders them with a private orbit.
+Marcus storyboards pass their C89 light values directly. Preview picking now
 also uses C89 for validation, coordinates, camera/temporary ownership, stable
 body copying, nearest-hit/texture policy and
 authored-background occlusion. Native adapters supply typed SDK primitives.

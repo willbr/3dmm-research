@@ -1,5 +1,6 @@
 #ifndef MARCUS_STORYBOARD_EDIT_DATA_H
 #define MARCUS_STORYBOARD_EDIT_DATA_H
+#include "mm/preview_light.h"
 #include "player.h"
 #include <stddef.h>
 
@@ -19,11 +20,7 @@ typedef struct MarcusBoardPose
     MarcusCamera camera;
     float roll, fov, near_clip, far_clip;
 } MarcusBoardPose;
-typedef struct MarcusBoardLightValues
-{
-    float x, y, z, yaw, pitch, intensity;
-    int point;
-} MarcusBoardLightValues;
+typedef MMPreviewLightValues MarcusBoardLightValues;
 typedef struct MarcusBoardEditValues
 {
     int angle_count, light_count, colour_count;

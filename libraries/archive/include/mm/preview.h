@@ -2,10 +2,11 @@
 #ifndef MM_PREVIEW_H
 #define MM_PREVIEW_H
 #include "archive.h"
+#include <cstddef>
 
 struct MMPreviewLiveDefinitions;
 struct MMPreviewLiveCameraEdits;
-struct MMBackgroundLight;
+struct MMPreviewLightValues;
 
 namespace MM
 {
@@ -252,8 +253,13 @@ struct PreviewAudio
 class Preview
 {
     bool OpenCore(Archive &&, const std::string &, Error &, bool, bool);
+    struct LightInput
+    {
+        const MMPreviewLightValues *values;
+        std::size_t count;
+    };
     bool RenderView(const PreviewView &, PreviewImage &, Error &, int object, const PreviewBounds *, bool crop,
-                    const MMBackgroundLight *lights = nullptr, std::uint32_t lightCount = 0);
+                    const LightInput *lights = nullptr);
     struct Impl;
     std::unique_ptr<Impl> _impl;
 
@@ -281,6 +287,8 @@ class Preview
     bool SetBackground(std::int32_t source, std::uint32_t background, Error &);
     // Temporary lighting for an authoring preview; restores the scene after rendering.
     bool RenderWithLights(const PreviewView &, const std::vector<PreviewLight> &, PreviewImage &, Error &);
+    // Borrows the light values for the render. A zero count disables the authored lights.
+    bool RenderWithLightValues(const PreviewView &, const MMPreviewLightValues *, std::size_t count, PreviewImage &, Error &);
     void Close();
     // BMDL models, TMPL actors/props/text, ACTR instances, SCEN scenes and
     // BKGD backgrounds. Failed selection clears the old asset.

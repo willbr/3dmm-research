@@ -1084,33 +1084,20 @@ bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error
 }
 bool Preview::RenderWithLights(const PreviewView &view, const std::vector<PreviewLight> &lights, PreviewImage &image, Error &error)
 {
-    if (!_impl->background || lights.size() > 16)
-        return Fail(error, ErrorCode::invalid_argument, "A background and at most sixteen lights are required.");
-    MMBackgroundLight native[16];
-    MMU32 count = 0;
-    for (const auto &l : lights)
+    MMPreviewLightValues values[MM_PREVIEW_LIGHT_LIMIT];
+    const auto copied = std::min(lights.size(), std::size_t(MM_PREVIEW_LIGHT_LIMIT));
+    for (std::size_t i = 0; i < copied; ++i)
     {
-        if (!std::isfinite(l.x) || !std::isfinite(l.y) || !std::isfinite(l.z) || !std::isfinite(l.yaw) ||
-            !std::isfinite(l.pitch) || !std::isfinite(l.intensity) || std::abs(l.x) > 32700 || std::abs(l.y) > 32700 ||
-            std::abs(l.z) > 32700 || std::abs(l.yaw) > 360 || std::abs(l.pitch) > 89 || l.intensity < 0 || l.intensity > 1)
-            return Fail(error, ErrorCode::invalid_argument, "Invalid preview light settings.");
-        if (l.intensity == 0) continue;
-        BMAT34 matrix;
-        const auto angle = [](float d) { return static_cast<unsigned short>(static_cast<int>(d * (65536.f / 360))); };
-        BrMatrix34RotateX(&matrix, angle(-l.pitch));
-        BrMatrix34PostRotateY(&matrix, angle(l.yaw));
-        matrix.m[3][0] = BrFloatToScalar(l.x); matrix.m[3][1] = BrFloatToScalar(l.y); matrix.m[3][2] = BrFloatToScalar(l.z);
-        MMBackgroundLight light = {};
-        std::memcpy(&light.matrix, &matrix, sizeof(matrix));
-        light.intensity = BrFloatToScalar(std::min(32700.f, 1.f / l.intensity)); light.type = l.point ? BR_LIGHT_POINT : BR_LIGHT_DIRECT;
-        native[count++] = light;
+        const auto &light = lights[i];
+        values[i] = {light.x, light.y, light.z, light.yaw, light.pitch, light.intensity, light.point};
     }
-    struct Restore
-    {
-        MMPreviewOrbit &orbit, savedOrbit;
-        ~Restore() { orbit = savedOrbit; }
-    } restore{_impl->orbit, _impl->orbit};
-    return RenderView(view, image, error, -1, nullptr, false, native, count);
+    return RenderWithLightValues(view, values, lights.size(), image, error);
+}
+bool Preview::RenderWithLightValues(const PreviewView &view, const MMPreviewLightValues *values, std::size_t count,
+                                    PreviewImage &image, Error &error)
+{
+    const LightInput input = {values, count};
+    return RenderView(view, image, error, -1, nullptr, false, &input);
 }
 bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error &error)
 {
@@ -1247,22 +1234,30 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
 }
 
 bool Preview::RenderView(const PreviewView &view, PreviewImage &image, Error &error, int object,
-                         const PreviewBounds *bounds, bool crop, const MMBackgroundLight *lights,
-                         std::uint32_t lightCount)
+                         const PreviewBounds *bounds, bool crop, const LightInput *lights)
 try
 {
-    image = {};
-    error = {};
-    Internal::ClearDiagnostic();
     Impl::RenderHost host = {this, _impl.get(), &view, &error};
-    host.lights = lights;
-    host.lightCount = lightCount;
     if (bounds)
     {
         host.onlyObject = object;
         host.orbitBounds = bounds;
     }
     auto services = host.Services();
+    MMPreviewLightRig rig;
+    if (lights)
+    {
+        const auto result = mm_preview_prepare_lights(lights->values, lights->count, services.background != nullptr,
+                                                      &rig, &services);
+        if (result == MM_PREVIEW_LIGHT_RIG_INVALID)
+            return Fail(error, ErrorCode::invalid_argument, "A background and at most sixteen lights are required.");
+        if (result != MM_PREVIEW_OK)
+            return Fail(error, ErrorCode::invalid_argument, "Invalid preview light settings.");
+        services.light_override = &rig;
+    }
+    image = {};
+    error = {};
+    Internal::ClearDiagnostic();
     MMPreviewView v = {};
     v.width = view.width;
     v.height = view.height;
