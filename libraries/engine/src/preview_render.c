@@ -349,18 +349,19 @@ void mm_preview_pose_init(MMPreviewPose *pose, const MMPreviewRenderServices *s)
 void mm_preview_describe(MMPreviewData *d, const MMPreviewRenderServices *s)
 {
     const unsigned char *palette;
+    const MMBackgroundPreviewOwner *background;
     const MMBackgroundPreview *b;
     const MMBackgroundCameraData *camera;
     MMU32 i;
     if (s->live)
     {
         d->scene = s->live->status.scene;
-        if (s->model_asset)
+        if (s->live->assets.model)
         {
             MMModelDescription model;
-            d->model_resource = s->model_asset;
-            d->model = mm_model_owner_resource(s->model_asset)->handle;
-            mm_model_owner_describe(s->model_asset, &model);
+            d->model_resource = s->live->assets.model;
+            d->model = mm_model_owner_resource(s->live->assets.model)->handle;
+            mm_model_owner_describe(s->live->assets.model, &model);
             for (i = 0; i < 3; ++i)
             {
                 d->model_low[i] = s->math.scalar_float(model.bounds.min[i]);
@@ -370,9 +371,10 @@ void mm_preview_describe(MMPreviewData *d, const MMPreviewRenderServices *s)
     }
     else
         s->describe(s->context, d);
-    if (!s->base_palette)
+    if (!s->live || !s->base_palette)
         return;
-    palette = s->background ? mm_background_preview_palette(s->background) : s->base_palette;
+    background = s->live->assets.background;
+    palette = background ? mm_background_preview_palette(background) : s->base_palette;
     for (i = 0; i < sizeof(d->palette); i += 4)
     {
         d->palette[i] = palette[i + 2];
@@ -380,10 +382,10 @@ void mm_preview_describe(MMPreviewData *d, const MMPreviewRenderServices *s)
         d->palette[i + 2] = palette[i];
         d->palette[i + 3] = 255;
     }
-    d->background = s->background && (!s->live || s->only_object < 0);
+    d->background = background && s->only_object < 0;
     if (!d->background)
         return;
-    b = mm_background_preview_state(s->background);
+    b = mm_background_preview_state(background);
     camera = &b->camera.data;
     d->width = b->width;
     d->height = b->height;
@@ -409,9 +411,9 @@ void mm_preview_pose_describe(MMPreviewPose *pose, const MMPreviewRenderServices
 
 int mm_preview_pose_mesh(MMPreviewPose *pose, MMPreviewMesh *out, const MMPreviewRenderServices *s)
 {
-    if (!s->base_palette)
+    if (!s->live)
         return s->mesh(s->context, out) ? MM_PREVIEW_OK : MM_PREVIEW_HOST;
-    pose->mesh = mm_background_preview_owner_mesh(s->background);
+    pose->mesh = mm_background_preview_owner_mesh(s->live->assets.background);
     if (!pose->mesh)
         return MM_PREVIEW_MEMORY;
     out->empty = pose->mesh->triangle_count == 0;
@@ -424,7 +426,7 @@ int mm_preview_pose_mesh(MMPreviewPose *pose, MMPreviewMesh *out, const MMPrevie
 int mm_preview_pose_add_mesh(const MMPreviewPose *pose, void *world, const MMPreviewRenderServices *s)
 {
     if (pose->mesh)
-        return mm_background_preview_add_mesh(s->background, pose->mesh, world);
+        return mm_background_preview_add_mesh(s->live->assets.background, pose->mesh, world);
     return s->add_mesh(s->context, world);
 }
 
@@ -444,8 +446,7 @@ int mm_preview_read_body(MMPreviewBody *out, MMU32 index, int bounds, const MMPr
         return 0;
     if (index)
     {
-        const void *handle = mm_preview_live_actor(s->live, index - 1);
-        const MMPreviewActor *actor = handle ? s->actor(handle) : NULL;
+        const MMPreviewActor *actor = mm_preview_live_actor_view(s->live, index - 1);
         if (!actor || !actor->state.onStage)
             return 0;
         body = (MMBodyOwner *)actor->body;
@@ -453,7 +454,7 @@ int mm_preview_read_body(MMPreviewBody *out, MMU32 index, int bounds, const MMPr
         out->order_high = (MMU32)actor->draw_order.high;
     }
     else
-        body = s->body_asset;
+        body = s->live->assets.body;
     if (!body)
         return 0;
     shape = &mm_body_owner_state(body)->shape;

@@ -1,6 +1,7 @@
 #include "scene_renderer.h"
 #include "mm/background_preview.h"
 #include "body_renderer.h"
+#include "model_renderer.h"
 #include "brender.h"
 #include <stdlib.h>
 #include <string.h>
@@ -618,7 +619,7 @@ static MMU32 vertex_count(void *context, void *model)
 static MMU32 face_count(void *context, void *model)
 {
     (void)context;
-    return ((br_model *)model)->nprepared_faces;
+    return mm_brender_model_faces(model);
 }
 
 static void read_vertex(void *context, void *model, MMU32 i, MMI32 out[3])

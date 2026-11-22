@@ -22289,3 +22289,29 @@ order. Seek and playback order also matched the retained retail and V3DMM
 captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-live-pose`.
+
+## C89 Preview selected assets (22 November 2026)
+
+The Preview live state owns the selected background, template, body and
+standalone model. Admission transfers acquired references directly. Clearing a
+selection releases its actors and assets, and a failed background replacement
+keeps the active background. Rendering, picking and geometry counts use the same
+live asset slots. Counts use visible actors, body parts and BRender's prepared
+faces.
+
+The C89 fixtures cover partially transferred assets on allocation and other
+exceptions. They also check hidden actors, reserved body parts and standalone
+model counts. Admission, live, camera, pick, render and light traces and the actor
+preview image matched all 49,623,389 bytes. Three storyboard packages reproduced
+48 payloads and their child links. The 188 retail-content camera traces, five
+World snapshots, Studio saves and canvas captures, and the headless Marcus
+startup canvas also matched. All 250 selected test runs passed. The existing
+`scene-load` assertion reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+The four runs in suite `20261122T170029Z-018bc34e` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order also matched the retained retail and V3DMM
+captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-assets`.

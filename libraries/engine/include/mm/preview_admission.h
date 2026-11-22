@@ -45,7 +45,6 @@ extern "C"
         MMPreviewLive *live;
         MMU32 type, number, action_count, detail;
         int kind, cache, mark_chunk;
-        void *tmpl, *body, *model;
     } MMPreviewAdmission;
     typedef struct MMPreviewAdmissionTag
     {
@@ -60,9 +59,9 @@ extern "C"
         void (*publish)(void *, const MMPreviewAdmission *);
         void (*begin)(void *);
         int (*healthy)(void *);
-        int (*template_fetch)(void *, MMU32, MMU32, void **);
+        int (*template_fetch)(void *, MMU32, MMU32, struct MMTemplateOwner **);
         int (*template_bind)(void *, void *);
-        int (*body_create)(void *, void *, void **);
+        int (*body_create)(void *, struct MMTemplateOwner *, struct MMBodyOwner **);
         int (*prop)(void *, void *);
         MMI32 (*actions)(void *, void *);
         int (*cels)(void *, void *, MMU32, MMI32 *);
@@ -75,7 +74,7 @@ extern "C"
         void (*rest)(void *, void *, unsigned short angles[3]);
         void (*rotate)(void *, MMActorMatrix *, int axis, unsigned short, int post);
         void (*locate)(void *, void *, const MMActorMatrix *);
-        int (*model_fetch)(void *, MMU32, MMU32, void **);
+        int (*model_fetch)(void *, MMU32, MMU32, struct MMModelOwner **);
         int (*background)(void *, const MMPreviewAdmissionTag *, int virtual_scene);
         MMMovieSceneReader scene; /* Movie statuses, with negative host failures as below. */
         int (*actor_header)(void *, MMU32, MMI32 *first, MMI32 *last);
@@ -112,8 +111,9 @@ extern "C"
     /* Synchronous, non-reentrant services never throw. Fallible effects return 1/0,
      * -1 for allocation exceptions, -2 for other exceptions. group_read uses 0 for
      * missing, 2 for malformed, 1 for success. Acquired groups and unadopted actors
-     * are always released, including on exceptions. Native asset handles are owned
-     * by clear; live owns adopted actors. publish only marshals completed state.
+     * are always released, including on exceptions. Asset fetches transfer
+     * one reference through their output even on incomplete loads. clear
+     * releases the live owner's assets. publish only marshals completed state.
      * Selection memory failure clears the asset; ordinary early failures retain completed
      * prefixes, and final dependency failure clears and marks the selected chunk.
      * Other exceptions retain asset prefixes and are rethrown by the typed host.
@@ -122,17 +122,6 @@ extern "C"
      * Admission is a transient borrowed record, not a second asset owner. */
     int mm_preview_admit(MMPreviewAdmission *, int preserve_framing, const MMPreviewAdmissionServices *);
     int mm_preview_admission_pose(MMPreviewAdmission *, MMU32 action, MMU32 cel, const MMPreviewAdmissionServices *);
-    typedef struct MMPreviewStatsServices
-    {
-        void *context, *body, *model;
-        MMU32 actors;
-        int (*visible)(void *, MMU32);
-        void *(*actor_body)(void *, MMU32);
-        MMI32 (*body_parts)(void *, void *);
-        void *(*part_model)(void *, void *, MMI32);
-        MMU32 (*faces)(void *, void *);
-    } MMPreviewStatsServices;
-    void mm_preview_stats(const MMPreviewStatsServices *, MMU32 *parts, MMU32 *triangles);
 #ifdef __cplusplus
 }
 #endif

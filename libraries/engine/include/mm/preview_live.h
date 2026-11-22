@@ -33,12 +33,29 @@ extern "C"
     {
         int ready, scene, timeline, background, prop;
         MMU32 asset_type, asset_number, camera_count, current_camera, reported_actors;
+        MMU32 parts, triangles;
         MMI32 first, last, frame;
     } MMPreviewLiveStatus;
+    struct MMPreviewActor;
+    struct MMBackgroundPreviewOwner;
+    struct MMBodyOwner;
+    struct MMModelOwner;
+    struct MMTemplateOwner;
+    typedef const struct MMPreviewActor *MMPreviewActorView(const void *);
+    typedef struct MMPreviewAssets
+    {
+        struct MMBackgroundPreviewOwner *background;
+        struct MMBodyOwner *body;
+        struct MMTemplateOwner *tmpl;
+        struct MMModelOwner *model;
+    } MMPreviewAssets;
     typedef struct MMPreviewLive
     {
         MMPreviewLiveArray scenes, props, actors, cameras, original_cameras;
         MMPreviewLiveStatus status;
+        MMPreviewAssets assets;
+        MMPreviewActorView *actor_view;
+        MMU32 (*model_faces)(const void *);
         MMMovieLiveFrame publication;
         MMWide draw_clock;
         MMU32 original_actors, initial_camera;
@@ -99,8 +116,9 @@ extern "C"
      * actor_new returns NULL on allocation failure. The owner releases actors in
      * forward order. Adopting transfers ownership only on success. Borrowed actors
      * and scene records remain valid until mutation/clear. Clear retains definitions
-     * and storage capacity; dispose releases everything. clear_asset releases the
-     * remaining typed asset resources after C live state has already been cleared.
+     * and storage capacity while releasing the adopted actors and selected assets.
+     * The actor view and model face-count bindings survive clear. clear_asset
+     * lets the host clear its presentation after the C live state is cleared.
      * publish marshals status; camera publishes its own camera index/error and ready.
      * Input getters are immutable and do not alias owner storage. Snapshot
      * preparation failure leaves old records. Assignment publishes scenes before
@@ -113,6 +131,11 @@ extern "C"
     void mm_preview_live_clear(MMPreviewLive *, const MMPreviewLiveServices *);
     void mm_preview_live_dispose(MMPreviewLive *, const MMPreviewLiveServices *);
     void *mm_preview_live_actor(const MMPreviewLive *, MMU32);
+    const struct MMPreviewActor *mm_preview_live_actor_view(const MMPreviewLive *, MMU32);
+    void mm_preview_live_refresh_geometry(MMPreviewLive *);
+    /* Take the prepared background and transfer the previous reference to the caller. */
+    struct MMBackgroundPreviewOwner *mm_preview_live_exchange_background(MMPreviewLive *,
+                                                                          struct MMBackgroundPreviewOwner *);
     const MMPreviewLiveScene *mm_preview_live_scene(const MMPreviewLive *, MMU32 number);
     int mm_preview_live_adopt(MMPreviewLive *, void *actor);
     int mm_preview_live_camera_add(MMPreviewLive *, MMI32 frame, MMU32 camera);

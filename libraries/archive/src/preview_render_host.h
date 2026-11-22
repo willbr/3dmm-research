@@ -33,15 +33,9 @@ struct Preview::Impl::RenderHost
         s.context = this;
         s.movie = impl->assets.MovieSession();
         s.base_palette = impl->palette;
-        s.background = impl->background.get();
         s.live = &impl->live;
-        s.body_asset = impl->body;
-        s.model_asset = impl->model;
         s.body_geometry = &mm_kauai_body_renderer()->geometry;
         s.only_object = onlyObject;
-        s.actor = [](const void *handle) {
-            return static_cast<const Internal::PreviewActor *>(handle)->Core();
-        };
         s.math.sin = [](float x) { return std::sin(x); };
         s.math.cos = [](float x) { return std::cos(x); };
         s.math.tan = [](float x) { return std::tan(x); };

@@ -1,5 +1,9 @@
 #include "mm/preview_admission.h"
+#include "mm/body_create.h"
+#include "mm/model_resource.h"
+#include "mm/preview_actor.h"
 #include "mm/scene_data.h"
+#include "mm/text_resource.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +12,12 @@ typedef struct Host
 {
     MMPreviewLive live;
     MMPreviewAdmission published;
+    MMStorageAllocator asset_storage;
+    MMBodyCreateServices body_services;
+    MMTemplateOwnerHost template_host;
+    MMModelOwnerHost model_host;
+    MMModelServices models;
+    int assets, partial_asset;
     int calls, fail_at, failure, clears, groups, owned, releases, stats;
     int body_missing, empty_actions, bad_cels, unhealthy, missing_child, group_result, header_result;
     int offstage, names[4], appended, rotations, poses, saved, syncs, seeks, backgrounds;
@@ -35,6 +45,40 @@ static void release_storage(void *v, void *p, MMU32 bytes)
     (void)v;
     (void)bytes;
     free(p);
+}
+static void *allocate_asset(void *v, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
+{
+    Host *h = (Host *)v;
+    void *p = malloc(bytes);
+    (void)old_bytes;
+    (void)priority;
+    assert(!old);
+    if (p)
+        ++h->assets;
+    return p;
+}
+static void release_asset(void *v, void *p, MMU32 bytes)
+{
+    assert(((Host *)v)->assets > 0);
+    --((Host *)v)->assets;
+    release_storage(v, p, bytes);
+}
+static MMBodyState *body_state(void *v, void *body)
+{
+    (void)v;
+    return mm_body_owner_state((MMBodyOwner *)body);
+}
+static void empty_body_storage(void *v, void **p)
+{
+    (void)v;
+    assert(!*p);
+}
+static MMBodyOwner *new_body(Host *h)
+{
+    MMBodyOwner *body = mm_body_owner_create(&h->asset_storage, &h->body_services);
+    assert(body);
+    mm_body_owner_state(body)->shape.hidden = 1;
+    return body;
 }
 static void actor_release(void *v, void *a)
 {
@@ -68,28 +112,43 @@ static int healthy(void *v)
 {
     return !((Host *)v)->unhealthy;
 }
-static int fetch(void *v, MMU32 type, MMU32 number, void **out)
+static int fetch(void *v, MMU32 type, MMU32 number, MMTemplateOwner **out)
+{
+    Host *h = (Host *)v;
+    int r = step(h);
+    assert(type == 77 && number == 9);
+    if (r > 0 || h->partial_asset)
+    {
+        *out = mm_template_owner_create(&h->template_host, 0);
+        assert(*out);
+    }
+    return r;
+}
+static int fetch_model(void *v, MMU32 type, MMU32 number, MMModelOwner **out)
 {
     Host *h = (Host *)v;
     int r = step(h);
     assert(type == 77 && number == 9);
     if (r > 0)
-        *out = h->token;
+    {
+        *out = mm_model_owner_create(&h->model_host);
+        assert(*out);
+    }
     return r;
 }
 static int bind_template(void *v, void *t)
 {
     Host *h = (Host *)v;
-    assert(t == h->token);
+    assert(t && t == h->live.assets.tmpl);
     return step(h);
 }
-static int body_create(void *v, void *t, void **out)
+static int body_create(void *v, MMTemplateOwner *t, MMBodyOwner **out)
 {
     Host *h = (Host *)v;
     int r = step(h);
-    assert(t == h->token);
+    assert(t && t == h->live.assets.tmpl);
     if (r > 0)
-        *out = h->body_missing ? 0 : h->token + 1;
+        *out = h->body_missing ? NULL : new_body(h);
     return r;
 }
 static int prop(void *v, void *t)
@@ -166,7 +225,7 @@ static MMU32 action_cels(void *v, MMU32 i)
 static int pose(void *v, void *t, void *b, MMU32 action, MMU32 cel)
 {
     Host *h = (Host *)v;
-    assert(t == h->token && b == h->token + 1);
+    assert(t && b && t == h->live.assets.tmpl && b == h->live.assets.body);
     assert(action < 2 && cel < action + 2);
     ++h->poses;
     return step(h);
@@ -190,7 +249,7 @@ static void rotate(void *v, MMActorMatrix *m, int axis, unsigned short a, int po
 static void locate(void *v, void *b, const MMActorMatrix *m)
 {
     Host *h = (Host *)v;
-    assert(b == h->token + 1 && m->m[0][0] == 11 && m->m[1][1] == 12 && m->m[2][2] == 13);
+    assert(b == h->live.assets.body && m->m[0][0] == 11 && m->m[1][1] == 12 && m->m[2][2] == 13);
 }
 static int background(void *v, const MMPreviewAdmissionTag *t, int virtual_scene)
 {
@@ -313,6 +372,15 @@ static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s,
     a->resize = resize;
     a->release = release_storage;
     assert(mm_preview_live_init(&h->live, a));
+    h->asset_storage.context = h;
+    h->asset_storage.resize = allocate_asset;
+    h->asset_storage.release = release_asset;
+    h->body_services.state = body_state;
+    h->body_services.free_memory = empty_body_storage;
+    h->template_host.allocator = &h->asset_storage;
+    h->template_host.name_unit = 1;
+    h->model_host.objects = &h->asset_storage;
+    h->model_host.renderer = &h->models;
     p->live = &h->live;
     p->type = 77;
     p->number = 9;
@@ -339,7 +407,7 @@ static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s,
     s->rest = rest;
     s->rotate = rotate;
     s->locate = locate;
-    s->model_fetch = fetch;
+    s->model_fetch = fetch_model;
     s->background = background;
     s->scene.context = h;
     s->scene.header = scene_header;
@@ -363,7 +431,7 @@ static void dispose(Host *h)
     s.context = h;
     s.actor_release = actor_release;
     mm_preview_live_dispose(&h->live, &s);
-    assert(!h->groups && !h->owned);
+    assert(!h->groups && !h->owned && !h->assets);
 }
 static void admission_tests(void)
 {
@@ -372,6 +440,17 @@ static void admission_tests(void)
     MMPreviewAdmissionServices s;
     MMStorageAllocator a;
     int kind, n, i, failure, r, allocations, actor_call = 0, sync_call = 0, seek_call = 0;
+    for (failure = -1; failure >= -2; --failure)
+    {
+        setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
+        h.fail_at = 1;
+        h.failure = failure;
+        h.partial_asset = 1;
+        r = mm_preview_admit(&p, 0, &s);
+        assert(r == (failure == -1 ? MM_PREVIEW_ADMIT_MEMORY : MM_PREVIEW_ADMIT_EXCEPTION));
+        assert(h.assets == (failure == -2) && !!h.live.assets.tmpl == (failure == -2));
+        dispose(&h);
+    }
     for (kind = MM_PREVIEW_TEMPLATE; kind <= MM_PREVIEW_ACTOR; ++kind)
     {
         setup(&h, &p, &s, &a, kind);
@@ -574,51 +653,74 @@ static void budget_tests(void)
     b.headers = 0;
     assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_HEADER && !b.headers);
 }
-static int visible(void *v, MMU32 i)
+static const MMPreviewActor *actor_view(const void *actor)
 {
-    (void)v;
-    return i != 1;
+    return (const MMPreviewActor *)actor;
 }
-static void *actor_body(void *v, MMU32 i)
+static MMU32 model_faces(const void *model)
 {
-    (void)i;
+    assert(model);
+    return 7;
+}
+static void *allocate_model(void *v, MMI32 vertices, MMI32 faces)
+{
+    assert(vertices == 0 && faces == 0);
     return v;
 }
-static MMI32 body_parts(void *v, void *b)
+static void identify_model(void *v, void *handle, void *owner)
 {
-    (void)v;
-    (void)b;
-    return 5;
+    assert(v == handle && owner);
 }
-static void *part_model(void *v, void *b, MMI32 i)
+static void copy_model(void *v, void *handle, const void *vertices, const void *faces, MMI32 n, MMI32 f)
 {
-    (void)b;
-    return i == 1 ? 0 : v;
+    assert(v == handle && !vertices && !faces && !n && !f);
 }
-static MMU32 faces(void *v, void *m)
+static void model_effect(void *v, void *handle)
 {
-    (void)v;
-    (void)m;
-    return 7;
+    assert(v == handle);
 }
 static void stats_tests(void)
 {
-    MMPreviewStatsServices s;
-    MMU32 p, t;
-    memset(&s, 0, sizeof(s));
-    s.context = &s;
-    s.body = &s;
-    s.actors = 3;
-    s.visible = visible;
-    s.actor_body = actor_body;
-    s.body_parts = body_parts;
-    s.part_model = part_model;
-    s.faces = faces;
-    mm_preview_stats(&s, &p, &t);
-    assert(p == 6 && t == 42);
-    s.model = &s;
-    mm_preview_stats(&s, &p, &t);
-    assert(p == 1 && t == 7);
+    Host h;
+    MMPreviewAdmission admission;
+    MMPreviewAdmissionServices services;
+    MMStorageAllocator allocator;
+    MMPreviewActor actors[3];
+    MMBodyPartBinding bindings[5];
+    MMBodyShape *shape;
+    int i;
+    setup(&h, &admission, &services, &allocator, MM_PREVIEW_TEMPLATE);
+    h.live.assets.body = new_body(&h);
+    shape = &mm_body_owner_state(h.live.assets.body)->shape;
+    memset(bindings, 0, sizeof(bindings));
+    bindings[0].model_handle = bindings[1].model_handle = &h;
+    bindings[2].model_handle = bindings[4].model_handle = &h;
+    shape->bindings = bindings;
+    shape->part_count = 3;
+    h.live.actor_view = actor_view;
+    h.live.model_faces = model_faces;
+    for (i = 0; i < 3; ++i)
+    {
+        mm_preview_actor_init(&actors[i]);
+        actors[i].body = h.live.assets.body;
+        actors[i].state.onStage = i != 1;
+        assert(mm_preview_live_adopt(&h.live, &actors[i]) == MM_PREVIEW_LIVE_OK);
+        ++h.owned;
+    }
+    mm_preview_live_refresh_geometry(&h.live);
+    assert(h.live.status.parts == 6 && h.live.status.triangles == 42);
+    h.models.context = &h;
+    h.models.allocate_model = allocate_model;
+    h.models.identify = identify_model;
+    h.models.copy_input = copy_model;
+    h.models.add = h.models.remove = h.models.free_model = model_effect;
+    h.live.assets.model = mm_model_new(0, NULL, 0, NULL, &h.model_host);
+    assert(h.live.assets.model);
+    mm_preview_live_refresh_geometry(&h.live);
+    assert(h.live.status.parts == 1 && h.live.status.triangles == 7);
+    dispose(&h);
+    assert(h.live.actor_view == actor_view && h.live.model_faces == model_faces &&
+           !h.live.status.parts && !h.live.status.triangles);
 }
 int main(void)
 {

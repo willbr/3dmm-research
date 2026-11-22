@@ -11,6 +11,7 @@ extern "C" {
  * allocation and diagnostics remain the caller's services. */
 void mm_brender_model_services(MMModelServices *);
 void *mm_brender_model_owner(const void *handle);
+MMU32 mm_brender_model_faces(const void *handle);
 int mm_brender_model_prelight(const MMModelResource *, MMI32 lights, void (*multiple_lights)(void *));
 
 #ifdef __cplusplus

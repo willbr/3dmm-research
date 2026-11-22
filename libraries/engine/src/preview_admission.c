@@ -50,7 +50,6 @@ static void publish(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s)
 static void clear(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissionServices *s)
 {
     s->clear(s->context, preserve);
-    p->tmpl = p->body = p->model = 0;
     p->live->status.ready = p->live->status.prop = 0;
     p->action_count = 0;
 }
@@ -60,26 +59,27 @@ static int effect(int r)
 }
 static int template_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s)
 {
+    MMPreviewAssets *assets = &p->live->assets;
     MMU32 i, j, n;
     MMI32 count, name;
     MMPreviewChunk child, c;
     MMActorMatrix rest;
     unsigned short angles[3];
-    int r = s->template_fetch(s->context, p->type, p->number, &p->tmpl);
+    int r = s->template_fetch(s->context, p->type, p->number, &assets->tmpl);
     if (r <= 0)
         return r;
-    r = s->template_bind(s->context, p->tmpl);
+    r = s->template_bind(s->context, assets->tmpl);
     if (r <= 0)
         return r;
-    r = s->body_create(s->context, p->tmpl, &p->body);
+    r = s->body_create(s->context, assets->tmpl, &assets->body);
     if (r < 0)
         return r;
-    p->live->status.prop = s->prop(s->context, p->tmpl);
+    p->live->status.prop = s->prop(s->context, assets->tmpl);
     publish(p, s);
-    for (i = 0; (MMI32)i < s->actions(s->context, p->tmpl); ++i)
+    for (i = 0; (MMI32)i < s->actions(s->context, assets->tmpl); ++i)
     {
         count = 0;
-        r = s->cels(s->context, p->tmpl, i, &count);
+        r = s->cels(s->context, assets->tmpl, i, &count);
         if (r < 0)
             return r;
         if (!r || count <= 0)
@@ -103,16 +103,16 @@ static int template_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices
             return r;
         ++p->action_count;
     }
-    if (!p->body || !p->action_count)
+    if (!assets->body || !p->action_count)
         return 0;
-    r = s->pose(s->context, p->tmpl, p->body, 0, 0);
+    r = s->pose(s->context, assets->tmpl, assets->body, 0, 0);
     if (r <= 0)
         return r;
-    s->rest(s->context, p->tmpl, angles);
+    s->rest(s->context, assets->tmpl, angles);
     s->rotate(s->context, &rest, 0, angles[0], 0);
     s->rotate(s->context, &rest, 1, angles[1], 1);
     s->rotate(s->context, &rest, 2, angles[2], 1);
-    s->locate(s->context, p->body, &rest);
+    s->locate(s->context, assets->body, &rest);
     return 1;
 }
 static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s)
@@ -332,6 +332,7 @@ int mm_preview_admit(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissi
             result = r < 0 ? effect(r) : MM_PREVIEW_ADMIT_EXTERNAL;
             goto done;
         }
+        mm_preview_live_refresh_geometry(p->live);
         s->stats(s->context);
         return MM_PREVIEW_ADMIT_OK;
     }
@@ -340,7 +341,7 @@ int mm_preview_admit(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissi
     if (p->kind == MM_PREVIEW_TEMPLATE)
         r = template_load(p, s);
     else if (p->kind == MM_PREVIEW_MODEL)
-        r = s->model_fetch(s->context, p->type, p->number, &p->model);
+        r = s->model_fetch(s->context, p->type, p->number, &p->live->assets.model);
     else if (p->kind == MM_PREVIEW_BACKGROUND)
         r = s->background(s->context, 0, 0);
     else if (p->kind == MM_PREVIEW_SCENE || p->kind == MM_PREVIEW_ACTOR)
@@ -365,6 +366,7 @@ int mm_preview_admit(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissi
     }
     p->live->status.ready = 1;
     publish(p, s);
+    mm_preview_live_refresh_geometry(p->live);
     s->stats(s->context);
 done:
     if (result == MM_PREVIEW_ADMIT_MEMORY)
@@ -373,11 +375,12 @@ done:
 }
 int mm_preview_admission_pose(MMPreviewAdmission *p, MMU32 action, MMU32 cel, const MMPreviewAdmissionServices *s)
 {
+    const MMPreviewAssets *assets = &p->live->assets;
     int r;
     s->begin(s->context);
-    if (!p->live->status.ready || !p->tmpl || action >= p->action_count || cel >= s->action_cels(s->context, action))
+    if (!p->live->status.ready || !assets->tmpl || action >= p->action_count || cel >= s->action_cels(s->context, action))
         return MM_PREVIEW_ADMIT_POSE_RANGE;
-    r = s->pose(s->context, p->tmpl, p->body, action, cel);
+    r = s->pose(s->context, assets->tmpl, assets->body, action, cel);
     if (r < 0)
         return effect(r);
     if (!r || !s->healthy(s->context))
@@ -386,32 +389,7 @@ int mm_preview_admission_pose(MMPreviewAdmission *p, MMU32 action, MMU32 cel, co
         publish(p, s);
         return MM_PREVIEW_ADMIT_POSE;
     }
+    mm_preview_live_refresh_geometry(p->live);
     s->stats(s->context);
     return MM_PREVIEW_ADMIT_OK;
-}
-static void body_stats(const MMPreviewStatsServices *s, void *body, MMU32 *parts, MMU32 *triangles)
-{
-    MMI32 i, n = s->body_parts(s->context, body) - 2;
-    void *model;
-    for (i = 0; i < n; ++i)
-        if ((model = s->part_model(s->context, body, i)) != 0)
-        {
-            ++*parts;
-            *triangles += s->faces(s->context, model);
-        }
-}
-void mm_preview_stats(const MMPreviewStatsServices *s, MMU32 *parts, MMU32 *triangles)
-{
-    MMU32 i;
-    *parts = *triangles = 0;
-    if (s->body)
-        body_stats(s, s->body, parts, triangles);
-    for (i = 0; i < s->actors; ++i)
-        if (s->visible(s->context, i))
-            body_stats(s, s->actor_body(s->context, i), parts, triangles);
-    if (s->model)
-    {
-        *parts = 1;
-        *triangles = s->faces(s->context, s->model);
-    }
 }

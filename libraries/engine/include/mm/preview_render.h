@@ -108,9 +108,6 @@ extern "C"
         MM_PREVIEW_LIGHT_RIG_INVALID,
         MM_PREVIEW_LIGHT_VALUE_INVALID
     };
-    struct MMBackgroundPreviewOwner;
-    struct MMModelOwner;
-    struct MMPreviewActor;
     struct MMPreviewLive;
     typedef struct MMPreviewRenderServices
     {
@@ -118,20 +115,15 @@ extern "C"
         struct MMMovieSession *movie;
         const MMMovieLiveFrame *position;
         /* An optional live source supplies scene status and typed draw owners.
-         * The host unwraps its actor handle to the C89 actor owner.
          * Without this source, ready/describe/body_count/body supply the view. */
         const struct MMPreviewLive *live;
-        MMBodyOwner *body_asset;
-        struct MMModelOwner *model_asset;
         const MMBodyGeometryServices *body_geometry;
-        const struct MMPreviewActor *(*actor)(const void *handle);
         MMI32 only_object;
         /* With a base BGRX palette, the C frame reads its environment directly.
          * Otherwise describe/mesh/add_mesh supply an external environment.
          * The palette and background are borrowed during the call.
          * Isolated views omit the scenery and still use its palette. */
         const unsigned char *base_palette;
-        struct MMBackgroundPreviewOwner *background;
         /* A borrowed override with count zero suppresses the authored lights. */
         const MMBackgroundLightRig *light_override;
         MMStorageAllocator allocator;

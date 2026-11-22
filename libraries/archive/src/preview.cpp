@@ -2,6 +2,7 @@
 #include "mm/preview.h"
 #include "mm/preview_rasterizer.h"
 #include "scene_renderer.h"
+#include "model_renderer.h"
 #include "scene_pick.h"
 #include "zb_capture.h"
 #include "preview_depth_range.h"
@@ -66,9 +67,6 @@ struct Preview::Impl
     };
     Archive assets, resources;
     MMResourceCache *cache = nullptr;
-    PTemplate tmpl = nullptr;
-    PBody body = nullptr;
-    PModel model = nullptr;
     PreviewInfo info;
     unsigned char palette[1024] = {};
     MMPreviewSession session = {};
@@ -91,7 +89,13 @@ struct Preview::Impl
         Iterator begin() const { return {this, 0}; }
         Iterator end() const { return {this, size()}; }
     } actors = {&live};
-    Impl() { if (!mm_preview_live_init(&live, nullptr) || !mm_preview_session_init(&session, nullptr)) throw std::bad_alloc(); }
+    Impl()
+    {
+        if (!mm_preview_live_init(&live, nullptr) || !mm_preview_session_init(&session, nullptr))
+            throw std::bad_alloc();
+        live.actor_view = Internal::PreviewActor::View;
+        live.model_faces = mm_brender_model_faces;
+    }
     bool IsVirtualScene(Id scene) const
     { return scene.type == kctgScen && mm_preview_live_scene(&live, scene.number); }
     bool SyncActors(Error &error);
@@ -142,11 +146,10 @@ struct Preview::Impl
         void operator()(MMBackgroundPreviewOwner *owner) const { mm_background_preview_close(owner); }
     };
     using Background = std::unique_ptr<MMBackgroundPreviewOwner, BackgroundDeleter>;
-    Background background;
-
     const unsigned char *Palette() const
     {
-        return background ? mm_background_preview_palette(background.get()) : palette;
+        const auto *background = live.assets.background;
+        return background ? mm_background_preview_palette(background) : palette;
     }
     Background OpenBackground(const MMMovieSessionGraph &source, ChunkNumber number) const
     {
@@ -163,7 +166,7 @@ struct Preview::Impl
         if (!loaded)
             return false;
         const auto count = mm_background_preview_state(loaded.get())->camera_count;
-        background.swap(loaded);
+        loaded.reset(mm_preview_live_exchange_background(&live, loaded.release()));
         mm_preview_live_background_loaded(&live, count, 0);
         PublishInfo();
         return true;
@@ -185,33 +188,19 @@ struct Preview::Impl
     }
     bool ResolveGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph);
     void DescribeMissingResource(const TAGOnFile &tag);
-    void RefreshStats()
+    void PublishGeometry()
     {
-        MMPreviewStatsServices s = {};
-        s.context = this; s.body = body; s.model = model ? mm_model_owner_resource(model)->handle : nullptr;
-        s.actors = static_cast<MMU32>(actors.size());
-        s.visible = [](void *v, MMU32 i) -> int { return static_cast<Impl *>(v)->actors[i]->Visible(); };
-        s.actor_body = [](void *v, MMU32 i) -> void * { return static_cast<Impl *>(v)->actors[i]->Pbody(); };
-        s.body_parts = [](void *, void *b) -> MMI32 { return mm_body_owner_state(static_cast<PBody>(b))->shape.part_count + 2; };
-        s.part_model = [](void *, void *b, MMI32 i) -> void * { return mm_body_owner_state(static_cast<PBody>(b))->shape.bindings[i + 2].model_handle; };
-        s.faces = [](void *, void *m) -> MMU32 { return static_cast<br_model *>(m)->nprepared_faces; };
-        mm_preview_stats(&s, &info.parts, &info.triangles);
+        info.parts = live.status.parts;
+        info.triangles = live.status.triangles;
     }
     void ClearAsset(bool preserveFraming = false)
     {
         MMPreviewLiveServices services = {};
         services.actor_release = [](void *, void *a) { delete static_cast<Internal::PreviewActor *>(a); };
         mm_preview_live_clear(&live, &services);
-        background.reset();
         if (!preserveFraming)
             mm_preview_orbit_reset(&orbit);
         resolveError.clear();
-        mm_body_owner_release(body);
-        body = nullptr;
-        mm_template_owner_release(tmpl);
-        tmpl = nullptr;
-        mm_model_owner_release(model);
-        model = nullptr;
         info = {};
     }
     ~Impl();
@@ -571,10 +560,13 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
 }
 bool Preview::UseTextPreviewMaterial(Error &error)
 {
-    if (!_impl->body || !_impl->tmpl || !EngineTemplate::FIsTdt(_impl->tmpl)) return false;
+    const auto &assets = _impl->live.assets;
+    if (!assets.body || !assets.tmpl || !EngineTemplate::FIsTdt(assets.tmpl)) return false;
     auto material = mm_brender_material_fetch(_impl->cache, kctgMtrl, 0);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
-    mm_body_set_generic(_impl->body, 0, material, &mm_kauai_body_renderer()->edit.runtime); mm_material_owner_release(material); return true;
+    mm_body_set_generic(assets.body, 0, material, &mm_kauai_body_renderer()->edit.runtime);
+    mm_material_owner_release(material);
+    return true;
 }
 bool Preview::ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error)
 try
@@ -835,8 +827,8 @@ bool Preview::CopyPresentationPalette(unsigned char bgrx[1024]) const
 }
 void Preview::OverlayTransitionPalette(unsigned char bgrx[1024]) const
 {
-    if (bgrx && _impl->background)
-        mm_background_preview_overlay_palette(_impl->background.get(), bgrx);
+    if (bgrx && _impl->live.assets.background)
+        mm_background_preview_overlay_palette(_impl->live.assets.background, bgrx);
 }
 bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error)
 try
@@ -1066,7 +1058,7 @@ bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error
     };
     services.commit = [](void *p) {
         auto &h = *static_cast<Host *>(p);
-        h.runtime.impl->background.swap(h.candidate);
+        h.candidate.reset(mm_preview_live_exchange_background(&h.runtime.impl->live, h.candidate.release()));
     };
     const int result = mm_preview_live_replace_background(&_impl->live, &services);
     runtime.Rethrow(result);
@@ -1152,14 +1144,15 @@ catch (const std::bad_alloc &)
 bool Preview::PlacementPoint(float point[3]) const
 {
     MMI32 place[3] = {};
-    if (_impl->background)
+    const auto *background = _impl->live.assets.background;
+    if (background)
     {
-        const auto &p = mm_background_preview_state(_impl->background.get())->camera.data.place;
+        const auto &p = mm_background_preview_state(background)->camera.data.place;
         place[0] = p.dxr; place[1] = p.dyr; place[2] = p.dzr;
     }
     MMPreviewMath math = {};
     math.scalar_float = [](MMI32 v) { return BrScalarToFloat(v); };
-    return mm_preview_camera_placement(_impl->live.status.ready, _impl->background ? place : nullptr, point, &math) != 0;
+    return mm_preview_camera_placement(_impl->live.status.ready, background ? place : nullptr, point, &math) != 0;
 }
 bool Preview::CameraProjection(std::uint32_t camera, PreviewProjection &projection, Error &error)
 try
@@ -1171,7 +1164,7 @@ try
     if (!mm_preview_camera_admit(status.ready, status.background, status.camera_count, camera))
         return Fail(error, ErrorCode::invalid_argument, "Background camera is out of range.");
     MMPreviewProjection native;
-    const int result = mm_background_preview_projection(_impl->background.get(), camera, &native);
+    const int result = mm_background_preview_projection(_impl->live.assets.background, camera, &native);
     if (result == MM_PREVIEW_CAMERA_MEMORY)
         throw std::bad_alloc();
     projection = Impl::RenderHost::Projection(native);
@@ -1186,12 +1179,13 @@ catch (const std::bad_alloc &)
 }
 bool Preview::NextPlacementPoint(float point[3])
 {
-    return _impl->live.status.ready && _impl->background && mm_background_preview_next_place(_impl->background.get(), point);
+    auto *background = _impl->live.assets.background;
+    return _impl->live.status.ready && background && mm_background_preview_next_place(background, point);
 }
 void Preview::ReusePlacementPoint()
 {
-    if (_impl->background)
-        mm_background_preview_reuse_placement(_impl->background.get());
+    if (_impl->live.assets.background)
+        mm_background_preview_reuse_placement(_impl->live.assets.background);
 }
 bool Preview::SetCamera(std::uint32_t camera, Error &error, bool temporary)
 try
@@ -1206,7 +1200,7 @@ try
             auto &h = *static_cast<Host *>(v);
             try
             {
-                const int result = mm_background_preview_set_camera(h.impl->background.get(), index, !h.temporary);
+                const int result = mm_background_preview_set_camera(h.impl->live.assets.background, index, !h.temporary);
                 return result <= 0 ? result : !Internal::AssertionFailed();
             }
             catch (...) { h.exception = std::current_exception(); return -1; }
@@ -1244,7 +1238,7 @@ try
     MMBackgroundLightRig rig;
     if (lights)
     {
-        const auto result = mm_preview_prepare_lights(lights->values, lights->count, services.background != nullptr,
+        const auto result = mm_preview_prepare_lights(lights->values, lights->count, _impl->live.assets.background != nullptr,
                                                       &rig, &services);
         if (result == MM_PREVIEW_LIGHT_RIG_INVALID)
             return Fail(error, ErrorCode::invalid_argument, "A background and at most sixteen lights are required.");
@@ -1307,7 +1301,7 @@ try
         return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview camera.");
     case MM_PREVIEW_LIGHTS:
         return Fail(error, ErrorCode::out_of_memory,
-                    _impl->background ? "Cannot allocate scene lighting." : "Cannot allocate preview lighting.");
+                    _impl->live.assets.background ? "Cannot allocate scene lighting." : "Cannot allocate preview lighting.");
     case MM_PREVIEW_MODELS:
         return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview model instance.");
     case MM_PREVIEW_MESH:

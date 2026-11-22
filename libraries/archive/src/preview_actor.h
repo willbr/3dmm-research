@@ -37,7 +37,10 @@ class PreviewActor
     }
     ChunkNumber number = 0;
     PBody Pbody() const { return static_cast<PBody>(core.body); }
-    const MMPreviewActor *Core() const { return &core; }
+    static const MMPreviewActor *View(const void *handle)
+    {
+        return &static_cast<const PreviewActor *>(handle)->core;
+    }
     std::vector<PreviewSoundCue> sounds;
     ~PreviewActor();
     bool Load(const MMMovieSessionGraph &, ChunkNumber number,

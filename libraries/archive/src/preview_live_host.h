@@ -118,7 +118,7 @@ struct Preview::Impl::LiveHost
         s.begin_seek = [](void *) { Internal::ClearDiagnostic(); };
         s.healthy = [](void *) -> int { return !Internal::AssertionFailed(); };
         s.publish = [](void *v, const MMPreviewLive *) { static_cast<LiveHost *>(v)->impl->PublishInfo(); };
-        s.stats = [](void *v) { static_cast<LiveHost *>(v)->impl->RefreshStats(); };
+        s.stats = [](void *v) { static_cast<LiveHost *>(v)->impl->PublishGeometry(); };
         s.clear_asset = [](void *v) { static_cast<LiveHost *>(v)->impl->ClearAsset(); };
         return s;
     }

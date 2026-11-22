@@ -1,7 +1,12 @@
 #include "mm/preview_live.h"
+#include "mm/background_preview.h"
+#include "mm/body_create.h"
+#include "mm/model_resource.h"
 #include "mm/movie_session.h"
+#include "mm/preview_actor.h"
 #include "mm/scene_runtime.h"
 #include "mm/scene_edit.h"
+#include "mm/text_resource.h"
 #include <string.h>
 static void array_init(MMPreviewLiveArray *a, MMU32 width, const MMStorageAllocator *allocator)
 {
@@ -90,13 +95,19 @@ int mm_preview_live_init(MMPreviewLive *p, const MMStorageAllocator *a)
 }
 void mm_preview_live_clear(MMPreviewLive *p, const MMPreviewLiveServices *s)
 {
+    MMPreviewAssets assets = p->assets;
     release_prefix(&p->actors, 0, s);
+    memset(&p->assets, 0, sizeof(p->assets));
     p->original_actors = p->initial_camera = 0;
     p->cameras.count = p->original_cameras.count = 0;
     p->virtual_scene = 0;
     memset(&p->status, 0, sizeof(p->status));
     memset(&p->publication, 0, sizeof(p->publication));
     p->draw_clock = mm_wide_i32(0);
+    mm_background_preview_close(assets.background);
+    mm_body_owner_release(assets.body);
+    mm_template_owner_release(assets.tmpl);
+    mm_model_owner_release(assets.model);
 }
 void mm_preview_live_dispose(MMPreviewLive *p, const MMPreviewLiveServices *s)
 {
@@ -111,6 +122,60 @@ void mm_preview_live_dispose(MMPreviewLive *p, const MMPreviewLiveServices *s)
 void *mm_preview_live_actor(const MMPreviewLive *p, MMU32 index)
 {
     return index < p->actors.count ? ((void **)data(&p->actors))[index] : 0;
+}
+
+const MMPreviewActor *mm_preview_live_actor_view(const MMPreviewLive *p, MMU32 index)
+{
+    const void *handle = mm_preview_live_actor(p, index);
+    return handle && p->actor_view ? p->actor_view(handle) : NULL;
+}
+
+MMBackgroundPreviewOwner *mm_preview_live_exchange_background(MMPreviewLive *p, MMBackgroundPreviewOwner *next)
+{
+    MMBackgroundPreviewOwner *previous = p->assets.background;
+    p->assets.background = next;
+    return previous;
+}
+
+static void count_body(MMPreviewLive *p, MMBodyOwner *owner)
+{
+    const MMBodyShape *shape;
+    MMI32 i;
+    if (!owner)
+        return;
+    shape = &mm_body_owner_state(owner)->shape;
+    for (i = 0; i < shape->part_count; ++i)
+    {
+        const void *model = shape->bindings[i + 2].model_handle;
+        if (model)
+        {
+            ++p->status.parts;
+            p->status.triangles += p->model_faces(model);
+        }
+    }
+}
+
+void mm_preview_live_refresh_geometry(MMPreviewLive *p)
+{
+    const MMModelResource *model;
+    MMU32 i;
+    p->status.parts = p->status.triangles = 0;
+    if (!p->model_faces)
+        return;
+    model = p->assets.model ? mm_model_owner_resource(p->assets.model) : NULL;
+    if (model && model->handle)
+    {
+        p->status.parts = 1;
+        p->status.triangles = p->model_faces(model->handle);
+        return;
+    }
+    count_body(p, p->assets.body);
+    for (i = 0; i < p->actors.count; ++i)
+    {
+        const MMPreviewActor *actor = mm_preview_live_actor_view(p, i);
+        if (actor && actor->state.onStage)
+            count_body(p, (MMBodyOwner *)actor->body);
+    }
 }
 const MMPreviewLiveScene *mm_preview_live_scene(const MMPreviewLive *p, MMU32 number)
 {
@@ -531,6 +596,7 @@ static void published_seek(void *context)
     const MMPreviewLiveServices *s = seek->services;
     MMPreviewLive *p = seek->live;
     publish(p, s);
+    mm_preview_live_refresh_geometry(p);
     s->stats(s->context);
 }
 

@@ -37,9 +37,6 @@ struct Preview::Impl::AdmissionHost
         p.type = asset.type;
         p.number = asset.number;
         p.cache = impl->cache != nullptr;
-        p.tmpl = impl->tmpl;
-        p.body = impl->body;
-        p.model = impl->model;
         p.action_count = static_cast<MMU32>(impl->info.actions.size());
         p.kind = asset.type == kctgTmpl   ? MM_PREVIEW_TEMPLATE
                  : asset.type == kctgBmdl ? MM_PREVIEW_MODEL
@@ -113,11 +110,10 @@ struct Preview::Impl::AdmissionHost
         s.healthy = [](void *) -> int { return !Internal::AssertionFailed(); };
         s.clear = [](void *v, int preserve) { static_cast<AdmissionHost *>(v)->impl->ClearAsset(preserve != 0); };
         s.publish = [](void *v, const MMPreviewAdmission *) { static_cast<AdmissionHost *>(v)->impl->PublishInfo(); };
-        s.template_fetch = [](void *v, MMU32 type, MMU32 number, void **out) -> int {
+        s.template_fetch = [](void *v, MMU32 type, MMU32 number, PTemplate *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                h.impl->tmpl = mm_brender_template_fetch(h.impl->cache, type, number, nullptr);
-                *out = h.impl->tmpl;
+                *out = mm_brender_template_fetch(h.impl->cache, type, number, nullptr);
                 return *out != nullptr;
             });
         };
@@ -128,11 +124,10 @@ struct Preview::Impl::AdmissionHost
                 return 1;
             });
         };
-        s.body_create = [](void *v, void *t, void **out) -> int {
+        s.body_create = [](void *v, PTemplate t, PBody *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                h.impl->body = mm_brender_template_body(static_cast<PTemplate>(t));
-                *out = h.impl->body;
+                *out = mm_brender_template_body(t);
                 return *out != nullptr;
             });
         };
@@ -203,11 +198,10 @@ struct Preview::Impl::AdmissionHost
             const MMActorBodyPose pose = {{0, 0, 0}, *m};
             mm_body_locate(b, &pose, &mm_kauai_body_renderer()->edit.runtime);
         };
-        s.model_fetch = [](void *v, MMU32 type, MMU32 number, void **out) -> int {
+        s.model_fetch = [](void *v, MMU32 type, MMU32 number, PModel *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                h.impl->model = mm_brender_model_fetch(h.impl->cache, type, number);
-                *out = h.impl->model;
+                *out = mm_brender_model_fetch(h.impl->cache, type, number);
                 return *out != nullptr;
             });
         };
@@ -276,7 +270,7 @@ struct Preview::Impl::AdmissionHost
                 return 1;
             });
         };
-        s.stats = [](void *v) { static_cast<AdmissionHost *>(v)->impl->RefreshStats(); };
+        s.stats = [](void *v) { static_cast<AdmissionHost *>(v)->impl->PublishGeometry(); };
         return s;
     }
 };

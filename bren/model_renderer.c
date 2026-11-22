@@ -25,6 +25,11 @@ static void identify(void *context, void *handle, void *owner)
     memcpy(model->identifier, &owner, sizeof(owner));
 }
 
+MMU32 mm_brender_model_faces(const void *handle)
+{
+    return ((const br_model *)handle)->nprepared_faces;
+}
+
 void *mm_brender_model_owner(const void *handle)
 {
     const br_model *model = (const br_model *)handle;
