@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/studio_resource.h"
 #include "mm/collections.h"
+#include <stdlib.h>
 #include <string.h>
 
 enum { KIDSPACE_HEADER = 8, KIDSPACE_LOCATION = 16, KIDSPACE_CURSOR = 28, CURSOR_RECORD = 8 };
@@ -101,6 +102,96 @@ int mm_kidspace_cursor(const MMKidspaceDescriptor *descriptor, MMU32 flags, MMU3
         }
     }
     return 0;
+}
+
+struct MMKidspaceOwner
+{
+    MMKidspaceDescriptor descriptor;
+    MMResourceObject binding;
+    MMReference references;
+    const MMKidspaceOwnerHost *host;
+};
+
+static MMResourceObject *kidspace_binding(void *object) { return &((MMKidspaceOwner *)object)->binding; }
+static MMReference *kidspace_references(void *object) { return &((MMKidspaceOwner *)object)->references; }
+
+static void kidspace_destroy(void *object)
+{
+    MMKidspaceOwner *owner = object;
+    const MMStorageAllocator *allocator = owner->host ? owner->host->objects : NULL;
+    mm_kidspace_dispose(&owner->descriptor);
+    mm_resource_object_dispose(owner, mm_kidspace_owner_services());
+    if (allocator)
+        allocator->release(allocator->context, owner, sizeof(*owner));
+    else
+        free(owner);
+}
+
+static void kidspace_mark(void *object)
+{
+    MMKidspaceOwner *owner = object;
+    if (owner->host && owner->host->mark)
+        owner->host->mark(owner);
+}
+
+const MMResourceObjectServices *mm_kidspace_owner_services(void)
+{
+    static const MMResourceObjectServices services = {
+        kidspace_binding, kidspace_references, kidspace_destroy, NULL, kidspace_mark};
+    return &services;
+}
+
+int mm_kidspace_owner_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, const MMKidspaceOwnerHost *host)
+{
+    const MMStorageAllocator *allocator = host ? host->objects : NULL;
+    MMBlockIO io;
+    MMReadStream stream;
+    MMKidspaceOwner *owner;
+    *bytes = (MMI32)block->view.length;
+    if (!out)
+        return 1;
+    if ((block->view.packed &&
+         mm_owned_block_code(block, 0, host ? host->decode_context : NULL, host ? host->decode : NULL, NULL) !=
+             MM_DATA_OK) ||
+        mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK)
+        return 0;
+    *bytes = (MMI32)block->view.length;
+    if (allocator && (!allocator->resize || !allocator->release))
+        return 0;
+    owner = allocator ? allocator->resize(allocator->context, NULL, 0, sizeof(*owner), MM_STORAGE_NORMAL)
+                      : malloc(sizeof(*owner));
+    if (!owner)
+        return 0;
+    memset(owner, 0, sizeof(*owner));
+    owner->host = host;
+    mm_reference_init(&owner->references);
+    mm_resource_object_init(&owner->binding);
+    if (!mm_kidspace_read(&owner->descriptor, &stream, host ? host->records : NULL))
+    {
+        kidspace_destroy(owner);
+        return 0;
+    }
+    *out = owner;
+    return 1;
+}
+
+const MMKidspaceDescriptor *mm_kidspace_owner_descriptor(const MMKidspaceOwner *owner) { return &owner->descriptor; }
+const MMResourceObject *mm_kidspace_owner_binding(const MMKidspaceOwner *owner) { return &owner->binding; }
+
+void mm_kidspace_owner_retain(MMKidspaceOwner *owner)
+{
+    mm_reference_add(&owner->references);
+}
+
+void mm_kidspace_owner_release(MMKidspaceOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_kidspace_owner_services());
+}
+
+void mm_kidspace_owner_priority(MMKidspaceOwner *owner, MMI32 priority)
+{
+    mm_resource_object_priority(owner, priority, mm_kidspace_owner_services());
 }
 
 int mm_studio_cursor_read(const MMReadStream *stream, int width, int height, MMStudioCursor *out)

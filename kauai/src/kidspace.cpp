@@ -44,6 +44,22 @@ static bool FindKidspaceChild(MMResourceCache *cache, ChunkTagOrType parentType,
     return true;
 }
 
+bool KidspaceGraphicObject::_FindDescriptorChild(ChildChunkID slot, ChunkTagOrType type, ChildChunkIdentification *out)
+{
+    const auto binding = mm_kidspace_owner_binding(_pgokd);
+    return FindKidspaceChild(_resourceCache, binding->type, binding->number, slot, type, out);
+}
+
+static bool FindKidspaceCursor(const MMKidspaceOwner *owner, ulong flags, long state, MMKidspaceCursor *out)
+{
+    const auto descriptor = mm_kidspace_owner_descriptor(owner);
+    if (mm_kidspace_cursor(descriptor, static_cast<MMU32>(flags), static_cast<MMU32>(state), out))
+        return true;
+    if (descriptor->cursors)
+        TrashVar(out);
+    return false;
+}
+
 template <class Record>
 static bool ReadKidspaceRecord(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number, Record &record)
 {
@@ -65,10 +81,11 @@ static PScript FetchKidspaceScript(MMResourceCache *cache, ChunkTagOrType type, 
     Create a new kidspace gob as described in the KidspaceGraphicObjectDescriptor with given cno
     in the given ResourceCache.
 ***************************************************************************/
-PKidspaceGraphicObject KidspaceGraphicObject::PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid, PKidspaceGraphicObjectDescriptor pgokd, PResourceCache prca)
+PKidspaceGraphicObject KidspaceGraphicObject::PgokNew(PWorldOfKidspace pwoks, PGraphicsObject pgobPar, long hid,
+                                                     MMKidspaceOwner *pgokd, PResourceCache prca)
 {
     AssertPo(pgobPar, 0);
-    AssertPo(pgokd, 0);
+    Assert(pgokd, "missing Kidspace descriptor");
     AssertPo(prca, 0);
     GraphicsObjectBlock gcb;
     PKidspaceGraphicObject pgok;
@@ -145,13 +162,9 @@ KidspaceGraphicObject::~KidspaceGraphicObject(void)
             vpsndm->Stop(_siiMouse);
     }
 
-    if (_fStream)
-    {
-        if (pvNil != _pgokd)
-            _pgokd->SetCrep(crepToss);
-    }
-
-    ReleasePpo(&_pgokd);
+    if (_fStream && _pgokd)
+        mm_kidspace_owner_priority(_pgokd, crepToss);
+    mm_kidspace_owner_release(_pgokd);
     if (_resourceCache)
         mm_resource_cache_release(_resourceCache);
     ReleasePpo(&_prca);
@@ -168,14 +181,14 @@ bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRes
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
     AssertPo(prca, 0);
-    PKidspaceGraphicObjectDescriptor pgokd;
+    MMKidspaceOwner *pgokd;
     bool fRet;
 
     if (pvNil == (pgokd = pwoks->PgokdFetch(kctgGokd, cno, prca)))
         return fFalse;
 
     fRet = _FInit(pwoks, pgokd, prca);
-    ReleasePpo(&pgokd);
+    mm_kidspace_owner_release(pgokd);
 
     return fRet;
 }
@@ -183,28 +196,31 @@ bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, ChunkNumber cno, PRes
 /***************************************************************************
     Initialize this KidspaceGraphicObject.
 ***************************************************************************/
-bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjectDescriptor pgokd, PResourceCache prca)
+bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, MMKidspaceOwner *pgokd, PResourceCache prca)
 {
     AssertBaseThis(0);
     AssertPo(pwoks, 0);
-    AssertPo(pgokd, 0);
+    Assert(pgokd, "missing Kidspace descriptor");
     AssertPo(prca, 0);
-    const auto cache = pgokd->CoreCache();
+    const auto cache = mm_kidspace_owner_binding(pgokd)->cache;
     if (!cache)
         return fFalse;
-    LOP lop;
+    MMKidspaceLocation lop;
+    const auto descriptor = mm_kidspace_owner_descriptor(pgokd);
+    const auto parent = PgobPar()->Hid();
+    const auto parent32 = static_cast<MMI32>(parent);
 
     _pwoks = pwoks;
     _pgokd = pgokd;
-    _pgokd->AddRef();
-    _pgokd->GetLop(PgobPar()->Hid(), &lop);
+    mm_kidspace_owner_retain(_pgokd);
+    mm_kidspace_location(descriptor, parent32 == parent ? parent32 : 0, &lop);
     _dxp = lop.xp;
     _dyp = lop.yp;
     _zp = klwMax;
-    _fRect = FPure(pgokd->Gokk() & gokkRectangle);
-    _fNoHit = FPure(pgokd->Gokk() & gokkNoHitThis);
-    _fNoHitKids = FPure(pgokd->Gokk() & gokkNoHitKids);
-    _fNoSlip = FPure(pgokd->Gokk() & gokkNoSlip);
+    _fRect = FPure(descriptor->kind & gokkRectangle);
+    _fNoHit = FPure(descriptor->kind & gokkNoHitThis);
+    _fNoHitKids = FPure(descriptor->kind & gokkNoHitKids);
+    _fNoSlip = FPure(descriptor->kind & gokkNoSlip);
 
     _prca = prca;
     _prca->AddRef();
@@ -663,7 +679,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
             goto LAdjust;
         }
 
-        if (FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgAnimation, &kid))
+        if (_FindDescriptorChild(chid, kctgAnimation, &kid))
         {
             PScript pscpt;
             PGraphicsObjectInterpreter psceg = pvNil;
@@ -699,7 +715,8 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
     {
         const auto chunks = mm_resource_cache_chunks(_resourceCache);
         MMU32 parent, first;
-        if (mm_chunk_find(&chunks, _pgokd->Ctg(), _pgokd->Cno(), &parent) != MM_CHUNK_OK)
+        const auto binding = mm_kidspace_owner_binding(_pgokd);
+        if (mm_chunk_find(&chunks, binding->type, binding->number, &parent) != MM_CHUNK_OK)
             goto LAdjust;
         const int status = mm_chunk_find_child(&chunks, parent, chid, 0, 0, &first);
         if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
@@ -1090,7 +1107,7 @@ bool KidspaceGraphicObject::FFilterCidHid(long cid, long hid, ChildChunkID chidS
     ChildChunkIdentification kid;
 
     if (chidNil == chidScript ||
-        !FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chidScript, kctgScript, &kid))
+        !_FindDescriptorChild(chidScript, kctgScript, &kid))
     {
         // turn off filtering
         if (chidNil != chidScript)
@@ -1195,8 +1212,8 @@ bool KidspaceGraphicObject::FCmdMouseMove(PCMD_MOUSE pcmd)
     else
     {
         Assert(cidMouseMove == pcmd->cid, "unknown command");
-        CursorMapEntry cume;
-        bool fCanClick = _pgokd->FGetCume(pcmd->grfcust, _sno, &cume);
+        MMKidspaceCursor cume;
+        bool fCanClick = FindKidspaceCursor(_pgokd, pcmd->grfcust, _sno, &cume);
 
         if (!_FAdjustGms(fCanClick ? _mpgmsgmseMove : _mpgmsgmseRollOff))
             return fTrue;
@@ -1214,9 +1231,10 @@ void KidspaceGraphicObject::SetCursor(ulong grfcust)
     AssertThis(0);
     PKidspaceGraphicObject pgok;
     PGraphicsObject pgob;
-    CursorMapEntry cume;
+    MMKidspaceCursor cume;
 
-    for (pgok = this; !pgok->_pgokd->FGetCume(grfcust, _sno, &cume) || cume.cnoCurs == cnoNil; grfcust |= fcustChildGok)
+    for (pgok = this; !FindKidspaceCursor(pgok->_pgokd, grfcust, _sno, &cume) || cume.cnoCurs == cnoNil;
+         grfcust |= fcustChildGok)
     {
         for (pgob = pgok;;)
         {
@@ -1248,9 +1266,9 @@ bool KidspaceGraphicObject::FCmdTrackMouse(PCMD_MOUSE pcmd)
     if (pcmd->cid == cidMouseDown)
     {
         // first response to mouse down
-        CursorMapEntry cume;
+        MMKidspaceCursor cume;
 
-        if (!_pgokd->FGetCume(pcmd->grfcust, _sno, &cume))
+        if (!FindKidspaceCursor(_pgokd, pcmd->grfcust, _sno, &cume))
             return fTrue;
 
         _grfcust = pcmd->grfcust;
@@ -1341,9 +1359,9 @@ bool KidspaceGraphicObject::FEnsureToolTip(PGraphicsObject *ppgobCurTip, long xp
 ChunkNumber KidspaceGraphicObject::_CnoToolTip(void)
 {
     AssertThis(0);
-    CursorMapEntry cume;
+    MMKidspaceCursor cume;
 
-    if (!_pgokd->FGetCume(_pwoks->GrfcustCur(), _sno, &cume))
+    if (!FindKidspaceCursor(_pgokd, _pwoks->GrfcustCur(), _sno, &cume))
         return cnoNil;
 
     return cume.cnoTopic;
@@ -1448,7 +1466,7 @@ bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, LegacyLong *prglw, lon
     AssertNilOrVarMem(plwReturn);
     ChildChunkIdentification kid;
 
-    if (!FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgScript, &kid))
+    if (!_FindDescriptorChild(chid, kctgScript, &kid))
     {
         if (pvNil != ptSuccess)
             *ptSuccess = tNo;
@@ -1548,7 +1566,7 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     LegacyLong rglw[3];
     LegacyLong lw;
     tribool tRet;
-    CursorMapEntry cume;
+    MMKidspaceCursor cume;
     long hid = Hid();
     long grid = Grid();
 
@@ -1561,7 +1579,7 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
 
     for (pgok = this;;)
     {
-        if (pgok->_pgokd->FGetCume(pcmd->grfcust, _sno, &cume))
+        if (FindKidspaceCursor(pgok->_pgokd, pcmd->grfcust, _sno, &cume))
             break;
         pgob = pgok->PgobPar();
         if (pvNil == pgob || !pgob->FIs(kclsKidspaceGraphicObject))
@@ -1843,8 +1861,7 @@ void KidspaceGraphicObject::_PlayMouseSound(ChildChunkID chid)
     if (pvNil == vpsndm)
         return;
 
-    if (!FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgWave, &kid) &&
-        !FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgMidi, &kid))
+    if (!_FindDescriptorChild(chid, kctgWave, &kid) && !_FindDescriptorChild(chid, kctgMidi, &kid))
     {
         return;
     }
@@ -1927,6 +1944,7 @@ void KidspaceGraphicObject::MarkMem(void)
     KidspaceGraphicObject_PAR::MarkMem();
     MarkMemObj(_pscegAnim);
     MarkMemObj(_prca);
+    MarkKidspaceDescriptor(_pgokd);
     mm_resource_cache_mark(_resourceCache);
     MarkMemObj(_pgorp);
     MarkMemObj(_pglcmflt);

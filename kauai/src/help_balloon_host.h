@@ -86,7 +86,7 @@ struct Balloon::BalloonHost : TextDocumentFactoryHost
         s.same_source = [](void *v, void *p, MMU32 number) -> int {
             auto &h = *static_cast<BalloonHost *>(v);
             auto node = static_cast<PBalloon>(p);
-            return node->_pgokd->Cno() == number && h.cache == node->_prca;
+            return mm_kidspace_owner_binding(node->_pgokd)->number == number && h.cache == node->_prca;
         };
         s.replace = [](void *v, void *p, const MMHelpTopic *info) -> int {
             auto &h = *static_cast<BalloonHost *>(v);

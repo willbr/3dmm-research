@@ -21165,3 +21165,35 @@ mixed PCM were consistent with the baseline.
 
 Traces and Studio canvases are under `tmp/c89-sound-source-dispatch`.
 Playback captures are under `tmp/c89-aqcap`.
+
+## C89 Kidspace descriptor ownership (22 November 2026)
+
+Studio GOKs and Help balloons use the C89 descriptor owner for parent
+placement, cursor and command maps, and the archive identity of child
+resources. The descriptor fixture exercises both byte orders, packed reads,
+ordered lookup past an empty first cache, reuse, malformed payloads,
+streaming eviction, and access after the manager releases its cache.
+
+All 199 engine, core link, and C89 checks passed. The 12 native x64, 11 SDL,
+and five native x86 checks passed. The 540-byte Help balloon trace matched
+the retained native build on native x64 and SDL. Nine movie saves and the
+ISO lobby canvas matched `45c9664b` byte for byte. The separate native x64
+`scene-load` test reproduced its existing fingerprint mismatch and trace.
+
+Headless Studio checks passed scene selection, F1 Help, save/discard, retail
+room palettes, and cold and warm ISO startup with MIDI preview. Five smoke
+canvases and the lobby and Studio room captures matched the baseline.
+Ticket-booth canvases varied on repeated runs of both builds as the intro
+and room animations played. The room checks verified palette and artwork
+throughout that workflow.
+
+Headless SDL Studio and Marcus runs matched all 60 seek canvases, camera and
+actor state, and continuous frame order for each port in the `resource-actors`
+fixture. Suite `20261122T102859Z-10121823` matched baseline
+`20261122T102733Z-7141b412` and the corresponding port runs in retained
+four-player suite `20261122T081603Z-7ffc4e8e`. Retail and V3DMM evidence came
+from the retained suite. The rebuilt Marcus application also relaunched
+with SDL dummy video.
+
+Traces and Studio canvases are under `tmp/c89-kidspace-owner`.
+Playback captures are under `tmp/c89-kd`.

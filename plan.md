@@ -1815,9 +1815,11 @@ Local tag opening also accepts a typed source archive and binds the destination
 cache in C89. Copies into private working archives preserve names, packed
 payloads and child references. Opening a tag within the same archive retains
 the cache without looking up or copying the chunk.
-Studio's Kidspace descriptors now give their C89 cache directly to script
-and artwork loaders. The C cache owns their references and streaming
-priorities. Studio movie thumbnails also load from a C-owned working cache.
+The C89 Kidspace descriptor owns its wire records, cache binding and
+references. Studio reads its location and cursor map directly in C and uses
+the descriptor's cache for child scripts, artwork and sound. The host
+supplies packed-block decoding, allocation and memory diagnostics. Studio
+movie thumbnails also load from a C-owned working cache.
 The C resource services no longer carry a back-pointer to a C++ cache wrapper.
 Studio loads embedded help archives through the C89 resource cache and
 read-only archive owner. The owner decodes and retains the forest's file

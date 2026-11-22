@@ -62,27 +62,57 @@ int main()
         CHECK(file->FAddPv(bytes.data(), static_cast<LegacyLong>((bytes.size)()), 'GOKD', &number));
         ChunkNumber malformed;
         CHECK(file->FAddPv(bytes.data(), static_cast<LegacyLong>((bytes.size)() - 4), 'GOKD', &malformed));
+        const std::vector<byte> cursorRow(bytes.end() - 28, bytes.end());
+        for (unsigned i = 0; i < 32; ++i)
+            bytes.insert(bytes.end(), cursorRow.begin(), cursorRow.end());
+        ChunkNumber packedNumber;
+        CHECK(file->FAddPv(bytes.data(), static_cast<LegacyLong>((bytes.size)()), 'GOKD', &packedNumber));
+        CHECK(file->FPackData('GOKD', packedNumber) && file->FPacked('GOKD', packedNumber));
+
         auto resources = ChunkyResourceFile::PcrfNew(file, 4096);
-        CHECK(resources);
-        auto descriptor = static_cast<PKidspaceGraphicObjectDescriptorLocation>(
-            resources->PbacoFetch('GOKD', number, KidspaceGraphicObjectDescriptorLocation::FReadGkds));
-        CHECK(descriptor && descriptor->Gokk() == 0x12345678);
-        LOP location;
-        descriptor->GetLop(0x1234, &location);
+        auto empty = ChunkyFile::PcflCreateTemp();
+        auto manager = ChunkyResourceManager::PcrmNew(2);
+        CHECK(resources && empty && manager && manager->FAddCfl(empty, 0));
+        auto cache = NewTypedSiblingCache(resources->CoreCache(), 4096);
+        CHECK(cache && mm_resource_manager_add_cache(manager->CoreManager(), cache, nullptr) == MM_STORAGE_OK);
+        mm_resource_cache_release(cache);
+        ReleasePpo(&resources);
+        ReleasePpo(&empty);
+        ReleasePpo(&file);
+
+        auto owner = FetchKidspaceDescriptor(manager, 'GOKD', number);
+        CHECK(owner);
+        auto same = FetchKidspaceDescriptor(manager, 'GOKD', number);
+        CHECK(same == owner);
+        mm_kidspace_owner_release(same);
+        const auto binding = mm_kidspace_owner_binding(owner);
+        CHECK(binding->cache == cache && binding->type == 'GOKD' && binding->number == number && binding->attached);
+        const auto descriptor = mm_kidspace_owner_descriptor(owner);
+        CHECK(descriptor->kind == 0x12345678);
+        MMKidspaceLocation location;
+        mm_kidspace_location(descriptor, 0x1234, &location);
         CHECK(location.hidPar == 0x1234 && location.xp == -7 && location.yp == 23 && location.zp == -11);
-        descriptor->GetLop(0x5678, &location);
+        mm_kidspace_location(descriptor, 0x5678, &location);
         CHECK(!location.hidPar && location.xp == 31 && location.yp == -47 && location.zp == 8);
-        CursorMapEntry cursor;
-        CHECK(descriptor->FGetCume(0x80, 31, &cursor));
+        MMKidspaceCursor cursor;
+        CHECK(mm_kidspace_cursor(descriptor, 0x80, 31, &cursor));
         CHECK(cursor.grfcustMask == 0xC0 && cursor.grfcust == 0x80 && cursor.grfbitSno == 0x80000000 &&
               cursor.cnoCurs == 0x11223344 && cursor.chidScript == 0x55667788 && cursor.cidDefault == 0x1234567 &&
               cursor.cnoTopic == 0x98765432);
-        CHECK(!descriptor->FGetCume(0x40, 31, &cursor) && !descriptor->FGetCume(0x80, 30, &cursor));
-        CHECK(descriptor->FGetCume(0x80, -1, &cursor));
-        CHECK(!resources->PbacoFetch('GOKD', malformed, KidspaceGraphicObjectDescriptorLocation::FReadGkds));
-        ReleasePpo(&descriptor);
-        ReleasePpo(&resources);
-        ReleasePpo(&file);
+        CHECK(!mm_kidspace_cursor(descriptor, 0x40, 31, &cursor) && !mm_kidspace_cursor(descriptor, 0x80, 30, &cursor));
+        CHECK(mm_kidspace_cursor(descriptor, 0x80, -1, &cursor));
+        bool error = true;
+        CHECK(!FetchKidspaceDescriptor(manager, 'GOKD', packedNumber + 1, &error) && !error);
+        CHECK(!FetchKidspaceDescriptor(manager, 'GOKD', malformed, &error) && error);
+        auto packed = FetchKidspaceDescriptor(manager, 'GOKD', packedNumber);
+        CHECK(packed && mm_kidspace_owner_descriptor(packed)->cursors == 33 && cache->count == 2);
+        mm_kidspace_owner_priority(packed, MM_RESOURCE_TOSS_PRIORITY);
+        mm_kidspace_owner_release(packed);
+        CHECK(cache->count == 1);
+        ReleasePpo(&manager);
+        CHECK(!binding->attached && !binding->cache);
+        CHECK(mm_kidspace_cursor(descriptor, 0x80, 31, &cursor) && cursor.cnoCurs == 0x11223344);
+        mm_kidspace_owner_release(owner);
     }
-    std::puts("Kidspace descriptors: original LE/BE bytes, parent/default locations and high-bit cursor masks passed.");
+    std::puts("Kidspace descriptors: LE/BE decoding, ordered cache, packed payload, eviction and retained owner passed.");
 }

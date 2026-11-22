@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_STUDIO_RESOURCE_H
 #define MM_ENGINE_STUDIO_RESOURCE_H
 #include "collection_storage.h"
+#include "resource_cache.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -29,6 +30,25 @@ extern "C"
     void mm_kidspace_dispose(MMKidspaceDescriptor *);
     void mm_kidspace_location(const MMKidspaceDescriptor *, MMI32 parent, MMKidspaceLocation *);
     int mm_kidspace_cursor(const MMKidspaceDescriptor *, MMU32 flags, MMU32 state, MMKidspaceCursor *);
+
+    typedef struct MMKidspaceOwner MMKidspaceOwner;
+    typedef struct MMKidspaceOwnerHost
+    {
+        const MMStorageAllocator *objects;
+        const MMStorageAllocator *records;
+        MMBlockTransform decode;
+        void *decode_context;
+        void (*mark)(MMKidspaceOwner *);
+    } MMKidspaceOwnerHost;
+    /* The cache reader borrows the host for the lifetime of the cached object.
+     * A NULL host selects the C heap and supports unpacked blocks. */
+    int mm_kidspace_owner_fetch(MMOwnedBlock *, void **object, MMI32 *bytes, const MMKidspaceOwnerHost *);
+    const MMResourceObjectServices *mm_kidspace_owner_services(void);
+    const MMKidspaceDescriptor *mm_kidspace_owner_descriptor(const MMKidspaceOwner *);
+    const MMResourceObject *mm_kidspace_owner_binding(const MMKidspaceOwner *);
+    void mm_kidspace_owner_retain(MMKidspaceOwner *);
+    void mm_kidspace_owner_release(MMKidspaceOwner *);
+    void mm_kidspace_owner_priority(MMKidspaceOwner *, MMI32 priority);
 
     typedef struct MMStudioCursor
     {

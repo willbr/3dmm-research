@@ -21,9 +21,6 @@ using namespace Help;
 using namespace ScriptCompiler;
 using GraphicalObjectRepresentation::PKidspaceGraphicObject;
 
-/***************************************************************************
-    Base KidspaceGraphicObject descriptor.
-***************************************************************************/
 #include "kidspace_descriptor.h"
 
 /***************************************************************************
@@ -58,7 +55,7 @@ class WorldOfKidspace : public WorldOfKidspace_PAR
     }
 
     virtual bool FGobIn(PGraphicsObject pgob);
-    virtual PKidspaceGraphicObjectDescriptor PgokdFetch(ChunkTagOrType ctg, ChunkNumber cno, PResourceCache prca);
+    virtual MMKidspaceOwner *PgokdFetch(ChunkTagOrType ctg, ChunkNumber cno, PResourceCache prca);
     virtual PKidspaceGraphicObject PgokNew(PGraphicsObject pgobPar, long hid, ChunkNumber cno, PResourceCache prca);
     virtual PGraphicsObjectInterpreter PscegNew(PResourceCache prca, PGraphicsObject pgob);
     virtual PBalloon PhbalNew(PGraphicsObject pgobPar, PResourceCache prca, ChunkNumber cnoTopic, Help::PTopic phtop = pvNil);

@@ -88,12 +88,12 @@ bool WorldOfKidspace::FGobIn(PGraphicsObject pgob)
 /***************************************************************************
     Get a KidspaceGraphicObjectDescriptor from the given chunk.
 ***************************************************************************/
-PKidspaceGraphicObjectDescriptor WorldOfKidspace::PgokdFetch(ChunkTagOrType ctg, ChunkNumber cno, PResourceCache prca)
+MMKidspaceOwner *WorldOfKidspace::PgokdFetch(ChunkTagOrType ctg, ChunkNumber cno, PResourceCache prca)
 {
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return (PKidspaceGraphicObjectDescriptor)prca->PbacoFetch(ctg, cno, KidspaceGraphicObjectDescriptorLocation::FReadGkds);
+    return FetchKidspaceDescriptor(prca, ctg, cno);
 }
 
 /***************************************************************************
@@ -103,7 +103,7 @@ PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hi
 {
     AssertThis(0);
     AssertNilOrPo(pgobPar, 0);
-    PKidspaceGraphicObjectDescriptor pgokd;
+    MMKidspaceOwner *pgokd;
     PKidspaceGraphicObject pgok;
 
     if (pgobPar == pvNil)
@@ -127,7 +127,7 @@ PKidspaceGraphicObject WorldOfKidspace::PgokNew(PGraphicsObject pgobPar, long hi
         return pvNil;
 
     pgok = KidspaceGraphicObject::PgokNew(this, pgobPar, hid, pgokd, prca);
-    ReleasePpo(&pgokd);
+    mm_kidspace_owner_release(pgokd);
 
     return pgok;
 }
