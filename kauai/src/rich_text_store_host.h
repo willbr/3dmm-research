@@ -3,6 +3,7 @@
 #include <exception>
 #include <new>
 #include "movie_archive_host.h"
+#include "handle_services.h"
 #include "mm/text_store.h"
 // Native representations and primitive file/collection operations for C persistence.
 namespace RichTextStoreHost
@@ -76,37 +77,26 @@ inline MMRichTextObjects Objects()
 }
 struct Host
 {
-    MMChunkOwnerRead *owner;
     MMRichTextArchive archive;
     MMRichTextArchiveReader reader;
     MMRichTextArchiveWriter writer;
     std::exception_ptr exception;
 
     explicit Host(const MMMovieArchiveEditor &editor, MMChunkOwnerRead *owner = nullptr)
-        : owner(owner), archive{
-            &editor, this, MacWin(koskUniWin, koskUniMac),
-            [](void *v, MMU32 number, MMTextLocation *out) -> int {
-                auto &h = *static_cast<Host *>(v);
-                return h.Guard([&] {
-                    MMBlockFile extent;
-                    int packed;
-                    if (!h.owner || !h.owner->payloads.locate(h.owner, MM_TEXT_BYTES, number, &extent, &packed))
-                        return false;
-                    *out = {extent.file, extent.offset, static_cast<MMI32>(extent.length)};
-                    return true;
-                });
-            },
-            [](void *v, const MMTextLocation *p, MMU32 offset, void *out, size_t count) -> int {
-                auto &h = *static_cast<Host *>(v);
-                return h.Guard([&] {
-                    auto location = Location(*p);
-                    return location.FReadRgb(out, static_cast<LegacyLong>(count), offset);
-                });
-            },
-            [](void *, void *file) { static_cast<PFileObject>(file)->AddRef(); },
-            [](void *, void *file) { static_cast<PFileObject>(file)->Release(); },
-            &Collections()}
+        : archive(mm_rich_text_file_archive(owner, KauaiBlockFileServices(), &editor,
+                                             MacWin(koskUniWin, koskUniMac)))
     {
+        archive.context = this;
+        archive.collections = &Collections();
+        archive.location = [](const MMRichTextArchive *source, MMU32 number, MMTextLocation *out) {
+            auto &host = *static_cast<Host *>(source->context);
+            return host.Guard([&] { return mm_rich_text_file_location(source, number, out); });
+        };
+        archive.read_at = [](const MMRichTextArchive *source, const MMTextLocation *text,
+                             MMU32 offset, void *out, size_t bytes) {
+            auto &host = *static_cast<Host *>(source->context);
+            return host.Guard([&] { return mm_rich_text_file_read(source, text, offset, out, bytes); });
+        };
     }
 
     template <class F> int Guard(F f)

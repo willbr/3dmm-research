@@ -20784,3 +20784,29 @@ all 60 camera-save and 11 caption-save reference canvases and camera
 indices. V3DMM matched all 60 retail camera-save canvases and indices.
 
 Evidence is under tmp/c89-cache-title.
+
+## Shared C89 rich-text file binding (22 November 2026)
+
+Studio's rich-text documents and the Marcus caption editor use the same C89
+binding for stored TEXT extents, file references and bounded reads. Preview
+uses the same TEXT encoding-marker decoder. Studio supplies the native
+property and argument collections and guards file and collection calls.
+The chunk-owner fixture reads the stored bytes of a packed-marked TEXT chunk
+in staged storage and tests reads at and beyond its extent boundary.
+
+All 193 rebuilt C89 checks passed. Native x64 and SDL text-store,
+movie save/load and scene-content passed. Five native snapshots matched
+their baselines byte for byte, including the 4,998-byte text-store trace.
+The existing Marcus playback check passed caption draft, edit, undo, save
+and reopen, including Unicode text, styling and scrolling. Studio reopened
+the two-scene save with captions and pauses. Its caption save matched the
+prior bytes. The camera save preserved the archive graph and payloads,
+with two TMPL index padding bytes differing.
+
+All six seek captures completed in 20261122T015413Z-f415da78. Retail reproduced
+all 60 camera-save and 11 caption-save reference canvases and camera indices.
+V3DMM matched both retail runs. SDL and Marcus matched all 11 retail frame
+and camera identities and eight of 11 canvases. Their pixel differences on
+frames 4 through 6 of the first scene stayed within the caption area.
+
+Evidence is under tmp/c89-rich-text-source.

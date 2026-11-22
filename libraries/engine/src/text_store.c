@@ -1,4 +1,5 @@
 #include "mm/text_store.h"
+#include "mm/chunk_owner.h"
 #include "mm/text_properties.h"
 #include "mm/movie_archive_edit.h"
 #include <stdlib.h>
@@ -141,6 +142,12 @@ int mm_rich_text_encode(const MMRichTextDefaults *s, int big, unsigned char b[16
     put(b + 12, s->background, 4, big);
     return 1;
 }
+
+int mm_rich_text_encoding(const unsigned char marker[2], int big)
+{
+    return signed_short(get(marker, 2, big));
+}
+
 void mm_rich_text_dispose(MMRichTextState *s, const MMRichTextObjects *o)
 {
     if (s->text.file)
@@ -203,7 +210,7 @@ int mm_rich_text_read(MMRichTextState *state, MMU32 type, MMU32 number, int syst
         result = r;
         goto done;
     }
-    loaded.text_system = signed_short(get(marker, 2, big));
+    loaded.text_system = mm_rich_text_encoding(marker, big);
     loaded.text.offset += 2;
     loaded.text.bytes -= 2;
     r = s->child(s->context, type, number, MM_TEXT_PROPERTIES, &child);
@@ -365,11 +372,52 @@ int mm_rich_text_write(const MMRichTextState *state, MMTextChunk *written, int b
     return mm_rich_text_write_encoded(state, NULL, written, big, s);
 }
 
+int mm_rich_text_file_location(const MMRichTextArchive *archive, MMU32 number, MMTextLocation *out)
+{
+    MMChunkOwnerRead *owner = archive->owner;
+    MMBlockFile extent;
+    int packed;
+    if (!owner || !archive->files || !owner->payloads.locate(owner, MM_TEXT_BYTES, number, &extent, &packed) ||
+        !extent.file ||
+        extent.length > 0x7fffffffUL || extent.offset > 0x7fffffffUL - extent.length)
+        return 0;
+    out->file = extent.file;
+    out->offset = extent.offset;
+    out->bytes = (MMI32)extent.length;
+    return 1;
+}
+
+int mm_rich_text_file_read(const MMRichTextArchive *archive, const MMTextLocation *text,
+                           MMU32 offset, void *out, size_t bytes)
+{
+    const MMBlockFileServices *files = archive->files;
+    if (text->bytes < 0 || offset > (MMU32)text->bytes || bytes > (MMU32)text->bytes - offset)
+        return 0;
+    if (!bytes)
+        return 1;
+    if (!files || !text->file || text->offset > 0x7fffffffUL - (MMU32)text->bytes)
+        return 0;
+    return files->read(files->context, text->file, text->offset + offset, out, bytes);
+}
+
+MMRichTextArchive mm_rich_text_file_archive(MMChunkOwnerRead *owner, const MMBlockFileServices *fallback_files,
+                                           const MMMovieArchiveEditor *editor, int swapped_unicode_encoding)
+{
+    MMRichTextArchive archive = {0};
+    archive.editor = editor;
+    archive.owner = owner;
+    archive.files = owner ? owner->payloads.files : fallback_files;
+    archive.swapped_unicode_encoding = swapped_unicode_encoding;
+    archive.location = mm_rich_text_file_location;
+    archive.read_at = mm_rich_text_file_read;
+    return archive;
+}
+
 static int archive_text_range(void *p, MMU32 offset, void *out, size_t bytes)
 {
     const MMRichTextStream *text = p;
     const MMRichTextArchive *archive = text->archive;
-    return archive->read_at(archive->context, text->location, offset, out, bytes) > 0;
+    return archive->read_at(archive, text->location, offset, out, bytes) > 0;
 }
 
 void mm_rich_text_archive_stream(MMRichTextStream *out, const MMRichTextArchive *archive, const MMTextLocation *text)
@@ -384,14 +432,14 @@ void mm_rich_text_archive_stream(MMRichTextStream *out, const MMRichTextArchive 
 static void archive_retain_file(void *p, void *file)
 {
     const MMRichTextArchive *archive = p;
-    archive->retain_file(archive->context, file);
+    archive->files->retain(archive->files->context, file);
 }
 
 static void archive_release(void *p, MMU32 kind, void *object)
 {
     const MMRichTextArchive *archive = p;
     if (kind == MM_TEXT_BYTES)
-        archive->release_file(archive->context, object);
+        archive->files->release(archive->files->context, object);
     else if (archive->collections)
         archive->collections->release(archive->context, kind, object);
     else
@@ -473,13 +521,13 @@ static int archive_rich_child(void *p, MMU32 type, MMU32 number, MMU32 kind, MMU
 static int archive_rich_location(void *p, MMU32 type, MMU32 number, MMTextLocation *out)
 {
     const MMRichTextArchive *archive = ((const MMRichTextArchiveReader *)p)->archive;
-    return type == MM_TEXT_BYTES ? archive->location(archive->context, number, out) : 0;
+    return type == MM_TEXT_BYTES ? archive->location(archive, number, out) : 0;
 }
 
 static int archive_rich_read_text(void *p, const MMTextLocation *location, void *out, MMU32 bytes)
 {
     const MMRichTextArchive *archive = ((const MMRichTextArchiveReader *)p)->archive;
-    return archive->read_at(archive->context, location, 0, out, bytes);
+    return archive->read_at(archive, location, 0, out, bytes);
 }
 
 static int archive_rich_read_group(void *p, MMU32 kind, MMU32 number, void **out, int *order, int *system)

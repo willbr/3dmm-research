@@ -833,9 +833,12 @@ static void private_archive_cases(void)
     MMResourceCache cache = {0};
     MMChunkTitleIO titles = {0};
     MMMovieTitle title;
-    const MMChunkOwnerFileIO io = storage_io(&host);
+    MMChunkOwnerFileIO io = storage_io(&host);
     MMPrivateArchive *archive, *alias;
     MMMovieArchiveEditor editor;
+    MMRichTextArchive rich;
+    MMTextLocation text;
+    MMRichTextStream stream;
     MMMovieSessionGraph graph;
     MMChunkAccess access;
     MMChunkEntry entry;
@@ -843,6 +846,7 @@ static void private_archive_cases(void)
     char value[4];
     unsigned char magic;
 
+    io.trace = NULL;
     blocks.context = &host;
     archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks,
                                                   &profile);
@@ -908,6 +912,16 @@ static void private_archive_cases(void)
     CHECK(mm_movie_title_set(&title, "Title", 5));
     mm_chunk_title_read(&title, &cache, 1, number, &titles);
     CHECK(!title.count);
+    rich = mm_private_archive_rich_text(archive, &editor);
+    CHECK(!rich.location(&rich, 0, &text));
+    CHECK(editor.add(editor.context, MM_TEXT_BYTES, 0, &number, NULL));
+    CHECK(editor.put(editor.context, MM_TEXT_BYTES, number, "text", sizeof(value)));
+    CHECK(mm_chunk_set_flag(&editor.edit, MM_TEXT_BYTES, number, MM_CHUNK_PACKED, 1) == MM_CHUNK_OK);
+    CHECK(rich.location(&rich, number, &text) && text.file == &host.extra && text.bytes == sizeof(value));
+    mm_rich_text_archive_stream(&stream, &rich, &text);
+    CHECK(mm_read_exact(&stream.stream, 1, value, 2) && !memcmp(value, "ex", 2));
+    CHECK(!rich.read_at(&rich, &text, 3, value, 2) && !memcmp(value, "ex", 2));
+    CHECK(rich.read_at(&rich, &text, sizeof(value), NULL, 0));
     mm_private_archive_close(archive);
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
 }

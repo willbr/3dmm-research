@@ -461,55 +461,11 @@ MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *archive)
     return mm_movie_archive_file_editor(&archive->editor, archive->profile.unit, convert_editor_text);
 }
 
-static int locate_text(void *context, MMU32 number, MMTextLocation *text)
-{
-    MMPrivateArchive *archive = context;
-    MMBlockFile extent;
-    int packed;
-    if (!archive || !mm_chunk_owner_locate(mm_private_archive_reader(archive)->storage, MM_TEXT_BYTES,
-                                          number, &extent, &packed) ||
-        extent.length > 0x7fffffffUL || extent.offset > 0x7fffffffUL - extent.length)
-        return 0;
-    text->file = extent.file;
-    text->offset = extent.offset;
-    text->bytes = (MMI32)extent.length;
-    return 1;
-}
-
-static int read_text(void *context, const MMTextLocation *text, MMU32 offset, void *out, size_t bytes)
-{
-    MMPrivateArchive *archive = context;
-    const MMBlockFileServices *files;
-    if (text->bytes < 0 || offset > (MMU32)text->bytes || bytes > (MMU32)text->bytes - offset)
-        return 0;
-    if (!bytes)
-        return 1;
-    if (!archive || !text->file || text->offset > 0x7fffffffUL - (MMU32)text->bytes)
-        return 0;
-    files = mm_private_archive_reader(archive)->payloads.files;
-    return files->read(files->context, text->file, text->offset + offset, out, bytes);
-}
-
-static void retain_text_file(void *context, void *file)
-{
-    const MMBlockFileServices *files = mm_private_archive_reader(context)->payloads.files;
-    files->retain(files->context, file);
-}
-
-static void release_text_file(void *context, void *file)
-{
-    const MMBlockFileServices *files = mm_private_archive_reader(context)->payloads.files;
-    files->release(files->context, file);
-}
-
 MMRichTextArchive mm_private_archive_rich_text(MMPrivateArchive *archive, const MMMovieArchiveEditor *editor)
 {
-    MMRichTextArchive text = {NULL, NULL, 0, locate_text, read_text, retain_text_file, release_text_file, NULL};
-    text.editor = editor;
-    text.context = archive;
-    if (archive)
-        text.swapped_unicode_encoding = archive->profile.swapped_unicode_encoding;
-    return text;
+    MMChunkOwnerRead *owner = archive ? mm_private_archive_reader(archive) : NULL;
+    return mm_rich_text_file_archive(owner, NULL, editor,
+                                     archive ? archive->profile.swapped_unicode_encoding : 0);
 }
 
 MMChunkEndpoint mm_private_archive_copy_endpoint(MMPrivateArchive *archive, MMChunkFileCopy *binding)

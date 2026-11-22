@@ -26,9 +26,9 @@ bool RichTextData::FRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber numb
     MovieArchiveHost movie{file};
     const auto editor = movie.Editor();
     RichTextStoreHost::Host host{editor, file->ReadOwner()};
-    auto services = host.Read();
     auto state = RichTextStoreHost::State(*this);
-    int result = mm_rich_text_read(&state, type, number, koskCur, RichTextStoreHost::NativeBig(), &services);
+    const MMTextChunk chunk = {type, number};
+    const int result = mm_rich_text_archive_read(&state, &chunk, &host.archive);
     if (result > 0)
         RichTextStoreHost::Publish(*this, state);
     host.Rethrow();

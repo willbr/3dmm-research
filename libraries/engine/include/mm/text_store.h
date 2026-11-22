@@ -93,6 +93,8 @@ extern "C"
     int mm_rich_text_init(MMRichTextState *, unsigned unit, int system);
     int mm_rich_text_decode(const MMReadStream *, MMRichTextDefaults *);
     int mm_rich_text_encode(const MMRichTextDefaults *, int big, unsigned char bytes[16]);
+    /* TEXT has its own encoding marker, independent of the RTXT root order. */
+    int mm_rich_text_encoding(const unsigned char marker[2], int big);
     void mm_rich_text_dispose(MMRichTextState *, const MMRichTextObjects *);
     /* Synchronous services return 1/0, -1 for allocation exceptions, -2 for other
      * exceptions. Borrowed locations are ignored on failure; groups/destinations
@@ -132,18 +134,29 @@ extern "C"
         MMI32 (*count)(void *, void *);
         int (*write)(void *, MMU32 kind, const MMStorageWriter *, void *, int order, int system);
     } MMRichTextArchiveCollections;
+    struct MMChunkOwnerRead;
+    struct MMBlockFileServices;
     typedef struct MMRichTextArchive
     {
         const struct MMMovieArchiveEditor *editor;
+        struct MMChunkOwnerRead *owner;
+        const struct MMBlockFileServices *files;
         void *context;
         int swapped_unicode_encoding;
-        /* TEXT uses the stored file extent, including when flagged packed. */
-        int (*location)(void *, MMU32 number, MMTextLocation *borrowed);
-        int (*read_at)(void *, const MMTextLocation *, MMU32 offset, void *, size_t);
-        void (*retain_file)(void *, void *);
-        void (*release_file)(void *, void *);
+        /* Native hosts can wrap these in a guard for exception reporting. */
+        int (*location)(const struct MMRichTextArchive *, MMU32 number, MMTextLocation *borrowed);
+        int (*read_at)(const struct MMRichTextArchive *, const MMTextLocation *, MMU32 offset, void *, size_t);
         const MMRichTextArchiveCollections *collections; /* NULL uses C collections. */
     } MMRichTextArchive;
+    /* The owner supplies the stored TEXT extent, including when flagged packed.
+     * It can be NULL for writing an existing extent or drafting encoded text.
+     * Without an owner, fallback files serve the state's existing file tokens.
+     * Omit both only when no file references or reads are needed. */
+    MMRichTextArchive mm_rich_text_file_archive(struct MMChunkOwnerRead *,
+                                               const struct MMBlockFileServices *fallback_files,
+                                               const struct MMMovieArchiveEditor *, int swapped_unicode_encoding);
+    int mm_rich_text_file_location(const MMRichTextArchive *, MMU32 number, MMTextLocation *borrowed);
+    int mm_rich_text_file_read(const MMRichTextArchive *, const MMTextLocation *, MMU32 offset, void *, size_t);
     typedef struct MMRichTextArchiveReader
     {
         const MMRichTextArchive *archive;

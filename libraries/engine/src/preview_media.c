@@ -432,9 +432,10 @@ static int read_stored_text(void *context, const MMReadStream *stream)
 {
     StoredCaption *caption = (StoredCaption *)context;
     MMPreviewCaptionData data = {0};
-    unsigned short marker;
+    const unsigned short one = 1;
+    unsigned char marker[2];
     int status;
-    if (!mm_read_exact(stream, 0, &marker, sizeof(marker)))
+    if (!mm_read_exact(stream, 0, marker, sizeof(marker)))
         return MM_MOVIE_BAD_FILE;
     status = read_group(caption, MM_TEXT_PROPERTIES, 0, &caption->properties);
     if (status == MM_MOVIE_OK)
@@ -442,7 +443,7 @@ static int read_stored_text(void *context, const MMReadStream *stream)
     if (status != MM_MOVIE_OK)
         return status;
     caption->text = stream;
-    caption->encoding = marker < 32768U ? marker : -1 - (int)(65535U - marker);
+    caption->encoding = mm_rich_text_encoding(marker, *(const unsigned char *)&one == 0);
     describe_caption(caption, &data);
     caption->result = convert_caption(&data, caption, &caption->services);
     return MM_MOVIE_OK;
