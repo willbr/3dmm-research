@@ -741,22 +741,19 @@ RichTextDocument::~RichTextDocument(void)
 void RichTextDocument::AssertValid(LegacyUlong grfobj)
 {
     RichTextDocument_PAR::AssertValid(grfobj);
-    AssertPo(_pglmpe, 0);
-    AssertNilOrPo(_pagcact, 0);
+    Assert(_properties && mm_text_collection_width(_properties) == 8, "invalid property rows");
+    Assert(!_arguments || mm_text_collection_width(_arguments) == 4, "invalid argument rows");
     AssertIn(_dypFontDef, 1, kswMax);
     AssertIn(_pbsf->IbMac() / size(achar), 1, kcpMaxTxrd);
 
     if (grfobj & fobjAssertFull)
     {
-        MPE mpePrev, mpe;
-        long impe;
-
-        mpePrev.spcp = (ulong)-1;
-        for (impe = _pglmpe->IvMac(); impe-- > 0;)
+        MMU32 previous = 0xffffffffUL, words[2];
+        for (MMU32 i = mm_text_collection_count(_properties); i-- > 0;)
         {
-            _pglmpe->Get(impe, &mpe);
-            Assert(mpe.spcp < mpePrev.spcp, "non-increasing mpe's");
-            mpePrev = mpe;
+            AssertDo(mm_text_collection_property(_properties, i, words), "invalid property row");
+            Assert(words[0] < previous, "non-increasing mpe's");
+            previous = words[0];
         }
         // REVIEW shonk: RichTextDocument::AssertValid: fill out
     }
@@ -769,8 +766,15 @@ void RichTextDocument::MarkMem(void)
 {
     AssertThis(fobjAssertFull);
     RichTextDocument_PAR::MarkMem();
-    MarkMemObj(_pglmpe);
-    MarkMemObj(_pagcact);
+    const auto properties = mm_text_collection_property_array(_properties, nullptr);
+    const auto arguments = mm_text_collection_argument_group(_arguments);
+    if (properties)
+        MarkPv(properties->storage->buffers[0].data);
+    if (arguments)
+    {
+        MarkPv(arguments->storage->buffers[0].data);
+        MarkPv(arguments->storage->buffers[1].data);
+    }
 }
 #endif // DEBUG
 
@@ -965,6 +969,7 @@ bool RichTextDocument::FSaveToArchive(const MMMovieArchiveEditor &editor, const 
     AssertThis(fobjAssertFull);
     AssertVarMem(pcki);
     RichTextStoreHost::Host host{editor};
+    host.UseLiveCollections();
     MMRichTextLiveServices services{};
     services.write = host.Write();
     services.text = _pbsf->CorePieces();
@@ -975,8 +980,8 @@ bool RichTextDocument::FSaveToArchive(const MMMovieArchiveEditor &editor, const 
     state.defaults = {kboCur, _oskFont, static_cast<MMI32>(_dxpDef), static_cast<MMI32>(_dypFontDef),
                       static_cast<MMU32>(_acrBack.LwGet())};
     state.font = RichTextStoreHost::Font(_stnFontDef);
-    state.properties = _pglmpe;
-    state.arguments = _pagcact;
+    state.properties = _properties;
+    state.arguments = _arguments;
     MMTextLiveOutput output = {};
     const int result = mm_rich_text_save(&state, &output, RichTextStoreHost::NativeBig(), fRedirectText, &services);
     pcki->ctg = output.chunk.type;
@@ -1109,7 +1114,7 @@ void RichTextDocument::_AddRefInAg(long jv)
 
 /***************************************************************************
     Static method: return true iff the given sprm has its argument in
-    the _pagcact.
+    the argument table.
 ***************************************************************************/
 bool RichTextDocument::_FSprmInAg(byte sprm)
 {
@@ -1214,7 +1219,7 @@ void RichTextDocument::_ReleaseRgspvm(SPVM *prgspvm, long cspvm)
 /***************************************************************************
     Apply the SPVM's to the given range of characters. Assumes that the
     inserts can't fail. If you call this, don't also call _ReleaseRgspvm.
-    The caller should have ensured that _pglmpe has room for 2 * cspvm
+    The caller should have ensured that the property table has room for 2 * cspvm
     additional entries.
 ***************************************************************************/
 void RichTextDocument::_ApplyRgspvm(long cp, long ccp, SPVM *prgspvm, long cspvm)
@@ -1766,7 +1771,7 @@ bool RichTextDocument::FGetObjectRc(long cp, PGraphicsEnvironment pgnv, PCHP pch
 ***************************************************************************/
 bool RichTextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc)
 {
-    AssertIn(icact, 0, _pagcact->IvMac());
+    AssertIn(icact, 0, mm_text_collection_count(_arguments));
     Assert(sprm >= sprmObject, 0);
     AssertPo(pgnv, 0);
     AssertVarMem(pchp);
@@ -1805,7 +1810,7 @@ bool RichTextDocument::FDrawObject(long cp, PGraphicsEnvironment pgnv, long *pxp
 ***************************************************************************/
 bool RichTextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
-    AssertIn(icact, 0, _pagcact->IvMac());
+    AssertIn(icact, 0, mm_text_collection_count(_arguments));
     Assert(sprm >= sprmObject, 0);
     AssertPo(pgnv, 0);
     AssertVarMem(pxp);

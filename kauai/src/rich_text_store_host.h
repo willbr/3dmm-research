@@ -13,6 +13,15 @@ inline bool NativeBig()
     const unsigned short one = 1;
     return *reinterpret_cast<const byte *>(&one) == 0;
 }
+inline MMTextCollectionConfig LiveCollectionConfig()
+{
+    MMTextCollectionConfig config = {};
+    config.allocator = Group::CollectionAllocator();
+#ifdef DEBUG
+    config.trash_unused = 1;
+#endif
+    return config;
+}
 inline MMRichTextDefaults Defaults(const RichTextProperties &d)
 {
     return {d.bo, d.oskFont, d.dxpDef, d.dypFont, static_cast<MMU32>(d.lwAcrBack)};
@@ -104,6 +113,12 @@ struct Host
         try { return f(); }
         catch (const std::bad_alloc &) { exception = std::current_exception(); return -1; }
         catch (...) { exception = std::current_exception(); return -2; }
+    }
+
+    void UseLiveCollections()
+    {
+        archive.collections = nullptr;
+        archive.collection_config = LiveCollectionConfig();
     }
 
     void Rethrow()

@@ -294,7 +294,7 @@ static void edited_caption_collections(void)
         caption_wire_word(gl + 20, 0x02000002U, big);
         caption_wire_word(gl + 24, 1, big);
         assert(mm_memory_stream_init(&memory, gl, sizeof(gl)));
-        assert(mm_text_collection_read(MM_TEXT_PROPERTIES, &memory.stream, &properties, &order, &system) == 1);
+        assert(mm_text_collection_read(MM_TEXT_PROPERTIES, &memory.stream, &properties, &order, &system, NULL) == 1);
 
         memset(ag, 0, sizeof(ag));
         table.kind = MM_COLLECTION_GROUP;
@@ -311,7 +311,7 @@ static void edited_caption_collections(void)
         caption_wire_word(ag + 52, 12, big);
         caption_wire_word(ag + 56, 4, big);
         assert(mm_memory_stream_init(&memory, ag, sizeof(ag)));
-        assert(mm_text_collection_read(MM_TEXT_ARGUMENTS, &memory.stream, &arguments, &arg_order, &arg_system) == 1);
+        assert(mm_text_collection_read(MM_TEXT_ARGUMENTS, &memory.stream, &arguments, &arg_order, &arg_system, NULL) == 1);
         assert(arg_order == order && arg_system == system);
         assert(mm_rich_text_init(&body, 1, MM_TEXT_WINDOWS));
         body.properties = properties;

@@ -79,7 +79,6 @@ extern "C"
     int mm_text_property_array_reserve(const MMTextPropertyArray *, MMI32 count);
     int mm_text_property_array_read(const MMArray *, MMU32 row, int big, MMU32 words[2]);
     int mm_text_property_array_write(MMArray *, MMU32 row, int big, const MMU32 words[2], int insert);
-    MMArray *mm_text_collection_property_array(MMTextCollection *, int *big);
     typedef struct MMTextPropertyServices
     {
         void *context;

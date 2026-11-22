@@ -1,7 +1,7 @@
 /* Stored rich-text and text-box persistence over typed file/collection services. */
 #ifndef MM_ENGINE_TEXT_STORE_H
 #define MM_ENGINE_TEXT_STORE_H
-#include "collection_storage.h"
+#include "collections.h"
 #include "movie_title.h"
 #include "read_stream.h"
 #ifdef __cplusplus
@@ -125,6 +125,11 @@ extern "C"
     int mm_rich_text_write_encoded(const MMRichTextState *, const MMTextEncoded *replacement, MMTextChunk *,
                                    int big, const MMRichTextWriteServices *);
 
+    typedef struct MMTextCollectionConfig
+    {
+        MMStorageAllocator allocator; /* Zero selects the C heap. */
+        int trash_unused;
+    } MMTextCollectionConfig;
     typedef struct MMRichTextArchiveCollections
     {
         void (*release)(void *, MMU32 kind, void *);
@@ -147,6 +152,7 @@ extern "C"
         int (*location)(const struct MMRichTextArchive *, MMU32 number, MMTextLocation *borrowed);
         int (*read_at)(const struct MMRichTextArchive *, const MMTextLocation *, MMU32 offset, void *, size_t);
         const MMRichTextArchiveCollections *collections; /* NULL uses C collections. */
+        MMTextCollectionConfig collection_config;
     } MMRichTextArchive;
     /* The owner supplies the stored TEXT extent, including when flagged packed.
      * It can be NULL for writing an existing extent or drafting encoded text.
@@ -185,13 +191,18 @@ extern "C"
     void mm_rich_text_archive_dispose(MMRichTextState *, const MMRichTextArchive *);
 
     typedef struct MMTextCollection MMTextCollection;
-    MMTextCollection *mm_text_collection_new(MMU32 kind);
+    MMTextCollection *mm_text_collection_new(MMU32 kind, const MMTextCollectionConfig *);
     void mm_text_collection_dispose(MMTextCollection *);
-    int mm_text_collection_read(MMU32 kind, const MMReadStream *, MMTextCollection **, int *order, int *system);
+    int mm_text_collection_read(MMU32 kind, const MMReadStream *, MMTextCollection **, int *order, int *system,
+                                const MMTextCollectionConfig *);
     int mm_text_collection_write(MMTextCollection *, const MMStorageWriter *, int order, int system);
     MMI32 mm_text_collection_width(const MMTextCollection *);
     MMU32 mm_text_collection_count(const MMTextCollection *);
     MMU32 mm_text_collection_bytes(const MMTextCollection *);
+    MMArray *mm_text_collection_property_array(MMTextCollection *, int *big);
+    MMGroup *mm_text_collection_argument_group(MMTextCollection *);
+    /* Publish native payload order when materializing rows for live edits. */
+    void mm_text_collection_use_native_order(MMTextCollection *);
     /* Property words and fixed argument references are native values. Variable
      * argument bytes are borrowed in stored form until the next mutation. */
     int mm_text_collection_property(const MMTextCollection *, MMU32 row, MMU32 words[2]);

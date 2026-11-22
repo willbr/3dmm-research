@@ -8,6 +8,7 @@ struct RichTextDocument::MaterializeHost : DocumentHost
     MaterializeHost(RichTextDocument *p, const MMMovieArchiveEditor &editor, MMChunkOwnerRead *reader)
         : DocumentHost(p), stored{editor, reader}
     {
+        stored.UseLiveCollections();
     }
     void Rethrow()
     {
@@ -36,8 +37,14 @@ struct RichTextDocument::MaterializeHost : DocumentHost
                 return 1;
             });
         };
-        s.properties = [](void *p) { return static_cast<PDynamicArray>(p)->CoreRows(); };
-        s.arguments = [](void *p) { return static_cast<PAllocatedGroup>(p)->CoreRows(); };
+        s.properties = [](void *p) {
+            return *mm_text_collection_property_array(static_cast<MMTextCollection *>(p), nullptr);
+        };
+        s.arguments = [](void *p) {
+            auto rows = mm_text_collection_argument_group(static_cast<MMTextCollection *>(p));
+            rows->storage->min_grow[1] = 16 * sizeof(MMGroupLocation);
+            return *rows;
+        };
         s.open_argument = [](void *v, MMI32 i, unsigned kind, int order, int system) -> int {
             auto &h = *static_cast<MaterializeHost *>(v);
             return h.Guard([&] {

@@ -182,7 +182,7 @@ bool TextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, boo
 bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgnv, PCHP pchp, RC *prc)
 {
     AssertThis(0);
-    AssertIn(icact, 0, _pagcact->IvMac());
+    AssertIn(icact, 0, mm_text_collection_count(_arguments));
     AssertIn(sprm, sprmMinObj, 0x100);
     AssertPo(pgnv, 0);
     AssertVarMem(pchp);
@@ -203,7 +203,7 @@ bool TextDocument::_FGetObjectRc(long icact, byte sprm, PGraphicsEnvironment pgn
 ***************************************************************************/
 bool TextDocument::_FDrawObject(long icact, byte sprm, PGraphicsEnvironment pgnv, long *pxp, long yp, PCHP pchp, RC *prcClip)
 {
-    AssertIn(icact, 0, _pagcact->IvMac());
+    AssertIn(icact, 0, mm_text_collection_count(_arguments));
     Assert(sprm >= sprmObject, 0);
     AssertPo(pgnv, 0);
     AssertVarMem(pxp);

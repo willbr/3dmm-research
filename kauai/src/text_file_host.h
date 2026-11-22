@@ -55,6 +55,10 @@ struct TextFileDocumentHost : TextDocumentFactoryHost
         else if (slot == MM_TEXT_OWNER_FILE)
             file = static_cast<PFileObject>(p);
     }
+    virtual void Release(int, void *p)
+    {
+        static_cast<BASE *>(p)->Release();
+    }
     static MMPieceTable *Pieces(void *p)
     {
         return static_cast<PFileByteStream>(p)->CorePieces();
@@ -64,7 +68,7 @@ struct TextFileDocumentHost : TextDocumentFactoryHost
         return {this, [](void *v, int slot) -> void * { return static_cast<TextFileDocumentHost *>(v)->Get(slot); },
                 [](void *v, int slot, void *p) { static_cast<TextFileDocumentHost *>(v)->Set(slot, p); },
                 [](void *, int, void *p) { static_cast<BASE *>(p)->AddRef(); },
-                [](void *, int, void *p) { static_cast<BASE *>(p)->Release(); }};
+                [](void *v, int slot, void *p) { static_cast<TextFileDocumentHost *>(v)->Release(slot, p); }};
     }
     static void Diagnostic(void *, int kind)
     {

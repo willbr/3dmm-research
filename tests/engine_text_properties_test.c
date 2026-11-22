@@ -842,7 +842,7 @@ static void caption_flow(void)
     CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &body, &source, &replacement, &changed) == MM_CAPTION_EDIT_OK);
     CHECK(changed && body.defaults.height == 22 && !replacement.text);
 
-    body.properties = mm_text_collection_new(MM_TEXT_PROPERTIES);
+    body.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, NULL);
     CHECK(body.properties != NULL);
     CHECK(mm_memory_stream_init(&memory, stored, sizeof(stored)));
     source.stored_text = &memory.stream;

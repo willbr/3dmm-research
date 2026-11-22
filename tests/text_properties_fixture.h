@@ -19,7 +19,7 @@ struct PropertyProbe : RichTextDocument
     bool Apply(long cp, long span, byte kind, LegacyLong value, LegacyLong mask = -1)
     {
         SPVM p = {kind, value, mask};
-        if (!_pglmpe->FEnsureSpace(2))
+        if (mm_array_reserve(mm_text_collection_property_array(_properties, nullptr), 2, 0) != MM_STORAGE_OK)
             return false;
         Cache();
         _ApplyRgspvm(cp, span, &p, 1);
@@ -41,30 +41,27 @@ struct PropertyProbe : RichTextDocument
     bool State(LiveTextTrace &t)
     {
         if (!t.Word(_cpMinChp) || !t.Word(_cpLimChp) || !t.Word(_cpMinPap) || !t.Word(_cpLimPap) ||
-            !DocumentStream(t, this) || !t.Word(_pglmpe->IvMac()))
+            !DocumentStream(t, this) || !t.Word(mm_text_collection_count(_properties)))
             return false;
-        for (LegacyLong i = 0; i < _pglmpe->IvMac(); ++i)
+        for (LegacyLong i = 0; i < mm_text_collection_count(_properties); ++i)
         {
-            MPE p;
-            _pglmpe->Get(i, &p);
-            if (!t.Raw(&p, 8))
+            MMU32 row[2];
+            if (!mm_text_collection_property(_properties, i, row) || !t.Raw(row, sizeof(row)))
                 return false;
         }
-        if (!t.Word(_pagcact ? _pagcact->IvMac() : 0))
+        if (!t.Word(mm_text_collection_count(_arguments)))
             return false;
-        if (_pagcact)
-            for (LegacyLong i = 0; i < _pagcact->IvMac(); ++i)
+        if (_arguments)
+            for (LegacyLong i = 0; i < mm_text_collection_count(_arguments); ++i)
             {
-                bool free = _pagcact->FFree(i);
-                if (!t.Word(free))
+                MMI32 bytes;
+                const void *data = mm_text_collection_argument(_arguments, i, &bytes);
+                if (!t.Word(data == nullptr))
                     return false;
-                if (free)
+                if (!data)
                     continue;
-                LegacyLong fixed;
-                _pagcact->GetFixed(i, &fixed);
-                std::vector<byte> bytes(_pagcact->Cb(i));
-                _pagcact->Get(i, bytes.data());
-                if (!t.Raw(&fixed, 4) || !t.Word(unsigned(bytes.size())) || !t.Raw(bytes.data(), bytes.size()))
+                const MMU32 fixed = mm_text_collection_argument_ref(_arguments, i);
+                if (!t.Raw(&fixed, 4) || !t.Word(bytes) || !t.Raw(data, bytes))
                     return false;
             }
         return true;
@@ -83,7 +80,7 @@ struct PropertyProbe : RichTextDocument
                 if (_FFindMpe(_SpcpFromSprmCp(kind, cp), nullptr, nullptr, nullptr) != ok)
                     return false;
             }
-        for (long i = -1; i <= _pglmpe->IvMac(); ++i)
+        for (long i = -1; i <= static_cast<long>(mm_text_collection_count(_properties)); ++i)
         {
             byte kind = 0x55;
             long value = 111, begin = 222, end = 333;
@@ -106,7 +103,8 @@ struct PropertyProbe : RichTextDocument
         MPE p = {_SpcpFromSprmCp(192, cp), value};
         long index;
         _FFindMpe(p.spcp, nullptr, nullptr, &index);
-        return _pglmpe->FInsert(index, &p);
+        const MMU32 row[2] = {static_cast<MMU32>(p.spcp), static_cast<MMU32>(p.lw)};
+        return mm_text_collection_put_property(_properties, index, row, 1) != 0;
     }
 };
 static bool TestTextProperties()

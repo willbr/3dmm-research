@@ -535,7 +535,7 @@ int mm_caption_edit_apply(const MMCaptionEditPlan *plan, MMI32 first, MMI32 last
         return status;
     if (!before && !body->properties)
     {
-        body->properties = mm_text_collection_new(MM_TEXT_PROPERTIES);
+        body->properties = mm_text_collection_new(MM_TEXT_PROPERTIES, NULL);
         if (!body->properties)
             return MM_CAPTION_EDIT_PROPERTIES;
     }

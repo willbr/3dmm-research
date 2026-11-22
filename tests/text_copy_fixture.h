@@ -28,17 +28,20 @@ struct CopyProbe : FormatProbe
         LegacyLong ref;
         if (!Argument(kind, bytes, &ref))
             return false;
-        MPE p = {_SpcpFromSprmCp(kind, cp), ref}, old;
-        long i = 0;
-        while (i < _pglmpe->IvMac())
+        const MMU32 row[2] = {static_cast<MMU32>(_SpcpFromSprmCp(kind, cp)), static_cast<MMU32>(ref)};
+        MMU32 i = 0;
+        while (i < mm_text_collection_count(_properties))
         {
-            _pglmpe->Get(i, &old);
-            if (old.spcp > p.spcp)
+            MMU32 old[2];
+            if (!mm_text_collection_property(_properties, i, old))
+                return false;
+            if (old[0] > row[0])
                 break;
             ++i;
         }
         achar marker = kchObject;
-        if (!_pbsf->FReplace(&marker, sizeof(marker), cp * sizeof(achar), sizeof(achar)) || !_pglmpe->FInsert(i, &p))
+        if (!_pbsf->FReplace(&marker, sizeof(marker), cp * sizeof(achar), sizeof(achar)) ||
+            !mm_text_collection_put_property(_properties, i, row, 1))
             return false;
         _textCache.first = _textCache.end = 0;
         return true;

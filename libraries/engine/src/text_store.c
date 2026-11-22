@@ -541,7 +541,7 @@ static int archive_rich_read_group(void *p, MMU32 kind, MMU32 number, void **out
         return result;
     if (archive->collections)
         return archive->collections->read(archive->context, kind, &stream, out, order, system);
-    result = mm_text_collection_read(kind, &stream, &collection, order, system);
+    result = mm_text_collection_read(kind, &stream, &collection, order, system, &archive->collection_config);
     if (result > 0)
         *out = collection;
     return result;
@@ -708,15 +708,21 @@ static int native_big(void)
     return *(const unsigned char *)&one == 0;
 }
 
-MMTextCollection *mm_text_collection_new(MMU32 kind)
+MMTextCollection *mm_text_collection_new(MMU32 kind, const MMTextCollectionConfig *config)
 {
+    const MMStorageAllocator *allocator = config && (config->allocator.resize || config->allocator.release) ?
+                                          &config->allocator : NULL;
     MMTextCollection *c;
     if (kind != MM_TEXT_PROPERTIES && kind != MM_TEXT_ARGUMENTS)
         return NULL;
     c = calloc(1, sizeof(*c));
     if (!c)
         return NULL;
-    mm_storage_init(&c->storage, NULL);
+    if (mm_storage_init(&c->storage, allocator) != MM_STORAGE_OK)
+    {
+        free(c);
+        return NULL;
+    }
     c->kind = kind;
     c->big = native_big();
     if (kind == MM_TEXT_PROPERTIES)
@@ -724,11 +730,13 @@ MMTextCollection *mm_text_collection_new(MMU32 kind)
         c->rows.array.storage = &c->storage;
         c->rows.array.width = 8;
         c->rows.array.free_count = -1;
+        c->rows.array.trash_unused = config && config->trash_unused;
     }
     else
     {
         c->rows.group.storage = &c->storage;
         c->rows.group.fixed_bytes = 4;
+        c->rows.group.trash_unused = config && config->trash_unused;
     }
     return c;
 }
@@ -742,7 +750,8 @@ void mm_text_collection_dispose(MMTextCollection *c)
     }
 }
 
-int mm_text_collection_read(MMU32 kind, const MMReadStream *stream, MMTextCollection **out, int *order, int *system)
+int mm_text_collection_read(MMU32 kind, const MMReadStream *stream, MMTextCollection **out, int *order, int *system,
+                            const MMTextCollectionConfig *config)
 {
     MMCollectionHeader h;
     MMTextCollection *c;
@@ -750,7 +759,7 @@ int mm_text_collection_read(MMU32 kind, const MMReadStream *stream, MMTextCollec
     status = mm_collection_header_read(stream, group ? MM_COLLECTION_GROUP : MM_COLLECTION_ARRAY, group, &h);
     if (status != MM_STORAGE_OK || h.width != (group ? 4U : 8U))
         return 0;
-    c = mm_text_collection_new(kind);
+    c = mm_text_collection_new(kind, config);
     if (!c)
         return -1;
     status = mm_storage_read(&c->storage, stream, h.header_bytes, h.first_bytes, h.second_bytes);
@@ -827,6 +836,16 @@ int mm_text_collection_write(MMTextCollection *c, const MMStorageWriter *writer,
 MMI32 mm_text_collection_width(const MMTextCollection *c)
 {
     return c->kind == MM_TEXT_PROPERTIES ? (MMI32)c->rows.array.width : (MMI32)c->rows.group.fixed_bytes;
+}
+
+MMGroup *mm_text_collection_argument_group(MMTextCollection *c)
+{
+    return c && c->kind == MM_TEXT_ARGUMENTS ? &c->rows.group : NULL;
+}
+
+void mm_text_collection_use_native_order(MMTextCollection *c)
+{
+    c->big = native_big();
 }
 
 MMU32 mm_text_collection_count(const MMTextCollection *c)

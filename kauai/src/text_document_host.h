@@ -41,9 +41,9 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
         if (slot == MM_TEXT_OWNER_ARCHIVE)
             return rich->_pcfl;
         if (slot == MM_TEXT_OWNER_PROPERTIES)
-            return rich->_pglmpe;
+            return rich->_properties;
         if (slot == MM_TEXT_OWNER_ARGUMENTS)
-            return rich->_pagcact;
+            return rich->_arguments;
         return TextDocumentBase::DocumentHost::Get(slot);
     }
     void Set(int slot, void *p) override
@@ -51,11 +51,31 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
         if (slot == MM_TEXT_OWNER_ARCHIVE)
             rich->_pcfl = static_cast<PChunkyFile>(p);
         else if (slot == MM_TEXT_OWNER_PROPERTIES)
-            rich->_pglmpe = static_cast<PDynamicArray>(p);
+        {
+            rich->_properties = static_cast<MMTextCollection *>(p);
+            if (p)
+            {
+                mm_text_collection_use_native_order(rich->_properties);
+                auto storage = mm_text_collection_property_array(rich->_properties, nullptr)->storage;
+                storage->min_grow[0] = 128;
+                storage->min_grow[1] = 16;
+            }
+        }
         else if (slot == MM_TEXT_OWNER_ARGUMENTS)
-            rich->_pagcact = static_cast<PAllocatedGroup>(p);
+        {
+            rich->_arguments = static_cast<MMTextCollection *>(p);
+            if (p)
+                mm_text_collection_use_native_order(rich->_arguments);
+        }
         else
             TextDocumentBase::DocumentHost::Set(slot, p);
+    }
+    void Release(int slot, void *p) override
+    {
+        if (slot == MM_TEXT_OWNER_PROPERTIES || slot == MM_TEXT_OWNER_ARGUMENTS)
+            mm_text_collection_dispose(static_cast<MMTextCollection *>(p));
+        else
+            TextDocumentBase::DocumentHost::Release(slot, p);
     }
     MMTextFileServices File()
     {
@@ -71,7 +91,8 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
     }
     MMGroup ArgumentRows() const
     {
-        return rich->_pagcact ? rich->_pagcact->CoreRows() : MMGroup{};
+        const auto rows = mm_text_collection_argument_group(rich->_arguments);
+        return rows ? *rows : MMGroup{};
     }
     MMTextFontArgumentServices FontArgument()
     {
@@ -130,14 +151,17 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
             auto &h = *static_cast<DocumentHost *>(v);
             return h.Guard([&] { return h.rich->TextDocumentBase::_FInit(); });
         };
-        s.properties = [](void *v, MMU32 n, void **out) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                *out = DynamicArray::PglNew(n);
-                return *out != nullptr;
-            });
+        s.properties = [](void *, MMU32 n, void **out) -> int {
+            Assert(n == 8, "invalid property row width");
+            const auto config = RichTextStoreHost::LiveCollectionConfig();
+            *out = mm_text_collection_new(MM_TEXT_PROPERTIES, &config);
+            return *out != nullptr;
         };
-        s.min_grow = [](void *, void *p, MMU32 n) { static_cast<PDynamicArray>(p)->SetMinGrow(n); };
+        s.min_grow = [](void *, void *p, MMU32 n) {
+            auto rows = mm_text_collection_property_array(static_cast<MMTextCollection *>(p), nullptr);
+            rows->storage->min_grow[0] = CbRoundToLong(n * rows->width);
+            rows->storage->min_grow[1] = CbRoundToLong(LwDivAway(n, 8));
+        };
         s.font = [](void *v, int system, MMI32 height) -> int {
             auto &h = *static_cast<DocumentHost *>(v);
             return h.Guard([&] {

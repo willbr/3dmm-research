@@ -17,6 +17,7 @@
 #define RTXT_H
 #include "rich_text_data.h"
 #include "mm/text_access.h"
+#include "mm/text_store.h"
 #include "mm/text_undo.h"
 
 using namespace Chunky;
@@ -279,8 +280,8 @@ class RichTextDocument : public RichTextDocument_PAR
     using RDOP = RichTextProperties;
 
     PChunkyFile _pcfl;
-    PDynamicArray _pglmpe;
-    PAllocatedGroup _pagcact; // for sprm's that have more than a long's worth of data
+    MMTextCollection *_properties = nullptr;
+    MMTextCollection *_arguments = nullptr;
 
     long _onnDef; // default font and font size
     long _dypFontDef;

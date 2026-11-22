@@ -46,7 +46,7 @@ struct RichTextDocument::CopyHost : ReplaceHost
         s.warning = [](void *, int kind) {
             if (kind == MM_TEXT_COPY_GROW)
             {
-                Warn("growing _pglmpe failed");
+                Warn("growing the property table failed");
             }
             else
             {

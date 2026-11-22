@@ -20810,3 +20810,27 @@ and camera identities and eight of 11 canvases. Their pixel differences on
 frames 4 through 6 of the first scene stayed within the caption area.
 
 Evidence is under tmp/c89-rich-text-source.
+
+## C89 live rich-text collections in Studio (22 November 2026)
+
+Studio text boxes and help documents now own the same C89 property arrays and
+argument groups as Marcus's caption editor. Loads transfer the decoded
+collections into the document and normalize the stored row order for live
+edits. Save and undo use those collections directly. The native document
+supplies allocation and debug marking, font mapping and view hooks.
+
+All 193 rebuilt C89 checks passed. Movie save/load and text-store passed on
+native x64, native x86 and SDL. The Marcus caption draft, edit, undo, save and
+reopen checks passed. Fourteen native x64 snapshots matched their prior bytes,
+including mixed-order materialization, property edits, copying, help text,
+undo and the text-store trace. Studio's caption save matched byte for byte.
+The camera save preserved the archive graph and payloads, with two TMPL index
+padding bytes differing.
+
+All six seek captures in 20261122T020357Z-d3254b1e matched their respective
+prior canvases and camera indices. Retail and V3DMM agreed on all 60 camera
+frames and all 11 caption frames. SDL and Marcus reproduced their prior
+caption canvases on all 11 frames, including the three caption-area pixel
+differences from retail.
+
+Evidence is under tmp/c89-live-rich-text-collections.

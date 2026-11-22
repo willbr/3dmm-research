@@ -10,11 +10,10 @@ struct RichTextDocument::PropertyHost : DocumentHost
         : DocumentHost(p), propertyArray{
               p,
               [](void *v, int *big) {
-                  *big = RichTextStoreHost::NativeBig();
-                  return static_cast<RichTextDocument *>(v)->_pglmpe->CoreRows();
+                  return *mm_text_collection_property_array(static_cast<RichTextDocument *>(v)->_properties, big);
               },
               [](void *v, const MMArray *rows) {
-                  static_cast<RichTextDocument *>(v)->_pglmpe->PublishCoreRows(*rows);
+                  *mm_text_collection_property_array(static_cast<RichTextDocument *>(v)->_properties, nullptr) = *rows;
               },
               [](void *) { Assert(false, "invalid property row mutation"); },
               0}
@@ -46,8 +45,10 @@ struct RichTextDocument::PropertyHost : DocumentHost
     MMTextArgumentServices Arguments()
     {
         static const MMTextLiveArgumentGroup group = {
-            [](void *p) { return static_cast<PAllocatedGroup>(p)->CoreRows(); },
-            [](void *p, const MMGroup *rows) { static_cast<PAllocatedGroup>(p)->PublishCoreRows(*rows); },
+            [](void *p) { return *mm_text_collection_argument_group(static_cast<MMTextCollection *>(p)); },
+            [](void *p, const MMGroup *rows) {
+                *mm_text_collection_argument_group(static_cast<MMTextCollection *>(p)) = *rows;
+            },
             [](void *) { Assert(false, "invalid group mutation"); }};
         MMTextArgumentServices s = {};
         s.context = this;
@@ -60,8 +61,20 @@ struct RichTextDocument::PropertyHost : DocumentHost
         s.create = [](void *v, MMI32 bytes, void **out) -> int {
             auto &h = *static_cast<PropertyHost *>(v);
             return h.Guard([&] {
-                *out = AllocatedGroup::PagNew(sizeof(LegacyLong), 1, bytes);
-                return *out != nullptr;
+                const auto config = RichTextStoreHost::LiveCollectionConfig();
+                auto owned = mm_text_collection_new(MM_TEXT_ARGUMENTS, &config);
+                if (!owned)
+                    return false;
+                auto rows = mm_text_collection_argument_group(owned);
+                rows->storage->min_grow[0] = 16 * rows->fixed_bytes;
+                rows->storage->min_grow[1] = 16 * sizeof(MMGroupLocation);
+                if (mm_group_reserve(rows, 1, bytes, 0) != MM_STORAGE_OK)
+                {
+                    mm_text_collection_dispose(owned);
+                    return false;
+                }
+                *out = owned;
+                return true;
             });
         };
         mm_text_live_argument_rows(&s.rows, &group);

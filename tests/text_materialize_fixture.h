@@ -33,31 +33,28 @@ struct MaterializeProbe : RichTextDocument
         if (!t.Raw(v, sizeof(v)) || !t.Raw(_stnFontDef.Prgch(), _stnFontDef.Cch() * sizeof(achar)) ||
             !t.Raw(opened.data(), opened.size() * 4) || !DocumentStream(t, this))
             return false;
-        if (!t.Word(_pglmpe ? _pglmpe->IvMac() : 0))
+        if (!t.Word(mm_text_collection_count(_properties)))
             return false;
-        if (_pglmpe)
-            for (LegacyLong i = 0; i < _pglmpe->IvMac(); ++i)
+        if (_properties)
+            for (LegacyLong i = 0; i < mm_text_collection_count(_properties); ++i)
             {
-                RichTextPropertyEntry p;
-                _pglmpe->Get(i, &p);
-                if (!t.Raw(&p, 8))
+                MMU32 row[2];
+                if (!mm_text_collection_property(_properties, i, row) || !t.Raw(row, sizeof(row)))
                     return false;
             }
-        if (!t.Word(_pagcact ? _pagcact->IvMac() : 0))
+        if (!t.Word(mm_text_collection_count(_arguments)))
             return false;
-        if (_pagcact)
-            for (LegacyLong i = 0; i < _pagcact->IvMac(); ++i)
+        if (_arguments)
+            for (LegacyLong i = 0; i < mm_text_collection_count(_arguments); ++i)
             {
-                bool free = _pagcact->FFree(i);
-                if (!t.Word(free))
+                MMI32 bytes;
+                const void *data = mm_text_collection_argument(_arguments, i, &bytes);
+                if (!t.Word(data == nullptr))
                     return false;
-                if (free)
+                if (!data)
                     continue;
-                LegacyLong fixed;
-                _pagcact->GetFixed(i, &fixed);
-                std::vector<byte> bytes(_pagcact->Cb(i));
-                _pagcact->Get(i, bytes.data());
-                if (!t.Raw(&fixed, 4) || !t.Word(unsigned(bytes.size())) || !t.Raw(bytes.data(), bytes.size()))
+                const MMU32 fixed = mm_text_collection_argument_ref(_arguments, i);
+                if (!t.Raw(&fixed, 4) || !t.Word(bytes) || !t.Raw(data, bytes))
                     return false;
             }
         return true;

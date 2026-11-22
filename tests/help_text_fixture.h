@@ -31,22 +31,21 @@ struct HelpTextProbe : Help::TextDocument
         if (!_FEnsureInAg(kind, const_cast<byte *>(bytes.data()), long(bytes.size()), &ref))
             return false;
         bool ok = _FOpenArg(ref - 1, kind, order, koskCur);
-        std::vector<byte> out(_pagcact->Cb(ref - 1));
-        _pagcact->Get(ref - 1, out.data());
-        return t.Word(ok) && t.Word(unsigned(out.size())) && t.Raw(out.data(), out.size());
+        MMI32 count;
+        const void *out = mm_text_collection_argument(_arguments, ref - 1, &count);
+        return out && t.Word(ok) && t.Word(count) && t.Raw(out, count);
     }
     bool State(LiveTextTrace &t)
     {
         Help::Topic topic;
         GetHtop(&topic);
         if (!t.Raw(&topic, 32) || !t.Word(FInternal()) || !t.Word(_textUndo.suspended) || !DocumentStream(t, this) ||
-            !t.Word(_pglmpe->IvMac()))
+            !t.Word(mm_text_collection_count(_properties)))
             return false;
-        for (LegacyLong i = 0; i < _pglmpe->IvMac(); ++i)
+        for (LegacyLong i = 0; i < mm_text_collection_count(_properties); ++i)
         {
-            MPE p;
-            _pglmpe->Get(i, &p);
-            if (!t.Raw(&p, 8))
+            MMU32 row[2];
+            if (!mm_text_collection_property(_properties, i, row) || !t.Raw(row, sizeof(row)))
                 return false;
         }
         for (long cp = 0; cp < CpMac(); ++cp)
