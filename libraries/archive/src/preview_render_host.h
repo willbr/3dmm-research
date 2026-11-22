@@ -10,7 +10,6 @@ struct Preview::Impl::RenderHost
     PreviewImage image;
     br_camera camera = {};
     std::exception_ptr exception;
-    bool readBodyBounds = true;
     int onlyObject = view ? view->onlyObject : -1;
     const PreviewBounds *orbitBounds = view ? view->orbitBounds : nullptr;
     static PreviewProjection Projection(const MMPreviewProjection &p)
@@ -35,9 +34,14 @@ struct Preview::Impl::RenderHost
         s.movie = impl->assets.MovieSession();
         s.base_palette = impl->palette;
         s.background = impl->background.get();
-        s.omit_background = onlyObject >= 0;
-        if (impl->live.publication.phase && impl->live.publication.frame == impl->live.status.frame)
-            s.position = &impl->live.publication;
+        s.live = &impl->live;
+        s.body_asset = impl->body;
+        s.model_asset = impl->model;
+        s.body_geometry = &mm_kauai_body_renderer()->geometry;
+        s.only_object = onlyObject;
+        s.actor = [](const void *handle) {
+            return static_cast<const Internal::PreviewActor *>(handle)->Core();
+        };
         s.math.sin = [](float x) { return std::sin(x); };
         s.math.cos = [](float x) { return std::cos(x); };
         s.math.tan = [](float x) { return std::tan(x); };
@@ -49,60 +53,6 @@ struct Preview::Impl::RenderHost
         s.math.scalar = [](float x) -> MMI32 { return BrFloatToScalar(x); };
         s.math.scalar_double = [](double x) -> MMI32 { return BrFloatToScalar(x); };
         s.math.angle = [](float x) -> unsigned short { return BR_ANGLE_DEG(x); };
-        s.ready = [](void *v) -> int { return static_cast<RenderHost *>(v)->impl->live.status.ready; };
-        s.describe = [](void *v, MMPreviewData *d) {
-            auto &h = *static_cast<RenderHost *>(v);
-            auto &i = *h.impl;
-            d->scene = i.live.status.scene;
-            d->model = i.model ? mm_model_owner_resource(i.model)->handle : nullptr;
-            const auto *model = static_cast<const br_model *>(d->model);
-            d->model_resource = i.model;
-            if (i.model)
-                for (unsigned a = 0; a < 3; ++a)
-                {
-                    d->model_low[a] = BrScalarToFloat(model->bounds.min.v[a]);
-                    d->model_high[a] = BrScalarToFloat(model->bounds.max.v[a]);
-                }
-        };
-        s.body_count = [](void *v) -> MMU32 {
-            return static_cast<MMU32>(static_cast<RenderHost *>(v)->impl->actors.size() + 1);
-        };
-        s.body = [](void *v, MMU32 index, MMPreviewBody *out) -> int {
-            auto &h = *static_cast<RenderHost *>(v);
-            auto &i = *h.impl;
-            PBody body = nullptr;
-            if (h.onlyObject >= 0 && index != MMU32(h.onlyObject + 1)) return 0;
-            std::uint64_t order = 0;
-            if (!index)
-                body = i.body;
-            else if (i.actors[index - 1]->Visible())
-            {
-                body = i.actors[index - 1]->Pbody();
-                order = i.actors[index - 1]->DrawOrder();
-            }
-            if (!body)
-                return 0;
-            const auto &shape = mm_body_owner_state(body)->shape;
-            out->draw = {shape.bindings, shape.part_count};
-            out->resource = body;
-            out->owner = static_cast<MMI32>(index) - 1;
-            out->order_low = static_cast<MMU32>(order);
-            out->order_high = static_cast<MMU32>(order >> 32);
-            if (!h.readBodyBounds)
-                return 1;
-            MMBodyBounds bounds;
-            mm_brender_body_bounds(mm_kauai_body_renderer(), body, 1, &bounds);
-            for (int axis = 0; axis < 3; ++axis)
-            {
-                out->low[axis] = BrScalarToFloat(bounds.min[axis]);
-                out->high[axis] = BrScalarToFloat(bounds.max[axis]);
-            }
-            return 1;
-        };
-        s.retain_pose_resource = [](void *, void *object) { mm_body_owner_retain(static_cast<PBody>(object)); };
-        s.release_pose_resource = [](void *, void *object) { mm_body_owner_release(static_cast<PBody>(object)); };
-        s.retain_model = [](void *, void *model) { mm_model_owner_retain(static_cast<PModel>(model)); };
-        s.release_model = [](void *, void *model) { mm_model_owner_release(static_cast<PModel>(model)); };
         s.object_bounds = [](void *v, MMI32 object, float corners[24], int *valid) -> int {
             auto &h = *static_cast<RenderHost *>(v);
             try

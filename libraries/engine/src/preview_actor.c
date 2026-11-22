@@ -40,6 +40,16 @@ void mm_preview_actor_init(MMPreviewActor *p)
     }
     p->orientation_reset = 1;
 }
+
+void mm_preview_actor_shown(MMPreviewActor *p)
+{
+    if (p->draw_clock)
+    {
+        *p->draw_clock = mm_wide_add(*p->draw_clock, mm_wide_i32(1));
+        p->draw_order = *p->draw_clock;
+    }
+}
+
 void mm_preview_actor_dispose(MMPreviewActor *p, const MMPreviewActorServices *s)
 {
     if (p->body)
@@ -186,6 +196,8 @@ int mm_preview_actor_begin_draft(MMPreviewActor *p, MMActorSounds *motion, MMPre
     if (result <= 0)
         goto fail;
     draft->original = *p;
+    if (p->draw_clock)
+        draft->draw_clock = *p->draw_clock;
     mm_actor_sounds_swap(motion, &draft->motion);
     p->body = body;
     install_track(p, &candidate);
@@ -212,6 +224,8 @@ void mm_preview_actor_end_draft(MMPreviewActor *p, MMActorSounds *motion, MMPrev
     mm_actor_sounds_swap(motion, &draft->motion);
     mm_actor_sounds_dispose(&draft->motion);
     mm_actor_track_dispose(&candidate, s->tags);
+    if (p->draw_clock)
+        *p->draw_clock = draft->draw_clock;
     draft->active = 0;
 }
 
@@ -256,6 +270,8 @@ int mm_preview_actor_replace_track(MMPreviewActor *p, MMI32 source, const MMPrev
         mm_actor_track_dispose(&live, s->tags);
         return 1;
     }
+    /* Replay may have completed an entrance before the failed event. */
+    original.draw_order = p->draw_order;
     *p = original;
     edit->restore_costume(edit->context);
 

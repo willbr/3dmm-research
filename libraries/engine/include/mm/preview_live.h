@@ -3,6 +3,7 @@
 #define MM_ENGINE_PREVIEW_LIVE_H
 #include "collections.h"
 #include "movie_frame.h"
+#include "wide.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -39,6 +40,7 @@ extern "C"
         MMPreviewLiveArray scenes, props, actors, cameras, original_cameras;
         MMPreviewLiveStatus status;
         MMMovieLiveFrame publication;
+        MMWide draw_clock;
         MMU32 original_actors, initial_camera;
         MMI32 original_first, original_last;
         int virtual_scene;

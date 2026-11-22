@@ -84,7 +84,7 @@ struct Preview::Impl::LiveHost
                 auto impl = h.impl;
                 return static_cast<Internal::PreviewActor *>(a)->Create(
                     d, [impl](const TAGOnFile &tag) { return impl->Resolve(tag); },
-                    [impl](PTemplate value) { impl->BindTemplate(value); }, impl->visibilityClock);
+                    [impl](PTemplate value) { impl->BindTemplate(value); }, impl->live.draw_clock);
             }
             catch (...)
             {

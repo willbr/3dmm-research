@@ -1189,7 +1189,11 @@ instance ordering/tree copying, lighting/material overrides, frustum depth fitti
 raster dispatch and indexed/depth output composition now also use C89. Typed
 BRender and host rasterizer/image services remain adapters. Preview validates
 and prepares custom light rigs in C89 and renders them with a private orbit.
-Marcus storyboards pass their C89 light values directly. Preview picking now
+Marcus storyboards pass their C89 light values directly. Render and pick bind
+typed bodies and models and use the live frame publication in C89. Camera
+matching shares the live scene and body lookup. The C89 live scene owns the
+entrance clock, and actor drafts restore both the clock and the actor's draw
+order. Preview picking now
 also uses C89 for validation, coordinates, camera/temporary ownership, stable
 body copying, nearest-hit/texture policy and
 authored-background occlusion. Native adapters supply typed SDK primitives.

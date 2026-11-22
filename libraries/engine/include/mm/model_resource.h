@@ -93,6 +93,7 @@ extern "C"
     const MMResourceObjectServices *mm_model_owner_services(void);
     const MMResourceObject *mm_model_owner_binding(const MMModelOwner *);
     const MMModelResource *mm_model_owner_resource(const MMModelOwner *);
+    void mm_model_owner_describe(const MMModelOwner *, MMModelDescription *);
     MMI32 mm_model_owner_references(const MMModelOwner *);
     void mm_model_owner_retain(MMModelOwner *);
     void mm_model_owner_release(MMModelOwner *);

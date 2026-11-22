@@ -7,6 +7,7 @@
 #include "actor_track.h"
 #include "actor_sound.h"
 #include "resource_cache.h"
+#include "wide.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -22,6 +23,7 @@ extern "C"
         MMPreviewActorShape shape;
         MMI32 original[3];
         void *tmpl, *body, *route, *events, *material_override;
+        MMWide draw_order, *draw_clock;
         int inactive, orientation_reset, sound_display;
         MMI32 event_source;
     } MMPreviewActor;
@@ -71,6 +73,9 @@ extern "C"
      * transferred. The native host transports exceptions after C returns. */
     void mm_preview_actor_init(MMPreviewActor *);
     void mm_preview_actor_dispose(MMPreviewActor *, const MMPreviewActorServices *);
+    /* Record an entrance against the borrowed scene clock, with unsigned
+     * ordering of the two words. Hides leave the last entrance alone. */
+    void mm_preview_actor_shown(MMPreviewActor *);
     int mm_preview_actor_load(MMPreviewActor *, MMU32 number, const MMChunkAccess *, int require_template_target,
                               const MMPreviewActorServices *);
     /* Create a new actor with owned C tables. Supply the native tag services. */
@@ -82,6 +87,7 @@ extern "C"
     {
         MMPreviewActor original;
         MMActorSounds motion;
+        MMWide draw_clock;
         int active;
     } MMPreviewActorDraft;
     /* Use an actor with owned tracks and a zero-initialized draft. A successful begin installs a

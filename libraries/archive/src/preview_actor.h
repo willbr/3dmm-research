@@ -27,8 +27,6 @@ class PreviewActor
                     MMActorSounds *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
     std::string ActionName(LegacyLong action) const;
     MMActorSounds motionSounds;
-    std::uint64_t *visibilityClock = nullptr;
-    mutable std::uint64_t lastShown = 0;
     PreviewSoundCue SoundCue(const MMActorSound &sound) const;
 
   public:
@@ -39,13 +37,14 @@ class PreviewActor
     }
     ChunkNumber number = 0;
     PBody Pbody() const { return static_cast<PBody>(core.body); }
+    const MMPreviewActor *Core() const { return &core; }
     std::vector<PreviewSoundCue> sounds;
     ~PreviewActor();
     bool Load(const MMMovieSessionGraph &, ChunkNumber number,
               std::function<MMResourceCache *(const TAGOnFile &)> resolver,
-              std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
+              std::function<void(PTemplate)> bindTemplate, MMWide &drawClock);
     bool Create(const PreviewPropDefinition &, std::function<MMResourceCache *(const TAGOnFile &)> resolver,
-                std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
+                std::function<void(PTemplate)> bindTemplate, MMWide &drawClock);
     bool Seek(LegacyLong frame);
     bool Translate(const float delta[3]);
     bool SetOffset(const float offset[3]);
@@ -72,10 +71,6 @@ class PreviewActor
     bool Visible() const
     {
         return core.state.onStage != 0;
-    }
-    std::uint64_t DrawOrder() const
-    {
-        return lastShown;
     }
     LegacyLong FirstFrame() const
     {

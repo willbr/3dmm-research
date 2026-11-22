@@ -794,6 +794,7 @@ static void track_draft(void)
     MMActorSounds motion;
     MMActorEvent event = {0};
     MMActorSound sound = {0};
+    MMWide clock = {(MMU32)-1, 1};
     int blocks;
     setup_owned(&h);
     assert(mm_preview_actor_create(&h.actor, &d, &h.services));
@@ -801,6 +802,9 @@ static void track_draft(void)
     h.services.release_body = release_draft_body;
     assert(mm_actor_sounds_init(&motion, NULL));
     assert(mm_actor_sounds_insert(&motion, &event, &sound));
+    h.actor.draw_clock = &clock;
+    mm_preview_actor_shown(&h.actor);
+    assert(h.actor.draw_order.low == 0 && h.actor.draw_order.high == 2);
     original = h.actor;
     blocks = h.alloc_live;
 
@@ -819,10 +823,13 @@ static void track_draft(void)
     assert(h.actor.route != original.route && h.actor.events != original.events);
     assert(mm_actor_events_delete(mm_preview_actor_track(&h.actor).events, 1));
     h.actor.state.frame = 33;
+    mm_preview_actor_shown(&h.actor);
+    assert(h.actor.draw_order.low == 1 && clock.low == 1);
     mm_actor_sounds_clear(&motion);
     mm_preview_actor_end_draft(&h.actor, &motion, &draft, &h.services);
     assert(!draft.active && !h.draft_bodies && h.alloc_live == blocks);
     assert(!memcmp(&h.actor, &original, sizeof(original)) && motion.count == 1);
+    assert(clock.low == 0 && clock.high == 2);
     assert(mm_actor_events_count(mm_preview_actor_track(&h.actor).events) == 3);
     mm_actor_sounds_dispose(&motion);
     dispose(&h);

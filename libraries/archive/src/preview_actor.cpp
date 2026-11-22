@@ -37,9 +37,9 @@ PreviewActor::~PreviewActor()
 }
 bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
                         std::function<MMResourceCache *(const TAGOnFile &)> resolver,
-                        std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock)
+                        std::function<void(PTemplate)> bindTemplate, MMWide &drawClock)
 {
-    this->visibilityClock = &visibilityClock;
+    core.draw_clock = &drawClock;
     this->number = number;
     resolve = resolver;
     Host host = {this, &graph, &bindTemplate};
@@ -50,10 +50,10 @@ bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
 }
 bool PreviewActor::Create(const PreviewPropDefinition &definition,
                           std::function<MMResourceCache *(const TAGOnFile &)> resolver,
-                          std::function<void(PTemplate)> bindTemplate, std::uint64_t &clock)
+                          std::function<void(PTemplate)> bindTemplate, MMWide &drawClock)
 {
     resolve = std::move(resolver);
-    visibilityClock = &clock;
+    core.draw_clock = &drawClock;
     number = definition.number;
     MMPreviewActorDefinition d = {};
     d.header.order = kboCur;
@@ -214,13 +214,9 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
 struct PreviewActor::TrackDraft
 {
     PreviewActor &actor;
-    std::uint64_t shown, clock;
     MMPreviewActorDraft draft = {};
     std::vector<PreviewSoundCue> cues;
-    explicit TrackDraft(PreviewActor &a)
-        : actor(a), shown(a.lastShown), clock(*a.visibilityClock)
-    {
-    }
+    explicit TrackDraft(PreviewActor &a) : actor(a) {}
     bool Begin()
     {
         Host host = {&actor};
@@ -238,8 +234,6 @@ struct PreviewActor::TrackDraft
         const auto services = host.Services();
         mm_preview_actor_end_draft(&actor.core, &actor.motionSounds, &draft, &services);
         actor.sounds.swap(cues);
-        actor.lastShown = shown;
-        *actor.visibilityClock = clock;
     }
     bool Write(const std::string &path, bool withRoute) const
     {
@@ -349,19 +343,19 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
     struct Host
     {
         const PreviewActor *actor;
+        MMPreviewActor *live;
         MMActorEventTable *events;
         MMActorSounds *motion;
         std::vector<PreviewSoundCue> *cues;
         std::exception_ptr failure;
-    } host = {this, events.events, motion, cues};
+    } host = {this, metadataOnly ? nullptr : const_cast<MMPreviewActor *>(&core), events.events, motion, cues};
     EngineActorEffectHost body = {Ptmpl(), Pbody(), motion, &host};
     auto effects = body.Services();
     effects.action_count = [](void *p) -> MMI32 { return EngineTemplate::Cactn(EngineActorEffectHost::From(p).tmpl); };
     effects.visibility = [](void *p, int shown) {
-        const auto actor = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->actor;
-        // Retain attachment order, as in the Studio world.
-        if (shown)
-            actor->lastShown = ++*actor->visibilityClock;
+        auto *live = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->live;
+        if (shown && live)
+            mm_preview_actor_shown(live);
     };
     effects.fetch_material = [](void *p, const MMTag *tag) -> void * {
         const auto actor = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->actor;

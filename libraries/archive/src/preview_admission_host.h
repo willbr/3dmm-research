@@ -249,7 +249,7 @@ struct Preview::Impl::AdmissionHost
                 auto impl = h.impl;
                 bool ok = actor->Load(
                     h.sceneSource.graph, number, [impl](const TAGOnFile &tag) { return impl->Resolve(tag); },
-                    [impl](PTemplate t) { impl->BindTemplate(t); }, impl->visibilityClock);
+                    [impl](PTemplate t) { impl->BindTemplate(t); }, impl->live.draw_clock);
                 *out = actor.release();
                 return ok;
             });

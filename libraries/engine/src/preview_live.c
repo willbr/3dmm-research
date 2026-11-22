@@ -96,6 +96,7 @@ void mm_preview_live_clear(MMPreviewLive *p, const MMPreviewLiveServices *s)
     p->virtual_scene = 0;
     memset(&p->status, 0, sizeof(p->status));
     memset(&p->publication, 0, sizeof(p->publication));
+    p->draw_clock = mm_wide_i32(0);
 }
 void mm_preview_live_dispose(MMPreviewLive *p, const MMPreviewLiveServices *s)
 {

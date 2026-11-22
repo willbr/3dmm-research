@@ -102,7 +102,7 @@ int mm_preview_camera_match(float aspect, MMPreviewOrbit *orbit, MMPreviewCamera
     memset(out, 0, sizeof(*out));
     out->move_speed = 1;
     out->vertical_fov = 45;
-    if (!s->ready(s->context) || !finitef(aspect) || aspect <= 0)
+    if (!mm_preview_ready(s) || !finitef(aspect) || aspect <= 0)
         return MM_PREVIEW_CAMERA_INVALID;
     memset(&d, 0, sizeof(d));
     mm_preview_describe(&d, s);
@@ -137,9 +137,9 @@ int mm_preview_camera_match(float aspect, MMPreviewOrbit *orbit, MMPreviewCamera
         sine += right[axis] * base_up[axis];
     }
     out->roll = m->atan2(sine, cosine) * 57.2957795f;
-    n = s->body_count(s->context);
+    n = mm_preview_body_count(s);
     for (i = 0; i < n; ++i)
-        if (s->body(s->context, i, &body))
+        if (mm_preview_read_body(&body, i, 1, s))
         {
             for (axis = 0; axis < 3; ++axis)
             {

@@ -124,7 +124,6 @@ struct Preview::Impl
         const float oldPosition[] = {before.x, before.y, before.z}, newPosition[] = {after.x, after.y, after.z};
         mm_preview_orbit_move(&orbit, object, oldPosition, newPosition);
     }
-    std::uint64_t visibilityClock = 0;
     std::string resolveError;
     void BindTemplate(PTemplate value)
     {
@@ -203,7 +202,6 @@ struct Preview::Impl
         MMPreviewLiveServices services = {};
         services.actor_release = [](void *, void *a) { delete static_cast<Internal::PreviewActor *>(a); };
         mm_preview_live_clear(&live, &services);
-        visibilityClock = 0;
         background.reset();
         if (!preserveFraming)
             mm_preview_orbit_reset(&orbit);
@@ -701,7 +699,6 @@ try
     distance = std::numeric_limits<float>::infinity();
     Internal::ClearDiagnostic();
     Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
-    host.readBodyBounds = false;
     auto render = host.Services();
     MMPreviewPickServices services = {};
     services.render = &render;

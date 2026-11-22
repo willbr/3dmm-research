@@ -217,6 +217,12 @@ const MMResourceObject *mm_model_owner_binding(const MMModelOwner *owner) { retu
 const MMModelResource *mm_model_owner_resource(const MMModelOwner *owner) { return &owner->model; }
 MMI32 mm_model_owner_references(const MMModelOwner *owner) { return owner->references.count; }
 
+void mm_model_owner_describe(const MMModelOwner *owner, MMModelDescription *out)
+{
+    const MMModelServices *s = owner->host->renderer;
+    s->describe(s->context, owner->model.handle, out);
+}
+
 static void destroy_model(void *object)
 {
     MMModelOwner *owner = object;

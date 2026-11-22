@@ -22263,3 +22263,29 @@ order. Seek and playback order also matched the retained retail and V3DMM
 captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows and checks are under `tmp/c89-storyboard-lights`.
+
+## C89 Preview live pose binding (22 November 2026)
+
+The C89 render and pick paths bind the live scene status, current frame
+publication, typed bodies and standalone models directly. Camera matching
+shares the same live scene and body lookup. The live owner keeps the two-word
+entrance clock, and actor drafts restore the actor's draw order and the clock.
+Picking and actor-tree copies skip geometry bounds.
+
+The live, camera, pick, render and light traces and the actor preview image
+matched all 31,760,673 bytes from the previous build. The C89 actor fixture
+checks order rollover and draft restoration. The native admission trace for
+45 actors, 21 props and a standalone model retained fingerprint `D363793C`.
+Three storyboard packages
+reproduced all 48 payloads and their child links. The 188 retail-content camera
+traces, five World snapshots, Studio saves and canvas captures, and the Marcus
+startup canvas also matched. All 249 selected test runs passed. The existing
+`scene-load` assertion reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+The four runs in suite `20261122T164859Z-0b929c4b` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order also matched the retained retail and V3DMM
+captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-live-pose`.

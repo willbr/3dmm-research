@@ -97,7 +97,7 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
     float scale;
     double denominator, distance;
     int bg, result;
-    if (!r.ready(r.context))
+    if (!mm_preview_ready(&r))
         return MM_PREVIEW_PICK_INVALID;
     mm_preview_pose_describe(&state->pose, &r);
     if (!d->scene || !p->valid || width < 64 || height < 64 || width > 4096 || height > 4096 ||
@@ -170,11 +170,11 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
         return MM_PREVIEW_PICK_SINGULAR;
     r.tree.context = state;
     r.tree.owner = owner;
-    if (!mm_preview_pose_bodies(&state->pose, &r) ||
+    if (!mm_preview_pose_bodies(&state->pose, 0, &r) ||
         mm_preview_pose_submit(&state->pose, frame->world, &state->scratch, &r) != MM_PREVIEW_OK ||
         (d->model && !r.add_model(r.context, frame->world, d->model)))
         return MM_PREVIEW_PICK_MODELS;
-    mm_movie_render_scene_publish(&state->pose.render, &camera, r.position, frame);
+    mm_movie_render_scene_publish(&state->pose.render, &camera, mm_preview_position(&r), frame);
     if (!bg && d->background)
     {
         memset(&mesh, 0, sizeof(mesh));
