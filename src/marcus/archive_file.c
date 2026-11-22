@@ -1,4 +1,5 @@
 #include "archive_file.h"
+#include "storyboard_store.h"
 #include "mm/actor_archive.h"
 #include "mm/movie_scene_journal.h"
 #include "mm/scene_data.h"
@@ -149,25 +150,33 @@ void marcus_archive_input_close(MarcusArchiveInput *input)
     input->reader = NULL;
 }
 
-typedef struct TextArchives
+typedef struct ActorArchives
 {
     MMPrivateArchive *source, *destination;
-} TextArchives;
+} ActorArchives;
 
-static int copy_text_asset(void *p, MMU32 type, MMU32 number, MMU32 *copied)
+static int copy_actor_asset(void *p, MMU32 type, MMU32 number, MMU32 *copied)
 {
-    const TextArchives *archives = p;
+    const ActorArchives *archives = p;
     return mm_private_archive_copy(archives->source, archives->destination, type, number, 0, copied);
+}
+
+static MMU32 actor_name(unsigned short *units, unsigned width, const MMTextHost *text, const char *ansi)
+{
+    MMStringValue name = {0};
+    name.buffer = units;
+    name.unit = width;
+    mm_string_from_ansi(&name, text, ansi, strlen(ansi));
+    return width == 1 ? *(const unsigned char *)units : units[0];
 }
 
 static int replace_text(MMPrivateArchive *file, MMU32 actor, const MMMovieActorTextEdit *edit,
                         const MarcusArchiveDrafts *drafts, int *detail)
 {
-    TextArchives archives;
+    ActorArchives archives;
     MMMovieArchiveEditor editor;
     MMActorAuthorHost host = {0};
     MMActorTextReplacement request;
-    MMStringValue name = {0};
     unsigned short units[257];
     int status;
     *detail = 0;
@@ -176,18 +185,15 @@ static int replace_text(MMPrivateArchive *file, MMU32 actor, const MMMovieActorT
         return MARCUS_ARCHIVE_TEXT_OPEN;
     archives.destination = file;
     editor = mm_private_archive_editor(file);
-    name.buffer = units;
-    name.unit = editor.text_unit;
-    mm_string_from_ansi(&name, drafts->text, edit->name.legacy, strlen(edit->name.legacy));
     request.actor = actor;
-    request.name = (const unsigned char *)units + name.unit;
-    request.characters = name.unit == 1 ? *(const unsigned char *)units : units[0];
+    request.name = (const unsigned char *)units + editor.text_unit;
+    request.characters = actor_name(units, editor.text_unit, drafts->text, edit->name.legacy);
     request.retail_font = edit->retail_font;
     request.custom_material = edit->custom_material;
     host.destination = &editor;
     host.text = drafts->text;
     host.context = &archives;
-    host.copy = copy_text_asset;
+    host.copy = copy_actor_asset;
     status = mm_actor_archive_replace_text(&host, &request, detail);
     mm_private_archive_close(archives.source);
     return status;
@@ -223,18 +229,16 @@ static int apply_appearance(void *p, MMU32 actor)
     return result->costume == MM_ACTOR_EDIT_ARCHIVE_OK;
 }
 
-int marcus_archive_place_edits(MMPrivateArchive *file, const MMMoviePoseJournal *poses,
-                              const MMMovieTextJournal *texts, const MMMovieActorTrackJournal *costumes,
-                              const MarcusArchiveDrafts *drafts, MarcusArchiveActorResult *out)
+static int place_edits(MMPrivateArchive *file, const MarcusArchiveMovieEdits *edits,
+                       const MarcusArchiveDrafts *drafts, MarcusArchiveActorResult *out)
 {
     const MMMovieArchiveEditor editor = mm_private_archive_editor(file);
     MMMoviePoseJournal merged;
     const MMMovieActorPoseEdit *rows;
     MMU32 i;
     int ready;
-    memset(out, 0, sizeof(*out));
     mm_movie_pose_journal_init(&merged, NULL);
-    ready = mm_movie_pose_journal_export(&merged, poses, texts, costumes);
+    ready = mm_movie_pose_journal_export(&merged, edits->poses, edits->texts, edits->costumes);
     if (ready)
     {
         rows = mm_movie_pose_journal_data(&merged);
@@ -244,8 +248,8 @@ int marcus_archive_place_edits(MMPrivateArchive *file, const MMMoviePoseJournal 
             ActorAppearance appearance;
             MMActorArchivePose pose;
             appearance.file = file;
-            appearance.text = mm_movie_text_journal_find(texts, row->scene, row->actor);
-            appearance.costume = mm_movie_track_journal_find(costumes, row->scene, row->actor);
+            appearance.text = mm_movie_text_journal_find(edits->texts, row->scene, row->actor);
+            appearance.costume = mm_movie_track_journal_find(edits->costumes, row->scene, row->actor);
             appearance.drafts = drafts;
             appearance.result = out;
             pose.scene = row->scene;
@@ -262,6 +266,167 @@ int marcus_archive_place_edits(MMPrivateArchive *file, const MMMoviePoseJournal 
     }
     mm_movie_pose_journal_dispose(&merged);
     return ready;
+}
+
+static int append_scenes(const MMMovieArchiveEditor *editor, const MMMovieSceneDefinitions *definitions,
+                         int empty_movie, const MMTextHost *text, int *status)
+{
+    const MMPreviewLiveScene *rows = mm_movie_scene_definitions_data(definitions);
+    MMU32 i;
+    for (i = 0; i < definitions->count; ++i)
+    {
+        MMMovieArchiveRoot root;
+        MMI32 source;
+        *status = mm_movie_archive_ensure_root(editor, &root);
+        if (*status != MM_MOVIE_SCENE_ARCHIVE_OK)
+            return MARCUS_MATERIALIZE_SCENE;
+        *status = mm_movie_archive_register_source(editor, text, root.number, root.created && !empty_movie ? 1 : 2,
+                                                  NULL, &source);
+        if (*status != MM_MOVIE_SOURCE_EDIT_OK)
+            return MARCUS_MATERIALIZE_SOURCE;
+        *status = mm_movie_archive_append_scene(editor, root.number, rows[i].number, source, rows[i].background);
+        if (*status != MM_MOVIE_SCENE_ARCHIVE_OK)
+            return MARCUS_MATERIALIZE_SCENE;
+    }
+    return MARCUS_MATERIALIZE_OK;
+}
+
+static const char *embed_boards(MMPrivateArchive *file, const MarcusBoardStore *boards,
+                               const MarcusArchiveDrafts *drafts)
+{
+    const MarcusStoredBoard *rows = marcus_board_store_data(boards);
+    MMU32 i;
+    for (i = 0; i < boards->count; ++i)
+    {
+        MMPrivateArchive *source = drafts->open(drafts->context, marcus_stored_board_file(rows + i));
+        const char *error = source ? marcus_board_embed(file, source, rows + i) : "Cannot embed storyboard resources.";
+        mm_private_archive_close(source);
+        if (error)
+            return error;
+    }
+    return NULL;
+}
+
+static int insert_prop(const MMMovieArchiveEditor *editor, MMPrivateArchive *file, MMPrivateArchive *library,
+                       const MMMoviePropEdit *prop, const MarcusArchiveDrafts *drafts, MarcusArchiveMovieResult *out)
+{
+    const MMPreviewLiveProp *definition = &prop->definition;
+    const char *ansi = prop->name;
+    MMTextAuthorName text_name;
+    unsigned short units[257];
+    ActorArchives archives;
+    MMMovieArchiveEditor source;
+    MMActorAuthorHost host;
+    MMActorInsert request;
+    if (prop->file)
+    {
+        out->status = mm_text_author_prepare_name(prop->name, &text_name);
+        if (out->status != MM_TEXT_NAME_OK)
+            return MARCUS_MATERIALIZE_TEXT_NAME;
+        ansi = text_name.legacy;
+    }
+    archives.source = library;
+    archives.destination = file;
+    source = mm_private_archive_editor(library);
+    host.source = &source;
+    host.destination = editor;
+    host.text = drafts->text;
+    host.context = &archives;
+    host.copy = copy_actor_asset;
+    request.scene = definition->scene;
+    request.number = definition->number;
+    request.template_number = definition->template_number;
+    request.actor_id = definition->actor_id;
+    request.first = definition->first;
+    request.last = definition->last;
+    request.point = definition->point;
+    request.name = (const unsigned char *)units + editor->text_unit;
+    request.characters = actor_name(units, editor->text_unit, drafts->text, ansi);
+    request.embedded_text = prop->file != NULL;
+    out->detail = 0;
+    out->status = mm_actor_archive_insert(&host, &request, &out->detail);
+    return out->status == MM_ACTOR_AUTHOR_OK ? MARCUS_MATERIALIZE_OK : MARCUS_MATERIALIZE_INSERT;
+}
+
+static int insert_props(const MMMovieArchiveEditor *editor, MMPrivateArchive *file, const char *templates,
+                        const MMMoviePropJournal *props, const MarcusArchiveDrafts *drafts,
+                        const MMPrivateArchiveProfile *profile, MarcusArchiveMovieResult *out)
+{
+    const MMMoviePropEdit *rows = mm_movie_prop_journal_data(props);
+    MMPrivateArchive *library;
+    MMU32 i;
+    int result = MARCUS_MATERIALIZE_OK;
+    if (!props->count)
+        return result;
+    library = marcus_archive_open(templates, MM_PRIVATE_ARCHIVE_READ, profile);
+    if (!library)
+        return MARCUS_MATERIALIZE_LIBRARY;
+    for (i = 0; i < props->count; ++i)
+    {
+        const MMMoviePropEdit *prop = rows + i;
+        MMPrivateArchive *source = prop->file ? drafts->open(drafts->context, prop->file) : library;
+        result = source ? insert_prop(editor, file, source, prop, drafts, out) : MARCUS_MATERIALIZE_TEXT_OPEN;
+        if (prop->file)
+            mm_private_archive_close(source);
+        if (result != MARCUS_MATERIALIZE_OK)
+            break;
+    }
+    mm_private_archive_close(library);
+    return result;
+}
+
+static int publish_movie_edits(MMPrivateArchive *file, int empty_movie, const char *templates,
+                               const MarcusArchiveMovieEdits *edits, const MarcusArchiveDrafts *drafts,
+                               const MMPrivateArchiveProfile *profile, MarcusArchiveMovieResult *out)
+{
+    const MMMovieArchiveEditor editor = mm_private_archive_editor(file);
+    const MMMovieSceneRange *ranges = mm_movie_range_journal_data(edits->ranges);
+    const MMMovieCameraEdit *cameras = mm_movie_camera_journal_data(edits->cameras);
+    MMU32 i;
+    int result = append_scenes(&editor, edits->scenes, empty_movie, drafts->text, &out->status);
+    if (result != MARCUS_MATERIALIZE_OK)
+        return result;
+    out->board_error = embed_boards(file, edits->boards, drafts);
+    if (out->board_error)
+        return MARCUS_MATERIALIZE_BOARD;
+    for (i = 0; i < edits->ranges->count; ++i)
+    {
+        out->status = mm_scene_archive_set_range(&editor, ranges[i].scene, ranges[i].first, ranges[i].last);
+        if (out->status != MM_SCENE_ARCHIVE_EDIT_OK)
+            return MARCUS_MATERIALIZE_FRAME;
+    }
+    result = insert_props(&editor, file, templates, edits->props, drafts, profile, out);
+    if (result != MARCUS_MATERIALIZE_OK)
+        return result;
+    if (!place_edits(file, edits, drafts, &out->actor))
+        return MARCUS_MATERIALIZE_MEMORY;
+    if (out->actor.status != MM_ACTOR_EDIT_ARCHIVE_OK)
+        return MARCUS_MATERIALIZE_ACTOR;
+    for (i = 0; i < edits->cameras->count; ++i)
+    {
+        out->status = mm_scene_archive_set_camera(&editor, cameras[i].scene, cameras[i].frame, cameras[i].camera);
+        if (out->status != MM_SCENE_ARCHIVE_EDIT_OK)
+            return MARCUS_MATERIALIZE_FRAME;
+    }
+    return mm_movie_archive_ensure_empty_rollcall(&editor) ? MARCUS_MATERIALIZE_OK : MARCUS_MATERIALIZE_ROLLCALL;
+}
+
+int marcus_archive_materialize(const char *path, int empty_movie, const char *templates,
+                               const MarcusArchiveMovieEdits *edits, const MarcusArchiveDrafts *drafts,
+                               const MMPrivateArchiveProfile *profile, MMU32 creator, MarcusArchiveMovieResult *out)
+{
+    MMPrivateArchive *file = marcus_archive_open(path, empty_movie ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_EDIT,
+                                                 profile);
+    int result = MARCUS_MATERIALIZE_OPEN;
+    memset(out, 0, sizeof(*out));
+    if (file)
+    {
+        result = publish_movie_edits(file, empty_movie, templates, edits, drafts, profile, out);
+        if (result == MARCUS_MATERIALIZE_OK && !mm_private_archive_save(file, creator))
+            result = MARCUS_MATERIALIZE_SAVE;
+    }
+    mm_private_archive_close(file);
+    return result;
 }
 
 static int apply_animation_text(void *p, MMPrivateArchive *file, MMU32 actor)

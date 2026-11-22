@@ -13,7 +13,6 @@
 #include "mm/text.h"
 #include "mm/text_resource.h"
 #include "mm/scene_reframe.h"
-#include "storyboard_native.h"
 #undef size
 ASSERTNAME
 
@@ -99,13 +98,6 @@ static MMMovieArchiveRoot EnsureMovieRoot(const MMMovieArchiveEditor &editor)
     return root;
 }
 
-static void ApplyNewScene(const MMMovieArchiveEditor &editor, const MMPreviewLiveScene &definition, bool emptyMovie)
-{
-    const auto root = EnsureMovieRoot(editor);
-    const auto source = RetailSource(editor, root.number, root.created && !emptyMovie ? 1 : 2);
-    CheckSceneArchive(mm_movie_archive_append_scene(&editor, root.number, definition.number, source,
-                                                    definition.background));
-}
 static void CheckSceneFrameEdit(int status)
 {
     static const char *const messages[] = {
@@ -124,11 +116,6 @@ static void CheckSceneFrameEdit(int status)
     Require(status == MM_SCENE_ARCHIVE_EDIT_OK, messages[status]);
 }
 
-static void ApplyCamera(const MMMovieArchiveEditor &editor, unsigned long number, long key, unsigned long camera)
-{
-    CheckSceneFrameEdit(mm_scene_archive_set_camera(&editor, static_cast<MMU32>(number),
-                                                  static_cast<MMI32>(key), static_cast<MMU32>(camera)));
-}
 
 static void CheckActorArchiveEdit(int result)
 {
@@ -222,30 +209,7 @@ struct ActorArchiveFiles
 };
 }
 
-static void ApplyNewProp(MMPrivateArchive *file, MMPrivateArchive *library, const MMMovieArchiveEditor &destination,
-                         const MMMoviePropEdit &prop)
-{
-    const auto source = mm_private_archive_editor(library);
-    ActorArchiveFiles files{library, file};
-    const MMActorAuthorHost host{&source, &destination, KauaiText::Services(), &files, ActorArchiveFiles::Copy};
-    String caption;
-    if (prop.file)
-    {
-        auto name = MarcusPrepareTextName(prop.name);
-        caption.SetSzs(name.legacy);
-    }
-    else
-        caption.SetSzs(const_cast<char *>(prop.name));
-    const auto &definition = prop.definition;
-    const MMActorInsert insert{definition.scene, definition.number, definition.template_number,
-        definition.actor_id, definition.first, definition.last, definition.point, caption.Prgch(),
-        static_cast<MMU32>(caption.Cch()), bool(prop.file)};
-    int detail = 0;
-    const int status = mm_actor_archive_insert(&host, &insert, &detail);
-    CheckActorAuthor(status, detail);
-}
-
-MMTextAuthorName MarcusPrepareTextName(const char *utf8)
+static void CheckTextName(int status)
 {
     static const char *const messages[] = {
         nullptr,
@@ -255,9 +219,13 @@ MMTextAuthorName MarcusPrepareTextName(const char *utf8)
         "Use a single line of characters supported by the original 3D fonts."
     };
     static_assert(sizeof(messages) / sizeof(messages[0]) == MM_TEXT_NAME_CHARACTERS + 1, "3D text diagnostics");
-    MMTextAuthorName name;
-    const auto status = mm_text_author_prepare_name(utf8, &name);
     Require(status == MM_TEXT_NAME_OK, messages[status]);
+}
+
+MMTextAuthorName MarcusPrepareTextName(const char *utf8)
+{
+    MMTextAuthorName name;
+    CheckTextName(mm_text_author_prepare_name(utf8, &name));
     return name;
 }
 std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(MMTextAuthorName textName, MMU32 font, MMI32 source, MMI32 shape)
@@ -529,40 +497,37 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
     const MMMovieRangeJournal &ranges, const MarcusLiveEdits &edits, const std::filesystem::path &templates)
 {
     auto result = WorkingCopy(source, std::move(origin));
-    auto file = MarcusOpenArchive(result->path, source.empty() ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_EDIT);
-    Require(bool(file), "Cannot open the movie working file.");
-    const auto editor = mm_private_archive_editor(file.get());
-    for (const auto &scene : *edits.scenes) ApplyNewScene(editor, scene, source.empty());
-    for (const auto &board : *edits.storyboards) MarcusEmbedBoard(file.get(), board);
-    const auto sceneRanges = mm_movie_range_journal_data(&ranges);
-    for (MMU32 i = 0; i < ranges.count; ++i)
-    {
-        const auto &range = sceneRanges[i];
-        CheckSceneFrameEdit(mm_scene_archive_set_range(&editor, range.scene, range.first, range.last));
-    }
-    if (edits.props->count)
-    {
-        auto library = MarcusOpenArchive(templates, MM_PRIVATE_ARCHIVE_READ);
-        Require(bool(library), "Cannot open the prop library.");
-        for (const auto &prop : *edits.props)
-        {
-            if (!prop.file) { ApplyNewProp(file.get(), library.get(), editor, prop); continue; }
-            auto textFile = MarcusOpenArchive(MarcusEditFile::File(prop.file)->path, MM_PRIVATE_ARCHIVE_READ);
-            Require(bool(textFile), "Cannot open the 3D text template.");
-            ApplyNewProp(file.get(), textFile.get(), editor, prop);
-        }
-    }
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto workingPath = result->path.u8string();
+    const auto templatePath = edits.props->count ? templates.u8string() : std::string{};
+    const MarcusArchiveMovieEdits pending{edits.scenes.get(), edits.storyboards.get(), &ranges, edits.props.get(),
+        &poses, edits.texts.get(), edits.costumes.get(), edits.cameras.get()};
     ArchiveDraftHost host;
     const auto drafts = host.Services();
-    MarcusArchiveActorResult placement;
-    if (!marcus_archive_place_edits(file.get(), &poses, edits.texts.get(), edits.costumes.get(), &drafts, &placement))
-        throw std::bad_alloc();
+    MarcusArchiveMovieResult edit;
+    const int status = marcus_archive_materialize(workingPath.c_str(), source.empty(), templatePath.c_str(), &pending,
+                                                  &drafts, &profile, kctgSoc, &edit);
     host.Check();
-    CheckAppearanceEdit(placement);
-    CheckActorArchiveEdit(placement.status);
-    for (const auto &entry : *edits.cameras)
-        ApplyCamera(editor, entry.scene, entry.frame, entry.camera);
-    Require(mm_movie_archive_ensure_empty_rollcall(&editor), "Cannot write the movie's empty roll call.");
-    Require(mm_private_archive_save(file.get(), kctgSoc), "Cannot save the object working copy.");
+    switch (status)
+    {
+    case MARCUS_MATERIALIZE_OK: break;
+    case MARCUS_MATERIALIZE_OPEN: throw std::runtime_error("Cannot open the movie working file.");
+    case MARCUS_MATERIALIZE_SCENE: CheckSceneArchive(edit.status); break;
+    case MARCUS_MATERIALIZE_SOURCE: CheckMovieSource(edit.status); break;
+    case MARCUS_MATERIALIZE_BOARD: throw std::runtime_error(edit.board_error);
+    case MARCUS_MATERIALIZE_FRAME: CheckSceneFrameEdit(edit.status); break;
+    case MARCUS_MATERIALIZE_LIBRARY: throw std::runtime_error("Cannot open the prop library.");
+    case MARCUS_MATERIALIZE_TEXT_OPEN: throw std::runtime_error("Cannot open the 3D text template.");
+    case MARCUS_MATERIALIZE_TEXT_NAME: CheckTextName(edit.status); break;
+    case MARCUS_MATERIALIZE_INSERT: CheckActorAuthor(edit.status, edit.detail); break;
+    case MARCUS_MATERIALIZE_MEMORY: throw std::bad_alloc();
+    case MARCUS_MATERIALIZE_ACTOR:
+        CheckAppearanceEdit(edit.actor);
+        CheckActorArchiveEdit(edit.actor.status);
+        break;
+    case MARCUS_MATERIALIZE_ROLLCALL: throw std::runtime_error("Cannot write the movie's empty roll call.");
+    case MARCUS_MATERIALIZE_SAVE: throw std::runtime_error("Cannot save the object working copy.");
+    default: throw std::runtime_error("Unexpected movie materialization status.");
+    }
     return result;
 }

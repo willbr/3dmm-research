@@ -1,4 +1,6 @@
-#include "storyboard_native.h"
+#include "storyboard.h"
+#include "archive_file.h"
+#include "soc_core.h"
 #undef size
 #include "engine_archive_stream.h"
 #include "mm/movie_portable.h"

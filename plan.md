@@ -1661,6 +1661,9 @@ Movie materialization also merges and applies its actor pose, text and
 costume journals in C89. The native writer opens each retained draft
 through the host file binding and applies its appearance to the placed copy
 before writing shape events and relinking the actor.
+The C89 archive writer also owns the materialization sequence for new
+scenes, storyboards, frame ranges, inserted objects, actor edits, cameras
+and the final roll call and save.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

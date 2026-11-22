@@ -23159,3 +23159,27 @@ Marcus Actor Audio candidate `20261122T223402Z-99258b0b` matched
 Its 60-frame seek and playback order matched retained retail and V3DMM
 run `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-actor-publication` and `tmp/c89-aqcap`.
+
+## C89 private movie materialization (22 November 2026)
+
+The C89 writer opens the working archive, creates pending scenes, embeds
+storyboards, applies frame ranges, inserts actors and props, applies actor
+and camera edits, ensures the roll call and saves the archive. It opens
+retained draft files through the host binding and reports the first failed
+stage. The host supplies the working file and publishes it after success.
+
+The x86 Marcus worker built, and the headless startup image matched byte
+for byte. Three portable storyboard bundles reproduced all 48 resource
+chunk payloads and their child links.
+
+Eleven native saves matched byte for byte, including scene ranges, camera
+edits, costumes, text, animation and storyboard fixtures. The animation
+and insertion saves matched the archives previously reopened in retail.
+The parallel run passed 225 of 226 tests. `sound-payload` reported a
+temporary archive error and passed all three isolated reruns.
+
+Marcus Actor Audio candidate `20261122T224023Z-3a21fdfe` matched
+`20261122T223402Z-99258b0b` on all 60 seek canvases and recorded states.
+Its 60-frame seek and playback order matched retained retail and V3DMM
+run `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-native-materialization` and `tmp/c89-aqcap`.

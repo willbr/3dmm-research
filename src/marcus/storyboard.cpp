@@ -4,9 +4,9 @@
 #include <chrono>
 #include <cmath>
 #include <stdexcept>
-#include "storyboard_native.h"
+#include "archive_file.h"
+#include "soc_core.h"
 #include "storyboard_resource.h"
-#include "live_edits.h"
 #undef size
 ASSERTNAME
 
@@ -247,12 +247,4 @@ MarcusBoardArchive MarcusBoardContent(const MarcusBoardWire &board, const std::s
     Require(!error, error);
     Require(mm_private_archive_save(chunks.get(), kctgSoc), "Cannot save storyboard working file.");
     return {file, background};
-}
-void MarcusEmbedBoard(MMPrivateArchive *file, const MarcusStoredBoard &board)
-{
-    const auto &archive = MarcusEditFile::File(marcus_stored_board_file(&board));
-    auto source = MarcusOpenArchive(archive->path, MM_PRIVATE_ARCHIVE_READ);
-    Require(bool(source), "Cannot embed storyboard resources.");
-    const auto error = marcus_board_embed(file, source.get(), &board);
-    Require(!error, error);
 }
