@@ -1,4 +1,5 @@
 #include "movie_input.h"
+#include "archive_file.h"
 #include "movie_zip.h"
 #include "mm/content_vfs.hpp"
 #include "font_catalog.h"
@@ -6,6 +7,7 @@
 #include <exception>
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -38,6 +40,39 @@ struct Cancellation
         auto &operation = *static_cast<Cancellation *>(context);
         try { return operation.check && operation.check(); }
         catch (...) { operation.error = std::current_exception(); return 1; }
+    }
+};
+struct WorkingFiles
+{
+    MarcusMovieFile &file;
+    const fs::path &source;
+    std::exception_ptr error;
+
+    static MMMovieStageResult Reserve(void *context, const char *directory, const char *leaf) noexcept
+    {
+        auto &files = *static_cast<WorkingFiles *>(context);
+        try
+        {
+            auto path = fs::temp_directory_path() / directory;
+            auto candidate = path / leaf;
+            if (!fs::create_directory(path)) return MM_MOVIE_STAGE_COLLISION;
+            files.file.directory = std::move(path);
+            files.file.path = std::move(candidate);
+            return MM_MOVIE_STAGE_OK;
+        }
+        catch (...) { files.error = std::current_exception(); return MM_MOVIE_STAGE_ERROR; }
+    }
+
+    static int CopyWritable(void *context) noexcept
+    {
+        auto &files = *static_cast<WorkingFiles *>(context);
+        try
+        {
+            fs::copy_file(files.source, files.file.path);
+            fs::permissions(files.file.path, fs::perms::owner_write, fs::perm_options::add);
+            return 1;
+        }
+        catch (...) { files.error = std::current_exception(); return 0; }
     }
 };
 struct Sink
@@ -188,6 +223,20 @@ MarcusMovieFile::~MarcusMovieFile()
         fs::remove(directory, ignored);
     }
 }
+std::shared_ptr<MarcusMovieFile> MarcusCreateWorkingFile(int kind, const fs::path &source)
+{
+    auto file = std::make_shared<MarcusMovieFile>(fs::path{});
+    const auto stamp = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    WorkingFiles state{*file, source, {}};
+    const MarcusWorkingFiles services{&state, WorkingFiles::Reserve, WorkingFiles::CopyWritable};
+    const bool staged = marcus_archive_stage_working_file(kind, stamp.c_str(), !source.empty(), &services);
+    if (state.error) std::rethrow_exception(state.error);
+    if (!staged)
+        throw std::runtime_error(kind == MARCUS_WORKING_BOARD ? "Cannot create storyboard working directory."
+                                                            : "Cannot reserve a new movie working file.");
+    return file;
+}
+
 MarcusMovieInput::MarcusMovieInput() : impl(new Impl)
 {
 }

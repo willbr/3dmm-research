@@ -1,7 +1,6 @@
 #include "scene_edit.h"
 #include <algorithm>
 #include <exception>
-#include <chrono>
 #include <cstring>
 #include <stdexcept>
 #include "soc_core.h"
@@ -26,16 +25,7 @@ void Require(bool value, const char *message)
 static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin)
 {
-    namespace fs = std::filesystem;
-    auto result = std::make_shared<MarcusMovieFile>(fs::path{});
-    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-    for (unsigned attempt = 0; attempt < 100; ++attempt)
-    {
-        auto path = fs::temp_directory_path() / ("marcus-edit-" + std::to_string(stamp) + "-" + std::to_string(attempt));
-        if (fs::create_directory(path)) { result->directory = path; break; }
-    }
-    Require(!result->directory.empty(), "Cannot reserve a new movie working file.");
-    result->path = result->directory / "movie.3mm";
+    auto result = MarcusCreateWorkingFile(MARCUS_WORKING_MOVIE, source);
     if (origin)
     {
         // Retain the original dependencies, rather than every superseded copy.
@@ -46,11 +36,6 @@ static std::shared_ptr<MarcusMovieFile> WorkingCopy(const std::filesystem::path 
         result->fonts = origin->fonts;
         result->fontFiles = origin->fontFiles;
         result->fontDirectory = origin->fontDirectory;
-    }
-    if (!source.empty())
-    {
-        fs::copy_file(source, result->path);
-        fs::permissions(result->path, fs::perms::owner_write, fs::perm_options::add);
     }
     return result;
 }

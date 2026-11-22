@@ -1664,6 +1664,10 @@ before writing shape events and relinking the actor.
 The C89 archive writer also owns the materialization sequence for new
 scenes, storyboards, frame ranges, inserted objects, actor edits, cameras
 and the final roll call and save.
+Marcus stages private movie and storyboard files through the same C89
+reservation loop. It chooses the archive name, retries directory collisions
+and requests a writable copy for an existing movie. The host file lease
+retains the source dependencies and removes the working copy.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

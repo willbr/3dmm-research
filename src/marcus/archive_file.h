@@ -1,12 +1,26 @@
 #ifndef MARCUS_ARCHIVE_FILE_H
 #define MARCUS_ARCHIVE_FILE_H
 #include "mm/archive_reader.h"
+#include "mm/movie_publish.h"
 #include "mm/private_archive.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *);
+
+enum { MARCUS_WORKING_MOVIE, MARCUS_WORKING_BOARD };
+typedef struct MarcusWorkingFiles
+{
+    void *context;
+    /* Only OK transfers ownership of the new directory and the candidate path. */
+    MMMovieStageResult (*reserve)(void *, const char *directory, const char *leaf);
+    int (*copy_writable)(void *);
+} MarcusWorkingFiles;
+
+/* The caller's file lease owns the candidate after reservation, even if copying fails.
+ * The stamp is a decimal clock value supplied by the filesystem host. */
+int marcus_archive_stage_working_file(int kind, const char *stamp, int copy_source, const MarcusWorkingFiles *);
 
 typedef struct MarcusArchiveInput
 {

@@ -7,6 +7,26 @@
 #include <SDL3/SDL.h>
 #include <string.h>
 
+int marcus_archive_stage_working_file(int kind, const char *stamp, int copy_source, const MarcusWorkingFiles *files)
+{
+    const char *prefix = kind == MARCUS_WORKING_BOARD ? "marcus-board-" : "marcus-edit-";
+    const char *leaf = kind == MARCUS_WORKING_BOARD ? "background.3cn" : "movie.3mm";
+    char directory[64];
+    int attempt, length;
+    MMMovieStageResult reserved;
+
+    for (attempt = 0; attempt < 100; ++attempt)
+    {
+        length = SDL_snprintf(directory, sizeof(directory), "%s%s-%d", prefix, stamp, attempt);
+        if (length < 0 || (size_t)length >= sizeof(directory)) return 0;
+        reserved = files->reserve(files->context, directory, leaf);
+        if (reserved == MM_MOVIE_STAGE_OK)
+            return !copy_source || files->copy_writable(files->context);
+        if (reserved == MM_MOVIE_STAGE_ERROR) return 0;
+    }
+    return 0;
+}
+
 typedef struct ArchiveFile
 {
     SDL_IOStream *stream;

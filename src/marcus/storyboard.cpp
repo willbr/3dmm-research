@@ -1,7 +1,6 @@
 #include "storyboard.h"
 #include "storyboard_tools.h"
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <stdexcept>
 #include "archive_file.h"
@@ -224,15 +223,7 @@ int MarcusBoardAddColour(MarcusStoryboard &board, unsigned rgb)
 }
 MarcusBoardArchive MarcusBoardContent(const MarcusBoardWire &board, const std::string &resources, const std::string &content)
 {
-    auto file = std::make_shared<MarcusMovieFile>(std::filesystem::path{});
-    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-    for (unsigned i = 0; i < 100; ++i)
-    {
-        auto p = std::filesystem::temp_directory_path() / ("marcus-board-" + std::to_string(stamp) + "-" + std::to_string(i));
-        if (std::filesystem::create_directory(p)) { file->directory = p; break; }
-    }
-    Require(!file->directory.empty(), "Cannot create storyboard working directory.");
-    file->path = file->directory / "background.3cn";
+    auto file = MarcusCreateWorkingFile(MARCUS_WORKING_BOARD);
     auto chunks = MarcusOpenArchive(file->path, MM_PRIVATE_ARCHIVE_CREATE);
     Require(bool(chunks), "Cannot create storyboard working file.");
     auto resourceFile = MarcusOpenArchive(std::filesystem::u8path(resources), MM_PRIVATE_ARCHIVE_READ);

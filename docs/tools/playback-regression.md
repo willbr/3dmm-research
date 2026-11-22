@@ -23183,3 +23183,21 @@ Marcus Actor Audio candidate `20261122T224023Z-3a21fdfe` matched
 Its 60-frame seek and playback order matched retained retail and V3DMM
 run `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-native-materialization` and `tmp/c89-aqcap`.
+
+## C89 working files (22 November 2026)
+
+Movie edits and storyboard resource archives share the C89 working-file
+reservation loop. The host provides native directory creation and writable
+file copies, and the file lease cleans up the candidate if preparation fails.
+
+All 226 selected native tests passed, and the x86 Marcus worker built.
+The headless startup image and eleven native saves matched byte for byte.
+The animation and insertion saves also matched the archives previously
+opened in retail. Three storyboard bundles matched all 48 resource chunk
+payloads and their child links.
+
+Marcus Actor Audio candidate `20261122T224647Z-38e9ac1d` matched
+`20261122T224023Z-3a21fdfe` on all 60 seek canvases and recorded states.
+Its 60-frame seek and playback order matched retained retail and V3DMM
+run `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-working-files` and `tmp/c89-aqcap`.

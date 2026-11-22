@@ -27,6 +27,8 @@ struct MarcusMovieFile
     }
     ~MarcusMovieFile();
 };
+std::shared_ptr<MarcusMovieFile> MarcusCreateWorkingFile(int kind, const std::filesystem::path &source = {});
+
 struct MarcusMovieInput
 {
     struct Impl;
