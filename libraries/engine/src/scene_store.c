@@ -120,6 +120,24 @@ int mm_scene_snapshot_copy(const MMSceneSnapshot *p, const MMChunkEndpoint *dest
     *number = copied;
     return 1;
 }
+
+int mm_scene_snapshot_copy_cache(const MMSceneSnapshot *snapshot, MMResourceCache *cache,
+                                 const MMMovieArchiveText *text, MMU32 *number)
+{
+    MMMovieArchiveFile file = {0};
+    MMChunkFileCopy binding;
+    MMChunkEndpoint destination;
+    MMMovieArchiveEditor editor;
+    int ok;
+    if (!mm_movie_archive_cache_init(&file, cache, &text->titles))
+        return 0;
+    destination = mm_resource_cache_live_copy_target(cache, &binding);
+    editor = mm_movie_archive_file_editor(&file, text->unit, text->convert);
+    ok = mm_scene_snapshot_copy(snapshot, &destination, &editor, number);
+    mm_movie_archive_file_clear(&file);
+    return ok;
+}
+
 typedef struct CollectActorTags
 {
     MMTagList *list;
@@ -282,7 +300,7 @@ static int store_object(const MMSceneStoreServices *s, MMU32 scene, MMI32 kind, 
     if (!data || bytes < (MMI32)sizeof(object))
         return 0;
     memcpy(&object, data, sizeof(object));
-    return s->write_object(s->context, object, kind, child.number, scene);
+    return s->write_object(s, object, kind, child.number, scene);
 }
 
 static int store_thumbnail(const MMSceneStoreServices *s, MMU32 scene)
@@ -292,7 +310,8 @@ static int store_thumbnail(const MMSceneStoreServices *s, MMU32 scene)
     void *thumbnail;
     MMChunkChild child = {MM_SCENE_THUMBNAIL_CHUNK, 0, 0};
     MMI32 bytes;
-    s->update_thumbnail(s->context);
+    if (!s->update_thumbnail(s->context))
+        return 0;
     thumbnail = s->owner->owned[MM_SCENE_THUMBNAIL];
     if (!thumbnail)
         return 1;
@@ -394,4 +413,47 @@ fail:
     if (have_frames)
         mm_scene_track_dispose(&frames);
     return 0;
+}
+
+static int store_bound(MMU32 *number, const MMMovieArchiveEditor *editor, const MMArchiveWriter *writer,
+                        const MMChunkEndpoint *destination, const MMTagServices *tags,
+                        const MMSceneStoreServices *s)
+{
+    MMMovieArchiveAssets assets;
+    MMSceneStoreServices bound = *s;
+    if (!editor->add)
+        return 0;
+    assets.destination = destination;
+    assets.tags = tags;
+    bound.editor = editor;
+    bound.archive = writer;
+    bound.assets = mm_movie_archive_assets(&assets);
+    return mm_scene_store(number, &bound);
+}
+
+int mm_scene_store_cache(MMU32 *number, MMResourceCache *cache, const MMMovieArchiveText *text,
+                          const MMTagServices *tags, const MMSceneStoreServices *s)
+{
+    MMMovieArchiveFile file = {0};
+    MMChunkFileCopy binding;
+    MMChunkEndpoint destination;
+    MMMovieArchiveEditor editor;
+    int ok;
+    if (!mm_movie_archive_cache_init(&file, cache, &text->titles))
+        return 0;
+    destination = mm_resource_cache_live_copy_source(cache, &binding);
+    editor = mm_movie_archive_file_editor(&file, text->unit, text->convert);
+    ok = store_bound(number, &editor, &file.archive, &destination, tags, s);
+    mm_movie_archive_file_clear(&file);
+    return ok;
+}
+
+int mm_scene_store_private(MMU32 *number, MMPrivateArchive *archive, const MMTagServices *tags,
+                            const MMSceneStoreServices *s)
+{
+    MMChunkFileCopy binding;
+    const MMChunkEndpoint destination = mm_private_archive_copy_target(archive, &binding);
+    const MMMovieArchiveEditor editor = mm_private_archive_editor(archive);
+    const MMArchiveWriter writer = mm_private_archive_writer(archive);
+    return store_bound(number, &editor, &writer, &destination, tags, s);
 }

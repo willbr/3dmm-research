@@ -21,7 +21,7 @@
 
 ***************************************************************************/
 #include "soc.h"
-#include "engine_movie_graph.h"
+#include "mm/movie_session.h"
 #include "mm/actor_persistence.h"
 #include "mm/movie_sound.h"
 #include "mm/scene_data.h"
@@ -73,10 +73,9 @@ PActor Actor::PactrRead(MMResourceCache *pcrf, ChunkNumber cnoActr)
 {
     AssertVarMem(pcrf);
 
-    const auto reader = ResourceArchiveReader(pcrf);
-    if (!reader)
+    const auto graph = mm_movie_cache_graph(pcrf);
+    if (!graph.access)
         return nullptr;
-    const auto graph = mm_movie_owner_graph(reader);
     const auto allocator = CollectionAllocator();
     MMActorLoadServices services = {};
     services.tags = &EngineActorTagServices();

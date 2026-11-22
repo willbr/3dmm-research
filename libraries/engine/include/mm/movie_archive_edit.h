@@ -45,7 +45,15 @@ typedef struct MMMovieArchiveFile
     MMBlockIO input_io, output_io;
 } MMMovieArchiveFile;
 
+typedef struct MMMovieArchiveText
+{
+    MMChunkTitleIO titles;
+    unsigned unit;
+    MMStringConvert convert;
+} MMMovieArchiveText;
+
 int mm_movie_archive_file_init(MMMovieArchiveFile *, void *file, const MMArchiveWriter *, const MMChunkTitleIO *);
+int mm_movie_archive_cache_init(MMMovieArchiveFile *, const MMResourceCache *, const MMChunkTitleIO *);
 void mm_movie_archive_file_clear(MMMovieArchiveFile *);
 MMMovieArchiveEditor mm_movie_archive_file_editor(MMMovieArchiveFile *, unsigned text_unit, MMStringConvert);
 

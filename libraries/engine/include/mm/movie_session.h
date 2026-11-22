@@ -71,6 +71,8 @@ struct MMChunkOwnerRead;
 /* Borrow the owner reader for the graph's lifetime. Each operation resolves
  * the current table or extent through the storage binding. */
 MMMovieSessionGraph mm_movie_owner_graph(struct MMChunkOwnerRead *);
+/* Borrow a live cache's graph. Unsupported caches return an empty graph. */
+MMMovieSessionGraph mm_movie_cache_graph(const struct MMResourceCache *);
 int mm_movie_owner_stored(void *, const MMChunkEntry *, MMMovieReceiveBytes, void *out);
 
 /* Read an ACTR and the PATH/GGAE children at slot zero from their owning

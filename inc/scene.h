@@ -143,6 +143,7 @@ class Scene : public Scene_PAR
     MMSceneSoundEditServices _SoundEditServices();
     MMSceneEditServices _EditServices();
     MMSceneContentServices _ContentServices();
+    MMSceneStoreServices _StoreServices(void *context);
     MMSceneSelectionServices _SelectionServices();
     static MMActorGroupTransformServices _GroupTransformServices();
     MMActorPlacementEditServices _PlacementServices();
@@ -193,8 +194,6 @@ class Scene : public Scene_PAR
     static Scene *PscenRead(PMovie pmvie, MMResourceCache *pcrf, ChunkNumber cno,
                            const MMMovieSession *movie = nullptr); // Returns pvNil if it fails.
     bool FWrite(MMResourceCache *pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
-    bool FWrite(const struct MMMovieArchiveEditor &, const MMArchiveWriter &,
-                const struct MMMovieEmbeddedArchive &, ChunkNumber *pcno);
     static MMSceneSnapshotServices SnapshotServices();
     static void Close(PScene *ppscen);                        // Public destructor
     void RemActrsFromRollCall(bool fDelIfOnlyRef = fFalse);  // Removes actors from movie roll call.

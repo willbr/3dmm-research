@@ -30,11 +30,12 @@ extern "C"
         void *context;
         MMSceneOwner *owner;
         const MMMovieArchiveEditor *editor;
+        const MMArchiveWriter *archive;
         MMSceneSoundValueServices values;
         MMMovieEmbeddedArchive assets;
         void (*free_sound_bytes)(void *, void *);
-        int (*write_object)(void *, void *object, int kind, MMU32 number, MMU32 scene);
-        void (*update_thumbnail)(void *);
+        int (*write_object)(const struct MMSceneStoreServices *, void *object, int kind, MMU32 number, MMU32 scene);
+        int (*update_thumbnail)(void *);
         MMI32 (*thumbnail_size)(void *, void *thumbnail);
         int (*write_thumbnail)(void *, void *thumbnail, const MMStorageWriter *);
         void (*diagnostic)(void *, int start);
@@ -52,6 +53,12 @@ extern "C"
      * allocators. Failure discards an unlinked child and the partial scene. The
      * editor's adoption operation clears the loner flag. */
     int mm_scene_store(MMU32 *number, const MMSceneStoreServices *);
+    struct MMPrivateArchive;
+    /* Bind the destination, title codec and asset copy services for one synchronous save. */
+    int mm_scene_store_cache(MMU32 *number, MMResourceCache *, const MMMovieArchiveText *,
+                              const MMTagServices *, const MMSceneStoreServices *);
+    int mm_scene_store_private(MMU32 *number, struct MMPrivateArchive *, const MMTagServices *,
+                                const MMSceneStoreServices *);
 #ifdef __cplusplus
 }
 #endif

@@ -1792,8 +1792,12 @@ resources use a C89 owner for metadata, lights, palettes and placement
 points. Studio's C89 BRender binding owns the cache reader, light attachment
 and teardown, and camera selection and mouse orientation. The World adapter
 publishes images, camera transforms and redraw requests. Preview uses the
-same background decoders with its archive-graph renderer. The resource,
-object and HQ facades remain part of final host integration.
+same background decoders with its archive-graph renderer. Studio scene
+save, transition editing and undo snapshots bind their live or private
+archive in C89, including embedded asset copy and editor cleanup. Movie,
+scene and actor loads borrow the live graph through the C89 cache. Native
+services provide title conversion, object rendering and file publication.
+The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining

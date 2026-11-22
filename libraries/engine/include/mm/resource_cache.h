@@ -140,8 +140,12 @@ extern "C"
                                      void *wire, MMU32 capacity, MMU32 *bytes);
     /* Borrow the current graph for synchronous lookup. Reacquire after edits. */
     MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *);
-    /* Borrow the writer from a live cache. Read-only caches return an empty writer. */
+    /* Borrow the live archive. Stored indices have no live reader or writer. */
+    struct MMChunkOwnerRead *mm_resource_cache_reader(const MMResourceCache *);
     struct MMArchiveWriter mm_resource_cache_writer(const MMResourceCache *);
+    /* Borrow the live copy services. Keep the scratch binding at a stable address. */
+    struct MMChunkEndpoint mm_resource_cache_live_copy_source(const MMResourceCache *, struct MMChunkFileCopy *);
+    struct MMChunkEndpoint mm_resource_cache_live_copy_target(const MMResourceCache *, struct MMChunkFileCopy *);
     /* Fill an initialized block with the stored extent and its backing file
      * services. Keep the caller's handle services. The caller owns the block,
      * which is empty on a miss. */

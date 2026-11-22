@@ -34,6 +34,17 @@ int mm_movie_archive_file_init(MMMovieArchiveFile *binding, void *file, const MM
     return 1;
 }
 
+int mm_movie_archive_cache_init(MMMovieArchiveFile *binding, const MMResourceCache *cache,
+                                 const MMChunkTitleIO *titles)
+{
+    struct MMChunkOwnerRead *reader = mm_resource_cache_reader(cache);
+    MMArchiveWriter writer;
+    if (!reader)
+        return 0;
+    writer = mm_resource_cache_writer(cache);
+    return mm_movie_archive_file_init(binding, reader, &writer, titles);
+}
+
 void mm_movie_archive_file_clear(MMMovieArchiveFile *binding)
 {
     mm_owned_block_clear(&binding->input);

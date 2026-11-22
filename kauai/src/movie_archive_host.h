@@ -3,6 +3,17 @@
 #include "kauai_core.h"
 #include "mm/movie_archive_edit.h"
 
+inline size_t KauaiArchiveConvertText(void *, const void *input, size_t bytes, int encoding,
+                                     void *output, size_t capacity)
+{
+    return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
+}
+
+inline MMMovieArchiveText KauaiMovieArchiveText()
+{
+    return {KauaiChunkOwnerTitleIO(), sizeof(achar), KauaiArchiveConvertText};
+}
+
 struct MovieArchiveHost
 {
     explicit MovieArchiveHost(PChunkyFile file) : MovieArchiveHost(file->ReadOwner(), file->WriteOwnerIndex()) {}
@@ -20,10 +31,7 @@ struct MovieArchiveHost
 
     MMMovieArchiveEditor Editor()
     {
-        return mm_movie_archive_file_editor(&_binding, sizeof(achar),
-            [](void *, const void *bytes, size_t count, int encoding, void *text, size_t capacity) -> size_t {
-                return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(text), capacity);
-            });
+        return mm_movie_archive_file_editor(&_binding, sizeof(achar), KauaiArchiveConvertText);
     }
 
   private:

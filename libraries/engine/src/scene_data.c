@@ -125,6 +125,36 @@ int mm_scene_transition_write(MMU32 number, unsigned unit, MMI32 transition, con
     data.transition = transition;
     return mm_scene_write(&data, number, io);
 }
+
+int mm_scene_transition_read_cache(const MMResourceCache *cache, MMU32 number, unsigned unit, MMI32 *out,
+                                   const MMChunkTitleIO *titles)
+{
+    struct MMChunkOwnerRead *reader = mm_resource_cache_reader(cache);
+    MMArchiveWriter writer;
+    MMSceneIO io;
+    if (!reader)
+        return 0;
+    writer = mm_resource_cache_writer(cache);
+    if (!writer.payloads)
+        return 0;
+    io = mm_scene_file_io(reader, &writer, titles);
+    return mm_scene_transition_read(number, unit, out, &io);
+}
+
+int mm_scene_transition_write_cache(const MMResourceCache *cache, MMU32 number, unsigned unit, MMI32 transition,
+                                    const MMChunkTitleIO *titles)
+{
+    struct MMChunkOwnerRead *reader = mm_resource_cache_reader(cache);
+    MMArchiveWriter writer;
+    MMSceneIO io;
+    if (!reader)
+        return 0;
+    writer = mm_resource_cache_writer(cache);
+    if (!writer.payloads)
+        return 0;
+    io = mm_scene_file_io(reader, &writer, titles);
+    return mm_scene_transition_write(number, unit, transition, &io);
+}
 static int valid_event(MMI32 type, MMI32 bytes, int big, int start, const unsigned char *data)
 {
     MMSceneSoundWire sound;

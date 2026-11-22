@@ -9,6 +9,8 @@ extern "C" {
 struct MMPrivateArchive;
 struct MMChunkEndpoint;
 struct MMMovieArchiveEditor;
+struct MMMovieArchiveText;
+struct MMResourceCache;
 
 typedef struct MMSceneSnapshot
 {
@@ -32,6 +34,8 @@ void mm_scene_snapshot_dispose(MMSceneSnapshot *);
  * before publishing its number. The destination editor and endpoint share an index. */
 int mm_scene_snapshot_copy(const MMSceneSnapshot *, const struct MMChunkEndpoint *,
                            const struct MMMovieArchiveEditor *, MMU32 *number);
+int mm_scene_snapshot_copy_cache(const MMSceneSnapshot *, struct MMResourceCache *,
+                                 const struct MMMovieArchiveText *, MMU32 *number);
 
 #ifdef __cplusplus
 }

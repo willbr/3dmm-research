@@ -893,15 +893,8 @@ MMMovieSceneServices Movie::_SceneServices()
     s.undo_tags = &TagManager::CoreServices();
     s.snapshot = Scene::SnapshotServices();
     s.copy_snapshot = [](void *p, const MMSceneSnapshot *snapshot, MMU32 *number) -> int {
-        auto cache = static_cast<MMResourceCache *>(p);
-        auto reader = ResourceArchiveReader(cache);
-        if (!reader)
-            return false;
-        MovieArchiveHost archive{reader, ResourceArchiveWriter(cache)};
-        MMChunkFileCopy binding;
-        const auto destination = ResourceCopyTarget(cache, binding);
-        const auto editor = archive.Editor();
-        return mm_scene_snapshot_copy(snapshot, &destination, &editor, number);
+        const auto text = KauaiMovieArchiveText();
+        return mm_scene_snapshot_copy_cache(snapshot, static_cast<MMResourceCache *>(p), &text, number);
     };
     s.add_undo = [](void *p, void *undo) -> int { return static_cast<PMovie>(p)->FAddUndo(static_cast<PMovieSceneUndo>(undo)); };
     s.release_undo = [](void *p) { auto undo = static_cast<PMovieSceneUndo>(p); ReleasePpo(&undo); };

@@ -90,6 +90,13 @@ MMMovieSessionGraph mm_movie_owner_graph(MMChunkOwnerRead *reader)
     return graph;
 }
 
+MMMovieSessionGraph mm_movie_cache_graph(const MMResourceCache *cache)
+{
+    MMMovieSessionGraph empty = {0};
+    MMChunkOwnerRead *reader = mm_resource_cache_reader(cache);
+    return reader ? mm_movie_owner_graph(reader) : empty;
+}
+
 int mm_movie_owner_stored(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
 {
     const MMChunkOwnerRead *reader = context;

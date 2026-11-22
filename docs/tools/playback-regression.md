@@ -20708,3 +20708,28 @@ replayed all 30 frames and issued the new speech request at frame 12
 alongside the six original requests.
 
 Evidence is under tmp/c89-movie-sound-binding.
+
+## C89 Studio scene save and undo archive binding (22 November 2026)
+
+Studio binds the live or private archive in C89 for scene saves, transition
+edits and undo snapshots. The C89 cache supplies the chunk graph for movie,
+scene and actor reads and the embedded asset copy operations for snapshot
+storage and restore. Studio supplies title conversion, object callbacks and
+thumbnail rendering. The scene store rollback test covers thumbnail failure.
+
+All 193 rebuilt standalone C89 checks passed. Native x64 and SDL scene-load,
+scene-store, scene-content and movie save/load passed. Five native x64
+snapshots matched the prior bytes. The headless Preview and both Studio
+workflows passed, including caption, pause, camera and actor edits. Two
+Studio saves preserved the archive graph and chunk payloads, with two TMPL
+index padding bytes differing in each.
+
+The four actor-audio seek runs in 20261122T012633Z-811b059c completed. SDL
+and Marcus each matched all 30 prior seek canvases, 29 of 30 retail seek
+canvases, and all 30 retail camera indices. V3DMM matched all 30 retail seek
+canvases. Retail reopened two Studio movies in 20261122T012805Z-002bd68b.
+The camera-cut save reproduced all 60 reference seek canvases and camera
+indices. The caption and pause save rendered all 11 frames across two
+scenes, including both lines of the caption at frame 4.
+
+Evidence is under tmp/c89-scene-save-binding.

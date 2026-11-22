@@ -1,6 +1,7 @@
 /* Resource caching converted from Kauai crf.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/resource_cache.h"
+#include "mm/chunk_copy.h"
 #include "mm/chunk_storage.h"
 #include <stdlib.h>
 #include <string.h>
@@ -540,12 +541,35 @@ MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *c)
     return empty;
 }
 
+struct MMChunkOwnerRead *mm_resource_cache_reader(const MMResourceCache *c)
+{
+    if (c && !c->wire_index && c->services.live_reader)
+        return c->services.live_reader(c->file);
+    return NULL;
+}
+
 MMArchiveWriter mm_resource_cache_writer(const MMResourceCache *c)
 {
     MMArchiveWriter empty = {0};
     if (c && !c->wire_index && c->services.live_writer)
         return c->services.live_writer(c->file);
     return empty;
+}
+
+MMChunkEndpoint mm_resource_cache_live_copy_source(const MMResourceCache *c, MMChunkFileCopy *binding)
+{
+    MMChunkEndpoint source = {0};
+    if (c && !c->wire_index && c->services.live_copy_source)
+        c->services.live_copy_source(c->file, binding, &source);
+    return source;
+}
+
+MMChunkEndpoint mm_resource_cache_live_copy_target(const MMResourceCache *c, MMChunkFileCopy *binding)
+{
+    MMChunkEndpoint target = {0};
+    if (c && !c->wire_index && c->services.live_copy_target)
+        c->services.live_copy_target(c->file, binding, &target);
+    return target;
 }
 
 static int locate_payload(void *context, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)

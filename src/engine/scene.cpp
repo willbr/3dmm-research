@@ -58,6 +58,7 @@
 #include "mm/chunk_copy.h"
 #include "mm/private_archive.h"
 #include <new>
+#include <exception>
 #include <cstring>
 
 ASSERTNAME
@@ -1931,14 +1932,14 @@ Scene *Scene::PscenRead(PMovie pmvie, MMResourceCache *pcrf, ChunkNumber cno, co
 {
     AssertPo(pmvie, 0);
     AssertVarMem(pcrf);
-    const auto reader = ResourceArchiveReader(pcrf);
-    if (!reader)
+    const auto graph = mm_movie_cache_graph(pcrf);
+    if (!graph.access)
         return nullptr;
     struct Host
     {
         MMResourceCache *resources;
         MMMovieSceneSource source;
-    } host = {pcrf, {movie, mm_movie_owner_graph(reader)}};
+    } host = {pcrf, {movie, graph}};
     MMSceneLoadServices s = {};
     s.context = &host;
     s.owners = _OwnerServices();
@@ -1946,7 +1947,7 @@ Scene *Scene::PscenRead(PMovie pmvie, MMResourceCache *pcrf, ChunkNumber cno, co
     s.read = mm_movie_scene_reader(&host.source);
     s.resources = pcrf;
     s.tags = &TagManager::CoreServices();
-    s.title_file = reader;
+    s.title_file = graph.context;
     s.titles = KauaiChunkOwnerTitleIO();
     s.thumbnail = [](void *p, MMU32 number) -> void * {
         const auto &graph = static_cast<Host *>(p)->source.graph;
@@ -2017,49 +2018,68 @@ bool Scene::FGetTagBkgd(PTAG ptag)
  *  fFalse if it fails, else fTrue.
  *
  ****************************************************/
+namespace
+{
+struct SceneStoreHost
+{
+    PScene scene;
+    std::exception_ptr exception;
+};
+}
+
 bool Scene::FWrite(MMResourceCache *pcrf, ChunkNumber *pcno)
 {
     AssertVarMem(pcrf);
-    const auto reader = ResourceArchiveReader(pcrf);
-    if (!reader)
-        return false;
-    MovieArchiveHost archive{reader, ResourceArchiveWriter(pcrf)};
-    MMResourceChunkCopy binding;
-    const auto destination = ResourceCopySource(pcrf, binding);
-    MMMovieArchiveAssets assets{&destination, &TagManager::CoreServices()};
-    return FWrite(archive.Editor(), archive.Writer(), mm_movie_archive_assets(&assets), pcno);
+    SceneStoreHost host{this, {}};
+    const auto text = KauaiMovieArchiveText();
+    const auto services = _StoreServices(&host);
+    const int result = mm_scene_store_cache(pcno, pcrf, &text, &TagManager::CoreServices(), &services);
+    if (host.exception)
+        std::rethrow_exception(host.exception);
+    return result != 0;
 }
 
-bool Scene::FWrite(const MMMovieArchiveEditor &editor, const MMArchiveWriter &writer,
-                   const MMMovieEmbeddedArchive &assets, ChunkNumber *pcno)
+MMSceneStoreServices Scene::_StoreServices(void *context)
 {
     AssertThis(0);
-    struct Host
-    {
-        PScene scene;
-        const MMMovieArchiveEditor &editor;
-        const MMArchiveWriter &writer;
-        const MMMovieEmbeddedArchive &assets;
-    } host = {this, editor, writer, assets};
     MMSceneStoreServices s = {};
-    s.context = &host;
+    s.context = context;
     s.owner = &_owner;
-    s.editor = &editor;
     s.values = SceneSoundValues();
-    s.assets = assets;
     s.free_sound_bytes = [](void *, void *p) { FreePpv(&p); };
-    s.write_object = [](void *p, void *object, int kind, MMU32 n, MMU32 scene) -> int {
-        const auto &host = *static_cast<Host *>(p);
-        return kind == MM_SCENE_ADD_ACTOR ? static_cast<PActor>(object)->FWrite(host.writer, host.assets, n, scene)
-                                        : static_cast<PTBOX>(object)->FWrite(host.editor, host.writer, n);
+    s.write_object = [](const MMSceneStoreServices *services, void *object, int kind, MMU32 n, MMU32 scene) -> int {
+        auto &host = *static_cast<SceneStoreHost *>(services->context);
+        try
+        {
+            return kind == MM_SCENE_ADD_ACTOR
+                ? static_cast<PActor>(object)->FWrite(*services->archive, services->assets, n, scene)
+                : static_cast<PTBOX>(object)->FWrite(*services->editor, *services->archive, n);
+        }
+        catch (...)
+        {
+            host.exception = std::current_exception();
+            return 0;
+        }
     };
-    s.update_thumbnail = [](void *p) { static_cast<Host *>(p)->scene->_UpdateThumbnail(); };
+    s.update_thumbnail = [](void *p) -> int {
+        auto &host = *static_cast<SceneStoreHost *>(p);
+        try
+        {
+            host.scene->_UpdateThumbnail();
+            return 1;
+        }
+        catch (...)
+        {
+            host.exception = std::current_exception();
+            return 0;
+        }
+    };
     s.thumbnail_size = [](void *, void *p) -> MMI32 { return MaskedBitmapSize(static_cast<PMaskedBitmapMBMP>(p)); };
     s.write_thumbnail = [](void *, void *p, const MMStorageWriter *writer) -> int {
         return mm_masked_owner_write(static_cast<PMaskedBitmapMBMP>(p), writer);
     };
     s.diagnostic = [](void *, int) { Bug("Bad event in frame event list"); };
-    return mm_scene_store(pcno, &s) != 0;
+    return s;
 }
 
 /****************************************************
@@ -3439,12 +3459,12 @@ MMSceneSnapshotServices Scene::SnapshotServices()
     s.begin = [](void *) { vpappb->BeginLongOp(); };
     s.end = [](void *) { vpappb->EndLongOp(); };
     s.write = [](void *, void *scene, MMPrivateArchive *archive, MMU32 *number) -> int {
-        MMChunkFileCopy binding;
-        const auto destination = mm_private_archive_copy_target(archive, &binding);
-        MMMovieArchiveAssets assets{&destination, &TagManager::CoreServices()};
-        return static_cast<PScene>(scene)->FWrite(mm_private_archive_editor(archive),
-                                                mm_private_archive_writer(archive),
-                                                mm_movie_archive_assets(&assets), number);
+        SceneStoreHost host{static_cast<PScene>(scene), {}};
+        const auto services = host.scene->_StoreServices(&host);
+        const int result = mm_scene_store_private(number, archive, &TagManager::CoreServices(), &services);
+        if (host.exception)
+            std::rethrow_exception(host.exception);
+        return result;
     };
     return s;
 }

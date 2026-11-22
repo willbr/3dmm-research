@@ -66,6 +66,11 @@ extern "C"
      * Failed reads preserve output; failed name write may follow committed header. */
     int mm_scene_transition_read(MMU32, unsigned unit, MMI32 *, const MMSceneIO *);
     int mm_scene_transition_write(MMU32, unsigned unit, MMI32 transition, const MMSceneIO *);
+    struct MMResourceCache;
+    int mm_scene_transition_read_cache(const struct MMResourceCache *, MMU32, unsigned unit, MMI32 *,
+                                       const MMChunkTitleIO *);
+    int mm_scene_transition_write_cache(const struct MMResourceCache *, MMU32, unsigned unit, MMI32 transition,
+                                        const MMChunkTitleIO *);
     typedef struct MMSceneGroupServices
     {
         MMU32 (*fixed_width)(void *group);

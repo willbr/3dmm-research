@@ -23,7 +23,7 @@ MMMovieSessionBinding MovieData::_SessionBinding()
 {
     return {
         [](void *p, MMMovieSessionGraph *graph) {
-            *graph = mm_movie_owner_graph(ResourceArchiveReader(static_cast<MMResourceCache *>(p)));
+            *graph = mm_movie_cache_graph(static_cast<MMResourceCache *>(p));
         },
         MovieOpenError};
 }
@@ -64,7 +64,7 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         },
         _SessionBinding(),
         [](void *p) { mm_resource_cache_release(static_cast<MMResourceCache *>(p)); },
-        [](void *p) { return ResourceArchiveWriter(static_cast<MMResourceCache *>(p)); },
+        [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)); },
         _RollCallBinding(),
         [](void *) { Bug("chunk or child link missing"); },
         ResourceTitleIO(),

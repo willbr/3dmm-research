@@ -206,9 +206,9 @@ static int insert_asset(void *p, MMU32 scene, const MMChunkChild *child)
     return 1;
 }
 
-static int write_object(void *p, void *value, int kind, MMU32 number, MMU32 scene)
+static int write_object(const MMSceneStoreServices *s, void *value, int kind, MMU32 number, MMU32 scene)
 {
-    StoreFixture *f = p;
+    StoreFixture *f = s->context;
     CHECK(value == f && scene == SCENE_NUMBER && f->chunks[number].linked);
     CHECK(f->chunks[number].type == (MMU32)(kind == MM_SCENE_ADD_ACTOR ? MM_SCENE_ACTOR_CHUNK : MM_TEXT_BOX));
     ++f->objects;
@@ -266,13 +266,15 @@ static void erase_asset(void *p, const MMChunkEntry *entry)
     chunk->type = chunk->linked = 0;
 }
 
-static void update_thumbnail(void *p)
+static int update_thumbnail(void *p)
 {
     StoreFixture *f = p;
     CHECK(f->chunks[FRAMES_NUMBER].linked && f->chunks[STARTS_NUMBER].linked && !f->updated);
+    if (!step(f, 82))
+        return 0;
     f->updated = 1;
-    note(f, 82);
     f->owner.owned[MM_SCENE_THUMBNAIL] = f->with_thumb ? &f->thumb : NULL;
+    return 1;
 }
 
 static MMI32 thumbnail_size(void *p, void *thumbnail)

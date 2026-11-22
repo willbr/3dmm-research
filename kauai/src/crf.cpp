@@ -201,9 +201,7 @@ bool ReadResourceName(const MMResourceCache *cache, ChunkTagOrType type, ChunkNu
 
 MMChunkOwnerRead *ResourceArchiveReader(const MMResourceCache *cache)
 {
-    if (!cache->wire_index && cache->services.live_reader)
-        return cache->services.live_reader(cache->file);
-    return nullptr;
+    return mm_resource_cache_reader(cache);
 }
 
 MMArchiveWriter ResourceArchiveWriter(const MMResourceCache *cache)
@@ -220,12 +218,7 @@ void ReopenResourceArchive(MMResourceCache *cache)
 MMChunkEndpoint ResourceCopySource(MMResourceCache *cache, MMResourceChunkCopy &binding)
 {
     if (!cache->wire_index)
-    {
-        MMChunkEndpoint source = {};
-        if (cache->services.live_copy_source)
-            cache->services.live_copy_source(cache->file, &binding.live, &source);
-        return source;
-    }
+        return mm_resource_cache_live_copy_source(cache, &binding.live);
     if (cache->services.block_files == KauaiBlockFileServices() &&
         (static_cast<PFileObject>(cache->wire_file)->GrffilCur() & ffilWriteEnable))
         return {};
@@ -236,10 +229,7 @@ MMChunkEndpoint ResourceCopySource(MMResourceCache *cache, MMResourceChunkCopy &
 
 MMChunkEndpoint ResourceCopyTarget(MMResourceCache *cache, MMChunkFileCopy &binding)
 {
-    MMChunkEndpoint target = {};
-    if (!cache->wire_index && cache->services.live_copy_target)
-        cache->services.live_copy_target(cache->file, &binding, &target);
-    return target;
+    return mm_resource_cache_live_copy_target(cache, &binding);
 }
 
 namespace
