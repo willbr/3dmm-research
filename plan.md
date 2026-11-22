@@ -1194,6 +1194,10 @@ instance ordering/tree copying, lighting/material overrides, frustum depth fitti
 raster dispatch and indexed/depth output composition now also use C89. Typed
 BRender and host rasterizer/image services remain adapters. Preview validates
 and prepares custom light rigs in C89 and renders them with a private orbit.
+Marcus plans output dimensions, movie and work camera flags, depth and palette
+planes, grid presentation and ASM worker eligibility in C89. The shared C
+preview renderer reduces supersampled colour and depth in place before the
+movie transition and work-view overlays are presented.
 Marcus storyboards pass their C89 light values directly. Render and pick bind
 typed bodies and models and use the live frame publication in C89. Camera
 matching shares the live scene and body lookup. The C89 live scene owns the

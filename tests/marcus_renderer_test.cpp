@@ -2,6 +2,7 @@
 #include "asm_renderer.h"
 #include "asm_protocol.h"
 #include "player.h"
+#include "render_plan.h"
 #include "settings.h"
 #include "mm/preview.h"
 #include "zb_capture.h"
@@ -66,6 +67,30 @@ int main(int argc, char **argv)
     CHECK(marcus_render_options_valid(&invalidOptions));
     invalidOptions.antialias = 3;
     CHECK(!marcus_render_options_valid(&invalidOptions));
+    MarcusRenderOptions renderOptions = {};
+    renderOptions.antialias = 2;
+    renderOptions.orthographic = renderOptions.ground_grid = 1;
+    renderOptions.axis_view = 3;
+    MarcusRenderRequest request{1024, 183, MARCUS_RENDERER_SDL_GPU, 1, 0, 1, 1, 0, 0};
+    MarcusRenderPlan plan;
+    CHECK(marcus_render_options_supported(request.renderer, &renderOptions));
+    CHECK(marcus_render_plan(&request, &renderOptions, &plan));
+    CHECK(plan.width == 4096 && plan.height == 732 && plan.scale == 4);
+    CHECK(plan.movie && plan.depth && plan.palette && !plan.axis && !plan.orthographic && !plan.grid);
+    request.width++;
+    CHECK(!marcus_render_plan(&request, &renderOptions, &plan) && plan.width == 4096);
+    request.renderer = MARCUS_RENDERER_BRENDER_ASM;
+    request.free_camera = request.temporary_pose = 1;
+    CHECK(!marcus_render_options_supported(request.renderer, &renderOptions));
+    CHECK(marcus_render_plan(&request, &renderOptions, &plan));
+    CHECK(plan.width == 1025 && plan.scale == 1 && plan.use_worker && !plan.materialized);
+    CHECK(!plan.movie && plan.depth && !plan.palette && !plan.axis && !plan.orthographic && plan.grid);
+    request.authored = 0;
+    request.native_edits = 1;
+    CHECK(marcus_render_plan(&request, &renderOptions, &plan));
+    CHECK(plan.axis == 3 && plan.orthographic && !plan.use_worker && !plan.materialized);
+    request.temporary_pose = 0;
+    CHECK(marcus_render_plan(&request, &renderOptions, &plan) && plan.use_worker && plan.materialized);
     CHECK(marcus_render_resolution(MARCUS_DEFAULT_RESOLUTION)->width == 544 &&
           marcus_render_resolution(MARCUS_DEFAULT_RESOLUTION)->height == 306);
     CHECK(!marcus_render_resolution(-1) && !marcus_render_resolution(MARCUS_RESOLUTION_COUNT));

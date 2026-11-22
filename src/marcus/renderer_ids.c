@@ -1,4 +1,5 @@
-#include "player.h"
+#include "render_plan.h"
+#include "mm/preview_render.h"
 #include <string.h>
 
 static const char *names[MARCUS_RENDERER_COUNT] = {"BRender (CPU C)", "BRender (compute)", "SDL GPU", "BRender (CPU ASM x86)"};
@@ -22,6 +23,34 @@ int marcus_render_options_valid(const MarcusRenderOptions *options)
            options->orthographic >= 0 && options->orthographic <= 1 &&
            options->axis_view >= 0 && options->axis_view <= 3 &&
            options->ground_grid >= 0 && options->ground_grid <= 1;
+}
+int marcus_render_options_supported(int renderer, const MarcusRenderOptions *options)
+{
+    return marcus_renderer_is_gpu(renderer) ||
+           (options->display_mode < MARCUS_DISPLAY_DEPTH && !options->wire_overlay && !options->antialias &&
+            !options->texture_filter);
+}
+int marcus_render_plan(const MarcusRenderRequest *request, const MarcusRenderOptions *settings, MarcusRenderPlan *plan)
+{
+    MarcusRenderPlan frame;
+    frame.scale = marcus_renderer_is_gpu(request->renderer) ? 1u << settings->antialias : 1u;
+    if (request->width > MM_PREVIEW_MAX_DIMENSION / frame.scale ||
+        request->height > MM_PREVIEW_MAX_DIMENSION / frame.scale)
+        return 0;
+    frame.width = request->width * frame.scale;
+    frame.height = request->height * frame.scale;
+    frame.movie = request->authored && !request->free_camera;
+    frame.orthographic = !request->authored && settings->orthographic;
+    frame.axis = request->authored ? 0 : settings->axis_view;
+    frame.depth = !frame.movie || settings->ground_grid;
+    frame.palette = frame.movie && request->palette_animating;
+    frame.grid = settings->ground_grid && !(frame.movie && request->transitioning);
+    /* Keep transient placements on the worker when it can apply them to the source movie. */
+    frame.use_worker = request->renderer == MARCUS_RENDERER_BRENDER_ASM &&
+                       !(request->native_edits && request->temporary_pose);
+    frame.materialized = frame.use_worker && request->native_edits;
+    *plan = frame;
+    return 1;
 }
 const char *marcus_renderer_name(int renderer)
 {

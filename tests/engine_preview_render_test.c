@@ -679,6 +679,51 @@ static void lighting_test(Host *h)
     CHECK(!orbit.framed && !h->submitted_lights);
     clean(h);
 }
+static void reduction_test(void)
+{
+    static const unsigned char expected[] = {160, 25, 17, 63, 0, 0, 0, 0, 99, 65, 31, 0, 9, 21, 37, 63};
+    unsigned char rgba[64] = {0};
+    float depth[16], empty = (float)HUGE_VAL;
+    MMPreviewImage image;
+    int i;
+    memset(&image, 0, sizeof(image));
+    image.width = image.height = 4;
+    image.rgba = rgba;
+    image.depth = depth;
+    image.covered = 15;
+    image.roll = 20;
+    for (i = 0; i < 16; ++i)
+        depth[i] = empty;
+    rgba[0] = 200; rgba[1] = 20; rgba[2] = 5; rgba[3] = 204;
+    rgba[4] = 0; rgba[5] = 45; rgba[6] = 65; rgba[7] = 51;
+    rgba[8] = 255;
+    rgba[32] = 99; rgba[33] = 65; rgba[34] = 31; rgba[35] = 3;
+    rgba[60] = 9; rgba[61] = 21; rgba[62] = 37; rgba[63] = 255;
+    depth[0] = 7;
+    depth[5] = 1;
+    depth[12] = 4;
+    depth[15] = 3;
+    CHECK(!mm_preview_reduce_image(&image, sizeof(rgba) - 1, 16, 2, empty));
+    CHECK(!mm_preview_reduce_image(&image, sizeof(rgba), 15, 2, empty));
+    CHECK(!mm_preview_reduce_image(&image, sizeof(rgba), 16, 3, empty));
+    image.width = 3;
+    CHECK(!mm_preview_reduce_image(&image, 48, 12, 2, empty));
+    image.width = 4;
+    CHECK(image.height == 4 && image.covered == 15 && rgba[0] == 200 && depth[0] == 7);
+    CHECK(mm_preview_reduce_image(&image, sizeof(rgba), 16, 2, empty));
+    CHECK(image.width == 2 && image.height == 2 && image.covered == 2 && image.roll == 20);
+    CHECK(!memcmp(rgba, expected, sizeof(expected)));
+    CHECK(depth[0] == 1 && depth[1] == empty && depth[2] == 4 && depth[3] == 3);
+
+    memset(rgba, 255, sizeof(rgba));
+    image.width = image.height = 4;
+    image.depth = NULL;
+    CHECK(!mm_preview_reduce_image(&image, sizeof(rgba), 1, 4, empty));
+    CHECK(mm_preview_reduce_image(&image, sizeof(rgba), 0, 4, empty));
+    CHECK(image.width == 1 && image.height == 1 && image.covered == 1 && !image.depth);
+    CHECK(rgba[0] == 255 && rgba[1] == 255 && rgba[2] == 255 && rgba[3] == 255);
+}
+
 int main(void)
 {
     static Host h;
@@ -689,6 +734,7 @@ int main(void)
     MMRenderFrame frame;
     int result, fail, allocations;
     depth_test();
+    reduction_test();
     lighting_test(&h);
     init(&h, &v, &orbit);
     s = services(&h);

@@ -10,6 +10,7 @@
 extern "C"
 {
 #endif
+    enum { MM_PREVIEW_MAX_DIMENSION = 4096 };
     typedef struct MMPreviewView
     {
         MMU32 width, height;
@@ -198,6 +199,11 @@ extern "C"
     void mm_preview_depth_fit(const MMPreviewDepthRange *, double *near_clip, double *far_clip);
     int mm_preview_render(const MMPreviewView *, MMPreviewOrbit *, MMPreviewImage *,
                                 const MMPreviewRenderServices *);
+    /* Reduce tightly packed RGBA and optional depth in place by 2 or 4 in
+     * each dimension. Empty depth seeds each block's minimum. On success the
+     * reduced planes occupy the start of the buffers. Failure leaves the
+     * image and buffers untouched. */
+    int mm_preview_reduce_image(MMPreviewImage *, size_t rgba_bytes, size_t depth_count, MMU32 scale, float empty_depth);
     /* Stage a temporary rig. Disabled lights are skipped after validation.
      * Failure leaves the destination untouched. Rendering with a rig uses a
      * private copy of the current orbit. */

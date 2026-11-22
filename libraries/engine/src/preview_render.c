@@ -955,6 +955,51 @@ int mm_preview_prepare_lights(const MMPreviewLightValues *values, size_t count, 
         MM_PREVIEW_OK : MM_PREVIEW_LIGHT_VALUE_INVALID;
 }
 
+int mm_preview_reduce_image(MMPreviewImage *image, size_t rgba_bytes, size_t depth_count, MMU32 scale, float empty_depth)
+{
+    MMU32 width, height, x, y, sx, sy, channel, covered = 0;
+    size_t pixels, target = 0;
+    if (!image || !image->rgba || (scale != 2 && scale != 4) ||
+        !image->width || !image->height ||
+        image->width > MM_PREVIEW_MAX_DIMENSION || image->height > MM_PREVIEW_MAX_DIMENSION ||
+        image->width % scale || image->height % scale)
+        return 0;
+    pixels = (size_t)image->width * image->height;
+    if (rgba_bytes != pixels * 4 || (image->depth ? depth_count != pixels : depth_count != 0))
+        return 0;
+    width = image->width / scale;
+    height = image->height / scale;
+    for (y = 0; y < height; ++y)
+        for (x = 0; x < width; ++x, ++target)
+        {
+            MMU32 alpha = 0, colour[3] = {0, 0, 0};
+            float closest = empty_depth;
+            unsigned char *reduced = image->rgba + target * 4;
+            for (sy = 0; sy < scale; ++sy)
+                for (sx = 0; sx < scale; ++sx)
+                {
+                    size_t source = (size_t)(y * scale + sy) * image->width + x * scale + sx;
+                    const unsigned char *pixel = image->rgba + source * 4;
+                    alpha += pixel[3];
+                    for (channel = 0; channel < 3; ++channel)
+                        colour[channel] += pixel[channel] * pixel[3];
+                    if (image->depth && image->depth[source] < closest)
+                        closest = image->depth[source];
+                }
+            /* Every preceding write is before this block's first sample. */
+            for (channel = 0; channel < 3; ++channel)
+                reduced[channel] = alpha ? (unsigned char)(colour[channel] / alpha) : 0;
+            reduced[3] = (unsigned char)(alpha / (scale * scale));
+            covered += reduced[3] != 0;
+            if (image->depth)
+                image->depth[target] = closest;
+        }
+    image->width = width;
+    image->height = height;
+    image->covered = covered;
+    return 1;
+}
+
 int mm_preview_render(const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewImage *output,
                             const MMPreviewRenderServices *s)
 {
@@ -965,7 +1010,8 @@ int mm_preview_render(const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewIm
     memset(output, 0, sizeof(*output));
     if (!mm_preview_ready(s))
         return MM_PREVIEW_NOT_READY;
-    if (v->width < 64 || v->height < 64 || v->width > 4096 || v->height > 4096 || !finitef(v->yaw) ||
+    if (v->width < 64 || v->height < 64 || v->width > MM_PREVIEW_MAX_DIMENSION ||
+        v->height > MM_PREVIEW_MAX_DIMENSION || !finitef(v->yaw) ||
         !finitef(v->pitch) || !finitef(v->roll) || !finitef(v->vertical_fov) || v->vertical_fov <= 0 ||
         v->vertical_fov >= 179 || !finitef(v->near_clip) || v->near_clip < 0 || v->near_clip > 100 ||
         !finitef(v->zoom) || v->pitch < -90 || v->pitch > 90 || v->zoom < .1f || v->zoom > 10 || v->display < 0 ||

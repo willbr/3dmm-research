@@ -8,11 +8,13 @@
 #include "mm/movie_undo.h"
 #include "mm/scene_edit.h"
 #include "mm/playback.h"
+#include "mm/preview_render.h"
 #include "mm/text_resource.h"
 #include "mm/vmm_dependencies.h"
 #include "content.h"
 #include "movie_input.h"
 #include "playback.h"
+#include "render_plan.h"
 #include "gpu_renderer.h"
 #include "asm_renderer.h"
 #include "waveform.h"
@@ -595,47 +597,48 @@ MM::PreviewProjection ReadProjection(const MarcusProjection &source)
 }
 bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *image, MM::Error &error)
 {
+    static_assert(MM::PreviewMaxDimension == MM_PREVIEW_MAX_DIMENSION, "Preview dimension limits must agree.");
     auto options = view;
     options.renderAtOutputResolution = true;
     options.fitSceneDepth = true;
     const auto &settings = player->renderOptions;
-    const int scale = marcus_renderer_is_gpu(player->renderer) ? 1 << settings.antialias : 1;
-    if (view.width > MM::PreviewMaxDimension / scale || view.height > MM::PreviewMaxDimension / scale)
+    const MarcusRenderRequest request{view.width, view.height, player->renderer, view.authoredCamera, view.freeCamera,
+        player->playback.PaletteAnimating(), player->playback.Transitioning(),
+        player->edits->storyboards->count || player->edits->costumes->count,
+        !player->propPreviews.empty() || !player->shapePreviews.empty()};
+    MarcusRenderPlan plan;
+    if (!marcus_render_plan(&request, &settings, &plan))
     {
         error.message = "Supersampling exceeds the 4096-pixel render limit. Choose a smaller resolution or turn AA off.";
         return false;
     }
-    options.width *= scale;
-    options.height *= scale;
+    options.width = plan.width;
+    options.height = plan.height;
     options.displayMode = settings.display_mode;
-    options.orthographic = !view.authoredCamera && settings.orthographic;
-    options.axisView = !view.authoredCamera ? settings.axis_view : 0;
+    options.orthographic = plan.orthographic;
+    options.axisView = plan.axis;
     if (options.axisView) { options.roll = 0; options.verticalFov = 45; }
     options.rasterizer = player->rasterizers[player->renderer].get();
     if (options.rasterizer) MarcusConfigureGPURenderer(options.rasterizer, settings);
-    options.includeDepth = !view.authoredCamera || view.freeCamera || settings.ground_grid;
-    options.includePaletteIndices = view.authoredCamera && !view.freeCamera && player->playback.PaletteAnimating();
+    options.includeDepth = plan.depth;
+    options.includePaletteIndices = plan.palette;
     if (!image || player->selected < 0)
         return false;
     player->image.paletteIndices.clear();
-    // Send live placements to the same worker as committed ones. Switching to
-    // a different evaluator during a drag loses its cached orbit framing.
-    const bool nativeBoards = player->edits->storyboards->count || player->edits->costumes->count;
-    if (player->renderer == MARCUS_RENDERER_BRENDER_ASM &&
-        !(nativeBoards && (!player->propPreviews.empty() || !player->shapePreviews.empty())))
+    if (plan.use_worker)
     {
-        if (!nativeBoards && player->asmBoardFile) { player->asmRenderer.reset(); player->asmBoardFile.reset(); }
-        if (nativeBoards)
+        if (!plan.materialized && player->asmBoardFile) { player->asmRenderer.reset(); player->asmBoardFile.reset(); }
+        if (plan.materialized)
         {
             const auto file = MaterializedMovie(*player);
             if (player->asmBoardFile != file) { player->asmRenderer.reset(); player->asmBoardFile = file; }
         }
         if (!player->asmRenderer)
-            player->asmRenderer = std::make_unique<MarcusASMRenderer>((nativeBoards ? player->asmBoardFile->path : player->content->movie).u8string(),
+            player->asmRenderer = std::make_unique<MarcusASMRenderer>((plan.materialized ? player->asmBoardFile->path : player->content->movie).u8string(),
                 player->timingResources, player->timingContent, player->content && player->content->bundled && player->timingInput
                     ? (player->timingInput->contentOrigin.empty() ? player->timingInput->path : player->timingInput->contentOrigin).u8string() : std::string{});
         std::vector<MarcusASM::PropOffset> offsets;
-        for (std::size_t index = 0; !nativeBoards && index < player->objects.size(); ++index)
+        for (std::size_t index = 0; !plan.materialized && index < player->objects.size(); ++index)
         {
             const auto &object = player->objects[index];
             const auto pose = mm_movie_pose_journal_find(player->poses.get(), player->scenes[player->selected].number,
@@ -659,50 +662,40 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
         }
         const auto &range = player->sceneInfo[player->selected];
         if (!player->asmRenderer->Render(player->selected, player->preview.Info().currentFrame, options, player->image, error,
-                                         offsets, range.first_frame, range.last_frame, nativeBoards ? nullptr : player->edits.get()))
+                                         offsets, range.first_frame, range.last_frame, plan.materialized ? nullptr : player->edits.get()))
         { player->asmRenderer.reset(); return false; }
     }
     else if (!player->preview.Render(options, player->image, error)) return false;
     const auto &caption = player->captionPreview;
     const bool editing = caption && caption->document == player->document && caption->scene == player->selected;
     const auto hide = editing && caption->chunk ? &*caption->chunk : nullptr;
-    if (!player->playback.Composite(player->preview, view.authoredCamera && !view.freeCamera, player->image, error,
-                                    hide, editing))
+    if (!player->playback.Composite(player->preview, plan.movie, player->image, error, hide, editing))
         return false;
-    if (scale > 1)
+    if (plan.scale > 1)
     {
-        MM::PreviewImage reduced;
-        reduced.camera = player->image.camera;
-        reduced.projection = player->image.projection;
-        reduced.sceneCamera = player->image.sceneCamera;
-        reduced.width = view.width; reduced.height = view.height;
-        reduced.rgba.assign(std::size_t(view.width) * view.height * 4, 0);
-        reduced.depth.clear();
-        const bool depth = !player->image.depth.empty();
-        if (depth) reduced.depth.assign(std::size_t(view.width) * view.height, std::numeric_limits<float>::infinity());
-        reduced.coveredPixels = 0;
-        for (unsigned y = 0; y < view.height; ++y)
-            for (unsigned x = 0; x < view.width; ++x)
-            {
-                unsigned alpha = 0, colour[3] = {};
-                const auto target = std::size_t(y) * view.width + x;
-                for (int sy = 0; sy < scale; ++sy)
-                    for (int sx = 0; sx < scale; ++sx)
-                    {
-                        const auto source = std::size_t(y * scale + sy) * player->image.width + x * scale + sx;
-                        const auto pixel = &player->image.rgba[source * 4];
-                        alpha += pixel[3];
-                        for (int channel = 0; channel < 3; ++channel) colour[channel] += pixel[channel] * pixel[3];
-                        if (depth) reduced.depth[target] = std::min(reduced.depth[target], player->image.depth[source]);
-                    }
-                for (int channel = 0; channel < 3; ++channel)
-                    reduced.rgba[target * 4 + channel] = alpha ? static_cast<unsigned char>(colour[channel] / alpha) : 0;
-                reduced.rgba[target * 4 + 3] = static_cast<unsigned char>(alpha / (scale * scale));
-                reduced.coveredPixels += reduced.rgba[target * 4 + 3] != 0;
-            }
-        player->image = std::move(reduced);
+        auto &frame = player->image;
+        MMPreviewImage reduced{};
+        reduced.width = frame.width;
+        reduced.height = frame.height;
+        reduced.rgba = frame.rgba.data();
+        reduced.depth = frame.depth.empty() ? nullptr : frame.depth.data();
+        if (frame.width != plan.width || frame.height != plan.height ||
+            !mm_preview_reduce_image(&reduced, frame.rgba.size(), frame.depth.size(), plan.scale,
+                                     std::numeric_limits<float>::infinity()))
+        {
+            error.message = "Renderer returned an invalid supersampled frame.";
+            return false;
+        }
+        const auto pixels = std::size_t(reduced.width) * reduced.height;
+        frame.rgba.resize(pixels * 4);
+        if (reduced.depth) frame.depth.resize(pixels);
+        frame.paletteIndices.clear();
+        std::fill_n(frame.contentRect, 4, 0);
+        frame.width = reduced.width;
+        frame.height = reduced.height;
+        frame.coveredPixels = reduced.covered;
     }
-    if (view.authoredCamera && !view.freeCamera)
+    if (plan.movie)
         player->playback.PresentMovieFrame(player->selected, player->image);
     image->width = static_cast<int>(player->image.width);
     image->height = static_cast<int>(player->image.height);
@@ -715,10 +708,9 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     image->scene_camera = CopyProjection(player->image.sceneCamera);
     image->scene = player->selected;
     image->frame = player->preview.Info().currentFrame;
-    image->authored_camera = view.authoredCamera && !view.freeCamera;
+    image->authored_camera = plan.movie;
     image->document = player->document;
-    if (settings.ground_grid && !(image->authored_camera && player->playback.Transitioning()) &&
-        player->image.depth.size() == std::size_t(image->width) * image->height)
+    if (plan.grid && player->image.depth.size() == std::size_t(image->width) * image->height)
         camera_blend_ground_grid(image, player->image.rgba.data(), player->image.depth.data());
     return true;
 }
@@ -1659,8 +1651,7 @@ extern "C"
                 error.message = "Camera render settings are invalid.";
                 return false;
             }
-            if (!marcus_renderer_is_gpu(player->renderer) &&
-                (options->display_mode >= MARCUS_DISPLAY_DEPTH || options->wire_overlay || options->antialias || options->texture_filter))
+            if (!marcus_render_options_supported(player->renderer, options))
             {
                 error.message = "Depth, normals, wire overlay, AA and filtering require a GPU renderer.";
                 return false;

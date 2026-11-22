@@ -22652,3 +22652,30 @@ The existing `scene-load` assertion repeated its 63,224-byte trace and
 fingerprint `0D666753`.
 
 Evidence is under `tmp/c89-transition-frames`.
+
+## C89 render planning and supersample reduction (22 November 2026)
+
+Marcus prepares the output dimensions, camera mode, depth and palette
+planes, grid visibility and ASM worker choice in C89. The preview backend
+reduces supersampled RGBA and optional depth in place using alpha-weighted
+colour, average coverage and minimum depth.
+
+All 239 selected x64, x86 and SDL Studio checks passed, along with three
+native GPU checks. The C tests covered transparent samples, coverage
+rounding, minimum depth and rejected buffer dimensions. The GPU integration
+and default-driver and Vulkan scanline parity checks ran on a private Windows
+desktop. Fourteen CPU and GPU renders at 321×183 matched the previous build
+byte for byte in the authored and work views, including the work-view grid
+and both supersample settings on each GPU backend. Marcus's headless startup
+capture also matched byte for byte.
+
+Dissolve baseline `20261122T192528Z-8665e42e` and candidate
+`20261122T193710Z-0819ec89` matched all 60 seek canvases and recorded states
+per port. Both ports reproduced 59 steady observations and the settled
+dissolve. The authored frame order and settled canvas matched the retained
+retail and V3DMM captures in `20261122T192248Z-02c3a12c`. Continuous
+transition-pixel and timing parity remain unverified. The existing
+`scene-load` assertion repeated its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Evidence is under `tmp/c89-render-plan` and `tmp/c89-transition-frames`.
