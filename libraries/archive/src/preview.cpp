@@ -18,6 +18,7 @@
 #include "soc_core.h"
 #include "engine_movie_graph.h"
 #include "mm/archive_reader.h"
+#include "mm/actor_animation.h"
 #include "mm/scene_runtime.h"
 #include "mm/preview_pick.h"
 #include "mm/preview_camera.h"
@@ -304,6 +305,20 @@ bool Preview::ObjectActions(int object, std::vector<PreviewAction> &out, Error &
 }
 bool Preview::WriteObjectAnimation(int object, const PreviewAnimationEdit &edit, const std::string &path,
                                    int &lastActorFrame, int &lastEditedFrame, Error &error)
+{
+    static_assert(int(PreviewAnimationEdit::Kind::action) == MM_ACTOR_ANIMATION_ACTION &&
+                  int(PreviewAnimationEdit::Kind::record) == MM_ACTOR_ANIMATION_RECORD &&
+                  int(PreviewAnimationEdit::Kind::tweak) == MM_ACTOR_ANIMATION_TWEAK, "animation edit kinds");
+    const MMActorAnimation request{int(edit.kind), edit.freeze, edit.replace, edit.action, edit.cel,
+                                   edit.points.data(), edit.points.size(),
+                                   [](const void *points, std::size_t index, MMActorAnimationPoint *out) {
+                                       const auto &point = static_cast<const PreviewPathPoint *>(points)[index];
+                                       *out = {point.x, point.y, point.z};
+                                   }};
+    return WriteObjectAnimationRequest(object, request, path, lastActorFrame, lastEditedFrame, error);
+}
+bool Preview::WriteObjectAnimationRequest(int object, const MMActorAnimation &edit, const std::string &path,
+                                          int &lastActorFrame, int &lastEditedFrame, Error &error)
 {
     error = {};
     const auto resolveSound = [this](const TAGOnFile &tag, MMMovieSessionGraph &out) {

@@ -262,24 +262,14 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
     return host.Result(mm_preview_actor_write_costumes(&core, &edits, &catalog, &services));
 }
 
-bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::string &path,
+bool PreviewActor::WriteAnimation(const MMActorAnimation &edit, const std::string &path,
                                   int &lastActorFrame, int &lastEditedFrame, const SoundGraphResolver &resolveSound)
 {
-    if (!Visible() || !Ptmpl() || edit.points.size() > MM_ACTOR_ANIMATION_MAX_POINTS) return false;
-    static_assert(int(PreviewAnimationEdit::Kind::action) == MM_ACTOR_ANIMATION_ACTION &&
-                  int(PreviewAnimationEdit::Kind::record) == MM_ACTOR_ANIMATION_RECORD &&
-                  int(PreviewAnimationEdit::Kind::tweak) == MM_ACTOR_ANIMATION_TWEAK, "animation edit kinds");
-    std::vector<MMActorAnimationPoint> points;
-    points.reserve(edit.points.size());
-    for (const auto &point : edit.points)
-        points.push_back({point.x, point.y, point.z});
-    const MMActorAnimation request{int(edit.kind), edit.freeze, edit.replace, edit.action, edit.cel,
-                                   points.data(), points.size()};
     DraftHost host(this, path, &resolveSound);
     const auto playback = host.Services();
     const auto services = host.EditServices(playback);
     MMActorAnimationRange range;
-    if (!host.Result(mm_preview_actor_write_animation(&core, &request, &range, &services)))
+    if (!host.Result(mm_preview_actor_write_animation(&core, &edit, &range, &services)))
         return false;
     lastActorFrame = range.actor_last;
     lastEditedFrame = range.edited_last;

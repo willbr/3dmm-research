@@ -52,7 +52,7 @@ class PreviewActor
     int RenderAction(LegacyLong action, LegacyLong cel, float *clip, int *clipValid, const MMPreviewIsolatedView &);
     int RenderCostumes(const std::vector<PreviewCostume> &, MMI32 set, const MMPreviewIsolatedView &);
     using SoundGraphResolver = std::function<bool(const TAGOnFile &, MMMovieSessionGraph &)>;
-    bool WriteAnimation(const PreviewAnimationEdit &, const std::string &path, int &lastActorFrame,
+    bool WriteAnimation(const MMActorAnimation &, const std::string &path, int &lastActorFrame,
                         int &lastEditedFrame, const SoundGraphResolver &);
     bool WriteCostumes(const std::vector<PreviewCostume> &, const std::string &path);
     bool SetEventTrack(std::int32_t source);

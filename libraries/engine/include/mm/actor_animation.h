@@ -19,8 +19,11 @@ typedef struct MMActorAnimation
 {
     int kind, freeze, replace;
     MMI32 action, cel;
-    const MMActorAnimationPoint *points; /* World-axis offsets from the playhead position. */
+    const void *points;
     size_t point_count;
+    /* Borrow immutable world-axis offsets from the playhead position. Reads
+     * are synchronous, may repeat, and must not unwind through C. */
+    void (*read_point)(const void *, size_t, MMActorAnimationPoint *);
 } MMActorAnimation;
 
 typedef struct MMActorAnimationRange

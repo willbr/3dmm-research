@@ -11,6 +11,7 @@ struct MMMovieActorEdits;
 struct MMMovieActorPlacement;
 struct MMMovieTextJournal;
 struct MMPreviewCue;
+struct MMActorAnimation;
 
 namespace MM
 {
@@ -323,6 +324,8 @@ class Preview
     bool ObjectActions(int object, std::vector<PreviewAction> &, Error &) const;
     bool WriteObjectAnimation(int object, const PreviewAnimationEdit &, const std::string &path,
                               int &lastActorFrame, int &lastEditedFrame, Error &);
+    bool WriteObjectAnimationRequest(int object, const MMActorAnimation &, const std::string &path,
+                                     int &lastActorFrame, int &lastEditedFrame, Error &);
     // Write a private edited event track, leaving the live actor unchanged.
     bool WriteObjectCostumes(int object, const std::vector<PreviewCostume> &, const std::string &path, Error &);
     bool SetObjectEventTrack(int object, std::int32_t source, Error &);

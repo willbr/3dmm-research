@@ -27,6 +27,7 @@
 #include "caption_edit.h"
 #include "live_document.h"
 #include "live_edits.h"
+#include "animation_request.h"
 #include "mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -2135,61 +2136,33 @@ extern "C"
             return true;
         });
     }
-    static bool EditAnimation(MarcusPlayer *player, int object, const MM::PreviewAnimationEdit &edit, MM::Error &error)
+    int marcus_edit_animation(MarcusPlayer *player, int object, const MMActorAnimation *edit)
     {
-        MarcusObject selected;
-        if (player->selected < 0 || !marcus_object(player, object, &selected) || !selected.visible)
-        {
-            error.message = "Select an on-stage object.";
-            return false;
-        }
-        if (!CancelPropPreviews(player, error)) return false;
-        const auto track = MarcusCreateEventFile();
-        int lastActorFrame, lastEditedFrame;
-        if (!player->preview.WriteObjectAnimation(object, edit, track->path.u8string(),
-                                                 lastActorFrame, lastEditedFrame, error)) return false;
-        const auto movie = MaterializedMovie(*player);
-        const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
-        const auto scene = player->sceneInfo.Number(player->selected);
-        const auto actor = static_cast<MMU32>(selected.chunk);
-        const auto pose = mm_movie_pose_journal_find(player->poses.get(), scene, actor);
-        const auto text = mm_movie_text_journal_find(player->edits->texts.get(), scene, actor);
-        // The native draft contains live events. Replay appearance/shape
-        // overlays that are only written as events when materializing a movie.
-        const auto changed = MarcusApplyAnimation(path, movie, *track, scene, selected.actor_id, selected.last_frame, lastActorFrame,
-            lastEditedFrame, PoseShape(pose), text);
-        return ReplaceEditedMovie(player, changed, error);
-    }
-    int marcus_set_object_action(MarcusPlayer *player, int object, int action, int cel, int freeze)
-    {
+        static_assert(int(MARCUS_PATH_MAX_POINTS) == int(MM_ACTOR_ANIMATION_MAX_POINTS), "animation path point limit");
         return Guard(player, [&](MM::Error &error) {
-            MM::PreviewAnimationEdit edit;
-            edit.action = action;
-            edit.cel = cel;
-            edit.freeze = freeze != 0;
-            return EditAnimation(player, object, edit, error);
-        });
-    }
-    int marcus_tweak_object_path(MarcusPlayer *player, int object, float x, float y, float z)
-    {
-        return Guard(player, [&](MM::Error &error) {
-            MM::PreviewAnimationEdit edit;
-            edit.kind = MM::PreviewAnimationEdit::Kind::tweak;
-            edit.points.push_back({x, y, z});
-            return EditAnimation(player, object, edit, error);
-        });
-    }
-    int marcus_record_object_path(MarcusPlayer *player, int object, const MarcusPathPoint *points, int count, int replace)
-    {
-        return Guard(player, [&](MM::Error &error) {
-            if (!points || count <= 0 || count > MARCUS_PATH_MAX_POINTS) return false;
-            MM::PreviewAnimationEdit edit;
-            edit.kind = MM::PreviewAnimationEdit::Kind::record;
-            edit.replace = replace != 0;
-            edit.points.reserve(count);
-            for (int i = 0; i < count; ++i)
-                edit.points.push_back({points[i].x, points[i].y, points[i].z});
-            return EditAnimation(player, object, edit, error);
+            if (!edit) return false;
+            MarcusObject selected;
+            if (player->selected < 0 || !marcus_object(player, object, &selected) || !selected.visible)
+            {
+                error.message = "Select an on-stage object.";
+                return false;
+            }
+            if (!CancelPropPreviews(player, error)) return false;
+            const auto track = MarcusCreateEventFile();
+            int lastActorFrame, lastEditedFrame;
+            if (!player->preview.WriteObjectAnimationRequest(object, *edit, track->path.u8string(),
+                                                            lastActorFrame, lastEditedFrame, error)) return false;
+            const auto movie = MaterializedMovie(*player);
+            const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
+            const auto scene = player->sceneInfo.Number(player->selected);
+            const auto actor = static_cast<MMU32>(selected.chunk);
+            const auto pose = mm_movie_pose_journal_find(player->poses.get(), scene, actor);
+            const auto text = mm_movie_text_journal_find(player->edits->texts.get(), scene, actor);
+            // The native draft contains live events. Replay appearance/shape
+            // overlays that are only written as events when materializing a movie.
+            const auto changed = MarcusApplyAnimation(path, movie, *track, scene, selected.actor_id, selected.last_frame,
+                lastActorFrame, lastEditedFrame, PoseShape(pose), text);
+            return ReplaceEditedMovie(player, changed, error);
         });
     }
     int marcus_add_text(MarcusPlayer *player, const char *text, unsigned long font, int shape)

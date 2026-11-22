@@ -23085,3 +23085,29 @@ per port. Both ports matched the 60-frame seek and playback order in the
 retained retail and V3DMM run `20261122T082301Z-c465fa98`. SDL matched
 all 12 ordered sound requests. Evidence is under `tmp/c89-actor-motion`
 and `tmp/c89-aqcap`.
+
+## C89 animation requests (22 November 2026)
+
+Marcus builds action, path tweak and path recording requests in C89.
+The draft editor borrows path points through a typed reader and validates
+the request before applying changes. The Preview C++ entry point supplies
+its points through the same native request.
+
+The actor-track test covers a missing point reader, an oversized request,
+an out-of-bounds offset and a playhead too close to the maximum frame.
+All 226 selected native tests, five SDL checks and three x86 checks
+passed. The x86 Marcus worker built.
+The four saved draft archives, the 531-byte draft trace and the headless
+Marcus startup image matched byte for byte.
+
+The Marcus integration check applied an action edit, tweaked a path,
+recorded and rejoined paths, and reopened the saved edit. Its
+`animated-actor.3mm` matched the prior build and the archive opened by
+retail in the insertion and frame-range regression.
+
+Actor Audio candidate `20261122T221957Z-3b0bcc2a` matched
+`20261122T221336Z-6ffe7ea1` on all 60 seek canvases and recorded states
+per port. Both ports matched the 60-frame seek and playback order in
+retained retail and V3DMM run `20261122T082301Z-c465fa98`. SDL matched
+all 12 ordered sound requests. Evidence is under
+`tmp/c89-animation-request` and `tmp/c89-aqcap`.

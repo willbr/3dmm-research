@@ -324,17 +324,28 @@ static void adoption(void)
     CHECK(!h.live && !h.refs);
 }
 
+static void read_animation_point(const void *points, size_t index, MMActorAnimationPoint *out)
+{
+    CHECK(index == 0);
+    *out = *(const MMActorAnimationPoint *)points;
+}
+
 static void reject_invalid_path(void)
 {
     MMPreviewActor actor = {0};
     MMActorRecording recording = {0};
     MMActorRecordServices host = {0};
     MMActorAnimationPoint point = {3, 0, 0};
-    MMActorAnimation edit = {MM_ACTOR_ANIMATION_TWEAK, 0, 0, 0, 0, NULL, 1};
+    MMActorAnimation edit = {MM_ACTOR_ANIMATION_TWEAK, 0, 0, 0, 0, NULL, 1, NULL};
     MMActorAnimationRange range = {80, 90};
     edit.points = &point;
     actor.tmpl = &actor;
     actor.state.onStage = 1;
+    CHECK(!mm_actor_animation_edit(&actor, &recording, &edit, 0, &host, &range));
+    edit.read_point = read_animation_point;
+    edit.point_count = MM_ACTOR_ANIMATION_MAX_POINTS + 1;
+    CHECK(!mm_actor_animation_edit(&actor, &recording, &edit, 0, &host, &range));
+    edit.point_count = 1;
     actor.state.position.dxr = 32698L * 65536L;
     CHECK(!mm_actor_animation_edit(&actor, &recording, &edit, 0, &host, &range));
     CHECK(actor.state.position.dxr == 32698L * 65536L && range.actor_last == 80 && range.edited_last == 90);

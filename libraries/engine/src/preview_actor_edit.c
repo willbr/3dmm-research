@@ -292,7 +292,8 @@ int mm_preview_actor_write_animation(MMPreviewActor *actor, const MMActorAnimati
     const MMPreviewActorServices *play = s->playback;
     MMI32 actions;
     int result;
-    if (!actor->state.onStage || !actor->tmpl || request->point_count > MM_ACTOR_ANIMATION_MAX_POINTS)
+    if (!actor->state.onStage || !actor->tmpl || request->point_count > MM_ACTOR_ANIMATION_MAX_POINTS ||
+        (request->point_count && (!request->points || !request->read_point)))
         return 0;
     edit.actor = actor;
     edit.services = s;

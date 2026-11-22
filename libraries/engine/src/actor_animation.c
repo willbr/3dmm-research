@@ -73,7 +73,8 @@ static int record_path(MMPreviewActor *actor, MMActorSounds *sounds, MMActorReco
                                            -1, &timeline->motion, &services->subroute.route);
     for (i = 0; i < edit->point_count; ++i)
     {
-        const MMActorAnimationPoint *point = &edit->points[i];
+        MMActorAnimationPoint point;
+        edit->read_point(edit->points, i, &point);
         for (;;)
         {
             MMActorAnimationPoint current;
@@ -82,9 +83,9 @@ static int record_path(MMPreviewActor *actor, MMActorSounds *sounds, MMActorReco
             MMActorPoint delta;
             MMActorRecordResult result = {0};
             current = position(state);
-            x = (double)start->x + point->x - current.x;
-            y = (double)start->y + point->y - current.y;
-            z = (double)start->z + point->z - current.z;
+            x = (double)start->x + point.x - current.x;
+            y = (double)start->y + point.y - current.y;
+            z = (double)start->z + point.z - current.z;
             length = sqrt(x*x + y*y + z*z);
             step = 0;
             if (!mm_actor_record_step(state, &step, timeline))
@@ -115,17 +116,18 @@ int mm_actor_animation_edit(MMPreviewActor *actor, MMActorRecording *record,
                             const MMActorRecordServices *services, MMActorAnimationRange *range)
 {
     MMActorSounds *sounds = &actor->motion;
-    MMActorAnimationPoint start;
+    MMActorAnimationPoint start, point = {0};
     size_t i;
     MMI32 last;
     if (!actor->state.onStage || actor->inactive || !actor->tmpl ||
-        edit->point_count > MM_ACTOR_ANIMATION_MAX_POINTS || (edit->point_count && !edit->points))
+        edit->point_count > MM_ACTOR_ANIMATION_MAX_POINTS ||
+        (edit->point_count && (!edit->points || !edit->read_point)))
         return 0;
     start = position(&actor->state);
     for (i = 0; i < edit->point_count; ++i)
     {
-        const MMActorAnimationPoint *point = &edit->points[i];
-        if (!in_range((double)start.x + point->x, (double)start.y + point->y, (double)start.z + point->z))
+        edit->read_point(edit->points, i, &point);
+        if (!in_range((double)start.x + point.x, (double)start.y + point.y, (double)start.z + point.z))
             return 0;
     }
     switch (edit->kind)
@@ -136,13 +138,12 @@ int mm_actor_animation_edit(MMPreviewActor *actor, MMActorRecording *record,
         break;
     case MM_ACTOR_ANIMATION_TWEAK:
     {
-        const MMActorAnimationPoint *point = edit->points;
         MMActorPoint delta;
         MMActorTransformEditServices transform = {0};
-        if (edit->point_count != 1 || !in_range(point->x, point->y, point->z))
+        if (edit->point_count != 1 || !in_range(point.x, point.y, point.z))
             return 0;
         transform.subroute = services->subroute;
-        delta = fixed_delta(point->x, point->y, point->z);
+        delta = fixed_delta(point.x, point.y, point.z);
         if (!mm_actor_transform_tweak(&actor->state, sounds, actor->route, actor->events,
                                       actor->header.actor_id, &delta, 0,
                                       &services->subroute.timeline.motion, &transform))
