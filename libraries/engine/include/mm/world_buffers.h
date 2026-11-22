@@ -74,10 +74,11 @@ extern "C"
      * COLORONCOLOR sampling. Padding stays untouched. */
     int mm_world_copy_rgb(const MMWorldBufferServices *, void *source, MMI32 source_width, MMI32 source_height,
                           void *target, MMI32 target_width, MMI32 target_height);
-    /* Draw masked indices at the viewport's top left, then stretch through a
-     * temporary native-size port. Used by live backgrounds and bitmap export. */
-    int mm_world_scale_background_rgb(const MMWorldBufferServices *, void *bitmap, MMI32 width, MMI32 height,
-                                      void *target, MMI32 target_width, MMI32 target_height);
+    /* Draw masked indices at the viewport's top left. Resizing samples a
+     * zero-filled native-size buffer. Equal sizes preserve transparent pixels
+     * in the supplied target. Used by live backgrounds and bitmap export. */
+    int mm_world_fill_background_rgb(const MMMaskedBitmap *, MMI32 width, MMI32 height,
+                                     const MMWorldPixels *target, MMI32 target_width, MMI32 target_height);
     int mm_world_depth_valid(const MMDepthBitmap *, MMI32 width, MMI32 height);
     /* Draw with the stored depth coordinates and retain any completed spans
      * if the source ends early. Returns zero for an invalid destination. */

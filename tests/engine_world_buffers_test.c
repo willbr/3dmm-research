@@ -319,14 +319,15 @@ static void partial_background(void)
     Fixture f;
     MMWorldBuffers w;
     Object *cache, *bg;
-    int count;
+    int count, phase;
     setup(&f, &w);
     assert(mm_world_buffers_init(&w, 4, 4, 2, 0, 0, &f.s));
     cache = object(&f, MM_WORLD_CACHE, 0, 0);
     count = f.objects;
-    f.fail = f.phase + 4;
+    phase = f.phase;
+    --((Object *)w.owners[MM_WORLD_DEPTH_BACKGROUND])->depth.bytes;
     assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
-    assert(!w.owners[MM_WORLD_CACHE] && cache->refs == 1 && f.objects == count && !f.changed);
+    assert(!w.owners[MM_WORLD_CACHE] && cache->refs == 1 && f.objects == count && !f.changed && f.phase == phase + 2);
     bg = (Object *)w.owners[2];
     assert(bg->pixels[0] == 0x31 && bg->pixels[bg->bytes - 1] == 0x31);
     mm_world_buffers_dispose(&w, &f.s);
@@ -336,9 +337,9 @@ static void partial_background(void)
     assert(mm_world_buffers_init(&w, 4, 4, 1, 1, 1, &f.s));
     cache = object(&f, MM_WORLD_CACHE, 0, 0);
     count = f.objects;
-    f.fail = f.phase + 3;
+    f.bad_lock = 1;
     assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s) && f.objects == count && !w.owners[MM_WORLD_CACHE] &&
-           !f.changed);
+           !f.changed && f.locks == 1);
     mm_world_buffers_dispose(&w, &f.s);
     release(&f, cache);
     balanced(&f);
@@ -408,6 +409,30 @@ static void indexed_copy(void)
     balanced(&f);
 }
 
+static void scaled_transparency(void)
+{
+    static const unsigned char source[] = {1, 0, 2, 3};
+    static const unsigned char expected[] = {
+        1, 1, 0, 0, 0xcc, 0xcc, 1, 1, 0, 0, 0xcc, 0xcc,
+        2, 2, 3, 3, 0xcc, 0xcc, 2, 2, 3, 3, 0xcc, 0xcc
+    };
+    const MMMaskedRect bounds = {0, 0, 2, 2};
+    unsigned char target[sizeof(expected)];
+    MMWorldPixels view = {NULL, 6, sizeof(target)};
+    MMMaskedOwner *mask;
+
+    mask = mm_masked_owner_new(source, 2, 2, &bounds, 2, -3, 0, 0, 0, NULL);
+    assert(mask);
+    view.pixels = target;
+    memset(target, 0xcc, sizeof(target));
+    assert(mm_world_fill_background_rgb(mm_masked_owner_bitmap(mask), 2, 2, &view, 4, 4));
+    assert(!memcmp(target, expected, sizeof(target)));
+    --view.bytes;
+    assert(!mm_world_fill_background_rgb(mm_masked_owner_bitmap(mask), 2, 2, &view, 4, 4));
+    assert(!memcmp(target, expected, sizeof(target)));
+    mm_masked_owner_release(mask);
+}
+
 int main(void)
 {
     initialization();
@@ -417,6 +442,7 @@ int main(void)
     partial_background();
     short_depth();
     indexed_copy();
+    scaled_transparency();
     puts("C89 World buffers: ownership/locks, transactional modes, background failures, exact depth samples and "
          "cleanup passed.");
     return 0;

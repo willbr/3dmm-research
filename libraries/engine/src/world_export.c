@@ -1,5 +1,6 @@
 /* Bitmap export policy converted from bren/bwld.cpp. */
 #include "mm/world_export.h"
+#include "mm/pixel_storage.h"
 #include <string.h>
 int mm_world_export_size(const MMWorldBuffers *b, MMI32 requested, MMI32 *scale, MMI32 *width,
                                MMI32 *height)
@@ -13,15 +14,13 @@ int mm_world_export_size(const MMWorldBuffers *b, MMI32 requested, MMI32 *scale,
     *height = b->height * requested;
     return 1;
 }
-int mm_world_export_background(const MMWorldBuffers *b, void *rgb, void *depth, MMI32 scale,
-                                     const MMWorldBufferServices *s)
+/* Sample cached depth rows directly, preserving the original exporter's
+ * treatment of stored origins. An absent cache leaves the default fills. */
+static int fill_background(const MMWorldBuffers *b, const MMWorldPixels *rgb, const MMDepthBitmap *depth,
+                           MMI32 width, MMI32 height, MMI32 scale, const MMWorldBufferServices *s)
 {
     void *bitmap = NULL, *source = NULL;
-    const MMDepthBitmap *src, *dst;
-    MMI32 chosen, width, height;
     int ok = 0;
-    if (!mm_world_export_size(b, scale, &chosen, &width, &height) || chosen != scale)
-        return 0;
     if (!b->owners[MM_WORLD_CACHE])
         return 1;
     bitmap = s->fetch(s->context, b->owners[MM_WORLD_CACHE], MM_WORLD_RGB_BACKGROUND, b->rgb_type,
@@ -32,11 +31,9 @@ int mm_world_export_background(const MMWorldBuffers *b, void *rgb, void *depth, 
         s->fetch(s->context, b->owners[MM_WORLD_CACHE], MM_WORLD_DEPTH_BACKGROUND, b->z_type, b->z_number);
     if (!source)
         goto cleanup;
-    if (!mm_world_scale_background_rgb(s, bitmap, b->width, b->height, rgb, width, height))
+    if (!mm_world_fill_background_rgb(s->masked_bitmap(s->context, bitmap), b->width, b->height, rgb, width, height))
         goto cleanup;
-    src = s->depth_bitmap(s->context, source);
-    dst = s->depth_bitmap(s->context, depth);
-    ok = mm_world_depth_resample(src, dst, width, height, scale, 0, 0);
+    ok = mm_world_depth_resample(s->depth_bitmap(s->context, source), depth, width, height, scale, 0, 0);
 cleanup:
     if (bitmap)
         s->release_bitmap(s->context, bitmap);
@@ -44,30 +41,32 @@ cleanup:
         s->release_depth(s->context, source);
     return ok;
 }
-static int write_pixels(void *port, MMI32 width, MMI32 height, const MMWorldExportServices *s)
+static int write_pixels(void *port, const MMWorldPixels *pixels, MMI32 width, MMI32 height,
+                        const MMWorldExportServices *s)
 {
-    MMWorldPixels pixels;
+    MMWorldPixels locked;
     void *palette = s->palette(s->context);
     int ok = 0;
     if (!palette)
         return 0;
-    if (s->buffers.lock(s->buffers.context, port, &pixels))
-    {
-        if (mm_world_pixels_valid(&pixels, width, height))
-            ok = s->write(s->context, &pixels, palette, width, height);
+    if (!pixels && s->buffers.lock(s->buffers.context, port, &locked))
+        pixels = &locked;
+    if (pixels && mm_world_pixels_valid(pixels, width, height))
+        ok = s->write(s->context, pixels, palette, width, height);
+    if (pixels == &locked)
         s->buffers.unlock(s->buffers.context, port);
-    }
     s->buffers.release(s->buffers.context, palette);
     return ok;
 }
 int mm_world_export_current(const MMWorldBuffers *b, const MMWorldExportServices *s)
 {
-    return write_pixels(b->owners[MM_WORLD_RGB_WORKING], b->buffer_width, b->buffer_height, s);
+    return write_pixels(b->owners[MM_WORLD_RGB_WORKING], NULL, b->buffer_width, b->buffer_height, s);
 }
 int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
                                  const MMWorldExportServices *s)
 {
-    void *rgb = NULL, *depth = NULL;
+    MMPixelBuffer rgb = {0};
+    MMDepthOwner *depth = NULL;
     MMWorldPixels pixels;
     const MMDepthBitmap *span;
     MMWorldPixelView rgb_view, depth_view;
@@ -78,23 +77,19 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
     const MMWorldRenderServices *render = &s->render;
     if (!mm_world_export_size(b, requested, &scale, &width, &height))
         return 0;
-    rgb = buffers->create(buffers->context, MM_WORLD_RGB_WORKING, width, height);
-    if (!rgb)
+    if (!mm_pixel_buffer_init(&rgb, width, height, 8, 4))
+        return 0;
+    depth = mm_depth_owner_new(width, height, NULL, NULL);
+    if (!depth)
         goto cleanup;
-    depth = buffers->create(buffers->context, MM_WORLD_DEPTH_WORKING, width, height);
-    if (!depth || !mm_world_export_background(b, rgb, depth, scale, buffers))
+    span = mm_depth_owner_bitmap(depth);
+    pixels.pixels = (unsigned char *)rgb.surface.pixels;
+    pixels.row = rgb.surface.pitch;
+    pixels.bytes = rgb.bytes;
+    if (!fill_background(b, &pixels, span, width, height, scale, buffers))
         goto cleanup;
     render->options(render->context, &wire, &flat, &no_texture);
     mm_world_render_styles(render->frame.world, wire ? render->edges : render->faces, render);
-    if (!buffers->lock(buffers->context, rgb, &pixels))
-        goto cleanup;
-    span = buffers->depth_bitmap(buffers->context, depth);
-    if (!mm_world_pixels_valid(&pixels, width, height) || !mm_world_depth_valid(span, width, height) ||
-        span->row_bytes != width * 2)
-    {
-        buffers->unlock(buffers->context, rgb);
-        goto cleanup;
-    }
     memset(&rgb_view, 0, sizeof(rgb_view));
     rgb_view.row = width;
     rgb_view.width = width;
@@ -115,13 +110,10 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
     mm_world_materials_end(&materials, &render->materials);
     s->bounds_callback(s->context, 1);
     render->flush(render->context);
-    buffers->unlock(buffers->context, rgb);
     if (ready)
-        ok = write_pixels(rgb, width, height, s);
+        ok = write_pixels(NULL, &pixels, width, height, s);
 cleanup:
-    if (rgb)
-        buffers->release(buffers->context, rgb);
-    if (depth)
-        buffers->release_depth(buffers->context, depth);
+    mm_pixel_buffer_reset(&rgb);
+    mm_depth_owner_release(depth);
     return ok;
 }

@@ -1,5 +1,6 @@
 /* World buffer ownership/control converted from bren/bwld.cpp. */
 #include "mm/world_buffers.h"
+#include "mm/pixel_storage.h"
 #include <string.h>
 static int valid_scale(MMI32 scale)
 {
@@ -127,77 +128,93 @@ void mm_world_buffers_dispose(MMWorldBuffers *w, const MMWorldBufferServices *s)
 }
 int mm_world_pixels_valid(const MMWorldPixels *pixels, MMI32 width, MMI32 height)
 {
-    return pixels->pixels && width > 0 && height > 0 && width <= 4096 && height <= 4096 && pixels->row >= width &&
+    return pixels && pixels->pixels && width > 0 && height > 0 && width <= 4096 && height <= 4096 && pixels->row >= width &&
            (size_t)height <= (size_t)-1 / (size_t)pixels->row &&
            pixels->bytes >= (size_t)pixels->row * (size_t)height;
 }
 
-int mm_world_copy_rgb(const MMWorldBufferServices *s, void *source, MMI32 sw, MMI32 sh,
-                      void *target, MMI32 tw, MMI32 th)
+static void copy_rgb(const MMWorldPixels *src, MMI32 sw, MMI32 sh, const MMWorldPixels *dst, MMI32 tw, MMI32 th)
 {
-    MMWorldPixels src, dst;
     const unsigned char *in;
     unsigned char *out;
     MMI32 x, y, sy;
-    int ok = 0, near_size;
-
-    if (!source || !target || source == target || !s->lock(s->context, source, &src))
-        return 0;
-    if (!s->lock(s->context, target, &dst))
-        goto release_source;
-    if (!mm_world_pixels_valid(&src, sw, sh) || !mm_world_pixels_valid(&dst, tw, th))
-        goto release_target;
-    near_size = sw - tw >= -1 && sw - tw <= 1 && sh - th >= -1 && sh - th <= 1;
+    int near_size = sw - tw >= -1 && sw - tw <= 1 && sh - th >= -1 && sh - th <= 1;
     for (y = 0; y < th; ++y)
     {
         sy = mm_pixel_sample(y, sh, th, near_size);
-        in = src.pixels + (size_t)sy * src.row;
-        out = dst.pixels + (size_t)y * dst.row;
+        in = src->pixels + (size_t)sy * src->row;
+        out = dst->pixels + (size_t)y * dst->row;
         if (sw == tw)
             memcpy(out, in, (size_t)sw);
         else
             for (x = 0; x < tw; ++x)
                 out[x] = in[mm_pixel_sample(x, sw, tw, near_size)];
     }
-    ok = 1;
-release_target:
-    s->unlock(s->context, target);
-release_source:
+}
+
+int mm_world_copy_rgb(const MMWorldBufferServices *s, void *source, MMI32 sw, MMI32 sh,
+                      void *target, MMI32 tw, MMI32 th)
+{
+    MMWorldPixels src, dst;
+    int ok = 0;
+
+    if (!source || !target || source == target || !s->lock(s->context, source, &src))
+        return 0;
+    if (s->lock(s->context, target, &dst))
+    {
+        ok = mm_world_pixels_valid(&src, sw, sh) && mm_world_pixels_valid(&dst, tw, th);
+        if (ok)
+            copy_rgb(&src, sw, sh, &dst, tw, th);
+        s->unlock(s->context, target);
+    }
     s->unlock(s->context, source);
     return ok;
 }
 
-static int draw_background_rgb(const MMWorldBufferServices *s, void *bitmap, MMI32 width, MMI32 height, void *port)
+static void draw_background_rgb(const MMMaskedBitmap *source, MMI32 width, MMI32 height, const MMWorldPixels *target)
 {
+    MMMaskedRect clip = {0, 0, 0, 0};
+    clip.right = width;
+    clip.bottom = height;
+    mm_masked_blit8(source, mm_masked_native_big_endian(), target->pixels, target->row, height, 0, 0, &clip, NULL);
+}
+
+int mm_world_fill_background_rgb(const MMMaskedBitmap *bitmap, MMI32 width, MMI32 height,
+                                 const MMWorldPixels *target, MMI32 target_width, MMI32 target_height)
+{
+    MMPixelBuffer full = {0};
+    MMWorldPixels pixels;
+
+    if (!bitmap || width <= 0 || height <= 0 || width > 4096 || height > 4096 ||
+        !mm_world_pixels_valid(target, target_width, target_height))
+        return 0;
+    if (width == target_width && height == target_height)
+    {
+        draw_background_rgb(bitmap, width, height, target);
+        return 1;
+    }
+    if (!mm_pixel_buffer_init(&full, width, height, 8, 4))
+        return 0;
+    pixels.pixels = (unsigned char *)full.surface.pixels;
+    pixels.row = full.surface.pitch;
+    pixels.bytes = full.bytes;
+    draw_background_rgb(bitmap, width, height, &pixels);
+    copy_rgb(&pixels, width, height, target, target_width, target_height);
+    mm_pixel_buffer_reset(&full);
+    return 1;
+}
+
+static int fill_port_background(const MMWorldBuffers *w, void *bitmap, const MMWorldBufferServices *s)
+{
+    void *port = w->owners[MM_WORLD_RGB_BACKGROUND];
     const MMMaskedBitmap *source = s->masked_bitmap(s->context, bitmap);
     MMWorldPixels target;
-    MMMaskedRect clip = {0, 0, 0, 0};
     int ok;
 
     if (!source || !s->lock(s->context, port, &target))
         return 0;
-    ok = mm_world_pixels_valid(&target, width, height);
-    if (ok)
-    {
-        clip.right = width;
-        clip.bottom = height;
-        mm_masked_blit8(source, mm_masked_native_big_endian(), target.pixels, target.row, height, 0, 0, &clip, NULL);
-    }
+    ok = mm_world_fill_background_rgb(source, w->width, w->height, &target, w->buffer_width, w->buffer_height);
     s->unlock(s->context, port);
-    return ok;
-}
-
-int mm_world_scale_background_rgb(const MMWorldBufferServices *s, void *bitmap, MMI32 width, MMI32 height,
-                                  void *target, MMI32 target_width, MMI32 target_height)
-{
-    void *full = s->create(s->context, MM_WORLD_RGB_BACKGROUND, width, height);
-    int ok;
-
-    if (!full)
-        return 0;
-    ok = draw_background_rgb(s, bitmap, width, height, full) &&
-         mm_world_copy_rgb(s, full, width, height, target, target_width, target_height);
-    s->release(s->context, full);
     return ok;
 }
 
@@ -247,18 +264,17 @@ int mm_world_depth_resample(const MMDepthBitmap *src, const MMDepthBitmap *dst, 
     }
     return 1;
 }
-static int load_scaled_depth(const MMWorldBuffers *w, const MMDepthBitmap *src, const MMDepthBitmap *dst,
-                             const MMWorldBufferServices *s)
+static int load_scaled_depth(const MMWorldBuffers *w, const MMDepthBitmap *src, const MMDepthBitmap *dst)
 {
-    void *native = s->create(s->context, MM_WORLD_DEPTH_BACKGROUND, w->width, w->height);
+    MMDepthOwner *native = mm_depth_owner_new(w->width, w->height, NULL, NULL);
     const MMDepthBitmap *intermediate;
     int ok;
     if (!native)
         return 0;
-    intermediate = s->depth_bitmap(s->context, native);
+    intermediate = mm_depth_owner_bitmap(native);
     ok = mm_world_draw_depth(src, intermediate, w->width, w->height) &&
          mm_world_depth_resample(intermediate, dst, w->buffer_width, w->buffer_height, w->scale, 0, 0);
-    s->release_depth(s->context, native);
+    mm_depth_owner_release(native);
     return ok;
 }
 int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, MMU32 rgb_number,
@@ -277,15 +293,13 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
     }
     s->priority(s->context, bitmap);
     s->priority_depth(s->context, depth);
-    ok = resized ? mm_world_scale_background_rgb(s, bitmap, w->width, w->height,
-                                                w->owners[MM_WORLD_RGB_BACKGROUND], w->buffer_width, w->buffer_height)
-                 : draw_background_rgb(s, bitmap, w->width, w->height, w->owners[MM_WORLD_RGB_BACKGROUND]);
+    ok = fill_port_background(w, bitmap, s);
     s->release_bitmap(s->context, bitmap);
     if (ok && resized)
     {
         src = s->depth_bitmap(s->context, depth);
         dst = s->depth_bitmap(s->context, w->owners[MM_WORLD_DEPTH_BACKGROUND]);
-        ok = w->scale > 1 ? load_scaled_depth(w, src, dst, s)
+        ok = w->scale > 1 ? load_scaled_depth(w, src, dst)
                           : mm_world_depth_resample(src, dst, w->buffer_width, w->buffer_height, 1, w->half_x, w->half_y);
     }
     if (!ok || resized)

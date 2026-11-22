@@ -22017,3 +22017,30 @@ canvases and camera and actor state. The seek and continuous frame order matched
 the retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows, and checks are under `tmp/c89-world-background`.
+
+## C89 World scratch buffers (22 November 2026)
+
+Live background scaling and scaled BMP export use C-owned RGB and depth
+buffers. The intermediate RGB buffer starts at palette index zero so scaled
+transparent runs retain the original fill. Depth scratch starts at `0xFF`.
+Scaled export renders directly into these buffers and keeps the legacy tight
+renderer row and four-byte-aligned BMP rows. Current-frame export still
+borrows the live working port.
+
+Five native and SDL World snapshots matched their retained output byte for
+byte, totaling 14,387,434 bytes. The x86 and x64 C checks cover scaled
+transparency, row padding, invalid spans, and failure cleanup. The scaled
+export fixture runs with no port factory, verifies zero port locks, and checks
+that the working framebuffer remains intact.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. The headless Studio ISO, authoring, and F1 Help workflows passed.
+Two saved movies and five Studio canvases matched retained files. Headless
+Marcus reproduced its startup canvas. The separate `scene-load` failure
+reproduced its 63,224-byte trace and fingerprint `0D666753`.
+
+Silent suite `20261122T152113Z-cbd5aa1e` matched both ports' preceding 60
+seek canvases and camera and actor state. Seek and continuous frame order
+matched retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows, and checks are under `tmp/c89-world-storage`.
