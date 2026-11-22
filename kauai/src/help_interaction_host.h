@@ -162,7 +162,7 @@ struct TopicGraphicsObject::InteractionHost : TextDocumentFactoryHost
         s.fetch = [](void *v, MMU32 number, void **out) -> int {
             auto &h = *static_cast<InteractionHost *>(v);
             return h.Guard([&] {
-                *out = h.cache->PbacoFetch(kctgScript, number, ScriptInterpreter::Script::FReadScript);
+                *out = ScriptInterpreter::FetchScript(h.cache->Resources(), kctgScript, number);
                 return *out != nullptr;
             });
         };
@@ -186,7 +186,12 @@ struct TopicGraphicsObject::InteractionHost : TextDocumentFactoryHost
                     ->FRunScript(static_cast<PScript>(script), values, 5, h.returnOutput);
             });
         };
-        s.release = [](void *, int, void *p) { static_cast<BASE *>(p)->Release(); };
+        s.release = [](void *, int interpreter, void *p) {
+            if (interpreter)
+                static_cast<PGraphicsObjectInterpreter>(p)->Release();
+            else
+                mm_script_release(static_cast<PScript>(p));
+        };
         s.alive = [](void *v) -> int {
             auto &h = *static_cast<InteractionHost *>(v);
             return h.world->PgobFromGrid(h.grid) == h.topic;

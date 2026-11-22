@@ -2124,7 +2124,7 @@ bool Application::_FInitCrm(void)
     if (pvNil == psceg)
         goto LFail;
 
-    pscpt = (PScript)_pcrmAll->PbacoFetch(kctgScript, kcnoInitShared, Script::FReadScript);
+    pscpt = ScriptInterpreter::FetchScript(_pcrmAll->Resources(), kctgScript, kcnoInitShared);
     if (pvNil == pscpt)
         goto LFail;
 
@@ -2132,11 +2132,11 @@ bool Application::_FInitCrm(void)
         goto LFail;
 
     ReleasePpo(&psceg);
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
     return fTrue;
 LFail:
     ReleasePpo(&psceg);
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
     return fFalse;
 }
 
@@ -2238,7 +2238,7 @@ bool Application::_FInitBuilding(void)
     if (pvNil == psceg)
         goto LFail;
 
-    pscpt = (PScript)_pcrmAll->PbacoFetch(kctgScript, kcnoStartApp, Script::FReadScript);
+    pscpt = ScriptInterpreter::FetchScript(_pcrmAll->Resources(), kctgScript, kcnoStartApp);
     if (pvNil == pscpt)
         goto LFail;
 
@@ -2271,7 +2271,7 @@ LFail:
     if (!fRet)
         EndLongOp();
     ReleasePpo(&psceg);
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
     return fRet;
 }
 

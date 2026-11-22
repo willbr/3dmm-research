@@ -286,7 +286,7 @@ void SourceEmitter::_DumpBsf(LegacyLong cactTab)
 bool SourceEmitter::FDumpScript(PScript pscpt, PCompilerBase psccb)
 {
     AssertThis(fchseDump);
-    AssertPo(pscpt, 0);
+    Assert(pscpt, "nil script");
     AssertPo(psccb, 0);
 
     DumpSz(PszLit("SCRIPTPF"));

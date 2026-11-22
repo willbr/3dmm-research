@@ -1113,7 +1113,8 @@ void GraphicsObjectInterpreter::_DoAlert(LegacyLong op)
         return;
     }
 
-    stn1.FFormatSz(PszLit("Script Message ('%f', 0x%x, %d): "), _pscpt->Ctg(), _pscpt->Cno(), _ilwCur);
+    const auto binding = mm_script_binding(_pscpt);
+    stn1.FFormatSz(PszLit("Script Message ('%f', 0x%x, %d): "), binding->type, binding->number, _ilwCur);
 
     while (clw-- > 0)
     {
@@ -1226,7 +1227,7 @@ PDynamicArray GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
 int FReadColorTable(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
     static_assert(sizeof(Color) == 4, "script color row size");
-    return mm_script_colors_fetch(block, out, bytes, &ScriptCollectionHost());
+    return mm_script_colors_fetch(block, out, bytes, &ScriptHost());
 }
 
 /***************************************************************************

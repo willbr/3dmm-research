@@ -17,7 +17,7 @@
 #ifndef SCREXE_H
 #define SCREXE_H
 
-struct MMScriptResourceServices;
+#include "mm/script_resource.h"
 
 namespace ScriptInterpreter {
 
@@ -37,38 +37,23 @@ struct RunTimeVariableMap
 bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, LegacyLong *plwValue, LegacyLong *pirtvm);
 bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw);
 
-/***************************************************************************
-    A script.  This is here rather than in scrcom.* because scrcom is
-    rarely included in shipping products, but screxe.* is.
-***************************************************************************/
-typedef class Script *PScript;
-#define Script_PAR BaseCacheableObject
-#define kclsScript 'SCPT'
-class Script : public Script_PAR
+PScript CreateScript();
+PScript FetchScript(const MMResourceAccess &, ChunkTagOrType, ChunkNumber, int *error = nullptr);
+PScript ReadScript(PChunkyFile, ChunkTagOrType, ChunkNumber);
+bool ReadScriptLiteral(PScript, MMU32 index, PString);
+bool SaveScript(PScript, PChunkyFile, ChunkTagOrType, ChunkNumber, bool pack = false);
+inline void ReleaseScript(PScript *script)
 {
-    RTCLASS_DEC
-    MARKMEM
-    ASSERT
-
-  protected:
-    PDynamicArray _pgllw;
-    PStringTable_GST _pgstLiterals;
-    static MMScriptResourceServices _ReadServices();
-
-    Script(void)
-    {
-    }
-
-    friend class Interpreter;
-    friend class ScriptCompiler::CompilerBase;
-
-  public:
-    static int FReadScript(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
-    static PScript PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    ~Script(void);
-
-    bool FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fPack = fFalse);
-};
+    mm_script_release(*script);
+    *script = nullptr;
+}
+#ifdef DEBUG
+inline void MarkScript(PScript script)
+{
+    if (script)
+        mm_script_object_services()->mark_memory(script);
+}
+#endif
 
 /***************************************************************************
     Runtime string registry.
@@ -155,7 +140,7 @@ class Interpreter : public Interpreter_PAR
     void _LenStr(LegacyLong stid);
 
     virtual void _AddParameters(LegacyLong *prglw, LegacyLong clw);
-    virtual void _AddStrings(PStringTable_GST pgst);
+    void _AddStrings();
     virtual bool _FExecVarOp(LegacyLong op, RuntimeVariableName *prtvn);
     virtual bool _FExecOp(LegacyLong op);
     virtual void _PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn);

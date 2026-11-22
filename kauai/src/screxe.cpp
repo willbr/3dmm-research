@@ -11,6 +11,7 @@
     of compiled scripts.
 
 ***************************************************************************/
+#include <cstring>
 #include "util.h"
 ASSERTNAME
 #include "script_resource_host.h"
@@ -18,7 +19,6 @@ ASSERTNAME
 namespace ScriptInterpreter {
 
 RTCLASS(Interpreter)
-RTCLASS(Script)
 RTCLASS(StringRegistry)
 
 #ifdef DEBUG
@@ -67,13 +67,13 @@ void Interpreter::Free(void)
     AssertThis(0);
 
     // nuke literal strings left in the global string table
-    if (pvNil != _pscpt && pvNil != _pstrg && pvNil != _pscpt->_pgstLiterals && pvNil != _pglrtvm)
+    if (pvNil != _pscpt && pvNil != _pstrg && mm_script_has_literals(_pscpt) && pvNil != _pglrtvm)
     {
         RuntimeVariableName rtvn;
         LegacyLong stid;
 
         rtvn.lu1 = 0;
-        for (rtvn.lu2 = _pscpt->_pgstLiterals->IvMac(); rtvn.lu2-- > 0;)
+        for (rtvn.lu2 = mm_script_literal_count(_pscpt); rtvn.lu2-- > 0;)
         {
             if (FFindRtvm(_pglrtvm, &rtvn, &stid, pvNil))
                 _pstrg->Delete(stid);
@@ -82,7 +82,7 @@ void Interpreter::Free(void)
 
     ReleasePpo(&_pgllwStack);
     ReleasePpo(&_pglrtvm);
-    ReleasePpo(&_pscpt);
+    ReleaseScript(&_pscpt);
     _fPaused = fFalse;
 }
 
@@ -97,12 +97,11 @@ void Interpreter::AssertValid(LegacyUlong grfsceb)
     {
         Assert(pvNil != _pgllwStack, "nil stack");
         Assert(pvNil != _pscpt, "nil script");
-        Assert(_ilwMac == _pscpt->_pgllw->IvMac(), 0);
+        Assert(_ilwMac == static_cast<LegacyLong>(mm_script_word_count(_pscpt)), 0);
         AssertIn(_ilwCur, 1, _ilwMac + 1);
         Assert(!_fError, 0);
     }
     AssertNilOrPo(_pgllwStack, 0);
-    AssertNilOrPo(_pscpt, 0);
     AssertNilOrPo(_pglrtvm, 0);
     AssertNilOrPo(_pstrg, 0);
     AssertNilOrPo(_prca, 0);
@@ -116,7 +115,7 @@ void Interpreter::MarkMem(void)
     AssertValid(0);
     Interpreter_PAR::MarkMem();
     MarkMemObj(_pgllwStack);
-    MarkMemObj(_pscpt);
+    MarkScript(_pscpt);
     MarkMemObj(_pglrtvm);
     MarkMemObj(_prca);
 }
@@ -138,13 +137,16 @@ bool Interpreter::FRunScript(PScript pscpt, LegacyLong *prglw, LegacyLong clw, L
 bool Interpreter::FAttachScript(PScript pscpt, LegacyLong *prglw, LegacyLong clw)
 {
     AssertThis(0);
-    AssertPo(pscpt, 0);
+    Assert(pscpt, "nil script");
     AssertIn(clw, 0, kcbMax);
     AssertPvCb(prglw, LwMul(clw, size(LegacyLong)));
     LegacyLong lw;
     DataVersion dver;
 
+    // Keep the incoming script alive if this interpreter already owns it.
+    mm_script_retain(pscpt);
     Free();
+    _pscpt = pscpt;
     _lwReturn = 0;
     _fError = fFalse;
 
@@ -153,18 +155,14 @@ bool Interpreter::FAttachScript(PScript pscpt, LegacyLong *prglw, LegacyLong clw
         goto LFail;
     _pgllwStack->SetMinGrow(10);
 
-    // stake our claim on the code DynamicArray.
-    _pscpt = pscpt;
-    _pscpt->AddRef();
-
     // check the version
     // get and check the version number
-    if ((_ilwMac = _pscpt->_pgllw->IvMac()) < 1)
+    if ((_ilwMac = mm_script_word_count(_pscpt)) < 1)
     {
         Bug("No version info on script");
         goto LFail;
     }
-    _pscpt->_pgllw->Get(0, &lw);
+    lw = mm_script_word(_pscpt, 0);
     dver.Set(SwHigh(lw), SwLow(lw));
     if (!dver.FReadable(_SwCur(), _SwMin()))
     {
@@ -175,8 +173,8 @@ bool Interpreter::FAttachScript(PScript pscpt, LegacyLong *prglw, LegacyLong clw
     // add the parameters and literal strings
     if (clw > 0)
         _AddParameters(prglw, clw);
-    if (pvNil != _pscpt->_pgstLiterals && !_fError)
-        _AddStrings(_pscpt->_pgstLiterals);
+    if (mm_script_has_literals(_pscpt) && !_fError)
+        _AddStrings();
 
     if (_fError)
     {
@@ -216,7 +214,7 @@ bool Interpreter::FResume(LegacyLong *plwReturn, bool *pfPaused)
     AssertIn(_ilwCur, 1, _ilwMac + 1);
     for (_fPaused = fFalse; _ilwCur < _ilwMac && !_fError && !_fPaused;)
     {
-        lw = *(LegacyLong *)_pscpt->_pgllw->QvGet(_ilwCur++);
+        lw = mm_script_word(_pscpt, _ilwCur++);
         clwPush = B2Lw(lw);
         if (!FIn(clwPush, 0, _ilwMac - _ilwCur + 1))
         {
@@ -235,7 +233,7 @@ bool Interpreter::FResume(LegacyLong *plwReturn, bool *pfPaused)
             }
             clwPush--;
             rtvn.lu1 = (LegacyUlong)lw & 0x0000FFFF;
-            rtvn.lu2 = *(LegacyUlong *)_pscpt->_pgllw->QvGet(_ilwCur++);
+            rtvn.lu2 = static_cast<LegacyUlong>(mm_script_word(_pscpt, _ilwCur++));
             ilw = _ilwCur;
             if (!_FExecVarOp(op, &rtvn))
                 goto LFail;
@@ -257,7 +255,8 @@ bool Interpreter::FResume(LegacyLong *plwReturn, bool *pfPaused)
                 _Error(fFalse);
                 break;
             }
-            CopyPb(_pscpt->_pgllw->QvGet(_ilwCur), _pgllwStack->QvGet(ilw), LwMul(clwPush, size(LegacyLong)));
+            std::memcpy(_pgllwStack->QvGet(ilw), mm_script_word_span(_pscpt, _ilwCur, clwPush),
+                        LwMul(clwPush, size(LegacyLong)));
             _ilwCur += clwPush;
         }
     }
@@ -304,10 +303,9 @@ void Interpreter::_AddParameters(LegacyLong *prglw, LegacyLong clw)
     Put the literal strings into the registry.  And assign the string id's
     to the internal string variables.
 ***************************************************************************/
-void Interpreter::_AddStrings(PStringTable_GST pgst)
+void Interpreter::_AddStrings()
 {
     AssertThis(0);
-    AssertPo(pgst, 0);
     RuntimeVariableName rtvn;
     LegacyLong stid;
     String stn;
@@ -319,10 +317,9 @@ void Interpreter::_AddStrings(PStringTable_GST pgst)
     }
 
     rtvn.lu1 = 0;
-    for (rtvn.lu2 = 0; (LegacyLong)rtvn.lu2 < pgst->IvMac(); rtvn.lu2++)
+    for (rtvn.lu2 = 0; rtvn.lu2 < mm_script_literal_count(_pscpt); rtvn.lu2++)
     {
-        pgst->GetStn(rtvn.lu2, &stn);
-        if (!_pstrg->FAdd(&stid, &stn))
+        if (!ReadScriptLiteral(_pscpt, rtvn.lu2, &stn) || !_pstrg->FAdd(&stid, &stn))
         {
             _Error(fFalse);
             break;
@@ -762,7 +759,8 @@ void Interpreter::_WarnSz(PZString psz, ...)
         stn1.FFormatRgch(psz, CchSz(psz), va);
         va_end(va);
     }
-    stn2.FFormatSz(PszLit("Script ('%f', 0x%x, %d): %s"), _pscpt->Ctg(), _pscpt->Cno(), _ilwCur, &stn1);
+    const auto binding = mm_script_binding(_pscpt);
+    stn2.FFormatSz(PszLit("Script ('%f', 0x%x, %d): %s"), binding->type, binding->number, _ilwCur, &stn1);
     stn2.GetSzs(szs);
     Warn(szs);
 }
@@ -1013,7 +1011,7 @@ void Interpreter::_LenStr(LegacyLong stid)
 ***************************************************************************/
 static int ReadStringRegistry(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    return mm_script_registry_fetch(block, out, bytes, &ScriptCollectionHost());
+    return mm_script_registry_fetch(block, out, bytes, &ScriptHost());
 }
 
 /***************************************************************************
@@ -1286,67 +1284,62 @@ bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong
     return (*ppglrtvm)->FInsert(irtvm, &rtvm);
 }
 
-/***************************************************************************
-    A chunky resource reader to read a script.
-***************************************************************************/
-int Script::FReadScript(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-                        void **out, MMI32 *bytes)
+PScript CreateScript()
 {
-    const auto services = _ReadServices();
-    return mm_script_resource_fetch(cache, type, number, block, out, bytes, &services);
+    return mm_script_create(&ScriptHost());
 }
 
-MMScriptResourceServices Script::_ReadServices()
+static int ReadCachedScript(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                            void **out, MMI32 *bytes)
 {
-    auto services = ScriptCollectionReaders();
-    services.create_script = [](void *, void *words, void *literals) -> void * {
-        auto script = NewObj Script;
-        if (script)
-        {
-            script->_pgllw = static_cast<PDynamicArray>(words);
-            script->_pgstLiterals = static_cast<PStringTable_GST>(literals);
-        }
-        return script;
-    };
-    return services;
+    return mm_script_resource_fetch(cache, type, number, block, out, bytes, &ScriptHost());
 }
 
-/***************************************************************************
-    Static method to read a script.
-***************************************************************************/
-PScript Script::PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+PScript FetchScript(const MMResourceAccess &source, ChunkTagOrType type, ChunkNumber number, int *error)
 {
-    AssertPo(pcfl, 0);
-    const auto chunks = pcfl->ReadChunkAccess();
-    const auto services = _ReadServices();
-    return static_cast<PScript>(mm_script_resource_archive(&chunks, KauaiChunkPayloadServices(), pcfl, ctg, cno,
-                                                          &services));
+    const MMResourceRequest request = {type, number, rscNil, ReadCachedScript, MM_RESOURCE_NORMAL_PRIORITY};
+    return static_cast<PScript>(mm_resource_access_fetch(&source, &request, mm_script_object_services(), error));
 }
 
-/***************************************************************************
-    Destructor for a script.
-***************************************************************************/
-Script::~Script(void)
+PScript ReadScript(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
-    AssertBaseThis(0);
-    ReleasePpo(&_pgllw);
-    ReleasePpo(&_pgstLiterals);
+    AssertPo(file, 0);
+    const auto chunks = file->ReadChunkAccess();
+    return mm_script_resource_archive(&chunks, KauaiChunkPayloadServices(), file, type, number, &ScriptHost());
+}
+
+bool ReadScriptLiteral(PScript script, MMU32 index, PString out)
+{
+    const void *text;
+    MMU32 count;
+    if (!mm_script_literal(script, index, &text, &count))
+        return false;
+    out->SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
+    return true;
+}
+
+static bool WriteScriptSection(PScript script, bool literals, DataBlock &block)
+{
+    MMBlockIO io;
+    MMStorageWriter writer;
+    return block.FSetTemp(mm_script_section_size(script, literals)) &&
+           mm_owned_block_io(block.CoreBlock(), &io) == MM_DATA_OK &&
+           mm_block_io_writer(&io, &writer) == MM_DATA_OK &&
+           mm_script_write_section(script, literals, &writer);
 }
 
 /***************************************************************************
     Save the script to the given chunky file.
 ***************************************************************************/
-bool Script::FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fPack)
+bool SaveScript(PScript script, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fPack)
 {
-    AssertThis(0);
+    Assert(script, "nil script");
     AssertPo(pcfl, 0);
     DataBlock blck;
     ChunkNumber cnoT, cnoStrs;
-    LegacyLong cb;
 
     // write the script chunk
-    cb = _pgllw->CbOnFile();
-    if (!blck.FSetTemp(cb) || !_pgllw->FWrite(&blck))
+    if (!WriteScriptSection(script, false, blck))
         return fFalse;
     if (fPack)
         blck.FPackData();
@@ -1366,10 +1359,9 @@ bool Script::FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno,
 
     // write the string table if there is one.  The cno for this is allocated
     // via FAdd.
-    if (pvNil != _pgstLiterals)
+    if (mm_script_has_literals(script))
     {
-        cb = _pgstLiterals->CbOnFile();
-        if (!blck.FSetTemp(cb) || !_pgstLiterals->FWrite(&blck))
+        if (!WriteScriptSection(script, true, blck))
             goto LFail;
         if (fPack)
             blck.FPackData();
@@ -1395,29 +1387,6 @@ bool Script::FSaveToChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno,
 
     return fTrue;
 }
-
-#ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a Script.
-***************************************************************************/
-void Script::AssertValid(LegacyUlong grf)
-{
-    Script_PAR::AssertValid(0);
-    AssertPo(_pgllw, 0);
-    AssertNilOrPo(_pgstLiterals, 0);
-}
-
-/***************************************************************************
-    Mark memory for the Script.
-***************************************************************************/
-void Script::MarkMem(void)
-{
-    AssertValid(0);
-    Script_PAR::MarkMem();
-    MarkMemObj(_pgllw);
-    MarkMemObj(_pgstLiterals);
-}
-#endif // DEBUG
 
 /***************************************************************************
     Constructor for the runtime string registry.

@@ -297,7 +297,6 @@ void CompilerBase::AssertValid(LegacyUlong grf)
 {
     CompilerBase_PAR::AssertValid(0);
     AssertNilOrPo(_plexb, 0);
-    AssertNilOrPo(_pscpt, 0);
     AssertNilOrPo(_pgletnTree, 0);
     AssertNilOrPo(_pgletnStack, 0);
     AssertNilOrPo(_pglcstd, 0);
@@ -316,7 +315,7 @@ void CompilerBase::MarkMem(void)
 
     CompilerBase_PAR::MarkMem();
     MarkMemObj(_plexb);
-    MarkMemObj(_pscpt);
+    MarkScript(_pscpt);
     MarkMemObj(_pgletnTree);
     MarkMemObj(_pgletnStack);
     if (pvNil != _pglcstd)
@@ -371,12 +370,7 @@ bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
         _pgletnStack->SetMinGrow(100);
     }
 
-    if (pvNil == (_pscpt = NewObj Script) || pvNil == (_pscpt->_pgllw = DynamicArray::PglNew(size(LegacyLong))))
-    {
-        ReleasePpo(&_pscpt);
-    }
-    else
-        _pscpt->_pgllw->SetMinGrow(100);
+    _pscpt = CreateScript();
 
     // code starts at slot 1 because the version numbers are in slot 0.
     _ilwOpLast = 1;
@@ -386,7 +380,7 @@ bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
 
     // put version info in the script
     lw = LwHighLow(_SwCur(), _SwBack());
-    if (pvNil == _pscpt || !_pscpt->_pgllw->FPush(&lw))
+    if (pvNil == _pscpt || !mm_script_add_word(_pscpt, lw))
         _ReportError(_pszOom);
 
     _lwLastLabel = 0; // for internal labels
@@ -402,7 +396,7 @@ void CompilerBase::_Free(void)
     AssertThis(0);
     CSTD cstd;
 
-    ReleasePpo(&_pscpt);
+    ReleaseScript(&_pscpt);
     ReleasePpo(&_plexb);
     ReleasePpo(&_pmsnk);
     ReleasePpo(&_pgstLabel);
@@ -458,11 +452,11 @@ PScript CompilerBase::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk
             }
             else if (pvNil != _pscpt)
             {
-                AssertPo(_pscpt, 0);
+                Assert(_pscpt, "nil script");
                 _pgstReq->GetExtra(istn, &ilw);
                 Assert(B3Lw(lw) == kbLabel, 0);
-                AssertIn(ilw, 1, _pscpt->_pgllw->IvMac());
-                _pscpt->_pgllw->Put(ilw, &lw);
+                AssertIn(ilw, 1, static_cast<LegacyLong>(mm_script_word_count(_pscpt)));
+                mm_script_set_word(_pscpt, ilw, lw);
             }
         }
     }
@@ -566,7 +560,7 @@ void CompilerBase::_ReportError(PZString psz)
     String stn;
     String stnFile;
 
-    ReleasePpo(&_pscpt);
+    ReleaseScript(&_pscpt);
     _fError = fTrue;
     _plexb->GetStnFile(&stnFile);
     stn.FFormatSz(PszLit("%s(%d:%d) : error : %z"), &stnFile, _plexb->LwLine(), _plexb->IchLine() + 1, psz);
@@ -583,10 +577,10 @@ void CompilerBase::_PushLw(LegacyLong lw)
     if (_fError)
         return;
 
-    AssertPo(_pscpt, 0);
-    if (_fForceOp || _pscpt->_pgllw->IvMac() - _ilwOpLast >= kclwLimPush)
+    Assert(_pscpt, "nil script");
+    if (_fForceOp || static_cast<LegacyLong>(mm_script_word_count(_pscpt)) - _ilwOpLast >= kclwLimPush)
         _PushOp(opNil);
-    if (!_fError && !_pscpt->_pgllw->FPush(&lw))
+    if (!_fError && !mm_script_add_word(_pscpt, lw))
         _ReportError(_pszOom);
 }
 
@@ -599,14 +593,13 @@ void CompilerBase::_PushString(PString pstn)
     AssertThis(0);
     AssertPo(pstn, 0);
     RuntimeVariableName rtvn;
-    LegacyLong istn;
+    MMU32 istn;
 
     if (_fError)
         return;
 
-    AssertPo(_pscpt, 0);
-    if (pvNil == _pscpt->_pgstLiterals && pvNil == (_pscpt->_pgstLiterals = StringTable_GST::PgstNew()) ||
-        !_pscpt->_pgstLiterals->FAddStn(pstn, pvNil, &istn))
+    Assert(_pscpt, "nil script");
+    if (!mm_script_add_literal(_pscpt, pstn->Psz(), pstn->Cch(), &istn))
     {
         _ReportError(_pszOom);
         return;
@@ -629,11 +622,11 @@ void CompilerBase::_PushOp(LegacyLong op)
     if (_fError)
         return;
 
-    AssertPo(_pscpt, 0);
+    Assert(_pscpt, "nil script");
     _EndOp(); // complete the previous opcode
-    _ilwOpLast = _pscpt->_pgllw->IvMac();
+    _ilwOpLast = static_cast<LegacyLong>(mm_script_word_count(_pscpt));
     lw = LwHighLow(0, (short)op);
-    if (!_pscpt->_pgllw->FPush(&lw))
+    if (!mm_script_add_word(_pscpt, lw))
         _ReportError(_pszOom);
     _fForceOp = fFalse;
 }
@@ -650,15 +643,15 @@ void CompilerBase::_EndOp(void)
     if (_fError)
         return;
 
-    AssertPo(_pscpt, 0);
-    ilw = _pscpt->_pgllw->IvMac();
+    Assert(_pscpt, "nil script");
+    ilw = static_cast<LegacyLong>(mm_script_word_count(_pscpt));
     if (_ilwOpLast < ilw - 1)
     {
         // set the count of longs in the previous op
         AssertIn(ilw - _ilwOpLast - 1, 1, kclwLimPush);
-        _pscpt->_pgllw->Get(_ilwOpLast, &lw);
+        lw = mm_script_word(_pscpt, _ilwOpLast);
         lw = LwHighLow(SuHighLow(B3Lw(lw), (byte)(ilw - _ilwOpLast - 1)), SuLow(lw));
-        _pscpt->_pgllw->Put(_ilwOpLast, &lw);
+        mm_script_set_word(_pscpt, _ilwOpLast, lw);
     }
 }
 
@@ -678,11 +671,11 @@ void CompilerBase::_PushVarOp(LegacyLong op, RuntimeVariableName *prtvn)
 
     // the high byte is op, the low word is part of the rtvn, the rest of the
     // rtvn is in the next long
-    AssertPo(_pscpt, 0);
+    Assert(_pscpt, "nil script");
     Assert(SuHigh(prtvn->lu1) == 0, "bad rtvn");
     lw = prtvn->lu1 | (op << 24);
-    _pscpt->_pgllw->Put(_ilwOpLast, &lw);
-    if (!_pscpt->_pgllw->FPush(&prtvn->lu2))
+    mm_script_set_word(_pscpt, _ilwOpLast, lw);
+    if (!mm_script_add_word(_pscpt, mm_signed_word(prtvn->lu2)))
         _ReportError(_pszOom);
 }
 
@@ -728,8 +721,8 @@ void CompilerBase::_AddLabel(PString pstn)
     lw = LwFromBytes(kbLabel, 0, 0, 0);
     if (pvNil != _pscpt)
     {
-        AssertPo(_pscpt, 0);
-        lw |= _pscpt->_pgllw->IvMac();
+        Assert(_pscpt, "nil script");
+        lw |= static_cast<LegacyLong>(mm_script_word_count(_pscpt));
     }
     Assert(B3Lw(lw) == kbLabel, 0);
 
@@ -763,8 +756,8 @@ void CompilerBase::_PushLabelRequest(PString pstn)
     if (_fError)
         return;
 
-    AssertPo(_pscpt, 0);
-    lw = _pscpt->_pgllw->IvMac() - 1;
+    Assert(_pscpt, "nil script");
+    lw = static_cast<LegacyLong>(mm_script_word_count(_pscpt)) - 1;
     if (!_pgstReq->FAddStn(pstn, &lw))
         _ReportError(_pszOom);
 }
@@ -2553,7 +2546,7 @@ void CompilerBase::_CompileIn(void)
 bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
-    AssertPo(pscpt, 0);
+    Assert(pscpt, "nil script");
     AssertPo(pmsnk, 0);
     AssertPo(pmsnkError, 0);
     RuntimeVariableName rtvn;
@@ -2562,12 +2555,9 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     LegacyLong op;
     String stn;
     DataVersion dver;
-    PDynamicArray pgllw = pscpt->_pgllw;
     PZString pszError = pvNil;
-    AssertPo(pgllw, 0);
-    Assert(pgllw->CbEntry() == size(LegacyLong), "bad script");
 
-    ilwMac = pgllw->IvMac();
+    ilwMac = mm_script_word_count(pscpt);
     if (ilwMac < 1)
     {
         pszError = PszLit("No version numbers on script");
@@ -2575,7 +2565,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
     }
 
     // check the version
-    pgllw->Get(0, &lw);
+    lw = mm_script_word(pscpt, 0);
     dver.Set(SwHigh(lw), SwLow(lw));
     if (!dver.FReadable(_SwCur(), _SwMin()))
     {
@@ -2591,7 +2581,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
         if (ilw >= ilwMac)
             break;
 
-        pgllw->Get(ilw++, &lw);
+        lw = mm_script_word(pscpt, ilw++);
         clwPush = B2Lw(lw);
         if (!FIn(clwPush, 0, ilwMac - ilw + 1))
         {
@@ -2610,7 +2600,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
             }
             clwPush--;
             rtvn.lu1 = (LegacyUlong)SuLow(lw);
-            pgllw->Get(ilw++, &rtvn.lu2);
+            rtvn.lu2 = static_cast<LegacyUlong>(mm_script_word(pscpt, ilw++));
             if (rtvn.lu1 == 0)
             {
                 if (op != kopPushLocVar)
@@ -2620,12 +2610,11 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
                 }
 
                 // string literal
-                if (pvNil == pscpt->_pgstLiterals || !FIn(rtvn.lu2, 0, pscpt->_pgstLiterals->IvMac()))
+                if (!ReadScriptLiteral(pscpt, rtvn.lu2, &stn))
                 {
                     pszError = PszLit("bad internal variable");
                     goto LFail;
                 }
-                pscpt->_pgstLiterals->GetStn(rtvn.lu2, &stn);
                 stn.FExpandControls();
                 pmsnk->Report(PszLit("\""));
                 pmsnk->Report(stn.Psz());
@@ -2699,7 +2688,7 @@ bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
         // dump the stack stuff
         while (clwPush-- > 0)
         {
-            pgllw->Get(ilw++, &lw);
+            lw = mm_script_word(pscpt, ilw++);
             if (B3Lw(lw) == kbLabel && FIn(lw &= 0x00FFFFFF, 1, ilwMac + 1))
             {
                 // REVIEW shonk: label identification: this isn't foolproof

@@ -1742,6 +1742,10 @@ readers now take the cache-owned C block directly. Scripts, string registries,
 colour tables, Kidspace descriptors and cursors also use typed C block
 readers. C89 owns the descriptor records and performs the SDL cursor image
 selection. Script literals resolve in the same C archive graph as the root.
+Compiled scripts use C89 owners for instruction words, literal tables, cache
+binding and references. The compiler and interpreter share that representation,
+and C89 writes the legacy instruction and GSTX sections. The host supplies
+codec, archive placement, and runtime string registry services.
 The script string and colour tables use C-owned storage and cache references.
 C89 normalizes registry IDs, translates counted text through the host codec,
 and merges rows in reverse order. The transition adapter supplies native

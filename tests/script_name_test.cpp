@@ -17,37 +17,22 @@ bool FAssertProc(schar *file, LegacyLong line, schar *message, void *, LegacyLon
     std::exit(1);
 }
 
-class ScriptProbe : public ScriptInterpreter::Script
+static bool Matches(ScriptInterpreter::PScript script, const LegacyLong *expected, String *literal)
 {
-public:
-    static bool Matches(ScriptInterpreter::PScript script, const LegacyLong *expected, String *literal)
-    {
-        if (!script)
+    if (!script || mm_script_word_count(script) != 3 || mm_script_literal_count(script) != 1)
+        return false;
+    for (MMU32 i = 0; i < 3; ++i)
+        if (mm_script_word(script, i) != expected[i])
             return false;
-        const auto wordsMember = &ScriptProbe::_pgllw;
-        const auto stringsMember = &ScriptProbe::_pgstLiterals;
-        auto words = script->*wordsMember;
-        auto strings = script->*stringsMember;
-        if (words->IvMac() != 3 || !strings || strings->IstnMac() != 1)
-            return false;
-        for (LegacyLong i = 0; i < 3; ++i)
-        {
-            LegacyLong word;
-            words->Get(i, &word);
-            if (word != expected[i])
-                return false;
-        }
-        String read;
-        strings->GetStn(0, &read);
-        return read.FEqual(literal);
-    }
-};
+    String read;
+    return ScriptInterpreter::ReadScriptLiteral(script, 0, &read) && read.FEqual(literal);
+}
 
 static bool CheckScriptResources()
 {
     using namespace Chunky;
     using namespace Group;
-    using ScriptInterpreter::Script;
+    using namespace ScriptInterpreter;
     const LegacyLong expected[] = {0x11223344, -2, 0x01234567};
     LegacyLong foreign[] = {expected[0], expected[1], expected[2]};
     SwapBytesRglw(foreign, 3);
@@ -64,15 +49,19 @@ static bool CheckScriptResources()
               file->FAdoptChild(kctgScript, root, kctgScriptStrs, child, 0);
     if (ok)
     {
-        auto direct = Script::PscptRead(file, kctgScript, root);
+        auto direct = ReadScript(file, kctgScript, root);
         auto cache = ChunkyResourceFile::PcrfNew(file, 4096);
-        auto cached = cache ? static_cast<ScriptInterpreter::PScript>(cache->PbacoFetch(kctgScript, root,
-                                                                                     Script::FReadScript))
-                            : nullptr;
-        ok = ScriptProbe::Matches(direct, expected, &literal) && ScriptProbe::Matches(cached, expected, &literal);
-        ReleasePpo(&cached);
+        auto cached = cache ? FetchScript(cache->Resources(), kctgScript, root) : nullptr;
+        ok = Matches(direct, expected, &literal) && cached && mm_script_binding(cached)->cache == cache->CoreCache();
         ReleasePpo(&cache);
-        ReleasePpo(&direct);
+        const ChunkNumber saved = root + 1;
+        ok = ok && Matches(cached, expected, &literal) && !mm_script_binding(cached)->cache &&
+             SaveScript(cached, file, kctgScript, saved, true);
+        auto reopened = ok ? ReadScript(file, kctgScript, saved) : nullptr;
+        ok = Matches(reopened, expected, &literal);
+        ReleaseScript(&reopened);
+        ReleaseScript(&cached);
+        ReleaseScript(&direct);
     }
     ReleasePpo(&strings);
     ReleasePpo(&words);

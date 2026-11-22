@@ -21259,3 +21259,35 @@ dummy video.
 
 Traces and Studio canvases are under `tmp/c89-script-collections`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 compiled script ownership (22 November 2026)
+
+The compiler, decompiler and interpreter share the C89 script owner for
+instruction words, literal strings and cache references. C89 serializes the
+legacy GL and GSTX sections. The fixtures verify packed lookup, foreign byte
+order, literal metadata, empty and absent literal sections, and a script
+that survives cache shutdown and can be saved and reopened.
+
+Chomp regenerated the eight Studio archives. All 469 `GLOP` payloads and
+the `GSTX` payload matched `1419c127` byte for byte. Six full archives also
+matched. Help's `HTOP` payload differences were confined to offsets that
+already varied on repeated baseline builds. UTest differed only in index
+alignment bytes. Both compilers disassembled the literal fixture to identical
+source. Recompiling it reproduced the stored instruction and literal bytes.
+The x64 Movie Chomp and x86 Help and Chunk Editors built successfully.
+
+All 199 engine, core link, and C89 checks passed. The 13 native x64, 12 SDL,
+seven native x86, and Chomp pipeline checks passed. Headless Studio exercised
+the original rooms, scene browser, F1 Help, and cold and warm ISO runs.
+Five smoke canvases, the ISO lobby canvas, nine movie saves, and the Help
+and resource cache traces matched the baseline. The separate native x64
+`scene-load` test reproduced the existing fingerprint mismatch and trace.
+
+The headless SDL Studio and Marcus runs in `20261122T110934Z-09f42cc2`
+matched all 60 seek canvases per port, camera and actor state, continuous
+frame order, and available sound requests from `20261122T105524Z-bbd2cd7a`.
+The retail and V3DMM evidence came from retained four-player suite
+`20261122T081603Z-7ffc4e8e`. Marcus relaunched with SDL dummy video.
+
+Traces and Studio canvases are under `tmp/c89-compiled-script`.
+Playback captures are under `tmp/c89-kd`.

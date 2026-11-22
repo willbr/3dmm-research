@@ -2437,18 +2437,18 @@ bool DCD::FCmdImportScript(PCommand pcmd)
     // add the chunk and write the data
     if (!_FAddChunk(kctgScript, &cki, &fCreated))
         goto LCancel;
-    if (!pscpt->FSaveToChunk(_pcfl, cki.ctg, cki.cno))
+    if (!ScriptInterpreter::SaveScript(pscpt, _pcfl, cki.ctg, cki.cno))
     {
         if (fCreated)
             _pcfl->Delete(cki.ctg, cki.cno);
         vpappb->TGiveAlertSz(PszLit("Writing chunk failed"), bkOk, cokExclamation);
     LCancel:
-        ReleasePpo(&pscpt);
+        ScriptInterpreter::ReleaseScript(&pscpt);
         pcmd->cid = cidNil; // don't record
         _SetSel(lnOld);
         return fTrue;
     }
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
 
     InvalAllDcd(_pdocb, _pcfl, &cki);
     _SetSel(lnNil, &cki);
@@ -2589,7 +2589,7 @@ bool DCD::FTestScript(ChunkTagOrType ctg, ChunkNumber cno, long cbCache)
     stn.FFormatSz(PszLit("Run Script: %f %08x"), ctg, cno);
     if (!ptscg->FCreateAndAttachMdi(&stn) || pvNil == (pcrf = ChunkyResourceFile::PcrfNew(_pcfl, cbCache)) ||
         pvNil == (psceg = ptscg->PscegNew(pcrf, ptscg)) ||
-        pvNil == (pscpt = (PScript)pcrf->PbacoFetch(ctg, cno, Script::FReadScript)) || !psceg->FRunScript(pscpt))
+        pvNil == (pscpt = ScriptInterpreter::FetchScript(pcrf->Resources(), ctg, cno)) || !psceg->FRunScript(pscpt))
     {
     LFail:
         vpappb->TGiveAlertSz(PszLit("Running script failed"), bkOk, cokExclamation);
@@ -2597,7 +2597,7 @@ bool DCD::FTestScript(ChunkTagOrType ctg, ChunkNumber cno, long cbCache)
 
     ReleasePpo(&psceg);
     ReleasePpo(&pcrf);
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
     return fFalse;
 }
 
@@ -2615,7 +2615,7 @@ bool DCD::FCmdDisasmScript(PCommand pcmd)
     if (fselCki != _sel.GrfselGetCkiKid(&cki, pvNil))
         return fFalse;
 
-    if (pvNil == (pscpt = Script::PscptRead(_pcfl, cki.ctg, cki.cno)))
+    if (pvNil == (pscpt = ScriptInterpreter::ReadScript(_pcfl, cki.ctg, cki.cno)))
     {
         vpappb->TGiveAlertSz(PszLit("Error reading script (or it's not a script)"), bkOk, cokExclamation);
         return fTrue;
@@ -2628,7 +2628,7 @@ bool DCD::FCmdDisasmScript(PCommand pcmd)
     }
     else
         OpenSinkDoc(&msfil);
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
     return fTrue;
 }
 

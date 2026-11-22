@@ -1607,10 +1607,10 @@ void Compiler::_ParseBodyScript(bool fPack, bool fInfix, ChunkTagOrType ctg, Chu
         return;
     }
 
-    if (!pscpt->FSaveToChunk(_pcfl, ctg, cno, fPack))
+    if (!ScriptInterpreter::SaveScript(pscpt, _pcfl, ctg, cno, fPack))
         _Error(ertOom);
 
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
 }
 
 /***************************************************************************
@@ -2607,7 +2607,7 @@ bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
     _pcfl->FFind(pcki->ctg, pcki->cno, &blck);
     fPacked = blck.FPacked(&cfmt);
 
-    if (pvNil == (pscpt = Script::PscptRead(_pcfl, pcki->ctg, pcki->cno)))
+    if (pvNil == (pscpt = ScriptInterpreter::ReadScript(_pcfl, pcki->ctg, pcki->cno)))
         return fFalse;
 
     if (fPacked)
@@ -2615,7 +2615,7 @@ bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
 
     fRet = _chse.FDumpScript(pscpt, &sccg);
 
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
 
     return fRet;
 }

@@ -231,7 +231,7 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     // kidStudio should be kcnoStudio according to Hungarian, but the "kid"
     // prefix is entrenched into the script/help stuff and can't be easily
     // all changed to kcno.
-    if (pvNil == (pscpt = (PScript)_pcrm->PbacoFetch(kctgScript, kidStudio, Script::FReadScript)))
+    if (pvNil == (pscpt = ScriptInterpreter::FetchScript(_pcrm->Resources(), kctgScript, kidStudio)))
     {
         goto LFail;
     }
@@ -263,7 +263,7 @@ LFail:
                  "do you have studio.chk in the working directory?");
 
     ReleasePpo(&psscb);
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
     ReleasePpo(&psceg);
     ReleasePpo(&_pbrwrActr);
     ReleasePpo(&_pbrwrProp);

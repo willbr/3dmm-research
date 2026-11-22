@@ -70,13 +70,6 @@ static bool ReadKidspaceRecord(MMResourceCache *cache, ChunkTagOrType type, Chun
         }, &record, &read) == MM_CHUNK_OK && read;
 }
 
-static PScript FetchKidspaceScript(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number,
-                                   int *error = nullptr)
-{
-    const MMResourceRequest request = {type, number, rscNil, Script::FReadScript, MM_RESOURCE_NORMAL_PRIORITY};
-    return static_cast<PScript>(mm_resource_cache_fetch_owned(cache, &request, BaseCacheableObject::ObjectServices(), error));
-}
-
 /***************************************************************************
     Create a new kidspace gob as described in the KidspaceGraphicObjectDescriptor with given cno
     in the given ResourceCache.
@@ -684,10 +677,10 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
             PScript pscpt;
             PGraphicsObjectInterpreter psceg = pvNil;
 
-            if (pvNil != (pscpt = FetchKidspaceScript(_resourceCache, kid.cki.ctg, kid.cki.cno)) &&
+            if (pvNil != (pscpt = ScriptInterpreter::FetchScript({_resourceCache, nullptr}, kid.cki.ctg, kid.cki.cno)) &&
                 pvNil != (psceg = _pwoks->PscegNew(_prca, this)) && psceg->FAttachScript(pscpt))
             {
-                ReleasePpo(&pscpt);
+                ScriptInterpreter::ReleaseScript(&pscpt);
                 if (pvNil != _pscegAnim)
                 {
                     ReleasePpo(&_pscegAnim);
@@ -705,7 +698,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
 
             Warn("Couldn't attach animation script");
             ReleasePpo(&psceg);
-            ReleasePpo(&pscpt);
+            ScriptInterpreter::ReleaseScript(&pscpt);
         }
     }
 
@@ -1493,10 +1486,10 @@ bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, LegacyLong *prglw, lo
     tribool tRet;
 
     fExists = fTrue;
-    pscpt = FetchKidspaceScript(_resourceCache, kctgScript, cno, &fError);
+    pscpt = ScriptInterpreter::FetchScript({_resourceCache, nullptr}, kctgScript, cno, &fError);
     if (pvNil != pscpt)
     {
-        AssertPo(pscpt, 0);
+        Assert(pscpt, "nil script");
         long grid = Grid();
         PWorldOfKidspace pwoks = _pwoks;
         PGraphicsObjectInterpreter psceg = _pwoks->PscegNew(_prca, this);
@@ -1508,7 +1501,7 @@ bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, LegacyLong *prglw, lo
         else
             tRet = tMaybe;
         ReleasePpo(&psceg);
-        ReleasePpo(&pscpt);
+        ScriptInterpreter::ReleaseScript(&pscpt);
 
         // see if this KidspaceGraphicObject still exists
         fExists = (this == pwoks->PgobFromGrid(grid));

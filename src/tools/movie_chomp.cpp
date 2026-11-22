@@ -486,7 +486,6 @@ void DumpActorEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGro
 {
     // long iaev;
     // PGeneralGroup pggaev = pvNil;
-    FramePosition xfrm;
     Base aev;
     long indent = 48;
 
@@ -551,17 +550,21 @@ void DumpActorEvent(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PGeneralGro
         break;
     }
 
-    case aetPull:
+    case aetPull: {
         // Actors are xformed in _FDoFrm, Rotate or Scale
-        pggaev->Get(iaev, &xfrm.aevpull);
+        Stretch stretch;
+        pggaev->Get(iaev, &stretch);
         printf("%*.sPull()\n", indent, "");
         break;
+    }
 
-    case aetSize:
+    case aetSize: {
         // Actors are xformed in _FDoFrm, Rotate or Scale
-        pggaev->Get(iaev, &xfrm.rScaleStep);
+        BRS scale;
+        pggaev->Get(iaev, &scale);
         printf("%*.sSize()\n", indent, "");
         break;
+    }
 
     case aetStep: { // Exists for timing control (eg walk in place)
         BRS dwrStep;
@@ -642,7 +645,6 @@ void DumpActorEvents(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumbe
 
         long iaev;
         Base aev;
-        FramePosition xfrm;
 
         printf("%*.s// length: %d\n", 48, "", pggaev->IvMac());
 
@@ -1048,7 +1050,7 @@ bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkEr
                         background_tag.FFormatSz(PszLit("%f"), tag.ctg);
                         printf("\t\t\tctg='%s',\n", background_tag.Psz());
 
-                        printf("\t\t\tpcrf=%p,\n", tag.pcrf);
+                        printf("\t\t\tpcrf=%p,\n", static_cast<void *>(tag.cache));
                         printf("\t\t\tsig=%lu\n", tag.sid);
                         printf("\t\t)\n");
 
@@ -1203,7 +1205,7 @@ bool MovieDecompiler::_FDumpScript(ChunkIdentification *pcki)
     _pcfl->FFind(pcki->ctg, pcki->cno, &blck);
     fPacked = blck.FPacked(&cfmt);
 
-    if (pvNil == (pscpt = Script::PscptRead(_pcfl, pcki->ctg, pcki->cno)))
+    if (pvNil == (pscpt = ScriptInterpreter::ReadScript(_pcfl, pcki->ctg, pcki->cno)))
         return fFalse;
 
     if (fPacked)
@@ -1211,7 +1213,7 @@ bool MovieDecompiler::_FDumpScript(ChunkIdentification *pcki)
 
     fRet = _chse.FDumpScript(pscpt, &sccg);
 
-    ReleasePpo(&pscpt);
+    ScriptInterpreter::ReleaseScript(&pscpt);
 
     return fRet;
 }

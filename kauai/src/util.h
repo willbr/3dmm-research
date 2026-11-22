@@ -137,9 +137,9 @@ namespace Group {
    typedef class AllocatedStringTable *PAllocatedStringTable;
 }
 
+struct MMCompiledScript;
 namespace ScriptInterpreter{
-   class Script;
-   typedef class Script *PScript;
+   typedef MMCompiledScript *PScript;
 }
 typedef class DataBlock *PDataBlock;
 
