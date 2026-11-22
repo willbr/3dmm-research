@@ -6,6 +6,7 @@
 #include <memory>
 namespace KauaiFonts { class FontCatalog; }
 struct MMPolledPlayback;
+struct MMGraphicsMovieCapture;
 class MarcusPlayback
 {
     struct Impl;
@@ -42,8 +43,11 @@ class MarcusPlayback
     // transition remainder. User click-wait time is excluded.
     double FrameSeconds() const;
     int Transition() const;
-    void BeginTransition(int kind, MM::PreviewImage previous, const unsigned char *outgoingPalette,
-                         const MM::Preview &incoming);
+    void PresentMovieFrame(int scene, MM::PreviewImage &);
+    void InvalidateMovieFrame();
+    void ForgetMovieFrame();
+    void CaptureMovieFrame(int scene, MMGraphicsMovieCapture &, const MM::Preview &);
+    void BeginTransition(int kind, MMGraphicsMovieCapture &, const MM::Preview &incoming);
     bool Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image, MM::Error &error,
                    const std::uint32_t *hiddenCaption = nullptr, bool editDraft = false);
     bool CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const;
@@ -52,6 +56,5 @@ class MarcusPlayback
     const std::vector<MarcusCaptionStop> &CaptionPositions(int &scroll) const;
     bool CaptionCaret(int offset);
     bool CaptionFontSample(const std::string &family, MM::PreviewImage &image);
-    void CompositeTransition(MM::PreviewImage &image) const;
 };
 #endif

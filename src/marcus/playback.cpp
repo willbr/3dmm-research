@@ -41,6 +41,16 @@ MMPixelSurface TransitionSurface(PreviewImage &image)
     return {image.rgba.data(), static_cast<MMI32>(image.width), static_cast<MMI32>(image.height),
             static_cast<MMI32>(image.width * 4), 32};
 }
+MMGraphicsMoviePaletteSource TransitionPalettes(const Preview &preview)
+{
+    return {&preview,
+        [](const void *p, unsigned char *colours) {
+            return int(static_cast<const Preview *>(p)->CopyPresentationPalette(colours));
+        },
+        [](const void *p, unsigned char *colours) {
+            static_cast<const Preview *>(p)->OverlayTransitionPalette(colours);
+        }};
+}
 struct AudioClip
 {
     MMMovieAudioClip data = {};
@@ -375,23 +385,21 @@ struct MarcusPlayback::Impl
     Audio audio;
     MMPolledPlayback clock = {};
     bool auditioning = false;
-    MMU32 transitionSeed = 0;
-    PreviewImage previous;
-    MMGraphicsMovieSnapshot transitionPalette{};
+    MMGraphicsMovieFrames movieFrames;
     Impl()
     {
         if (!mm_caption_presentation_init(&captionPresentation, nullptr))
             throw std::bad_alloc();
+        mm_graphics_movie_frames_init(&movieFrames);
     }
     ~Impl()
     {
         mm_caption_presentation_dispose(&captionPresentation);
-        mm_graphics_movie_snapshot_dispose(&transitionPalette);
+        mm_graphics_movie_frames_dispose(&movieFrames);
     }
     void ClearTransition()
     {
-        previous = {};
-        mm_graphics_movie_snapshot_dispose(&transitionPalette);
+        mm_graphics_movie_frames_clear(&movieFrames);
     }
     bool EnterFrame(Preview &preview, MMI32 frame, int restoreMusic, double fps, MMPolledFrameWait &wait,
                     Error &error);
@@ -791,35 +799,38 @@ bool MarcusPlayback::Transitioning() const
 }
 bool MarcusPlayback::PaletteAnimating() const
 {
-    return impl->transitionPalette.indices != nullptr;
+    return mm_graphics_movie_frames_has_palette(&impl->movieFrames) != 0;
 }
 double MarcusPlayback::FrameSeconds() const
 {
     return mm_polled_playback_frame_seconds(&impl->clock);
 }
-void MarcusPlayback::BeginTransition(int kind, MM::PreviewImage previous,
-                                     const unsigned char *outgoingPalette, const MM::Preview &incoming)
+void MarcusPlayback::PresentMovieFrame(int scene, MM::PreviewImage &image)
 {
-    if (previous.rgba.empty())
-        return;
-    const auto surface = TransitionSurface(previous);
-    const MMGraphicsMoviePaletteSource palettes{
-        &incoming,
-        [](const void *p, unsigned char *colours) {
-            return int(static_cast<const Preview *>(p)->CopyPresentationPalette(colours));
-        },
-        [](const void *p, unsigned char *colours) {
-            static_cast<const Preview *>(p)->OverlayTransitionPalette(colours);
-        }};
-    const int prepared = mm_graphics_movie_snapshot_prepare(&impl->transitionPalette, kind, &surface,
-                                                            outgoingPalette, &palettes);
-    if (prepared < 0)
+    const auto surface = TransitionSurface(image);
+    if (!mm_graphics_movie_frames_present(&impl->movieFrames, &impl->clock, scene, &surface,
+                                          image.paletteIndices.data(), image.paletteIndices.size()))
         throw std::bad_alloc();
-    if (!prepared)
-        return;
-    mm_polled_playback_begin_transition(&impl->clock, kind);
-    impl->transitionSeed = static_cast<MMU32>(SDL_GetTicks());
-    impl->previous = std::move(previous);
+}
+void MarcusPlayback::InvalidateMovieFrame()
+{
+    mm_graphics_movie_frames_invalidate(&impl->movieFrames);
+}
+void MarcusPlayback::ForgetMovieFrame()
+{
+    mm_graphics_movie_frames_forget(&impl->movieFrames);
+}
+void MarcusPlayback::CaptureMovieFrame(int scene, MMGraphicsMovieCapture &capture, const MM::Preview &preview)
+{
+    const auto palette = TransitionPalettes(preview);
+    mm_graphics_movie_frames_capture(&impl->movieFrames, scene, &capture, &palette);
+}
+void MarcusPlayback::BeginTransition(int kind, MMGraphicsMovieCapture &capture, const MM::Preview &incoming)
+{
+    const auto palette = TransitionPalettes(incoming);
+    if (mm_graphics_movie_frames_begin(&impl->movieFrames, &impl->clock, kind, &capture, &palette,
+                                      []() -> MMU32 { return static_cast<MMU32>(SDL_GetTicks()); }) < 0)
+        throw std::bad_alloc();
 }
 bool MarcusPlayback::Impl::EnterFrame(Preview &preview, MMI32 frame, int restoreMusic, double fps,
                                       MMPolledFrameWait &wait, Error &error)
@@ -1061,15 +1072,4 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
     if (!authored && result == MM_CAPTION_PAINT_OK)
         image.coveredPixels = covered;
     return result == MM_CAPTION_PAINT_OK;
-}
-
-void MarcusPlayback::CompositeTransition(MM::PreviewImage &image) const
-{
-    if (!impl->clock.transition)
-        return;
-    const auto outgoing = TransitionSurface(impl->previous);
-    const auto incoming = TransitionSurface(image);
-    mm_graphics_movie_snapshot_render(&impl->transitionPalette, impl->clock.transition, impl->clock.transition_ms,
-                                     impl->transitionSeed, &outgoing, &incoming,
-                                     image.paletteIndices.empty() ? nullptr : image.paletteIndices.data());
 }

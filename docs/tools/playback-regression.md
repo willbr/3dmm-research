@@ -22625,3 +22625,30 @@ caption state at four frames across all four scenes. The existing
 `0D666753`.
 
 Evidence is under `tmp/c89-caption-presentation`.
+
+## C89 movie transition frame ownership (22 November 2026)
+
+C89 retains the last authored view as a packed RGBA frame keyed by scene.
+Scene switching transfers that frame and its palette before loading the next
+scene. The C renderer prepares the effect, starts the transition clock, and
+retains each composed movie view for the next switch. The work camera uses
+its own image and does not replace the movie snapshot.
+
+All 239 selected checks passed across x64, x86 and SDL Studio. The C bitmap
+checks cover row-pitch normalization, invalidation, capture
+ownership, cut rejection, palette retention and a fixed-seed dissolve.
+The Marcus playback test also exercised the black and white fades, dissolve,
+black hold, and work-view renders during a scene switch. Three generated
+presentation movies and the default startup capture matched byte for byte.
+
+On the dissolve fixture, baseline `20261122T191956Z-e234e250` and candidate
+`20261122T192528Z-8665e42e` matched each port's 60 seek canvases and recorded
+state. The ports reproduced 59 steady image observations and the settled
+dissolve after collapsing duplicate samples. The authored frame order and
+settled dissolve canvas matched fresh retail and V3DMM captures in
+`20261122T192248Z-02c3a12c`, collected on a private Windows desktop.
+Continuous transition-pixel and timing parity remain unverified.
+The existing `scene-load` assertion repeated its 63,224-byte trace and
+fingerprint `0D666753`.
+
+Evidence is under `tmp/c89-transition-frames`.

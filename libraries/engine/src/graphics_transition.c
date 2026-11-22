@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/graphics_transition.h"
 #include "mm/indexed_display.h"
+#include "mm/playback.h"
 #include "mm/random.h"
 #include "mm/wide.h"
 #include <stdlib.h>
@@ -348,6 +349,120 @@ int mm_graphics_movie_snapshot_render(const MMGraphicsMovieSnapshot *snapshot, M
     palette.outgoing_indices = snapshot->indices;
     palette.incoming_indices = incoming_indices;
     return mm_graphics_movie_transition_rgba(kind, elapsed_ms, seed, outgoing, incoming, &palette);
+}
+
+static void drop_movie_surface(MMPixelSurface *surface)
+{
+    free(surface->pixels);
+    memset(surface, 0, sizeof(*surface));
+}
+
+void mm_graphics_movie_frames_init(MMGraphicsMovieFrames *frames)
+{
+    memset(frames, 0, sizeof(*frames));
+    frames->presented_scene = -1;
+}
+
+void mm_graphics_movie_frames_clear(MMGraphicsMovieFrames *frames)
+{
+    drop_movie_surface(&frames->outgoing);
+    mm_graphics_movie_snapshot_dispose(&frames->palette);
+}
+
+void mm_graphics_movie_frames_invalidate(MMGraphicsMovieFrames *frames)
+{
+    frames->presented_scene = -1;
+}
+
+void mm_graphics_movie_frames_forget(MMGraphicsMovieFrames *frames)
+{
+    drop_movie_surface(&frames->presented);
+    frames->capacity = 0;
+    mm_graphics_movie_frames_invalidate(frames);
+}
+
+void mm_graphics_movie_frames_dispose(MMGraphicsMovieFrames *frames)
+{
+    mm_graphics_movie_frames_clear(frames);
+    mm_graphics_movie_frames_forget(frames);
+}
+
+int mm_graphics_movie_frames_has_palette(const MMGraphicsMovieFrames *frames)
+{
+    return frames->palette.indices != NULL;
+}
+
+int mm_graphics_movie_frames_present(MMGraphicsMovieFrames *frames, const MMPolledPlayback *clock,
+                                     MMI32 scene, const MMPixelSurface *incoming, const unsigned char *indices,
+                                     size_t index_count)
+{
+    MMPixelSurface image;
+    size_t bytes;
+    MMI32 row;
+    void *pixels;
+    if (scene < 0 || incoming->depth != 32 || !mm_pixel_surface_valid(incoming))
+        return 0;
+    image = *incoming;
+    image.pitch = image.width * 4;
+    bytes = (size_t)image.pitch * image.height;
+    pixels = frames->presented.pixels;
+    if (frames->capacity < bytes)
+    {
+        pixels = realloc(pixels, bytes);
+        if (!pixels)
+            return 0;
+        frames->capacity = bytes;
+    }
+    if (clock->transition)
+        mm_graphics_movie_snapshot_render(&frames->palette, clock->transition, clock->transition_ms, frames->seed,
+                                          &frames->outgoing, incoming, index_count == bytes / 4 ? indices : NULL);
+    if (image.pitch == incoming->pitch)
+        memcpy(pixels, incoming->pixels, bytes);
+    else
+        for (row = 0; row < image.height; ++row)
+            memcpy((unsigned char *)pixels + (size_t)row * image.pitch,
+                   (const unsigned char *)incoming->pixels + (size_t)row * incoming->pitch, image.pitch);
+    image.pixels = pixels;
+    frames->presented = image;
+    frames->presented_scene = scene;
+    return 1;
+}
+
+void mm_graphics_movie_capture_dispose(MMGraphicsMovieCapture *capture)
+{
+    drop_movie_surface(&capture->surface);
+    capture->has_palette = 0;
+}
+
+void mm_graphics_movie_frames_capture(MMGraphicsMovieFrames *frames, MMI32 scene, MMGraphicsMovieCapture *capture,
+                                      const MMGraphicsMoviePaletteSource *palette)
+{
+    mm_graphics_movie_capture_dispose(capture);
+    if (scene >= 0 && frames->presented_scene == scene)
+    {
+        capture->surface = frames->presented;
+        frames->presented.pixels = NULL;
+        frames->capacity = 0;
+        capture->has_palette = palette && palette->read && palette->read(palette->context, capture->palette);
+    }
+    mm_graphics_movie_frames_invalidate(frames);
+}
+
+int mm_graphics_movie_frames_begin(MMGraphicsMovieFrames *frames, MMPolledPlayback *clock, MMI32 kind,
+                                   MMGraphicsMovieCapture *capture, const MMGraphicsMoviePaletteSource *palette,
+                                   MMU32 (*ticks)(void))
+{
+    int prepared = mm_graphics_movie_snapshot_prepare(&frames->palette, kind, &capture->surface,
+        capture->has_palette ? capture->palette : NULL, palette);
+    if (prepared != 1)
+        return prepared;
+    drop_movie_surface(&frames->outgoing);
+    frames->outgoing = capture->surface;
+    capture->surface.pixels = NULL;
+    mm_graphics_movie_capture_dispose(capture);
+    mm_polled_playback_begin_transition(clock, kind);
+    frames->seed = ticks ? ticks() : 0;
+    return 1;
 }
 
 static void show_palette_colour(unsigned char *pixel, const unsigned char *palette, int index)

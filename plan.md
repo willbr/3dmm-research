@@ -1599,6 +1599,10 @@ The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette
 ranges through the same C89 overlay routine.
+Marcus's last authored frame and active transition pixels now also belong
+to the C renderer. The scene switch transfers the cached RGBA frame and
+its palette before changing scenes. C prepares the effect, starts its clock
+and captures the composed movie frame for the next switch.
 Marcus movie polling now coordinates audio restore, frame entry,
 loop rewinds, outgoing capture, scene selection and failure cleanup in
 C89. The poller uses Studio's C89 frame and scene advancement rule.

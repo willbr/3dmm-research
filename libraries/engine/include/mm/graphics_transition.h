@@ -136,6 +136,49 @@ int mm_graphics_movie_snapshot_render(const MMGraphicsMovieSnapshot *, MMI32 aut
                                      double elapsed_ms, MMU32 seed, const MMPixelSurface *outgoing,
                                      const MMPixelSurface *incoming, const unsigned char *incoming_indices);
 
+struct MMPolledPlayback;
+typedef struct MMGraphicsMovieFrames
+{
+    MMPixelSurface presented, outgoing;
+    size_t capacity;
+    MMI32 presented_scene;
+    MMGraphicsMovieSnapshot palette;
+    MMU32 seed;
+} MMGraphicsMovieFrames;
+
+typedef struct MMGraphicsMovieCapture
+{
+    MMPixelSurface surface;
+    unsigned char palette[1024];
+    int has_palette;
+} MMGraphicsMovieCapture;
+
+/* Initialize frames once and zero-initialize each capture. All retained
+ * surfaces own their pixels. Clear ends the active effect. Forget drops the
+ * cached movie image. Invalidate keeps its storage for the next render. */
+void mm_graphics_movie_frames_init(MMGraphicsMovieFrames *);
+void mm_graphics_movie_frames_clear(MMGraphicsMovieFrames *);
+void mm_graphics_movie_frames_invalidate(MMGraphicsMovieFrames *);
+void mm_graphics_movie_frames_forget(MMGraphicsMovieFrames *);
+void mm_graphics_movie_frames_dispose(MMGraphicsMovieFrames *);
+int mm_graphics_movie_frames_has_palette(const MMGraphicsMovieFrames *);
+/* Composite an independent authored view and retain its RGBA pixels for the
+ * next cut. Failure preserves both the cached frame and the supplied image. */
+int mm_graphics_movie_frames_present(MMGraphicsMovieFrames *, const struct MMPolledPlayback *,
+                                     MMI32 scene, const MMPixelSurface *, const unsigned char *indices,
+                                     size_t index_count);
+/* Transfer the last authored frame if its scene matches. Capture borrows the
+ * old palette source only during this call and survives clearing the effect. */
+void mm_graphics_movie_frames_capture(MMGraphicsMovieFrames *, MMI32 scene, MMGraphicsMovieCapture *,
+                                      const MMGraphicsMoviePaletteSource *);
+void mm_graphics_movie_capture_dispose(MMGraphicsMovieCapture *);
+/* Prepare and start a transition, consuming the capture on success. Return
+ * 0 for no effect, -1 for allocation failure. Both leave the capture, clock
+ * and active effect intact. The seed is sampled after palette preparation. */
+int mm_graphics_movie_frames_begin(MMGraphicsMovieFrames *, struct MMPolledPlayback *, MMI32 kind,
+                                   MMGraphicsMovieCapture *, const MMGraphicsMoviePaletteSource *,
+                                   MMU32 (*ticks)(void));
+
 /* Update an incoming RGBA8 image in place from a separate outgoing image.
  * A stable seed gives the same reveal on repeated presentations. Optional
  * dissolve palette indices are tightly packed in each surface's dimensions. */

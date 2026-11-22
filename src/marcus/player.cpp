@@ -1,4 +1,5 @@
 #include "player.h"
+#include "mm/graphics_transition.h"
 #include "mm/material_resource.h"
 #include "mm/movie_data.h"
 #include "mm/movie_publish.h"
@@ -96,12 +97,10 @@ struct MarcusPlayer
     int orbitObject = -1;
     MM::PreviewImage image;
     MM::PreviewImage thumbnail;
-    MM::PreviewImage movieImage;
     MM::PreviewImage costumeImage;
     MM::PreviewBounds actionPreviewBounds;
     std::tuple<unsigned long, int, std::int32_t, int, int> actionPreviewKey{};
     MM::PreviewImage captionFontSample;
-    int movieImageScene = -1;
     MarcusPlayback playback;
     std::vector<MM::Id> scenes;
     std::vector<MarcusScene> sceneInfo, baseSceneInfo;
@@ -363,7 +362,7 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MMMoviePoseJournal &
             return false;
     }
     player.objects = player.preview.Objects();
-    player.movieImageScene = -1;
+    player.playback.InvalidateMovieFrame();
     return true;
 }
 MarcusMovieInput &PrepareInput(MarcusMovieInput &input, const std::shared_ptr<MarcusMovieFile> &file)
@@ -704,11 +703,7 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
         player->image = std::move(reduced);
     }
     if (view.authoredCamera && !view.freeCamera)
-    {
-        player->playback.CompositeTransition(player->image);
-        player->movieImage = player->image;
-        player->movieImageScene = player->selected;
-    }
+        player->playback.PresentMovieFrame(player->selected, player->image);
     image->width = static_cast<int>(player->image.width);
     image->height = static_cast<int>(player->image.height);
     image->pitch = image->width * 4;
@@ -753,7 +748,7 @@ bool CancelPropPreviews(MarcusPlayer *player, MM::Error &error)
 {
     for (const auto &entry : player->shapePreviews)
         if (!player->preview.SetObjectShape(entry.first, entry.second, error)) return false;
-    if (!player->shapePreviews.empty()) player->movieImageScene = -1;
+    if (!player->shapePreviews.empty()) player->playback.InvalidateMovieFrame();
     player->shapePreviews.clear();
     for (const auto &entry : player->propPreviews)
     {
@@ -765,7 +760,7 @@ bool CancelPropPreviews(MarcusPlayer *player, MM::Error &error)
     if (!player->propPreviews.empty())
     {
         player->objects = player->preview.Objects();
-        player->movieImageScene = -1;
+        player->playback.InvalidateMovieFrame();
     }
     player->propPreviews.clear();
     return true;
@@ -818,7 +813,7 @@ struct RangeEditHost
                 movie.objects.clear();
                 movie.animations.clear();
                 movie.soundSheet = {};
-                movie.movieImageScene = -1;
+                movie.playback.InvalidateMovieFrame();
                 movie.preview.ClearScene();
                 movie.playback.Stop();
                 break;
@@ -850,7 +845,7 @@ struct RangeEditHost
                 movie.soundSheet = std::move(h.sheet);
                 movie.objects.swap(h.objects);
                 movie.animations.clear();
-                movie.movieImageScene = -1;
+                movie.playback.InvalidateMovieFrame();
                 ++movie.document;
                 h.history->Commit();
             }};
@@ -1000,7 +995,7 @@ bool OpenEditedBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile>
     player->nextScene = std::max(nextScene, player->nextScene); player->nextObject = std::max(nextObject, player->nextObject);
     player->nextActorId = std::max(nextActor, player->nextActorId);
     player->materializedFile.reset(); player->materializedEdits.reset();
-    player->materializedPoses.reset(); player->materializedFrameRanges.reset(); player->movieImageScene = -1;
+    player->materializedPoses.reset(); player->materializedFrameRanges.reset(); player->playback.InvalidateMovieFrame();
     return ok;
 }
 struct SnapshotHost
@@ -1040,7 +1035,7 @@ struct SnapshotHost
             case MM_MOVIE_SNAPSHOT_ABANDON:
             case MM_MOVIE_SNAPSHOT_CLEAR_SCENE:
                 movie.selected = -1;
-                movie.movieImageScene = -1;
+                movie.playback.InvalidateMovieFrame();
                 movie.objects.clear();
                 movie.soundSheet.sounds.clear();
                 movie.soundSheet.soundTracks.clear();
@@ -1120,7 +1115,7 @@ struct SnapshotHost
             [](void *p, const void *record) {
                 auto &movie = static_cast<SnapshotHost *>(p)->movie;
                 ++movie.document;
-                movie.movieImageScene = -1;
+                movie.playback.InvalidateMovieFrame();
                 movie.materializedFile.reset();
                 movie.materializedPoses.reset();
                 movie.materializedFrameRanges.reset();
@@ -1479,7 +1474,7 @@ static bool InsertObject(MarcusPlayer *player, MMPreviewLiveProp definition, con
     for (std::size_t index = 0; index < player->objects.size(); ++index)
         if (player->objects[index].actorId == definition.actor_id) result = static_cast<int>(index);
     if (result < 0) { error.message = "The new object could not be selected."; return false; }
-    ++player->document; player->movieImageScene = -1;
+    ++player->document; player->playback.InvalidateMovieFrame();
     history.Commit();
     placement.committed = true;
     return true;
@@ -2076,7 +2071,7 @@ extern "C"
                 if (marcus_select_scene_keep_view(player, player->selected)) marcus_seek(player, frame);
                 return false;
             }
-            player->animations.clear(); ++player->document; player->movieImageScene = -1;
+            player->animations.clear(); ++player->document; player->playback.InvalidateMovieFrame();
             history.Commit(); return true;
         });
     }
@@ -2291,7 +2286,7 @@ extern "C"
                 MM::Error ignored; ApplyDefinitions(*player, ignored);
                 return false;
             }
-            player->animations.clear(); ++player->document; player->movieImageScene = -1;
+            player->animations.clear(); ++player->document; player->playback.InvalidateMovieFrame();
             history.Commit(); return true;
         });
     }
@@ -2319,7 +2314,7 @@ extern "C"
             const auto saved=player->shapePreviews.emplace(object,before);
             if (std::equal(value.rotation,value.rotation+9,saved.first->second.rotation) &&
                 std::equal(value.scale,value.scale+3,saved.first->second.scale)) player->shapePreviews.erase(saved.first);
-            player->movieImageScene = -1;
+            player->playback.InvalidateMovieFrame();
             return true;
         });
     }
@@ -2338,7 +2333,7 @@ extern "C"
             {
                 if (!player->preview.SetObjectShape(object, before, error)) return false;
                 player->shapePreviews.erase(object);
-                player->movieImageScene = -1;
+                player->playback.InvalidateMovieFrame();
                 return true;
             }
             auto poses = std::make_shared<MarcusEditedPoses>(*player->poses);
@@ -2352,7 +2347,7 @@ extern "C"
             if (!player->preview.SetObjectShape(object, value, error)) return false;
             player->poses = std::move(poses);
             player->shapePreviews.erase(object);
-            player->movieImageScene = -1;
+            player->playback.InvalidateMovieFrame();
             ++player->document;
             history.Commit();
             return true;
@@ -2379,7 +2374,7 @@ extern "C"
             const auto &current = player->objects[object];
             if (std::abs(current.x - original.x) < .0001f && std::abs(current.y - original.y) < .0001f &&
                 std::abs(current.z - original.z) < .0001f) player->propPreviews.erase(inserted.first);
-            player->movieImageScene = -1;
+            player->playback.InvalidateMovieFrame();
             return true;
         });
     }
@@ -2415,7 +2410,7 @@ extern "C"
             player->poses = std::move(poses);
             player->objects = player->preview.Objects();
             player->propPreviews.erase(object);
-            player->movieImageScene = -1;
+            player->playback.InvalidateMovieFrame();
             ++player->document;
             history.Commit();
             player->preview.ReusePlacementPoint();
@@ -2488,7 +2483,7 @@ extern "C"
                     auto &movie = h.movie;
                     h.edits->revision = movie.nextEditRevision++;
                     movie.edits = std::move(h.edits);
-                    movie.movieImageScene = -1;
+                    movie.playback.InvalidateMovieFrame();
                     ++movie.document;
                     h.history->Commit();
                 }};
@@ -2788,8 +2783,7 @@ extern "C"
             player->soundTimeline.Clear();
             player->waveforms.Clear();
             player->image = {};
-            player->movieImage = {};
-            player->movieImageScene = -1;
+            player->playback.ForgetMovieFrame();
             if (!player->preserveEditFraming) player->inspectionMatched = false;
             for (const auto &source : sources)
                 for (const auto &path : player->content->files.Files(source.name, ".3cn"))
@@ -3307,11 +3301,10 @@ extern "C"
             {
                 MarcusPlayer &movie;
                 MM::Error &error;
-                MM::PreviewImage previous;
-                unsigned char outgoingPalette[1024];
-                bool hasPalette;
+                MMGraphicsMovieCapture capture;
                 std::exception_ptr failure;
-            } context{*player, error, {}, {}, false, {}};
+                ~Host() { mm_graphics_movie_capture_dispose(&capture); }
+            } context{*player, error, {}, {}};
             const MMPolledMovieServices services{
                 &context,
                 [](void *p, int playing, double elapsed, int click, int *advance) -> int {
@@ -3358,11 +3351,7 @@ extern "C"
                             }
                             break;
                         case MM_POLLED_MOVIE_CAPTURE_OUTGOING:
-                            // Transition frames come from the movie camera.
-                            if (movie.movieImageScene == value)
-                                h.previous = std::move(movie.movieImage);
-                            movie.movieImageScene = -1;
-                            h.hasPalette = !h.previous.rgba.empty() && movie.preview.CopyPresentationPalette(h.outgoingPalette);
+                            movie.playback.CaptureMovieFrame(value, h.capture, movie.preview);
                             break;
                         case MM_POLLED_MOVIE_SELECT_SCENE:
                             if (!SelectScene(&movie, value, true, true))
@@ -3372,8 +3361,7 @@ extern "C"
                             }
                             break;
                         case MM_POLLED_MOVIE_START_TRANSITION:
-                            movie.playback.BeginTransition(value, std::move(h.previous),
-                                                           h.hasPalette ? h.outgoingPalette : nullptr, movie.preview);
+                            movie.playback.BeginTransition(value, h.capture, movie.preview);
                             break;
                         case MM_POLLED_MOVIE_STOP:
                             movie.playback.Stop();

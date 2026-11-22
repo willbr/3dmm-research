@@ -6,6 +6,7 @@
 #include "mm/graphics_view.h"
 #include "mm/indexed_display.h"
 #include "mm/pixel_paint.h"
+#include "mm/playback.h"
 #include "mm/region.h"
 #include "engine_bitmap_block_fixture.h"
 #include <assert.h>
@@ -1291,6 +1292,11 @@ static void movie_palette_overlay(const void *context, unsigned char *palette)
     assert(mm_display_palette_overlay(palette, 256, 42, data->authored, 2));
 }
 
+static MMU32 movie_fixed_ticks(void)
+{
+    return 3;
+}
+
 static void movie_transition_palette(void)
 {
     static unsigned char old[] = {10, 20, 30, 255, 10, 20, 30, 255, 1, 2, 3, 128, 10, 20, 30, 255};
@@ -1345,6 +1351,56 @@ static void movie_transition_palette(void)
                                               &palette_source) == 1);
     assert(snapshot.indices == NULL);
     mm_graphics_movie_snapshot_dispose(&snapshot);
+
+    {
+        unsigned char stored[sizeof(old) + 4];
+        MMPixelSurface authored = {NULL, 4, 1, sizeof(stored), 32};
+        MMGraphicsMovieFrames frames;
+        MMGraphicsMovieCapture capture = {0};
+        MMPolledPlayback clock;
+        void *pixels;
+        mm_graphics_movie_frames_init(&frames);
+        mm_polled_playback_reset(&clock, -1, 0);
+        memcpy(stored, old, sizeof(old));
+        authored.pixels = stored;
+        assert(mm_graphics_movie_frames_present(&frames, &clock, 7, &authored, NULL, 0));
+        assert(frames.presented.pitch == sizeof(old) && !memcmp(frames.presented.pixels, old, sizeof(old)));
+        pixels = frames.presented.pixels;
+        stored[0] = 253;
+        authored.pitch = 1;
+        assert(!mm_graphics_movie_frames_present(&frames, &clock, 8, &authored, NULL, 0));
+        assert(frames.presented_scene == 7 && !memcmp(frames.presented.pixels, old, sizeof(old)));
+        mm_graphics_movie_frames_invalidate(&frames);
+        mm_graphics_movie_frames_capture(&frames, 7, &capture, &palette_source);
+        assert(!capture.surface.pixels && frames.presented.pixels == pixels);
+
+        assert(mm_graphics_movie_frames_present(&frames, &clock, 8, &outgoing, NULL, 0));
+        fixture.incoming = prior;
+        mm_graphics_movie_frames_capture(&frames, 8, &capture, &palette_source);
+        assert(capture.surface.pixels == pixels && capture.has_palette && !frames.presented.pixels &&
+               !memcmp(capture.palette, prior, sizeof(prior)));
+        mm_graphics_movie_frames_clear(&frames);
+        assert(!mm_graphics_movie_frames_begin(&frames, &clock, MM_GRAPHICS_MOVIE_CUT, &capture,
+                                               &palette_source, movie_fixed_ticks));
+        assert(capture.surface.pixels == pixels && !clock.transition);
+        fixture.incoming = next;
+        fixture.authored = target + 4 * 42;
+        assert(mm_graphics_movie_frames_begin(&frames, &clock, MM_GRAPHICS_MOVIE_DISSOLVE, &capture,
+                                              &palette_source, movie_fixed_ticks) == 1);
+        assert(clock.transition == MM_GRAPHICS_MOVIE_DISSOLVE && frames.seed == 3 &&
+               mm_graphics_movie_frames_has_palette(&frames) && !capture.surface.pixels);
+        clock.transition_ms = 2000;
+        memcpy(rendered, source, sizeof(rendered));
+        assert(mm_graphics_movie_frames_present(&frames, &clock, 9, &incoming, new_indices, sizeof(new_indices)));
+        assert(!memcmp(rendered, expected, sizeof(expected)) &&
+               !memcmp(frames.presented.pixels, expected, sizeof(expected)));
+        mm_graphics_movie_frames_clear(&frames);
+        mm_graphics_movie_frames_capture(&frames, 9, &capture, NULL);
+        assert(capture.surface.pixels && !capture.has_palette &&
+               !memcmp(capture.surface.pixels, expected, sizeof(expected)));
+        mm_graphics_movie_capture_dispose(&capture);
+        mm_graphics_movie_frames_dispose(&frames);
+    }
 }
 
 static void dissolve_snapshot(void)
