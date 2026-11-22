@@ -11,8 +11,7 @@
 
 ***************************************************************************/
 #include "util.h"
-#include "engine_read_stream.h"
-#include "mm/collection_storage.h"
+#include "mm/chunky_decompile.h"
 #include <cstring>
 ASSERTNAME
 
@@ -47,6 +46,14 @@ int ReadByteLocation(void *context, MMU32 offset, void *data, size_t length)
 size_t TranslateListingString(void *, const void *input, size_t bytes, int system, void *output, size_t capacity)
 {
     return CchTranslateRgb(const_cast<void *>(input), bytes, system, static_cast<achar *>(output), capacity);
+}
+
+void ReportListingIssue(void *context, MMChunkyDecompileIssue issue)
+{
+    if (issue == MM_CHUNKY_DECOMPILE_COLLECTION)
+        Warn("file corrupt or not the requested collection");
+    else
+        static_cast<SourceEmitter *>(context)->Error(PszLit("Dumping chunk failed"));
 }
 
 } // namespace
@@ -86,7 +93,6 @@ void SourceEmitter::Init(PMSNK pmsnkDump, PMSNK pmsnkError)
     _pmsnkError = pmsnkError;
     if (_pmsnkError != pvNil)
         _pmsnkError->AddRef();
-    _collectionMode = {0, koskCur};
 
     AssertThis(fchseDump);
 }
@@ -133,20 +139,9 @@ void SourceEmitter::DumpHeader(ChunkTagOrType ctg, ChunkNumber cno, PString pstn
     AssertThis(fchseDump);
     AssertNilOrPo(pstnName, 0);
 
-    String stnT;
-
-    if (pstnName != pvNil)
-    {
-        String stnName;
-
-        stnName = *pstnName;
-        stnName.FExpandControls();
-        stnT.FFormatSz(PszLit("CHUNK('%f', %d, \"%s\")"), ctg, cno, &stnName);
-    }
-    else
-        stnT.FFormatSz(PszLit("CHUNK('%f', %d)"), ctg, cno);
-
-    DumpSz(stnT.Psz());
+    const MMChunkEntry entry = {ctg, cno};
+    mm_chunky_list_header(&entry, pstnName ? pstnName->Prgch() : nullptr, pstnName ? pstnName->Cch() : 0,
+                          sizeof(achar), WriteListingLine, this);
     if (fPack)
         DumpSz(PszLit("\tPACK"));
 }
@@ -194,25 +189,18 @@ void SourceEmitter::DumpRgb(void *prgb, LegacyLong cb, LegacyLong cactTab)
     }
 }
 
-SourceEmitter::CollectionResult SourceEmitter::DumpCollection(ChunkTagOrType tag, PDataBlock block)
+bool SourceEmitter::FDumpArchive(PChunkyFile file, const MMChunkyDecompileHooks *hooks)
 {
-    const auto kind = mm_chunky_list_kind(tag);
-    if (kind == MM_CHUNKY_LIST_NONE)
-        return CollectionResult::NotCollection;
-
-    LegacyLong format;
-    const bool packed = block->FPacked(&format);
-    if (!block->FUnpackData())
-        return CollectionResult::Invalid;
-
-    const auto stream = EngineReadStream::FromBlock(*block);
+    AssertThis(fchseDump);
+    const auto names = KauaiChunkOwnerTitleIO();
+    auto reader = file->ReadOwner();
     const MMChunkyCollectionListing listing = {
         this, WriteListingLine, TranslateListingString, sizeof(achar), koskCur, koskWin, MacWin(0, 1)
     };
-    const int result = mm_chunky_list_collection(&stream, kind, packed, format, &listing, &_collectionMode);
-    if (result == MM_STORAGE_ARGUMENT)
-        Warn("file corrupt or not the requested collection");
-    return result == MM_STORAGE_OK ? CollectionResult::Dumped : CollectionResult::Invalid;
+    const MMChunkyDecompile source = {
+        file->ReadChunkAccess(), reader, &reader->payloads, &names, &listing, hooks, ReportListingIssue
+    };
+    return mm_chunky_decompile(&source) != 0;
 }
 
 void SourceEmitter::DumpPack(LegacyLong format)
@@ -262,22 +250,6 @@ void SourceEmitter::DumpFileCmd(PString pstnFile, bool fPacked)
         stn.FFormatSz(PszLit("PACKEDFILE \"%s\""), pstnFile);
     else
         stn.FFormatSz(PszLit("FILE \"%s\""), pstnFile);
-    DumpSz(stn.Psz());
-}
-
-/***************************************************************************
-    Dump an adopt directive
-***************************************************************************/
-void SourceEmitter::DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid)
-{
-    AssertThis(fchseDump);
-    AssertVarMem(pcki);
-    AssertVarMem(pkid);
-
-    String stn;
-
-    stn.FFormatSz(PszLit("ADOPT('%f', %d, '%f', %d, %d)"), pcki->ctg, pcki->cno, pkid->cki.ctg, pkid->cki.cno,
-                  pkid->chid);
     DumpSz(stn.Psz());
 }
 

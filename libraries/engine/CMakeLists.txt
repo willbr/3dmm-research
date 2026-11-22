@@ -629,7 +629,7 @@ target_sources(mm-engine-c89 PRIVATE src/script_resource.c src/script_runtime.c 
                                      src/script_kidspace.c src/script_compile.c src/script_infix.c
                                      src/script_dialect.c src/script_disassemble.c src/lexer.c src/chunky_lexer.c
                                      src/chunky_source.c src/chunky_collection.c src/chunky_assembly.c
-                                     src/chunky_listing.c)
+                                     src/chunky_listing.c src/chunky_decompile.c)
 target_sources(mm-engine-c89 PRIVATE src/studio_resource.c)
 target_sources(mm-engine-c89 PRIVATE src/audioman.c)
 target_sources(mm-engine-c89 PRIVATE src/text_generation.c src/text_generation_math.c src/text_resource.c src/sound_resource.c src/wave.c src/midi.c src/sound_payload.c src/wave_import.c)
@@ -1534,6 +1534,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_collection.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_assembly.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_listing.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_decompile.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/studio_resource.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_generation.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_generation_math.c"

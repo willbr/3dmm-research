@@ -36,22 +36,11 @@ class MovieDecompiler : public MovieDecompiler_PAR
     NOCOPY(MovieDecompiler)
 
   protected:
-    long _ert;  // error type
-    PChunkyFile _pcfl; // the chunky file to read from
-    FileByteStream _bsf;   // temporary buffer for the chunk data
-    SourceEmitter _chse; // chunky source emitter
-
-  protected:
-    bool _FDumpScript(ChunkIdentification *pcki);
+    bool _fError = false;
+    SourceEmitter _chse;
 
   public:
-    MovieDecompiler(void);
-    ~MovieDecompiler(void);
-
-    bool FError(void)
-    {
-        return ertNil != _ert;
-    }
+    bool FError(void) const { return _fError; }
 
     bool FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError);
     bool FDecompileMovie(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError);

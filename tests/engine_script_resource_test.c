@@ -3,6 +3,7 @@
 #include "mm/script_kidspace.h"
 #include "mm/chunky_assembly.h"
 #include "mm/chunky_collection.h"
+#include "mm/chunky_decompile.h"
 #include "mm/chunky_listing.h"
 #include "mm/collections.h"
 #include "mm/script_runtime.h"
@@ -2947,6 +2948,91 @@ static void chunky_wide_collection_listing(void)
     CHECK(lines == 3);
 }
 
+static int decompile_entry(void *context, MMU32 position, MMChunkEntry *entry)
+{
+    static const MMU32 types[] = {0x474c4f50UL, GSTX, 0x54455354UL};
+    static const MMU32 numbers[] = {7, 3, 0x80000000UL};
+    Host *host = context;
+
+    if (position > 2)
+        return 0;
+    memset(entry, 0, sizeof(*entry));
+    entry->type = types[position];
+    entry->number = numbers[position];
+    entry->child_count = position == 0 ? 2 : position == 1 ? 1 : 0;
+    return !(host->missing && position == 2);
+}
+
+static int decompile_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *child)
+{
+    (void)context;
+    child->type = parent == 0 && position == 0 ? GSTX : 0x54455354UL;
+    child->number = child->type == GSTX ? 3 : 0x80000000UL;
+    child->slot = position ? 0xffffffffUL : 0;
+    return 1;
+}
+
+static int decompile_locate(void *context, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
+{
+    CHECK(type == 0x54455354UL && number == 0x80000000UL);
+    out->file = context;
+    out->offset = out->length = 0;
+    *packed = 0;
+    return 1;
+}
+
+static int decompile_name(void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
+{
+    static const unsigned char name[] = {3, 3, 3, '\t', '"', '\\', 0};
+    (void)context;
+    if (type != 0x474c4f50UL)
+        return 0;
+    CHECK(number == 7 && capacity >= sizeof(name));
+    memcpy(wire, name, sizeof(name));
+    *written = sizeof(name);
+    return 1;
+}
+
+static int decompile_script(void *context, const MMChunkEntry *entry)
+{
+    CHECK(entry->type == 0x474c4f50UL && entry->number == 7);
+    check_byte_line(context, "SCRIPTPF", 8, 1);
+    return 1;
+}
+
+static void chunky_archive_listing(void)
+{
+    static const char *const expected[] = {
+        "BYTE", "", "CHUNK('GLOP', 7, \"\\t\\\"\\\\\")", "SCRIPTPF", "ENDCHUNK", "",
+        "CHUNK('TEST', -2147483648, \"\")", "\tBYTE", "ENDCHUNK", "",
+        "ADOPT('GLOP', 7, 'TEST', -2147483648, -1)", "ADOPT('GSTX', 3, 'TEST', -2147483648, 0)"
+    };
+    const MMChunkTitleIO names = {NULL, MM_TEXT_WINDOWS, MM_TEXT_UTF16_BE, NULL, decompile_name, NULL, NULL};
+    ChunkyByteListing output = {expected, sizeof(expected) / sizeof(*expected), 0};
+    MMChunkyCollectionListing listing = {NULL, check_byte_line, NULL, 1, MM_TEXT_WINDOWS, MM_TEXT_WINDOWS, 1};
+    MMChunkyDecompileHooks hooks = {NULL, NULL, decompile_script};
+    MMChunkyDecompile source;
+    Host host;
+
+    init(&host);
+    host.payloads.locate = decompile_locate;
+    memset(&source, 0, sizeof(source));
+    source.chunks.context = source.archive = &host;
+    source.chunks.count = 3;
+    source.chunks.entry = decompile_entry;
+    source.chunks.child = decompile_child;
+    source.payloads = &host.payloads;
+    source.names = &names;
+    listing.context = hooks.context = &output;
+    source.listing = &listing;
+    source.hooks = &hooks;
+
+    CHECK(mm_chunky_decompile(&source) && output.count == output.expected_count);
+    output.count = 0;
+    host.missing = 1;
+    CHECK(!mm_chunky_decompile(&source) && output.count == 6);
+}
+
 #undef SOURCE_KIND
 #undef SOURCE_NUMBER
 #undef SOURCE_TEXT
@@ -2982,6 +3068,7 @@ int main(void)
     chunky_byte_listing();
     chunky_collection_listing();
     chunky_wide_collection_listing();
+    chunky_archive_listing();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

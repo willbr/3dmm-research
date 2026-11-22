@@ -1,5 +1,6 @@
 #ifndef MM_ENGINE_CHUNKY_LISTING_H
 #define MM_ENGINE_CHUNKY_LISTING_H
+#include "chunky_file.h"
 #include "read_stream.h"
 #include "string_table.h"
 #ifdef __cplusplus
@@ -17,6 +18,9 @@ extern "C"
      * emits only the directive. A read error can leave a partial listing. */
     int mm_chunky_list_bytes(const MMReadStream *stream, size_t indent, MMChunkyWriteLine write_line, void *context);
     void mm_chunky_list_pack(MMU32 format, MMChunkyWriteLine write_line, void *context);
+    void mm_chunky_list_header(const MMChunkEntry *, const void *name, MMU32 name_length, unsigned unit,
+                              MMChunkyWriteLine, void *context);
+    void mm_chunky_list_adopt(const MMChunkEntry *, const MMChunkChild *, MMChunkyWriteLine, void *context);
 
     typedef enum MMChunkyListKind
     {

@@ -21923,3 +21923,38 @@ matched retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
 Fixture listings, hashes, and checks are under
 `tmp/c89-chunky-listing-collections`. The hash manifest references the
 retained retail and Studio listings under `tmp/c89-chunky-listing`.
+
+## C89 Chunky archive listings (22 November 2026)
+
+The generic Chunky decompiler now walks the live C89 index for both chunks
+and child links. It reads names and payload views through the shared archive
+owner, dispatches script and collection bodies, and falls back to the stored
+payload with its original packing flag. The second pass emits ADOPT in
+index and child order. Embedded GSTX chunks and GLOP-to-GSTX adoptions are
+omitted as before. Chunk headers and adoptions use the shared C89 counted
+formatter for escaped names, four-byte tags, and signed display values.
+
+Chomp matched 34 retained listings byte for byte, totaling 702,965,107
+output bytes. The comparisons covered the retail ISO, generated Studio
+archives, earlier compiler fixtures, malformed packed data, and a fixture
+with a shared child, repeated slots, script literals, and a raw script
+fallback. The new fixture matched with both output sinks in native Debug
+and SDL. The C fixture also checks an unreadable index entry and links
+whose source is a GSTX chunk. Debug diagnostics retain their warning text.
+
+The regular `movie-chomp` CLI output matched the retained binary. A scratch
+driver exercised its generic archive path and produced the same collection
+listing as Chomp. It also emitted structured movie, scene, actor, and route
+records from a fixture extracted from a saved movie. The existing GGAE TODO
+still triggers a Debug breakpoint in that generic movie archive path.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. Headless Marcus reproduced its startup canvas and exited. The
+separate `scene-load` failure reproduced its 63,224-byte trace and
+fingerprint `0D666753`.
+
+Silent suite `20261122T145419Z-d2127b2d` matched both ports' preceding 60
+seek canvases and camera and actor state. Seek and continuous frame order
+matched retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
+
+Listings, hashes, and checks are under `tmp/c89-chunky-decompile`.

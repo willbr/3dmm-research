@@ -1,4 +1,5 @@
 #include "movie_chomp.h"
+#include "mm/chunky_decompile.h"
 #include "actor.h"
 
 ASSERTNAME
@@ -190,25 +191,6 @@ typedef SceneEvent *PSEV;
 const auto kbomLong = 0xC0000000;
 
 RTCLASS(MovieDecompiler)
-
-/***************************************************************************
-    Constructor for the Decompiler class. This is the chunky decompiler.
-***************************************************************************/
-MovieDecompiler::MovieDecompiler(void)
-{
-    _ert = ertNil;
-    _pcfl = pvNil;
-    AssertThis(0);
-}
-
-/***************************************************************************
-    Destructor for the Decompiler class.
-***************************************************************************/
-MovieDecompiler::~MovieDecompiler(void)
-{
-    ReleasePpo(&_pcfl);
-}
-
 
 void DumpSourceList(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 {
@@ -785,372 +767,285 @@ bool MovieDecompiler::FDecompileMovie(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pm
     return fTrue;
 }
 
-/***************************************************************************
-    Decompile a chunky file.
-***************************************************************************/
-bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
+namespace {
+
+MMChunkyBodyResult DumpMovieBody(void *context, const MMChunkEntry *entry)
 {
-    AssertThis(0);
-    AssertPo(pcflSrc, 0);
-    long icki, ikid, ckid;
-    ChunkTagOrType ctg;
-    ChunkIdentification cki;
-    ChildChunkIdentification kid;
+    auto archive = static_cast<PChunkyFile>(context);
     DataBlock blck;
+    const auto ctg = entry->type;
+    const auto load = [&] { return archive->FFind(ctg, entry->number, &blck); };
 
-    _pcfl = pcflSrc;
-    _ert = ertNil;
-    _chse.Init(pmsnk, pmsnkError);
+    SceneOnFile scenh;
+    short bo;
+    PDynamicArray pglrpt;
+    long irdp;
+    RouteDistancePoint rdp;
+    PGeneralGroup pggsevFrm;
+    long isevFrm;
+    SceneEvent sev;
+    PGeneralGroup pggsevStart;
+    long isevStart;
 
-    _chse.DumpSz(PszLit("BYTE"));
-    _chse.DumpSz(PszLit(""));
-    for (icki = 0; _pcfl->FGetCki(icki, &cki, pvNil, &blck); icki++)
+    switch (ctg)
     {
-        String stnName;
-        String stnTag;
-        SceneOnFile scenh;
-        short bo;
+    case kctgThumbMbmp:
+        printf("PACK BITMAP( 0, 0, 0 ) \"thumbnail.mbmp\"\n");
+        return MM_CHUNKY_BODY_WRITTEN;
 
-        PDynamicArray pglrpt;
-        long irdp;
-        RouteDistancePoint rdp;
+    case kctgScen:
+        if (!load() || !blck.FReadRgb(&scenh, size(SceneOnFile), 0))
+            return MM_CHUNKY_BODY_STOP;
 
-        PGeneralGroup pggsevFrm;   // List of events that occur in frames.
-        long isevFrm;
-        SceneEvent sev;
-
-        PGeneralGroup pggsevStart;     // List of frame independent events.
-        long isevStart;
-
-        // don't dump these, because they're embedded in the script
-        if (cki.ctg == kctgScriptStrs)
-            continue;
-
-        _pcfl->FGetName(cki.ctg, cki.cno, &stnName);
-        _chse.DumpHeader(cki.ctg, cki.cno, &stnName);
-
-        // look for special ChunkTags
-        ctg = cki.ctg;
-
-        // stnTag.FFormatSz(PszLit("%f"), ctg);
-        // printf("TAG '%s'\n", stnTag.Psz());
-
-        // handle 4 character ctg's
-        switch (ctg)
+        //
+        // Check header for byte swapping
+        //
+        if (scenh.bo == kboOther)
         {
-
-        case kctgThumbMbmp:
-            printf("PACK BITMAP( 0, 0, 0 ) \"thumbnail.mbmp\"\n");
-            goto LEndChunk;
-        
-        case kctgScen:
-            if ( !blck.FReadRgb(&scenh, size(SceneOnFile), 0)) {
-                goto LFail;
-            }
-
-            //
-            // Check header for byte swapping
-            //
-            if (scenh.bo == kboOther)
-            {
-                SwapBytesBom(&scenh, kbomScenh);
-            }
-            else
-            {
-                Assert(scenh.bo == kboCur, "Bad Chunky file");
-            }
-
-            // printf("block size: %ld\n", blck.Cb());
-            // printf("block size: %ld\n", size(SceneOnFile));
-
-            printf("\tScene(\n");
-            printf("\t\tbo=%d,\n", scenh.bo);
-            printf("\t\tosk=%d,\n", scenh.osk);
-            printf("\t\tnfrmFirst=%d,\n", scenh.nfrmFirst);
-            printf("\t\tnfrmLast=%d,\n", scenh.nfrmLast);
-            printf("\t\ttrans=%d\n", scenh.trans);
-            printf("\t)\n");
-
-            goto LEndChunk;
-
-        case kctgPath:
-            pglrpt = DynamicArray::PglRead(&blck, &bo);
-            if (pvNil == pglrpt) {
-                return fFalse;
-            }
-            AssertBomRglw(kbomRpt, size(RouteDistancePoint));
-            if (kboOther == bo)
-            {
-                SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(int32_t)));
-            }
-            // printf("length of path: %d\n", pglrpt->IvMac());
-
-            for (irdp = 0; irdp < pglrpt->IvMac(); irdp++)
-            {
-                pglrpt->Get(irdp, &rdp);
-                printf("\t// %d\n", irdp);
-                printf("\tRouteDistancePoint(\n");
-                printf("\t\t{x=%d, y=%d, z=%d},\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
-                printf("\t\tdwr=%d\n", rdp.dwr);
-                printf("\t)\n");
-            }
-            goto LEndChunk;
-
-        case kctgGgae:
-            Bug("TODO");
-            // DumpActorEvent(_pcfl, pmsnk, pmsnkError, &blck);
-            goto LEndChunk;
-
-        case kctgActr: {
-            ActorChunkOnFile actf;
-            // printf("ACTR\n");
-            ActorData::FReadHeader(&blck, &actf);
-
-            printf("\tActor(\n");
-            printf("\t\tbo=%d,\n", actf.bo);
-            printf("\t\tosk=%d,\n", actf.osk);
-
-            printf("\t\tRoutePoint(\n");
-            printf("\t\t\tdxyzFullRte.dxr=%ld,\n", actf.dxyzFullRte.dxr);
-            printf("\t\t\tdxyzFullRte.dyr=%ld,\n", actf.dxyzFullRte.dyr);
-            printf("\t\t\tdxyzFullRte.dzr=%ld\n", actf.dxyzFullRte.dzr);
-            printf("\t\t)\n");
-
-            printf("\t\tarid=%d,\n", actf.arid);
-            printf("\t\tnfrmFirst=%d,\n", actf.nfrmFirst);
-            printf("\t\tnfrmLast=%d,\n", actf.nfrmLast);
-
-            printf("\t\tTAG(\n");
-            printf("\t\t\ttagTmpl.cno=%d,\n", actf.tagTmpl.cno);
-
-            String template_tag;
-            template_tag.FFormatSz(PszLit("%f"), actf.tagTmpl.ctg);
-            printf("\t\t\ttagTmpl='%s',\n", template_tag.Psz());
-
-            printf("\t\t\ttagTmpl._pcrfPad=%u,\n", actf.tagTmpl._pcrfPad);
-            printf("\t\t\ttagTmpl.sid=%d\n", actf.tagTmpl.sid);
-            printf("\t\t)\n");
-
-            printf("\t)\n");
-            goto LEndChunk;
+            SwapBytesBom(&scenh, kbomScenh);
+        }
+        else
+        {
+            Assert(scenh.bo == kboCur, "Bad Chunky file");
         }
 
-        case kctgMvie: {
-            MovieFilePrefix mfp;
-            blck.FReadRgb(&mfp, size(MovieFilePrefix), 0);
-            printf("\tMovie(\n");
-            printf("\t\tbo=%d,\n", mfp.bo);
-            printf("\t\tosk=%d,\n", mfp.osk);
-            printf("\t\tdver={swCur=%d, swBack=%d}\n", mfp.dver._swCur, mfp.dver._swBack);
+        // printf("block size: %ld\n", blck.Cb());
+        // printf("block size: %ld\n", size(SceneOnFile));
+
+        printf("\tScene(\n");
+        printf("\t\tbo=%d,\n", scenh.bo);
+        printf("\t\tosk=%d,\n", scenh.osk);
+        printf("\t\tnfrmFirst=%d,\n", scenh.nfrmFirst);
+        printf("\t\tnfrmLast=%d,\n", scenh.nfrmLast);
+        printf("\t\ttrans=%d\n", scenh.trans);
+        printf("\t)\n");
+
+        return MM_CHUNKY_BODY_WRITTEN;
+
+    case kctgPath:
+        if (!load() || pvNil == (pglrpt = DynamicArray::PglRead(&blck, &bo)))
+            return MM_CHUNKY_BODY_ERROR;
+        AssertBomRglw(kbomRpt, size(RouteDistancePoint));
+        if (kboOther == bo)
+        {
+            SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(int32_t)));
+        }
+        // printf("length of path: %d\n", pglrpt->IvMac());
+
+        for (irdp = 0; irdp < pglrpt->IvMac(); irdp++)
+        {
+            pglrpt->Get(irdp, &rdp);
+            printf("\t// %d\n", irdp);
+            printf("\tRouteDistancePoint(\n");
+            printf("\t\t{x=%d, y=%d, z=%d},\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
+            printf("\t\tdwr=%d\n", rdp.dwr);
             printf("\t)\n");
-            goto LEndChunk;
+        }
+        ReleasePpo(&pglrpt);
+        return MM_CHUNKY_BODY_WRITTEN;
+
+    case kctgGgae:
+        Bug("TODO");
+        return MM_CHUNKY_BODY_WRITTEN;
+
+    case kctgActr: {
+        ActorChunkOnFile actf;
+        if (!load())
+            return MM_CHUNKY_BODY_ERROR;
+        ActorData::FReadHeader(&blck, &actf);
+
+        printf("\tActor(\n");
+        printf("\t\tbo=%d,\n", actf.bo);
+        printf("\t\tosk=%d,\n", actf.osk);
+
+        printf("\t\tRoutePoint(\n");
+        printf("\t\t\tdxyzFullRte.dxr=%ld,\n", actf.dxyzFullRte.dxr);
+        printf("\t\t\tdxyzFullRte.dyr=%ld,\n", actf.dxyzFullRte.dyr);
+        printf("\t\t\tdxyzFullRte.dzr=%ld\n", actf.dxyzFullRte.dzr);
+        printf("\t\t)\n");
+
+        printf("\t\tarid=%d,\n", actf.arid);
+        printf("\t\tnfrmFirst=%d,\n", actf.nfrmFirst);
+        printf("\t\tnfrmLast=%d,\n", actf.nfrmLast);
+
+        printf("\t\tTAG(\n");
+        printf("\t\t\ttagTmpl.cno=%d,\n", actf.tagTmpl.cno);
+
+        String template_tag;
+        template_tag.FFormatSz(PszLit("%f"), actf.tagTmpl.ctg);
+        printf("\t\t\ttagTmpl='%s',\n", template_tag.Psz());
+
+        printf("\t\t\ttagTmpl._pcrfPad=%u,\n", actf.tagTmpl._pcrfPad);
+        printf("\t\t\ttagTmpl.sid=%d\n", actf.tagTmpl.sid);
+        printf("\t\t)\n");
+
+        printf("\t)\n");
+        return MM_CHUNKY_BODY_WRITTEN;
+    }
+
+    case kctgMvie: {
+        MovieFilePrefix mfp;
+        if (!load())
+            return MM_CHUNKY_BODY_ERROR;
+        blck.FReadRgb(&mfp, size(MovieFilePrefix), 0);
+        printf("\tMovie(\n");
+        printf("\t\tbo=%d,\n", mfp.bo);
+        printf("\t\tosk=%d,\n", mfp.osk);
+        printf("\t\tdver={swCur=%d, swBack=%d}\n", mfp.dver._swCur, mfp.dver._swBack);
+        printf("\t)\n");
+        return MM_CHUNKY_BODY_WRITTEN;
+    }
+
+    case kctgFrmGg:
+        if (!load() || pvNil == (pggsevFrm = GeneralGroup::PggRead(&blck, &bo)))
+        {
+            printf("fail\n");
+            return MM_CHUNKY_BODY_STOP;
         }
 
-        case kctgFrmGg:
-            // printf("GGFR\n");
-            pggsevFrm = GeneralGroup::PggRead(&blck, &bo);
-            if (pggsevFrm == pvNil)
+        printf("// length: %d\n", pggsevFrm->IvMac());
+        for (isevFrm = 0; isevFrm < pggsevFrm->IvMac(); isevFrm++)
+        {
+            // pggsevFrm->Get(isevFrm, &sev);
+            sev = *(PSEV)pggsevFrm->QvFixedGet(isevFrm);
+
+            printf("\tFrameEvent(\n");
+            printf("\t\tnfrm=%d,\n", sev.nfrm);
+            printf("\t\tsevt=%d,\n", sev.sevt);
+
+            switch (sev.sevt)
             {
-                printf("fail\n");
-                goto LFail;
+            case sevtPlaySnd: {
+                // PSceneSoundEvent psse;
+
+                // printf("sevtPlaySnd\n");
+
+                // psse = SceneSoundEvent::PsseDupFromGg(pggsevFrm, isevFrm);
+                // if (pvNil == psse)
+                // {
+                //     return MM_CHUNKY_BODY_STOP;
+                // }
+                printf("sevtPlaySnd\n");
+                break;
             }
 
-            printf("// length: %d\n", pggsevFrm->IvMac());
-            for (isevFrm = 0; isevFrm < pggsevFrm->IvMac(); isevFrm++)
-            {
-                // pggsevFrm->Get(isevFrm, &sev);
-                sev = *(PSEV)pggsevFrm->QvFixedGet(isevFrm);
+            case sevtChngCamera: {
+                // long iangle;
+                // iangle = *(*long)pggsevFrm->QvGet(isevFrm);
+                printf("sevtChngCamera\n");
+                break;
+            }
 
-                printf("\tFrameEvent(\n");
-                printf("\t\tnfrm=%d,\n", sev.nfrm);
-                printf("\t\tsevt=%d,\n", sev.sevt);
+            case sevtPause: {
+                // SceneEventPause sevp;
+                // sevp = *(*SceneEventPause)pggsevFrm->QvGet(isevFrm);
+                printf("sevtPause\n");
+                break;
+            }
 
-                switch (sev.sevt)
-                {
-                case sevtPlaySnd: {
-                    // PSceneSoundEvent psse;
+            case sevtAddActr:
+            case sevtSetBkgd:
+            case sevtAddTbox:
+            default:
+                Assert(0, "Bad event in frame event list");
+                break;
+            }
 
-                    // printf("sevtPlaySnd\n");
+            printf("\t)\n");
+            // printf("\t// %d\n", irdp);
+            // printf("\tRouteDistancePoint(\n");
+            // printf("\t\t{x=%d, y=%d, z=%d}\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
+            // printf("\t\tdwr=%d;\n", rdp.dwr);
+            // printf("\t)\n");
+        }
 
-                    // psse = SceneSoundEvent::PsseDupFromGg(pggsevFrm, isevFrm);
-                    // if (pvNil == psse)
-                    // {
-                    //     goto LFail;
-                    // }
-                    printf("sevtPlaySnd\n");
+        ReleasePpo(&pggsevFrm);
+        return MM_CHUNKY_BODY_WRITTEN;
+
+    case kctgStartGg:
+        if (!load() || pvNil == (pggsevStart = GeneralGroup::PggRead(&blck, &bo)))
+        {
+            printf("fail\n");
+            return MM_CHUNKY_BODY_STOP;
+        }
+
+        printf("// length: %d\n", pggsevStart->IvMac());
+        for (isevStart = 0; isevStart < pggsevStart->IvMac(); isevStart++)
+        {
+            // pggsevFrm->Get(isevStart, &sev);
+            sev = *(PSEV)pggsevStart->QvFixedGet(isevStart);
+            printf("\tSceneEvent(\n");
+            printf("\t\tnfrm=%d,\n", sev.nfrm);
+
+            switch (sev.sevt) {
+                case sevtAddActr:
+                    printf("\t\tsevt=sevtAddActr,\n");
+                    break;
+
+                case sevtSetBkgd: {
+                    printf("\t\tsevt=sevtSetBkgd,\n");
+                    TAG tag;
+                    tag = *(PTAG)pggsevStart->QvGet(isevStart);
+                    printf("\t\tTAG(\n");
+                    printf("\t\t\tcno=%u,\n", tag.cno);
+
+                    String background_tag;
+                    background_tag.FFormatSz(PszLit("%f"), tag.ctg);
+                    printf("\t\t\tctg='%s',\n", background_tag.Psz());
+
+                    printf("\t\t\tpcrf=%p,\n", static_cast<void *>(tag.cache));
+                    printf("\t\t\tsig=%lu\n", tag.sid);
+                    printf("\t\t)\n");
+
                     break;
                 }
 
                 case sevtChngCamera: {
-                    // long iangle;
-                    // iangle = *(*long)pggsevFrm->QvGet(isevFrm);
-                    printf("sevtChngCamera\n");
+                    int32_t iangle;
+                    iangle = *(int32_t*)pggsevStart->QvGet(isevStart);
+                    printf("\t\tsevt=sevtChngCamera,\n");
+                    printf("\t\tiangle=%d\n", iangle);
                     break;
                 }
 
-                case sevtPause: {
-                    // SceneEventPause sevp;
-                    // sevp = *(*SceneEventPause)pggsevFrm->QvGet(isevFrm);
-                    printf("sevtPause\n");
-                    break;
-                }
-
-                case sevtAddActr:
-                case sevtSetBkgd:
                 case sevtAddTbox:
+                    printf("\t\tsevt=sevtAddTbox\n");
+                    break;
+
+                case sevtPause:
+                case sevtPlaySnd:
                 default:
                     Assert(0, "Bad event in frame event list");
                     break;
-                }
-
-                printf("\t)\n");
-                // printf("\t// %d\n", irdp);
-                // printf("\tRouteDistancePoint(\n");
-                // printf("\t\t{x=%d, y=%d, z=%d}\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
-                // printf("\t\tdwr=%d;\n", rdp.dwr);
-                // printf("\t)\n");
             }
 
-            goto LEndChunk;
-
-        case kctgStartGg:
-            // printf("GGST\n");
-            pggsevStart = GeneralGroup::PggRead(&blck, &bo);
-
-            if (pggsevStart == pvNil)
-            {
-                printf("fail\n");
-                goto LFail;
-            }
-
-            printf("// length: %d\n", pggsevStart->IvMac());
-            for (isevStart = 0; isevStart < pggsevStart->IvMac(); isevStart++)
-            {
-                // pggsevFrm->Get(isevStart, &sev);
-                sev = *(PSEV)pggsevStart->QvFixedGet(isevStart);
-                printf("\tSceneEvent(\n");
-                printf("\t\tnfrm=%d,\n", sev.nfrm);
-
-                switch (sev.sevt) {
-                    case sevtAddActr:
-                        printf("\t\tsevt=sevtAddActr,\n");
-                        break;
-
-                    case sevtSetBkgd: {
-                        printf("\t\tsevt=sevtSetBkgd,\n");
-                        TAG tag;
-                        tag = *(PTAG)pggsevStart->QvGet(isevStart);
-                        printf("\t\tTAG(\n");
-                        printf("\t\t\tcno=%u,\n", tag.cno);
-
-                        String background_tag;
-                        background_tag.FFormatSz(PszLit("%f"), tag.ctg);
-                        printf("\t\t\tctg='%s',\n", background_tag.Psz());
-
-                        printf("\t\t\tpcrf=%p,\n", static_cast<void *>(tag.cache));
-                        printf("\t\t\tsig=%lu\n", tag.sid);
-                        printf("\t\t)\n");
-
-                        break;
-                    }
-
-                    case sevtChngCamera: {
-                        int32_t iangle;
-                        iangle = *(int32_t*)pggsevStart->QvGet(isevStart);
-                        printf("\t\tsevt=sevtChngCamera,\n");
-                        printf("\t\tiangle=%d\n", iangle);
-                        break;
-                    }
-
-                    case sevtAddTbox:
-                        printf("\t\tsevt=sevtAddTbox\n");
-                        break;
-
-                    case sevtPause:
-                    case sevtPlaySnd:
-                    default:
-                        Assert(0, "Bad event in frame event list");
-                        break;
-                }
-
-                printf("\t)\n");
-            //     // printf("\t// %d\n", irdp);
-            //     // printf("\tRouteDistancePoint(\n");
-            //     // printf("\t\t{x=%d, y=%d, z=%d}\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
-            //     // printf("\t\tdwr=%d;\n", rdp.dwr);
-            //     // printf("\t)\n");
-            }
-
-            goto LEndChunk;
-
-        case kctgTmpl:
-            printf("4 char tag %d\n", ctg);
-            _chse.DumpBlck(&blck);
-            goto LEndChunk;
-            break;
+            printf("\t)\n");
+        //     // printf("\t// %d\n", irdp);
+        //     // printf("\tRouteDistancePoint(\n");
+        //     // printf("\t\t{x=%d, y=%d, z=%d}\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
+        //     // printf("\t\tdwr=%d;\n", rdp.dwr);
+        //     // printf("\t)\n");
         }
 
-        {
-            const auto result = _chse.DumpCollection(cki.ctg, &blck);
-            if (result == SourceEmitter::CollectionResult::Dumped)
-                goto LEndChunk;
-            if (result == SourceEmitter::CollectionResult::Invalid)
-                _pcfl->FGetCki(icki, &cki, pvNil, &blck);
-        }
+        ReleasePpo(&pggsevStart);
+        return MM_CHUNKY_BODY_WRITTEN;
 
-        _chse.DumpBlck(&blck);
-
-    LEndChunk:
-        _chse.DumpSz(PszLit("ENDCHUNK"));
-        _chse.DumpSz(PszLit(""));
+    case kctgTmpl:
+        printf("4 char tag %d\n", ctg);
+        return MM_CHUNKY_BODY_FALLBACK;
     }
-
-    // now output parent-child relationships
-    for (icki = 0; _pcfl->FGetCki(icki++, &cki, &ckid);)
-    {
-        for (ikid = 0; ikid < ckid;)
-        {
-            AssertDo(_pcfl->FGetKid(cki.ctg, cki.cno, ikid++, &kid), 0);
-            if (kid.cki.ctg == kctgScriptStrs && cki.ctg == kctgScript)
-                continue;
-            _chse.DumpAdoptCmd(&cki, &kid);
-        }
-    }
-    _pcfl = pvNil;
-    _chse.Uninit();
-
-    LFail:
-    return !FError();
+    return MM_CHUNKY_BODY_FALLBACK;
 }
 
+} // namespace
 
-
-/***************************************************************************
-    Disassemble the script and dump it.
-***************************************************************************/
-bool MovieDecompiler::_FDumpScript(ChunkIdentification *pcki)
+bool MovieDecompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
-    AssertVarMem(pcki);
-    PScript pscpt;
-    bool fRet;
-    GraphicsObjectCompiler sccg;
-    long cfmt;
-    bool fPacked;
-    DataBlock blck;
-
-    _pcfl->FFind(pcki->ctg, pcki->cno, &blck);
-    fPacked = blck.FPacked(&cfmt);
-
-    if (pvNil == (pscpt = ScriptInterpreter::ReadScript(_pcfl, pcki->ctg, pcki->cno)))
-        return fFalse;
-
-    if (fPacked)
-        _chse.DumpPack(cfmt);
-
-    fRet = _chse.FDumpScript(pscpt, &sccg);
-
-    ScriptInterpreter::ReleaseScript(&pscpt);
-
-    return fRet;
+    AssertPo(pcflSrc, 0);
+    const MMChunkyDecompileHooks hooks = {pcflSrc, DumpMovieBody, nullptr};
+    _chse.Init(pmsnk, pmsnkError);
+    _fError = !_chse.FDumpArchive(pcflSrc, &hooks);
+    _chse.Uninit();
+    return !_fError;
 }

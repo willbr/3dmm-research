@@ -13,6 +13,7 @@
 #include "handle_services.h"
 #include "mm/chunky_assembly.h"
 #include "mm/chunky_collection.h"
+#include "mm/chunky_decompile.h"
 #include <cstring>
 ASSERTNAME
 
@@ -1084,151 +1085,61 @@ void CompilerLexer::MarkMem(void)
 }
 #endif
 
-/***************************************************************************
-    Constructor for the Decompiler class. This is the chunky decompiler.
-***************************************************************************/
-Decompiler::Decompiler(void)
+namespace {
+
+struct ScriptListing
 {
-    _ert = ertNil;
-    _pcfl = pvNil;
-    AssertThis(0);
+    PChunkyFile archive;
+    SourceEmitter *sink;
+};
+
+int DumpArchiveScript(void *context, const MMChunkEntry *entry)
+{
+    auto listing = static_cast<ScriptListing *>(context);
+    DataBlock block;
+    LegacyLong format;
+    if (!listing->archive->FFind(entry->type, entry->number, &block))
+        return 0;
+    const bool packed = block.FPacked(&format);
+    auto script = ScriptInterpreter::ReadScript(listing->archive, entry->type, entry->number);
+    if (!script)
+        return 0;
+    if (packed)
+        listing->sink->DumpPack(format);
+
+    GraphicsObjectCompiler compiler;
+    const bool written = listing->sink->FDumpScript(script, &compiler);
+    ScriptInterpreter::ReleaseScript(&script);
+    return written;
 }
 
-/***************************************************************************
-    Destructor for the Decompiler class.
-***************************************************************************/
-Decompiler::~Decompiler(void)
-{
-    ReleasePpo(&_pcfl);
-}
+} // namespace
 
 #ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a Decompiler.
-***************************************************************************/
 void Decompiler::AssertValid(LegacyUlong grf)
 {
     Decompiler_PAR::AssertValid(0);
-    AssertNilOrPo(_pcfl, 0);
-    AssertPo(&_bsf, 0);
     AssertPo(&_chse, 0);
 }
 
-/***************************************************************************
-    Mark memory for the Decompiler.
-***************************************************************************/
 void Decompiler::MarkMem(void)
 {
     AssertValid(0);
     Decompiler_PAR::MarkMem();
-    MarkMemObj(&_bsf);
     MarkMemObj(&_chse);
 }
 #endif // DEBUG
 
-/***************************************************************************
-    Decompile a chunky file.
-***************************************************************************/
 bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
     AssertPo(pcflSrc, 0);
-    LegacyLong icki, ikid, ckid;
-    ChunkTagOrType ctg;
-    ChunkIdentification cki;
-    ChildChunkIdentification kid;
-    DataBlock blck;
-
-    _pcfl = pcflSrc;
-    _ert = ertNil;
+    ScriptListing script = {pcflSrc, &_chse};
+    const MMChunkyDecompileHooks hooks = {&script, nullptr, DumpArchiveScript};
     _chse.Init(pmsnk, pmsnkError);
-
-    _chse.DumpSz(PszLit("BYTE"));
-    _chse.DumpSz(PszLit(""));
-    for (icki = 0; _pcfl->FGetCki(icki, &cki, pvNil, &blck); icki++)
-    {
-        String stnName;
-
-        // don't dump these, because they're embedded in the script
-        if (cki.ctg == kctgScriptStrs)
-            continue;
-
-        _pcfl->FGetName(cki.ctg, cki.cno, &stnName);
-        _chse.DumpHeader(cki.ctg, cki.cno, &stnName);
-
-        // look for special ChunkTags
-        ctg = cki.ctg;
-
-        // handle 4 character ctg's
-        switch (ctg)
-        {
-        case kctgScript:
-            if (_FDumpScript(&cki))
-                goto LEndChunk;
-            _pcfl->FGetCki(icki, &cki, pvNil, &blck);
-            break;
-        }
-
-        {
-            const auto result = _chse.DumpCollection(cki.ctg, &blck);
-            if (result == SourceEmitter::CollectionResult::Dumped)
-                goto LEndChunk;
-            if (result == SourceEmitter::CollectionResult::Invalid)
-                _pcfl->FGetCki(icki, &cki, pvNil, &blck);
-        }
-
-        _chse.DumpBlck(&blck);
-
-    LEndChunk:
-        _chse.DumpSz(PszLit("ENDCHUNK"));
-        _chse.DumpSz(PszLit(""));
-    }
-
-    // now output parent-child relationships
-    for (icki = 0; _pcfl->FGetCki(icki++, &cki, &ckid);)
-    {
-        for (ikid = 0; ikid < ckid;)
-        {
-            AssertDo(_pcfl->FGetKid(cki.ctg, cki.cno, ikid++, &kid), 0);
-            if (kid.cki.ctg == kctgScriptStrs && cki.ctg == kctgScript)
-                continue;
-            _chse.DumpAdoptCmd(&cki, &kid);
-        }
-    }
-    _pcfl = pvNil;
+    _fError = !_chse.FDumpArchive(pcflSrc, &hooks);
     _chse.Uninit();
-
-    return !FError();
-}
-
-/***************************************************************************
-    Disassemble the script and dump it.
-***************************************************************************/
-bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
-{
-    AssertThis(0);
-    AssertVarMem(pcki);
-    PScript pscpt;
-    bool fRet;
-    GraphicsObjectCompiler sccg;
-    LegacyLong cfmt;
-    bool fPacked;
-    DataBlock blck;
-
-    _pcfl->FFind(pcki->ctg, pcki->cno, &blck);
-    fPacked = blck.FPacked(&cfmt);
-
-    if (pvNil == (pscpt = ScriptInterpreter::ReadScript(_pcfl, pcki->ctg, pcki->cno)))
-        return fFalse;
-
-    if (fPacked)
-        _chse.DumpPack(cfmt);
-
-    fRet = _chse.FDumpScript(pscpt, &sccg);
-
-    ScriptInterpreter::ReleaseScript(&pscpt);
-
-    return fRet;
+    return !_fError;
 }
 
 } // end of namespace Chunky

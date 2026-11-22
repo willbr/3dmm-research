@@ -15,7 +15,8 @@
 ***************************************************************************/
 #ifndef CHSE_H
 #define CHSE_H
-#include "mm/chunky_listing.h"
+
+struct MMChunkyDecompileHooks;
 
 namespace Chunky {
 
@@ -46,11 +47,9 @@ class SourceEmitter : public SourceEmitter_PAR
   protected:
     PMSNK _pmsnkDump;
     PMSNK _pmsnkError;
-    MMChunkyCollectionMode _collectionMode;
     bool _fError;
 
   public:
-    enum class CollectionResult { NotCollection, Invalid, Dumped };
     SourceEmitter(void);
     ~SourceEmitter(void);
     void Init(PMSNK pmsnkDump, PMSNK pmsnkError = pvNil);
@@ -61,11 +60,10 @@ class SourceEmitter : public SourceEmitter_PAR
     void DumpParentCmd(ChunkTagOrType ctg, ChunkNumber cno, ChildChunkID chid);
     void DumpBitmapCmd(byte bTransparent, LegacyLong dxp, LegacyLong dyp, PString pstnFile);
     void DumpFileCmd(PString pstnFile, bool fPacked = fFalse);
-    void DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentification *pkid);
     void DumpList(PVirtualArray pglb);
     void DumpGroup(PVirtualGroup pggb);
     bool FDumpStringTable(PVirtualStringTable pgstb);
-    CollectionResult DumpCollection(ChunkTagOrType tag, PDataBlock block);
+    bool FDumpArchive(PChunkyFile, const MMChunkyDecompileHooks *);
     void DumpPack(LegacyLong format);
     void DumpBlck(PDataBlock pblck);
     bool FDumpScript(PScript pscpt, PCompilerBase psccb);

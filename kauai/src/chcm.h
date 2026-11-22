@@ -134,22 +134,11 @@ class Decompiler : public Decompiler_PAR
     NOCOPY(Decompiler)
 
   protected:
-    LegacyLong _ert;  // error type
-    PChunkyFile _pcfl; // the chunky file to read from
-    FileByteStream _bsf;   // temporary buffer for the chunk data
-    SourceEmitter _chse; // chunky source emitter
-
-  protected:
-    bool _FDumpScript(ChunkIdentification *pcki);
+    bool _fError = false;
+    SourceEmitter _chse;
 
   public:
-    Decompiler(void);
-    ~Decompiler(void);
-
-    bool FError(void)
-    {
-        return ertNil != _ert;
-    }
+    bool FError(void) const { return _fError; }
 
     bool FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError);
 };

@@ -1,10 +1,80 @@
 #include "mm/chunky_listing.h"
 #include "mm/collections.h"
-#include "mm/string_value.h"
+#include "mm/string_format.h"
 #include <stdio.h>
 #include <string.h>
 
 enum { row_bytes = 8, row_text_limit = 5 * row_bytes + 7 + row_bytes + 2 };
+
+typedef union ListingString
+{
+    unsigned char bytes[MM_CHUNKY_LISTING_LINE_LIMIT + 2];
+    unsigned short wide[MM_CHUNKY_LISTING_LINE_LIMIT + 2];
+} ListingString;
+
+static const void *listing_text(const ListingString *string, unsigned unit)
+{
+    return unit == 1 ? (const void *)(string->bytes + 1) : (const void *)(string->wide + 1);
+}
+
+static MMI32 listing_length(const ListingString *string, unsigned unit)
+{
+    return unit == 1 ? string->bytes[0] : string->wide[0];
+}
+
+static MMStringValue listing_value(ListingString *string, unsigned unit)
+{
+    MMStringValue value;
+    value.buffer = unit == 1 ? (void *)string->bytes : (void *)string->wide;
+    value.unit = unit;
+    value.context = NULL;
+    value.check_copy = NULL;
+    return value;
+}
+
+static int listing_argument(void *context, unsigned control, MMStringFormatArgument *out)
+{
+    const MMStringFormatArgument **next = context;
+    (void)control;
+    *out = *(*next)++;
+    return 1;
+}
+
+static void format_listing(const char *pattern, const MMStringFormatArgument *args, unsigned unit,
+                           MMChunkyWriteLine write_line, void *context)
+{
+    ListingString line;
+    MMStringValue value;
+    unsigned short wide_pattern[MM_CHUNKY_LISTING_LINE_LIMIT];
+    const void *units = pattern;
+    MMI32 length = (MMI32)strlen(pattern), i;
+    MMStringFormatArguments arguments;
+
+    value = listing_value(&line, unit);
+    arguments.context = &args;
+    arguments.next = listing_argument;
+    arguments.bad_format = NULL;
+    if (unit == 2)
+    {
+        for (i = 0; i < length; ++i)
+            wide_pattern[i] = (unsigned char)pattern[i];
+        units = wide_pattern;
+    }
+    mm_string_format(&value, units, length, &arguments);
+    write_line(context, listing_text(&line, unit), listing_length(&line, unit), unit);
+}
+
+static void quoted_argument(MMStringFormatArgument *argument, ListingString *buffer, unsigned unit,
+                            const void *text, MMU32 length)
+{
+    MMStringValue value;
+    value = listing_value(buffer, unit);
+    mm_string_value_set(&value, text, (MMI32)length);
+    mm_string_value_expand(&value);
+    argument->number = 0;
+    argument->text = listing_text(buffer, unit);
+    argument->count = listing_length(buffer, unit);
+}
 
 static size_t format_row(unsigned char *text, const unsigned char *bytes, size_t count)
 {
@@ -77,6 +147,36 @@ void mm_chunky_list_pack(MMU32 format, MMChunkyWriteLine write_line, void *conte
     }
     sprintf(text, "PACKFMT (0x%lX) PACK", (unsigned long)format);
     write_line(context, text, strlen(text), 1);
+}
+
+void mm_chunky_list_header(const MMChunkEntry *entry, const void *name, MMU32 name_length, unsigned unit,
+                          MMChunkyWriteLine write_line, void *context)
+{
+    MMStringFormatArgument args[3] = {{0, NULL, 0}, {0, NULL, 0}, {0, NULL, 0}};
+    ListingString buffer;
+
+    args[0].number = entry->type;
+    args[1].number = entry->number;
+    if (name)
+    {
+        quoted_argument(&args[2], &buffer, unit, name, name_length);
+        format_listing("CHUNK('%f', %d, \"%s\")", args, unit, write_line, context);
+    }
+    else
+        format_listing("CHUNK('%f', %d)", args, unit, write_line, context);
+}
+
+void mm_chunky_list_adopt(const MMChunkEntry *parent, const MMChunkChild *child,
+                         MMChunkyWriteLine write_line, void *context)
+{
+    MMStringFormatArgument args[5];
+    memset(args, 0, sizeof(args));
+    args[0].number = parent->type;
+    args[1].number = parent->number;
+    args[2].number = child->type;
+    args[3].number = child->number;
+    args[4].number = child->slot;
+    format_listing("ADOPT('%f', %d, '%f', %d, %d)", args, 1, write_line, context);
 }
 
 MMChunkyListKind mm_chunky_list_kind(MMU32 tag)
@@ -173,44 +273,11 @@ static void list_group(const MMChunkyCollectionListing *listing, const MMGroup *
 
 static void list_string(const MMChunkyCollectionListing *listing, const void *text, MMU32 length)
 {
-    static const unsigned char prefix[] = {'\t', '\t', '"'};
-    static const unsigned short wide_prefix[] = {'\t', '\t', '"'};
-    unsigned char narrow[MM_CHUNKY_LISTING_LINE_LIMIT + 2];
-    unsigned short wide[MM_CHUNKY_LISTING_LINE_LIMIT + 2];
-    MMStringValue value;
-    const void *line;
-    unsigned unit = listing->native_unit;
+    ListingString buffer;
+    MMStringFormatArgument argument;
 
-    value.buffer = unit == 1 ? (void *)narrow : (void *)wide;
-    value.unit = unit;
-    value.context = NULL;
-    value.check_copy = NULL;
-    mm_string_value_set(&value, text, (MMI32)length);
-    mm_string_value_expand(&value);
-
-    /* String::FFormatSz leaves just the prefix if the whole %s field
-     * would fill the remaining capacity, including the closing quote. */
-    length = unit == 1 ? narrow[0] : wide[0];
-    if (length >= MM_CHUNKY_LISTING_LINE_LIMIT - sizeof(prefix))
-    {
-        directive(listing, "\t\t\"");
-        return;
-    }
-    if (unit == 1)
-    {
-        memmove(narrow + 3, narrow + 1, length);
-        memcpy(narrow, prefix, sizeof(prefix));
-        narrow[length + 3] = '"';
-        line = narrow;
-    }
-    else
-    {
-        memmove(wide + 3, wide + 1, length * sizeof(*wide));
-        memcpy(wide, wide_prefix, sizeof(wide_prefix));
-        wide[length + 3] = '"';
-        line = wide;
-    }
-    listing->write_line(listing->context, line, length + 4, unit);
+    quoted_argument(&argument, &buffer, listing->native_unit, text, length);
+    format_listing("\t\t\"%s\"", &argument, listing->native_unit, listing->write_line, listing->context);
 }
 
 static int string_is_free(const MMStringTable *strings, MMU32 index)

@@ -1767,9 +1767,11 @@ provides file access, resource imports, codec selection, archive writes,
 and source diagnostics.
 Chunky raw payloads and collection byte rows share a C89 listing formatter.
 C89 classifies collection tags, decodes their array, group and string-table
-records, and emits their pack, byte-order, OSK and row directives. The native
-emitter supplies decoded chunk views, code-page conversion, and the text
-sink. Archive traversal and adoption listing still use the native decompiler.
+records, and emits their pack, byte-order, OSK and row directives. C89 walks
+the live archive index, reads names and stored or decoded payloads through
+the shared archive owner, and emits chunk and adoption directives. The
+native emitter supplies code-page conversion, text output, script and
+movie-specific body adapters, and diagnostics.
 The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,
