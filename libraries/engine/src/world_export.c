@@ -36,7 +36,8 @@ int mm_world_export_background(const MMWorldBuffers *b, void *rgb, void *depth, 
     if (!full)
         goto cleanup;
     s->draw_bitmap(s->context, full, bitmap);
-    s->copy_rgb(s->context, full, rgb, b->width, b->height, width, height);
+    if (!mm_world_copy_rgb(s, full, b->width, b->height, rgb, width, height))
+        goto cleanup;
     s->depth_span(s->context, source, &src);
     s->depth_span(s->context, depth, &dst);
     ok = mm_world_depth_resample(&src, &dst, width, height, scale, 0, 0);
@@ -49,11 +50,6 @@ cleanup:
         s->release(s->context, full);
     return ok;
 }
-static int valid_pixels(const MMWorldPixels *p, MMI32 width, MMI32 height)
-{
-    return width > 0 && height > 0 && width <= 4096 && height <= 4096 && p->pixels && p->row >= width &&
-           (size_t)height <= (size_t)-1 / (size_t)p->row && p->bytes >= (size_t)p->row * (size_t)height;
-}
 static int write_pixels(void *port, MMI32 width, MMI32 height, const MMWorldExportServices *s)
 {
     MMWorldPixels pixels;
@@ -61,9 +57,9 @@ static int write_pixels(void *port, MMI32 width, MMI32 height, const MMWorldExpo
     int ok = 0;
     if (!palette)
         return 0;
-    if (s->lock(s->context, port, &pixels))
+    if (s->buffers.lock(s->buffers.context, port, &pixels))
     {
-        if (valid_pixels(&pixels, width, height))
+        if (mm_world_pixels_valid(&pixels, width, height))
             ok = s->write(s->context, &pixels, palette, width, height);
         s->buffers.unlock(s->buffers.context, port);
     }
@@ -96,10 +92,10 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
         goto cleanup;
     render->options(render->context, &wire, &flat, &no_texture);
     mm_world_render_styles(render->frame.world, wire ? render->edges : render->faces, render);
-    if (!s->lock(s->context, rgb, &pixels))
+    if (!buffers->lock(buffers->context, rgb, &pixels))
         goto cleanup;
     buffers->depth_span(buffers->context, depth, &span);
-    if (!valid_pixels(&pixels, width, height) || !span.pixels || span.row != width * 2 ||
+    if (!mm_world_pixels_valid(&pixels, width, height) || !span.pixels || span.row != width * 2 ||
         span.bytes < span.row * height)
     {
         buffers->unlock(buffers->context, rgb);

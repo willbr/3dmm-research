@@ -42,12 +42,6 @@ extern "C"
     {
         int changed;
     } MMWorldRender;
-    typedef struct MMWorldPixels
-    {
-        unsigned char *pixels;
-        MMI32 row;
-        size_t bytes;
-    } MMWorldPixels;
     enum
     {
         MM_WORLD_BEGIN,
@@ -73,9 +67,6 @@ extern "C"
         void (*options)(void *, int *wire, int *flat, int *no_texture);
         const MMStorageAllocator *region_allocator;
         const MMDepthBitmap *depth_background;
-        /* A successful lock must be paired with unlock, including scan failure. */
-        int (*lock)(void *, int buffer, MMWorldPixels *);
-        void (*unlock)(void *, int);
         void (*render)(void *, const MMRenderFrame *);
         void (*detach_depth)(void *, void *depth), (*flush)(void *);
         void (*screen_mark)(void *, const MMRegion *);
@@ -88,8 +79,8 @@ extern "C"
     void mm_world_render_init(MMWorldRender *);
     void mm_world_render_dirty(MMWorldRender *);
     void mm_world_render_styles(void *root, int style, const MMWorldRenderServices *);
-    int mm_world_render_clean(const MMWorldBuffers *, const MMWorldRenderServices *);
-    int mm_world_render(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *);
+    int mm_world_render_clean(const MMWorldBuffers *, const MMWorldRenderServices *, const MMWorldBufferServices *);
+    int mm_world_render(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *, const MMWorldBufferServices *);
     int mm_world_prerender(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *,
                            const MMWorldBufferServices *);
     void mm_world_render_mark(MMWorldBuffers *, MMI32 x, MMI32 y,

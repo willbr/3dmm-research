@@ -27,6 +27,12 @@ extern "C"
         unsigned char *pixels;
         MMI32 row, bytes;
     } MMWorldDepthSpan;
+    typedef struct MMWorldPixels
+    {
+        unsigned char *pixels;
+        MMI32 row;
+        size_t bytes;
+    } MMWorldPixels;
     typedef struct MMWorldBuffers
     {
         MMI32 width, height, buffer_width, buffer_height, scale;
@@ -44,7 +50,9 @@ extern "C"
         void (*retain_cache)(void *, void *), (*release_cache)(void *, void *);
         void (*release)(void *, void *);
         void (*release_depth)(void *, void *), (*release_bitmap)(void *, void *);
-        void *(*lock)(void *, void *);
+        /* A successful lock borrows the full indexed span until unlock. Failed
+         * locks acquire nothing. Distinct RGB owners have disjoint spans. */
+        int (*lock)(void *, void *, MMWorldPixels *);
         void (*unlock)(void *, void *);
         void (*depth_span)(void *, void *, MMWorldDepthSpan *);
         void (*setup_scene)(void *);
@@ -53,8 +61,6 @@ extern "C"
         void (*priority)(void *, void *);
         void (*priority_depth)(void *, void *);
         void (*draw_bitmap)(void *, void *port, void *bitmap);
-        void (*copy_rgb)(void *, void *source, void *destination, MMI32 source_width, MMI32 source_height,
-                         MMI32 destination_width, MMI32 destination_height);
         void (*draw_depth)(void *, void *source, void *destination, MMI32 width, MMI32 height);
     } MMWorldBufferServices;
     /* Initialize a zeroed, unique owning record. Native SDK pixelmaps borrow
@@ -67,6 +73,11 @@ extern "C"
     void mm_world_buffers_dispose(MMWorldBuffers *, const MMWorldBufferServices *);
     /* Mark the full working buffer dirty and optionally the screen copy. */
     void mm_world_buffers_dirty(MMWorldBuffers *, int screen);
+    int mm_world_pixels_valid(const MMWorldPixels *, MMI32 width, MMI32 height);
+    /* Copy raw indices between distinct ports using the shared palette and
+     * COLORONCOLOR sampling. Padding stays untouched. */
+    int mm_world_copy_rgb(const MMWorldBufferServices *, void *source, MMI32 source_width, MMI32 source_height,
+                          void *target, MMI32 target_width, MMI32 target_height);
     /* Shared live/export nearest-neighbor copying of opaque two-byte samples.
      * Scale is 1..16; half-axis sampling applies only at scale 1. Failure may
      * retain completed prefix copies, but never reads/writes outside spans. */

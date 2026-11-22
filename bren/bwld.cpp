@@ -118,15 +118,6 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
     };
     s.region_allocator = &static_cast<WorldRenderContext *>(context)->region_allocator;
     s.depth_background = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
-    s.lock = [](void *p, int kind, MMWorldPixels *out) -> int {
-        auto port = static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind]);
-        RC r;
-        out->pixels = port->PrgbLockPixels(&r);
-        out->row = port->CbRow();
-        out->bytes = size_t(out->row) * r.Dyp();
-        return out->pixels != nullptr;
-    };
-    s.unlock = [](void *p, int kind) { static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind])->Unlock(); };
     s.detach_depth = [](void *, void *depth) { mm_depth_owner_detach(static_cast<MMDepthOwner *>(depth)); };
     s.flush = [](void *) { GraphicsPort::Flush(); };
     s.screen_mark = [](void *p, const MMRegion *region) {
@@ -164,7 +155,16 @@ MMWorldBufferServices World::_BufferServices()
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.release_depth = [](void *, void *p) { mm_depth_owner_release(static_cast<MMDepthOwner *>(p)); };
     s.release_bitmap = [](void *, void *p) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(p)); };
-    s.lock = [](void *, void *p) -> void * { return static_cast<PGraphicsPort>(p)->PrgbLockPixels(); };
+    s.lock = [](void *, void *p, MMWorldPixels *out) -> int {
+        auto port = static_cast<PGraphicsPort>(p);
+        RC bounds;
+        auto pixels = port->PrgbLockPixels(&bounds);
+        if (!pixels)
+            return 0;
+        const auto row = static_cast<MMI32>(port->CbRow());
+        *out = {pixels, row, size_t(row) * bounds.Dyp()};
+        return 1;
+    };
     s.unlock = [](void *, void *p) { static_cast<PGraphicsPort>(p)->Unlock(); };
     s.depth_span = [](void *, void *p, MMWorldDepthSpan *out) {
         const auto d = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(p));
@@ -189,12 +189,6 @@ MMWorldBufferServices World::_BufferServices()
     s.draw_bitmap = [](void *, void *port, void *bitmap) {
         GraphicsEnvironment gnv(static_cast<PGraphicsPort>(port));
         gnv.DrawMbmp(static_cast<PMaskedBitmapMBMP>(bitmap), 0, 0);
-    };
-    s.copy_rgb = [](void *, void *source, void *destination, MMI32 sw, MMI32 sh, MMI32 dw,
-                    MMI32 dh) {
-        GraphicsEnvironment src(static_cast<PGraphicsPort>(source)), dst(static_cast<PGraphicsPort>(destination));
-        RC sr(0, 0, sw, sh), dr(0, 0, dw, dh);
-        dst.CopyPixels(&src, &sr, &dr);
     };
     s.draw_depth = [](void *, void *source, void *destination, MMI32 width, MMI32 height) {
         const auto src = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(source));
@@ -387,7 +381,8 @@ void World::Render(MMMovieSession *movie, const MMMovieLiveFrame *position)
     AssertThis(0);
     WorldRenderContext context = {this};
     auto services = _RenderServices(&context, movie, position);
-    mm_world_render(&_render, &_buffers, &services);
+    const auto buffers = _BufferServices();
+    mm_world_render(&_render, &_buffers, &services, &buffers);
 }
 
 /***************************************************************************
@@ -568,14 +563,6 @@ MMWorldExportServices World::_ExportServices(void *context)
     s.buffers = _BufferServices();
     s.render = _RenderServices(context);
     s.palette = [](void *) -> void * { return GraphicsPort::PglclrGetPalette(); };
-    s.lock = [](void *, void *port, MMWorldPixels *out) -> int {
-        auto p = static_cast<PGraphicsPort>(port);
-        RC r;
-        out->pixels = p->PrgbLockPixels(&r);
-        out->row = p->CbRow();
-        out->bytes = size_t(out->row) * r.Dyp();
-        return out->pixels != nullptr;
-    };
     s.bounds_callback = [](void *, int enabled) {
         BrZbSetRenderBoundsCallback(enabled ? World::_ActorRendered : nullptr);
     };

@@ -12,7 +12,7 @@ typedef struct Fixture
 {
     MMWorldBufferServices s;
     MMWorldBuffers *world;
-    int phase, fail, objects, locks, setups, changed, priorities, short_depth;
+    int phase, fail, objects, locks, setups, changed, priorities, short_depth, fail_lock, bad_lock;
 } Fixture;
 static int fail(Fixture *f)
 {
@@ -58,13 +58,18 @@ static void release(void *p, void *v)
         free(o);
     }
 }
-static void *lock(void *p, void *v)
+static int lock(void *p, void *v, MMWorldPixels *out)
 {
     Fixture *f = (Fixture *)p;
     Object *o = (Object *)v;
+    if (f->fail_lock && o->kind == MM_WORLD_RGB_WORKING)
+        return 0;
     ++o->locks;
     ++f->locks;
-    return o->pixels;
+    out->pixels = o->pixels;
+    out->row = o->row;
+    out->bytes = f->bad_lock ? 1 : (size_t)o->bytes;
+    return 1;
 }
 static void unlock(void *p, void *v)
 {
@@ -121,16 +126,6 @@ static void bitmap(void *p, void *port, void *image)
     assert(image);
     memset(o->pixels, 0x31, (size_t)o->bytes);
 }
-static void copy(void *p, void *sv, void *dv, MMI32 sw, MMI32 sh, MMI32 dw, MMI32 dh)
-{
-    Object *s = (Object *)sv, *d = (Object *)dv;
-    int x, y;
-    (void)p;
-    assert(s->width == sw && s->height == sh && d->width == dw && d->height == dh);
-    for (y = 0; y < dh; ++y)
-        for (x = 0; x < dw; ++x)
-            d->pixels[y * d->row + x] = s->pixels[(y * sh / dh) * s->row + x * sw / dw];
-}
 static void depth(void *p, void *sv, void *dv, MMI32 w, MMI32 h)
 {
     Object *s = (Object *)sv, *d = (Object *)dv;
@@ -161,7 +156,6 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.priority = priority;
     f->s.priority_depth = priority;
     f->s.draw_bitmap = bitmap;
-    f->s.copy_rgb = copy;
     f->s.draw_depth = depth;
 }
 static void balanced(Fixture *f)
@@ -197,6 +191,15 @@ static void initialization(void)
     assert(!mm_world_buffers_init(&w, 8192, 4, 1, 0, 0, &f.s) && !f.phase);
     mm_world_buffers_dispose(&w, &f.s);
     balanced(&f);
+    for (n = 0; n < 2; ++n)
+    {
+        setup(&f, &w);
+        f.fail_lock = n;
+        f.bad_lock = !n;
+        assert(!mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s) && !f.locks && !f.setups);
+        mm_world_buffers_dispose(&w, &f.s);
+        balanced(&f);
+    }
 }
 static void check_depth(const MMWorldBuffers *w)
 {
@@ -351,6 +354,48 @@ static void short_depth(void)
     release(&f, cache);
     balanced(&f);
 }
+
+static void indexed_copy(void)
+{
+    Fixture f;
+    MMWorldBuffers w, saved;
+    Object *source, *target;
+    static const unsigned char reduced[] = {6, 8, 0xcc, 14, 16, 0xcc};
+    static const unsigned char near[] = {1, 2, 3, 0xcc, 5, 6, 7, 0xcc, 9, 10, 11, 0xcc};
+    int i;
+
+    setup(&f, &w);
+    source = object(&f, MM_WORLD_RGB_BACKGROUND, 4, 4);
+    target = object(&f, MM_WORLD_RGB_WORKING, 3, 3);
+    target->row = 3;
+    target->bytes = 9;
+    for (i = 0; i < source->bytes; ++i)
+        source->pixels[i] = (unsigned char)(i + 1);
+    memset(target->pixels, 0xcc, sizeof(target->pixels));
+    assert(mm_world_copy_rgb(&f.s, source, 4, 4, target, 2, 2));
+    assert(!memcmp(target->pixels, reduced, sizeof(reduced)) && !f.locks);
+    target->row = 4;
+    target->bytes = 12;
+    memset(target->pixels, 0xcc, sizeof(target->pixels));
+    assert(mm_world_copy_rgb(&f.s, source, 4, 4, target, 3, 3));
+    assert(!memcmp(target->pixels, near, sizeof(near)) && !f.locks);
+    f.fail_lock = 1;
+    assert(!mm_world_copy_rgb(&f.s, source, 4, 4, target, 2, 2));
+    assert(!memcmp(target->pixels, near, sizeof(near)) && !f.locks);
+    release(&f, source);
+    release(&f, target);
+    balanced(&f);
+
+    f.fail_lock = 0;
+    assert(mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
+    saved = w;
+    f.fail_lock = 1;
+    assert(!mm_world_buffers_mode(&w, 1, 1, 1, &f.s));
+    assert(!memcmp(&w, &saved, sizeof(w)) && f.locks == 1);
+    mm_world_buffers_dispose(&w, &f.s);
+    balanced(&f);
+}
+
 int main(void)
 {
     initialization();
@@ -359,6 +404,7 @@ int main(void)
     restore_background();
     partial_background();
     short_depth();
+    indexed_copy();
     puts("C89 World buffers: ownership/locks, transactional modes, background failures, exact depth samples and "
          "cleanup passed.");
     return 0;

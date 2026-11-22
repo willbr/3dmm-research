@@ -21958,3 +21958,34 @@ seek canvases and camera and actor state. Seek and continuous frame order
 matched retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
 
 Listings, hashes, and checks are under `tmp/c89-chunky-decompile`.
+
+## C89 World indexed buffer transfers (22 November 2026)
+
+Studio now copies indexed World buffers in C89 during background changes,
+prerender capture and bitmap export. The copy preserves raw palette indices,
+uses the existing COLORONCOLOR and near-size sampling rules, and leaves row
+padding intact. Background restoration, dirty-region rendering and bitmap
+export borrow indexed spans through one service. Kauai supplies the native
+port allocation and lock. A failed or invalid lock releases any acquired
+locks and a failed mode change restores the previous buffer owners.
+
+Five retained snapshots matched byte for byte, totaling 14,387,434 bytes.
+The native and SDL buffer and render snapshots cover background changes,
+half-axis and 1×/2×/4× modes, dirty-region redraw and prerendering. The
+native bitmap export snapshot includes scaled and current-buffer output.
+Additional C checks exercise unequal pitches, padding, near-size and half-size
+sampling, transfer failure, and mode rollback after the working lock fails.
+
+The 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. Both native World camera tests and the three x86 C World checks also
+passed. The headless Studio ISO, authoring and F1 Help workflows passed.
+Both authored `.3mm` files and five Studio canvases matched retained files.
+Headless Marcus reproduced its startup canvas and exited. The separate
+`scene-load` failure reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Silent suite `20261122T150441Z-4e1e8c12` matched both ports' preceding 60
+seek canvases and camera and actor state. Seek and continuous frame order
+matched retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
+
+World snapshots, workflow artifacts, and checks are under `tmp/c89-world-rgb`.

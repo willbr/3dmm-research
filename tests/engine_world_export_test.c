@@ -105,7 +105,7 @@ static void depth_span(void *p, void *depth, MMWorldDepthSpan *out)
     out->bytes = o->bytes;
     if (f->short_source && o == f->source)
         --out->bytes;
-    if (f->bad_depth_late && f->locks && o == f->depth)
+    if (f->bad_depth_late && f->locks >= 3 && o == f->depth)
         ++out->row;
 }
 static void draw_bitmap(void *p, void *port, void *bitmap)
@@ -114,17 +114,6 @@ static void draw_bitmap(void *p, void *port, void *bitmap)
     (void)p;
     assert(o->width == source->width && o->height == source->height);
     memcpy(o->pixels, source->pixels, (size_t)o->bytes);
-}
-static void copy_rgb(void *p, void *source, void *destination, MMI32 sw, MMI32 sh, MMI32 dw,
-                     MMI32 dh)
-{
-    Object *src = (Object *)source, *dst = (Object *)destination;
-    int x, y;
-    (void)p;
-    assert(sw == src->width && sh == src->height && dw == dst->width && dh == dst->height);
-    for (y = 0; y < dh; ++y)
-        for (x = 0; x < dw; ++x)
-            dst->pixels[y * dst->row + x] = src->pixels[(y * sh / dh) * src->row + x * sw / dw];
 }
 static int lock(void *p, void *port, MMWorldPixels *out)
 {
@@ -323,7 +312,6 @@ static void init(Fixture *f)
     f->original = f->material;
     f->s.context = f;
     f->s.palette = palette;
-    f->s.lock = lock;
     f->s.bounds_callback = bounds_callback;
     f->s.raster = raster;
     f->s.write = write;
@@ -336,7 +324,7 @@ static void init(Fixture *f)
     b->fetch = fetch;
     b->depth_span = depth_span;
     b->draw_bitmap = draw_bitmap;
-    b->copy_rgb = copy_rgb;
+    b->lock = lock;
     b->unlock = unlock;
     r = &f->s.render;
     r->context = f;
@@ -387,19 +375,19 @@ static void transactions(void)
         before = f.b;
         assert(mm_world_export_scaled(&f.b, scale, &f.s));
         assert(f.rasters == 1 && f.writes == 1 && f.width == 3 * scale && f.height == 2 * scale);
-        assert(f.phase == 10 && f.options == 2 && !memcmp(&before, &f.b, sizeof(before)));
+        assert(f.phase == 12 && f.options == 2 && !memcmp(&before, &f.b, sizeof(before)));
         for (i = 0; i < f.working->bytes; ++i)
             assert(f.working->pixels[i] == 0x55);
         assert(f.events[f.n - 3] == 1000 + PALETTE && f.events[f.n - 2] == 1000 + MM_WORLD_RGB_WORKING &&
                f.events[f.n - 1] == 1000 + MM_WORLD_DEPTH_WORKING);
         balanced(&f);
     }
-    for (fail = 1; fail <= 10; ++fail)
+    for (fail = 1; fail <= 12; ++fail)
     {
         init(&f);
         f.fail = fail;
         assert(!mm_world_export_scaled(&f.b, 2, &f.s));
-        assert(f.phase == fail && f.rasters == (fail >= 8) && f.writes == (fail == 10));
+        assert(f.phase == fail && f.rasters == (fail >= 10) && f.writes == (fail == 12));
         balanced(&f);
     }
     for (fail = 0; fail <= 3; ++fail)
@@ -412,17 +400,15 @@ static void transactions(void)
         assert(f.locks == (fail == 1 ? 0 : 1));
         balanced(&f);
     }
-    for (scenario = 0; scenario < 6; ++scenario)
+    for (scenario = 0; scenario < 8; ++scenario)
     {
         init(&f);
         if (scenario == 0)
             f.b.owners[MM_WORLD_CACHE] = NULL;
         if (scenario == 1)
             f.short_source = 1;
-        if (scenario == 2)
-            f.bad_pixels = 1;
-        if (scenario == 3)
-            f.bad_pixels = 2;
+        if (scenario == 2 || scenario == 3)
+            f.bad_pixels = scenario + 1;
         if (scenario == 4)
             f.bad_depth_late = 1;
         if (scenario == 5)
@@ -430,6 +416,8 @@ static void transactions(void)
             f.late = 1;
             f.flat = f.no_texture = 0;
         }
+        if (scenario == 6 || scenario == 7)
+            f.bad_pixels = scenario - 5;
         assert(mm_world_export_scaled(&f.b, 3, &f.s) == (scenario == 0 || scenario == 5));
         balanced(&f);
     }

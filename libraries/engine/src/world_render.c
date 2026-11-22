@@ -97,19 +97,14 @@ void mm_world_render_styles(void *root, int style, const MMWorldRenderServices *
         mm_world_render_styles(actor, style, s);
     }
 }
-static int valid_pixels(const MMWorldPixels *p, const MMWorldBuffers *b)
-{
-    return p->pixels && p->row >= b->buffer_width && p->row > 0 && b->buffer_height > 0 &&
-           (size_t)b->buffer_height <= (size_t)-1 / (size_t)p->row &&
-           p->bytes >= (size_t)p->row * (size_t)b->buffer_height;
-}
-int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldRenderServices *s)
+int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldRenderServices *s, const MMWorldBufferServices *buffers)
 {
     MMPixelRect rect = b->dirty_working.bounds;
     MMPixelRect viewport;
     MMRegionCursor cursor = {0};
     MMI32 y, left, right;
     MMWorldPixels source, destination;
+    void *in = b->owners[MM_WORLD_RGB_BACKGROUND], *out = b->owners[MM_WORLD_RGB_WORKING];
     int ok = 0;
     viewport.left = viewport.top = 0;
     viewport.right = b->buffer_width;
@@ -119,11 +114,12 @@ int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldRenderServices *
         return 1;
     mm_depth_draw(s->depth_background, b->z.pixels, b->z.row, b->z.height, 0, 0, &rect, &b->dirty_working, 0);
     mm_region_cursor_open(&cursor, &b->dirty_working, &rect);
-    if (!s->lock(s->context, MM_WORLD_RGB_BACKGROUND, &source))
+    if (!buffers->lock(buffers->context, in, &source))
         goto done;
-    if (!s->lock(s->context, MM_WORLD_RGB_WORKING, &destination))
+    if (!buffers->lock(buffers->context, out, &destination))
         goto unlock_source;
-    ok = valid_pixels(&source, b) && valid_pixels(&destination, b);
+    ok = mm_world_pixels_valid(&source, b->buffer_width, b->buffer_height) &&
+         mm_world_pixels_valid(&destination, b->buffer_width, b->buffer_height);
     for (y = rect.top; ok && y < rect.bottom; ++y)
     {
         while (mm_region_scan_pair(&cursor.scan, &left, &right))
@@ -139,14 +135,15 @@ int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldRenderServices *
         if (ok)
             mm_region_scan_advance(&cursor.scan, 1);
     }
-    s->unlock(s->context, MM_WORLD_RGB_WORKING);
+    buffers->unlock(buffers->context, out);
 unlock_source:
-    s->unlock(s->context, MM_WORLD_RGB_BACKGROUND);
+    buffers->unlock(buffers->context, in);
 done:
     mm_region_cursor_close(&cursor);
     return ok;
 }
-int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s)
+int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s,
+                    const MMWorldBufferServices *buffers)
 {
     void *actor;
     MMI32 rect[4];
@@ -179,7 +176,7 @@ int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServ
     if (s->prepare_body)
         for (index = 0; index < frame.scene->bodies.count; ++index)
             s->prepare_body(s->context, &bodies[index]);
-    if (!mm_world_render_clean(b, s))
+    if (!mm_world_render_clean(b, s, buffers))
         goto done;
     mm_region_apply(&b->dirty_screen, MM_REGION_UNION, &b->dirty_working, NULL, s->region_allocator);
     mm_region_set_rect(&b->dirty_working, NULL);
@@ -216,15 +213,16 @@ done:
 int mm_world_prerender(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s,
                         const MMWorldBufferServices *buffers)
 {
-    if (!mm_world_render(r, b, s))
+    int copied;
+    if (!mm_world_render(r, b, s, buffers))
         return 0;
     buffers->draw_depth(buffers->context, b->owners[MM_WORLD_DEPTH_WORKING], b->owners[MM_WORLD_DEPTH_BACKGROUND],
                         b->buffer_width, b->buffer_height);
     s->detach_depth(s->context, b->owners[MM_WORLD_DEPTH_BACKGROUND]);
-    buffers->copy_rgb(buffers->context, b->owners[MM_WORLD_RGB_WORKING], b->owners[MM_WORLD_RGB_BACKGROUND],
-                      b->buffer_width, b->buffer_height, b->buffer_width, b->buffer_height);
+    copied = mm_world_copy_rgb(buffers, b->owners[MM_WORLD_RGB_WORKING], b->buffer_width, b->buffer_height,
+                              b->owners[MM_WORLD_RGB_BACKGROUND], b->buffer_width, b->buffer_height);
     s->flush(s->context);
-    return 1;
+    return copied;
 }
 void mm_world_render_mark(MMWorldBuffers *b, MMI32 x, MMI32 y, const MMWorldRenderServices *s)
 {

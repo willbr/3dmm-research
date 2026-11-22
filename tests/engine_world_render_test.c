@@ -147,9 +147,11 @@ static void options(void *p, int *wire, int *flat, int *no_texture)
     *flat = f->flat;
     *no_texture = f->no_texture;
 }
-static int lock(void *p, int kind, MMWorldPixels *out)
+static int lock(void *p, void *port, MMWorldPixels *out)
 {
     Fixture *f = (Fixture *)p;
+    int kind = port == f->background ? BG : RGB;
+    assert(port == f->background || port == f->working);
     assert(f->z_working[14] == f->z_background[14]);
     event(f, kind == BG ? 20 : 21);
     if (f->fail_lock == kind)
@@ -159,9 +161,10 @@ static int lock(void *p, int kind, MMWorldPixels *out)
     out->bytes = f->invalid_pixels ? 1 : 64;
     return 1;
 }
-static void unlock(void *p, int kind)
+static void unlock(void *p, void *port)
 {
-    event((Fixture *)p, kind == BG ? 23 : 22);
+    Fixture *f = (Fixture *)p;
+    event(f, port == f->background ? 23 : 22);
 }
 static int body(void *p, void *actor, MMRenderBody *out)
 {
@@ -222,12 +225,6 @@ static void detach(void *p, void *depth)
     assert(depth == f->z_background);
     event(f, 81);
 }
-static void snapshot_rgb(void *p, void *source, void *destination, MMI32 sw, MMI32 sh, MMI32 dw, MMI32 dh)
-{
-    Fixture *f = (Fixture *)p;
-    assert(source == f->working && destination == f->background && sw == 6 && sh == 4 && dw == sw && dh == sh);
-    event(f, 82);
-}
 static void flush(void *p)
 {
     event((Fixture *)p, 83);
@@ -272,7 +269,8 @@ static void init(Fixture *f)
     f->b.owners[BG] = f->background;
     f->buffers.context = f;
     f->buffers.draw_depth = snapshot_depth;
-    f->buffers.copy_rgb = snapshot_rgb;
+    f->buffers.lock = lock;
+    f->buffers.unlock = unlock;
     memset(f->z_background, 0x52, sizeof(f->z_background));
     memset(f->z_working, 0xcc, sizeof(f->z_working));
     f->rect_enabled = 1;
@@ -327,8 +325,6 @@ static void init(Fixture *f)
     s->rect = rect;
     s->options = options;
     s->depth_background = &f->depth_source;
-    s->lock = lock;
-    s->unlock = unlock;
     s->render = render;
     s->detach_depth = detach;
     s->flush = flush;
@@ -402,7 +398,7 @@ static void clean_tests(void)
     init(&f);
     assert(mm_region_apply_rect(&f.b.dirty_working, MM_REGION_DIFFERENCE, &left_gap, NULL, 0, NULL));
     assert(mm_region_apply_rect(&f.b.dirty_working, MM_REGION_DIFFERENCE, &right_gap, NULL, 0, NULL));
-    assert(mm_world_render_clean(&f.b, &f.s));
+    assert(mm_world_render_clean(&f.b, &f.s, &f.buffers));
     for (y = 0; y < 7; ++y)
         for (x = 0; x < 9 && y * 9 + x < 64; ++x)
             assert(f.working[y * 9 + x] == (y >= 1 && y < 4 && x >= 1 && x < 3 ? f.background[y * 8 + x] : 0xcc));
@@ -422,7 +418,7 @@ static void clean_tests(void)
             f.fail_lock = RGB;
         if (scenario == 3)
             f.invalid_pixels = 1;
-        assert(mm_world_render_clean(&f.b, &f.s) == (scenario == 0));
+        assert(mm_world_render_clean(&f.b, &f.s, &f.buffers) == (scenario == 0));
         if (scenario == 0)
             assert(!f.n);
         if (scenario == 1)
@@ -441,7 +437,7 @@ static void render_tests(void)
     Fixture f;
     int bound_style, i;
     init(&f);
-    assert(mm_world_render(&f.r, &f.b, &f.s));
+    assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
     assert(!f.n);
     for (bound_style = 10; bound_style <= 12; ++bound_style)
     {
@@ -450,7 +446,7 @@ static void render_tests(void)
         f.begin_options = 1;
         f.change_in_render = 1;
         mm_world_render_dirty(&f.r);
-        assert(mm_world_render(&f.r, &f.b, &f.s));
+        assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
         assert(!f.r.changed && !f.live);
         assert(f.a[0].style == 99 && f.a[5].style == bound_style && f.a[6].style == 7 && f.a[3].style == 7);
         assert(f.events[0] == 101 && f.events[1] == 102);
@@ -463,7 +459,7 @@ static void render_tests(void)
         for (i = 0; i < 4; ++i)
             assert(equal_material(&f.m[i], &f.original[i]));
         f.n = 0;
-        assert(mm_world_render(&f.r, &f.b, &f.s));
+        assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
         assert(!f.n);
         dispose_regions(&f);
     }
@@ -471,7 +467,7 @@ static void render_tests(void)
     f.b.scale = 4;
     f.rect_disable = 1;
     mm_world_render_dirty(&f.r);
-    assert(mm_world_render(&f.r, &f.b, &f.s));
+    assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
     assert(position(&f, 151) >= 0 && position(&f, 152) < 0);
     assert(f.b.dirty_working.bounds.left == -4 && f.b.dirty_working.bounds.right == 12);
     dispose_regions(&f);
@@ -484,13 +480,17 @@ static void render_tests(void)
     f.n = 0;
     assert(mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
     assert(!f.r.changed);
-    assert(f.events[f.n - 4] == 80 && f.events[f.n - 3] == 81 && f.events[f.n - 2] == 82 && f.events[f.n - 1] == 83);
+    i = f.n - 7;
+    assert(f.events[i] == 80 && f.events[i + 1] == 81 && f.events[i + 2] == 21 && f.events[i + 3] == 20 &&
+           f.events[i + 4] == 23 && f.events[i + 5] == 22 && f.events[i + 6] == 83);
+    for (i = 0; i < 4; ++i)
+        assert(!memcmp(f.background + i * 8, f.working + i * 9, 6));
     dispose_regions(&f);
     init(&f);
     f.b.scale = 4;
     f.rect_overflow = 1;
     mm_world_render_dirty(&f.r);
-    assert(!mm_world_render(&f.r, &f.b, &f.s));
+    assert(!mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
     assert(f.r.changed && !f.live);
     dispose_regions(&f);
     for (i = 0; i < 2; ++i)
@@ -503,7 +503,7 @@ static void render_tests(void)
         if (i)
             f.fail_lock = BG;
         mm_world_render_dirty(&f.r);
-        assert(mm_world_render(&f.r, &f.b, &f.s) == !i);
+        assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers) == !i);
         assert(!f.body_refs && f.prepared == 2 && f.r.changed == i);
         dispose_regions(&f);
     }
