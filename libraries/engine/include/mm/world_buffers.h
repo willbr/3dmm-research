@@ -3,6 +3,7 @@
 #define MM_ENGINE_WORLD_BUFFERS_H
 #include "depth_bitmap.h"
 #include "masked_bitmap.h"
+#include "pixel_storage.h"
 #include "region.h"
 #ifdef __cplusplus
 extern "C"
@@ -12,11 +13,10 @@ extern "C"
     {
         MM_WORLD_DEPTH_BACKGROUND,
         MM_WORLD_DEPTH_WORKING,
-        MM_WORLD_RGB_BACKGROUND,
         MM_WORLD_RGB_WORKING,
-        MM_WORLD_RGB_STRETCH,
         MM_WORLD_CACHE,
-        MM_WORLD_OWNERS
+        MM_WORLD_OWNERS,
+        MM_WORLD_COLOR_ASSET = MM_WORLD_OWNERS
     };
     typedef struct MMWorldPixelView
     {
@@ -36,6 +36,7 @@ extern "C"
         int half_x, half_y;
         void *owners[MM_WORLD_OWNERS];
         MMRegion dirty_working, dirty_screen;
+        MMPixelBuffer background;
         MMWorldPixelView rgb, z;
         MMU32 rgb_type, rgb_number, z_type, z_number;
     } MMWorldBuffers;
@@ -47,8 +48,8 @@ extern "C"
         void (*retain_cache)(void *, void *), (*release_cache)(void *, void *);
         void (*release)(void *, void *);
         void (*release_depth)(void *, void *), (*release_bitmap)(void *, void *);
-        /* A successful lock borrows the full indexed span until unlock. Failed
-         * locks acquire nothing. Distinct RGB owners have disjoint spans. */
+        /* A successful lock borrows the working indexed span until unlock.
+         * Failed locks acquire nothing. */
         int (*lock)(void *, void *, MMWorldPixels *);
         void (*unlock)(void *, void *);
         const MMDepthBitmap *(*depth_bitmap)(void *, void *);
@@ -70,10 +71,12 @@ extern "C"
     /* Mark the full working buffer dirty and optionally the screen copy. */
     void mm_world_buffers_dirty(MMWorldBuffers *, int screen);
     int mm_world_pixels_valid(const MMWorldPixels *, MMI32 width, MMI32 height);
-    /* Copy raw indices between distinct ports using the shared palette and
-     * COLORONCOLOR sampling. Padding stays untouched. */
-    int mm_world_copy_rgb(const MMWorldBufferServices *, void *source, MMI32 source_width, MMI32 source_height,
-                          void *target, MMI32 target_width, MMI32 target_height);
+    /* Borrow the indexed background until the next mode change or disposal. */
+    MMWorldPixels mm_world_background_pixels(const MMWorldBuffers *);
+    /* Copy indices between disjoint spans with COLORONCOLOR sampling.
+     * Padding stays untouched. */
+    int mm_world_copy_rgb(const MMWorldPixels *source, MMI32 source_width, MMI32 source_height,
+                          const MMWorldPixels *target, MMI32 target_width, MMI32 target_height);
     /* Draw masked indices at the viewport's top left. Resizing samples a
      * zero-filled native-size buffer. Equal sizes preserve transparent pixels
      * in the supplied target. Used by live backgrounds and bitmap export. */

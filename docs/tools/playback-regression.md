@@ -22044,3 +22044,30 @@ seek canvases and camera and actor state. Seek and continuous frame order
 matched retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows, and checks are under `tmp/c89-world-storage`.
+
+## C89 World background ownership (22 November 2026)
+
+The live World retains its indexed background in a C89 buffer. Background
+loading, dirty-region restoration, and prerender capture use its
+four-byte-aligned rows directly. Failed mode changes preserve the previous
+background and pixel descriptors. The unused vertical stretch port allocation
+was removed. Snapshot records retain the vertical-only mode indicator.
+
+Five native and SDL World buffer, render, and BMP export snapshots matched
+14,387,434 retained bytes. The x86 and x64 C tests cover transparent spans,
+padding, mode rollback, and failure to lock the working buffer during
+prerendering. All 232 selected C89, core link, native x64 and x86, SDL, and
+Chomp checks passed, alongside both World camera checks and three x86 C
+World checks.
+
+Headless Studio ISO, authoring, and F1 Help workflows passed. Two saved movies
+and five Studio canvases matched retained files. Headless Marcus reproduced
+its startup canvas. The separate `scene-load` failure reproduced its
+63,224-byte trace and fingerprint `0D666753`.
+
+The four port runs in suite `20261122T152918Z-ed2fda11` matched the preceding
+60 seek canvases per port, camera and actor state, and continuous playback
+order. Seek and playback order matched the retained retail and V3DMM
+captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows, and checks are under `tmp/c89-world-retained`.

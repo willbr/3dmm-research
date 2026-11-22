@@ -103,10 +103,10 @@ int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldBufferServices *
     MMPixelRect viewport;
     MMRegionCursor cursor = {0};
     MMI32 y, left, right;
-    MMWorldPixels source, destination;
+    MMWorldPixels source = mm_world_background_pixels(b), destination;
     const MMDepthBitmap *depth;
-    void *in = b->owners[MM_WORLD_RGB_BACKGROUND], *out = b->owners[MM_WORLD_RGB_WORKING];
-    int ok = 0;
+    void *out = b->owners[MM_WORLD_RGB_WORKING];
+    int ok;
     viewport.left = viewport.top = 0;
     viewport.right = b->buffer_width;
     viewport.bottom = b->buffer_height;
@@ -117,13 +117,11 @@ int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldBufferServices *
     if (!depth)
         return 0;
     mm_depth_draw(depth, b->z.pixels, b->z.row, b->z.height, 0, 0, &rect, &b->dirty_working, 0);
+    if (!mm_world_pixels_valid(&source, b->buffer_width, b->buffer_height) ||
+        !buffers->lock(buffers->context, out, &destination))
+        return 0;
+    ok = mm_world_pixels_valid(&destination, b->buffer_width, b->buffer_height);
     mm_region_cursor_open(&cursor, &b->dirty_working, &rect);
-    if (!buffers->lock(buffers->context, in, &source))
-        goto done;
-    if (!buffers->lock(buffers->context, out, &destination))
-        goto unlock_source;
-    ok = mm_world_pixels_valid(&source, b->buffer_width, b->buffer_height) &&
-         mm_world_pixels_valid(&destination, b->buffer_width, b->buffer_height);
     for (y = rect.top; ok && y < rect.bottom; ++y)
     {
         while (mm_region_scan_pair(&cursor.scan, &left, &right))
@@ -139,11 +137,8 @@ int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldBufferServices *
         if (ok)
             mm_region_scan_advance(&cursor.scan, 1);
     }
-    buffers->unlock(buffers->context, out);
-unlock_source:
-    buffers->unlock(buffers->context, in);
-done:
     mm_region_cursor_close(&cursor);
+    buffers->unlock(buffers->context, out);
     return ok;
 }
 int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s,
@@ -218,7 +213,9 @@ int mm_world_prerender(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderS
                         const MMWorldBufferServices *buffers)
 {
     void *target = b->owners[MM_WORLD_DEPTH_BACKGROUND];
+    void *working = b->owners[MM_WORLD_RGB_WORKING];
     const MMDepthBitmap *src, *dst;
+    MMWorldPixels source, background;
     int copied;
     if (!mm_world_render(r, b, s, buffers))
         return 0;
@@ -228,8 +225,14 @@ int mm_world_prerender(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderS
     if (copied)
     {
         s->detach_depth(s->context, target);
-        copied = mm_world_copy_rgb(buffers, b->owners[MM_WORLD_RGB_WORKING], b->buffer_width, b->buffer_height,
-                                  b->owners[MM_WORLD_RGB_BACKGROUND], b->buffer_width, b->buffer_height);
+        copied = buffers->lock(buffers->context, working, &source);
+        if (copied)
+        {
+            background = mm_world_background_pixels(b);
+            copied = mm_world_copy_rgb(&source, b->buffer_width, b->buffer_height,
+                                       &background, b->buffer_width, b->buffer_height);
+            buffers->unlock(buffers->context, working);
+        }
     }
     s->flush(s->context);
     return copied;

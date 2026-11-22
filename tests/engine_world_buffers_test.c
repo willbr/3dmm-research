@@ -119,7 +119,7 @@ static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
     o = object(f, kind, 4, kind == MM_WORLD_DEPTH_BACKGROUND && f->short_depth ? 3 : 4);
     for (i = 0; i < o->bytes; ++i)
         o->pixels[i] = (unsigned char)(i * 7 + 1);
-    if (kind == MM_WORLD_RGB_BACKGROUND)
+    if (kind == MM_WORLD_COLOR_ASSET)
     {
         memset(o->pixels, 0x31, (size_t)o->bytes);
         if (f->transparent)
@@ -171,6 +171,7 @@ static void initialization(void)
 {
     Fixture f;
     MMWorldBuffers w;
+    MMWorldPixels background;
     int hx, hy, scale, n, ok;
     for (hx = 0; hx < 2; ++hx)
         for (hy = 0; hy < 2; ++hy)
@@ -180,14 +181,17 @@ static void initialization(void)
                     setup(&f, &w);
                     f.fail = n;
                     ok = mm_world_buffers_init(&w, 4, 4, scale, hx, hy, &f.s);
-                    assert(ok == (n == 0 || n > 4 + (scale == 1 && !hx && hy)));
+                    assert(ok == (n == 0 || n > 3));
                     if (ok)
                     {
                         assert(w.buffer_width == 4 * scale / (scale == 1 && hx ? 2 : 1));
                         assert(w.buffer_height == 4 * scale / (scale == 1 && hy ? 2 : 1));
                         assert(w.rgb.row == w.buffer_width && w.z.row == w.buffer_width * 2 && f.locks == 1 &&
                                f.setups == 1);
-                        assert((w.owners[4] != NULL) == (scale == 1 && !hx && hy));
+                        background = mm_world_background_pixels(&w);
+                        assert(mm_world_pixels_valid(&background, w.buffer_width, w.buffer_height));
+                        assert(!(background.row % 4) && !background.pixels[0] &&
+                               !background.pixels[background.bytes - 1]);
                     }
                     mm_world_buffers_dispose(&w, &f.s);
                     balanced(&f);
@@ -208,7 +212,7 @@ static void initialization(void)
 }
 static void check_depth(const MMWorldBuffers *w)
 {
-    Object *o = (Object *)w->owners[0];
+    Object *o = (Object *)w->owners[MM_WORLD_DEPTH_BACKGROUND];
     int x, y, sx, sy;
     for (y = 0; y < o->height; ++y)
         for (x = 0; x < o->width; ++x)
@@ -224,6 +228,7 @@ static void modes(void)
     Fixture f;
     MMWorldBuffers w, old;
     Object *cache;
+    MMWorldPixels retained;
     const MMPixelRect viewport = {0, 0, 4, 4}, hole = {1, 1, 3, 3};
     int target, n, ok, count, changed;
     unsigned i;
@@ -240,6 +245,8 @@ static void modes(void)
                    MM_REGION_UPDATED);
             assert(mm_region_apply_rect(&w.dirty_screen, MM_REGION_DIFFERENCE, &hole, NULL, 0, NULL) ==
                    MM_REGION_UPDATED);
+            retained = mm_world_background_pixels(&w);
+            retained.pixels[0] = 0x99;
             old = w;
             count = f.objects;
             changed = f.changed;
@@ -249,6 +256,7 @@ static void modes(void)
                                              : target == 3 ? 2
                                                            : 4,
                                              &f.s);
+            assert(ok == (n > 5));
             if (!ok)
             {
                 for (i = 0; i < MM_WORLD_OWNERS; ++i)
@@ -257,10 +265,14 @@ static void modes(void)
                        w.half_x == old.half_x && w.half_y == old.half_y && w.buffer_width == old.buffer_width &&
                        w.buffer_height == old.buffer_height && f.objects == count && f.changed == changed);
                 assert(w.dirty_working.bands == old.dirty_working.bands && w.dirty_screen.bands == old.dirty_screen.bands);
+                assert(w.background.surface.pixels == retained.pixels && retained.pixels[0] == 0x99 &&
+                       w.background.bytes == retained.bytes);
             }
             else
             {
                 check_depth(&w);
+                assert(w.background.surface.width == w.buffer_width && w.background.surface.height == w.buffer_height &&
+                       mm_world_background_pixels(&w).pixels[0] == 0x31);
                 assert(f.changed == changed + 2 && w.dirty_screen.bounds.right == w.buffer_width);
                 assert(!w.dirty_working.bands && !w.dirty_screen.bands);
             }
@@ -291,25 +303,24 @@ static void restore_background(void)
 {
     Fixture f;
     MMWorldBuffers w;
-    Object *cache, *rgb;
+    Object *cache;
+    MMWorldPixels rgb;
     setup(&f, &w);
-    assert(mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
+    assert(mm_world_buffers_init(&w, 6, 4, 1, 0, 0, &f.s));
     cache = object(&f, MM_WORLD_CACHE, 0, 0);
     assert(mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
-    rgb = (Object *)w.owners[MM_WORLD_RGB_BACKGROUND];
-    rgb->pixels[0] = 0x99;
+    rgb = mm_world_background_pixels(&w);
+    rgb.pixels[0] = 0x99;
     f.fail = f.phase + 2;
     assert(!mm_world_buffers_restore_background(&w, &f.s));
-    assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb->pixels[0] == 0x99 && f.changed == 1);
+    assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb.pixels[0] == 0x99 && f.changed == 1);
     assert(mm_world_buffers_restore_background(&w, &f.s));
-    assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb->pixels[0] == 0x31 && f.changed == 2);
+    assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb.pixels[0] == 0x31 && f.changed == 2);
     f.transparent = 1;
-    memset(rgb->pixels, 0x99, sizeof(rgb->pixels));
-    rgb->row = 6;
-    rgb->bytes = 24;
+    memset(rgb.pixels, 0x99, rgb.bytes);
     assert(mm_world_buffers_restore_background(&w, &f.s) && f.locks == 1);
-    assert(rgb->pixels[0] == 0x31 && rgb->pixels[6] == 0x31 && rgb->pixels[7] == 0x99);
-    assert(rgb->pixels[4] == 0x99 && rgb->pixels[5] == 0x99 && rgb->pixels[23] == 0x99);
+    assert(rgb.row == 8 && rgb.pixels[0] == 0x31 && rgb.pixels[8] == 0x31 && rgb.pixels[9] == 0x99);
+    assert(rgb.pixels[4] == 0x99 && rgb.pixels[6] == 0x99 && rgb.pixels[31] == 0x99);
     mm_world_buffers_dispose(&w, &f.s);
     release(&f, cache);
     balanced(&f);
@@ -318,7 +329,8 @@ static void partial_background(void)
 {
     Fixture f;
     MMWorldBuffers w;
-    Object *cache, *bg;
+    Object *cache;
+    MMWorldPixels bg;
     int count, phase;
     setup(&f, &w);
     assert(mm_world_buffers_init(&w, 4, 4, 2, 0, 0, &f.s));
@@ -328,8 +340,8 @@ static void partial_background(void)
     --((Object *)w.owners[MM_WORLD_DEPTH_BACKGROUND])->depth.bytes;
     assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
     assert(!w.owners[MM_WORLD_CACHE] && cache->refs == 1 && f.objects == count && !f.changed && f.phase == phase + 2);
-    bg = (Object *)w.owners[2];
-    assert(bg->pixels[0] == 0x31 && bg->pixels[bg->bytes - 1] == 0x31);
+    bg = mm_world_background_pixels(&w);
+    assert(bg.pixels[0] == 0x31 && bg.pixels[bg.bytes - 1] == 0x31);
     mm_world_buffers_dispose(&w, &f.s);
     release(&f, cache);
     balanced(&f);
@@ -337,7 +349,7 @@ static void partial_background(void)
     assert(mm_world_buffers_init(&w, 4, 4, 1, 1, 1, &f.s));
     cache = object(&f, MM_WORLD_CACHE, 0, 0);
     count = f.objects;
-    f.bad_lock = 1;
+    --w.background.bytes;
     assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s) && f.objects == count && !w.owners[MM_WORLD_CACHE] &&
            !f.changed && f.locks == 1);
     mm_world_buffers_dispose(&w, &f.s);
@@ -372,34 +384,29 @@ static void indexed_copy(void)
 {
     Fixture f;
     MMWorldBuffers w, saved;
-    Object *source, *target;
+    unsigned char source[16], target[12];
+    MMWorldPixels src = {NULL, 4, sizeof(source)}, dst = {NULL, 3, 6};
     static const unsigned char reduced[] = {6, 8, 0xcc, 14, 16, 0xcc};
     static const unsigned char near[] = {1, 2, 3, 0xcc, 5, 6, 7, 0xcc, 9, 10, 11, 0xcc};
     int i;
 
-    setup(&f, &w);
-    source = object(&f, MM_WORLD_RGB_BACKGROUND, 4, 4);
-    target = object(&f, MM_WORLD_RGB_WORKING, 3, 3);
-    target->row = 3;
-    target->bytes = 9;
-    for (i = 0; i < source->bytes; ++i)
-        source->pixels[i] = (unsigned char)(i + 1);
-    memset(target->pixels, 0xcc, sizeof(target->pixels));
-    assert(mm_world_copy_rgb(&f.s, source, 4, 4, target, 2, 2));
-    assert(!memcmp(target->pixels, reduced, sizeof(reduced)) && !f.locks);
-    target->row = 4;
-    target->bytes = 12;
-    memset(target->pixels, 0xcc, sizeof(target->pixels));
-    assert(mm_world_copy_rgb(&f.s, source, 4, 4, target, 3, 3));
-    assert(!memcmp(target->pixels, near, sizeof(near)) && !f.locks);
-    f.fail_lock = 1;
-    assert(!mm_world_copy_rgb(&f.s, source, 4, 4, target, 2, 2));
-    assert(!memcmp(target->pixels, near, sizeof(near)) && !f.locks);
-    release(&f, source);
-    release(&f, target);
-    balanced(&f);
+    src.pixels = source;
+    dst.pixels = target;
+    for (i = 0; i < 16; ++i)
+        source[i] = (unsigned char)(i + 1);
+    memset(target, 0xcc, sizeof(target));
+    assert(mm_world_copy_rgb(&src, 4, 4, &dst, 2, 2));
+    assert(!memcmp(target, reduced, sizeof(reduced)));
+    dst.row = 4;
+    dst.bytes = sizeof(target);
+    memset(target, 0xcc, sizeof(target));
+    assert(mm_world_copy_rgb(&src, 4, 4, &dst, 3, 3));
+    assert(!memcmp(target, near, sizeof(near)));
+    --src.bytes;
+    assert(!mm_world_copy_rgb(&src, 4, 4, &dst, 2, 2));
+    assert(!memcmp(target, near, sizeof(near)));
 
-    f.fail_lock = 0;
+    setup(&f, &w);
     assert(mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
     saved = w;
     f.fail_lock = 1;

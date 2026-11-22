@@ -23,7 +23,7 @@ static int fill_background(const MMWorldBuffers *b, const MMWorldPixels *rgb, co
     int ok = 0;
     if (!b->owners[MM_WORLD_CACHE])
         return 1;
-    bitmap = s->fetch(s->context, b->owners[MM_WORLD_CACHE], MM_WORLD_RGB_BACKGROUND, b->rgb_type,
+    bitmap = s->fetch(s->context, b->owners[MM_WORLD_CACHE], MM_WORLD_COLOR_ASSET, b->rgb_type,
                       b->rgb_number);
     if (!bitmap)
         goto cleanup;

@@ -511,14 +511,11 @@ void World::AssertValid(LegacyUlong grf)
 {
     World_PAR::AssertValid(fobjAllocated);
     AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_WORKING]), 0);
-    AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_BACKGROUND]), 0);
+    const auto background = mm_world_background_pixels(&_buffers);
+    Assert(mm_world_pixels_valid(&background, _buffers.buffer_width, _buffers.buffer_height), "Invalid World background");
     AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_WORKING]));
     AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
     AssertNilOrVarMem(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
-    if (_buffers.scale == 1 && !_buffers.half_x && _buffers.half_y)
-        AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_STRETCH]), 0);
-    else
-        Assert(!_buffers.owners[MM_WORLD_RGB_STRETCH], "Unexpected stretch buffer");
 }
 
 /***************************************************************************
@@ -528,8 +525,7 @@ void World::MarkMem(void)
 {
     AssertThis(0);
     World_PAR::MarkMem();
-    for (auto kind : {MM_WORLD_RGB_WORKING, MM_WORLD_RGB_BACKGROUND, MM_WORLD_RGB_STRETCH})
-        MarkMemObj(static_cast<BASE *>(_buffers.owners[kind]));
+    MarkMemObj(static_cast<BASE *>(_buffers.owners[MM_WORLD_RGB_WORKING]));
     mm_resource_cache_mark(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
     for (auto kind : {MM_WORLD_DEPTH_WORKING, MM_WORLD_DEPTH_BACKGROUND})
     {

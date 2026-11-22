@@ -78,9 +78,9 @@ static void release(void *context, void *p)
 static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
 {
     Fixture *f = (Fixture *)p;
-    Object *o = kind == MM_WORLD_RGB_BACKGROUND ? f->bitmap : f->source;
-    assert(cache == &f->cache && type == (kind == MM_WORLD_RGB_BACKGROUND ? 11U : 22U));
-    assert(number == (kind == MM_WORLD_RGB_BACKGROUND ? 33U : 44U));
+    Object *o = kind == MM_WORLD_COLOR_ASSET ? f->bitmap : f->source;
+    assert(cache == &f->cache && type == (kind == MM_WORLD_COLOR_ASSET ? 11U : 22U));
+    assert(number == (kind == MM_WORLD_COLOR_ASSET ? 33U : 44U));
     if (phase(f))
         return NULL;
     ++o->refs;

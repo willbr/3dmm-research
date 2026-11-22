@@ -120,12 +120,11 @@ struct Access : World
     static void Seed(PWorld w)
     {
         const auto &buffers = w->*&Access::_buffers;
-        for (auto field : {MM_WORLD_RGB_BACKGROUND, MM_WORLD_RGB_WORKING})
-        {
-            auto port = static_cast<PGraphicsPort>(buffers.owners[field]);
-            std::memset(port->PrgbLockPixels(), 3, port->CbRow() * buffers.buffer_height);
-            port->Unlock();
-        }
+        const auto background = mm_world_background_pixels(&buffers);
+        std::memset(background.pixels, 3, background.bytes);
+        auto port = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_WORKING]);
+        std::memset(port->PrgbLockPixels(), 3, port->CbRow() * buffers.buffer_height);
+        port->Unlock();
     }
 };
 static unsigned Live(PWorld w)

@@ -1018,9 +1018,11 @@ traversal and rendered bounds conversion now also use C89. The render-changed
 latch, begin/render/bounds sequencing, model-style traversal, temporary material
 overrides, clipped dirty RGB/depth cleanup, prerendering and screen/draw control
 now also use C89.
-The C world buffer record directly owns its working and screen damage regions
-and supplies the viewport origin for picking and the buffer owners for
-prerender snapshots and background restoration.
+The C world buffer record directly owns the retained indexed background and
+the working and screen damage regions. It supplies the viewport origin for
+picking and the buffer owners for prerender snapshots and background
+restoration. Mode changes stage a new background alongside the working buffers
+and preserve the previous pixels if allocation or reload fails.
 Native adapters provide SDK, graphics-port and window invalidation primitives.
 Current/scaled bitmap export sizing, background fill, resource/lock/material/
 callback cleanup and palette ownership now also use C89. Both live and export
@@ -1849,9 +1851,10 @@ publishes images, camera transforms and redraw requests. C89 copies indexed
 World buffers for background loading, prerendering and bitmap export. These
 paths and dirty-region rendering share the same bounded pixel view. World
 background placement and prerender depth capture draw from the shared C89
-masked and depth bitmap records. C89 also owns the temporary RGB and depth
-buffers for background scaling and scaled BMP export. Preview uses the same
-background decoders with its archive-graph renderer. Studio scene
+masked and depth bitmap records. C89 also owns the retained indexed background
+and the temporary RGB and depth buffers for background scaling and scaled BMP
+export. Preview uses the same background decoders with its archive-graph
+renderer. Studio scene
 save, transition editing and undo snapshots bind their live or private
 archive in C89, including embedded asset copy and editor cleanup. Movie,
 scene and actor loads borrow the live graph through the C89 cache. Studio's

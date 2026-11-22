@@ -56,9 +56,13 @@ struct Access : World
         Value(w->FHalfY());
         Value(w->RenderScale());
         Value((w->*&Access::_render).changed);
-        for (auto field : {MM_WORLD_RGB_BACKGROUND, MM_WORLD_RGB_WORKING, MM_WORLD_RGB_STRETCH,
-                           MM_WORLD_DEPTH_WORKING, MM_WORLD_DEPTH_BACKGROUND})
-            Value(buffers.owners[field] != nullptr);
+        const auto background = mm_world_background_pixels(&buffers);
+        Value(background.pixels != nullptr);
+        Value(buffers.owners[MM_WORLD_RGB_WORKING] != nullptr);
+        // Preserve the snapshot field for the vertical-only half-resolution mode.
+        Value(buffers.scale == 1 && !buffers.half_x && buffers.half_y);
+        Value(buffers.owners[MM_WORLD_DEPTH_WORKING] != nullptr);
+        Value(buffers.owners[MM_WORLD_DEPTH_BACKGROUND] != nullptr);
         (w->*&Access::_SyncPixelmaps)();
         for (auto field : {&Access::_bpmpRGB, &Access::_bpmpZ})
         {
@@ -77,10 +81,7 @@ struct Access : World
         {
             auto depth = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
             Record(depth->pixels, depth->row_bytes * buffer.Dyp());
-            auto rgb = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_BACKGROUND]);
-            auto p = rgb->PrgbLockPixels();
-            Record(p, rgb->CbRow() * buffer.Dyp());
-            rgb->Unlock();
+            Record(background.pixels, background.bytes);
         }
     }
 };
