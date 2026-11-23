@@ -24852,3 +24852,36 @@ to `9e1c2a69`. SDL Release emitted its original 66,240 bytes with fingerprint
 `8940A7C9`. The corresponding standalone C89 scene-load checks passed.
 All eight native scene fixtures passed and reproduced their earlier traces.
 Evidence is under `tmp/c89-scene-load-fixture`.
+
+## C89 actor clipboard working saves (23 November 2026)
+
+Studio actor clipboard operations bind the C89 movie and scene edit controllers
+directly. Copy resolves sounds through the source movie. Paste prepares the
+destination working archive for 3D text, adopts local sounds in the bound
+scene, and names the placed actor through the C89 roll call. A failed rename
+removes the actor and ends placement. The working-save API publishes the typed
+cache before making the file temporary.
+
+All seventeen standalone C89 checks passed, including strict syntax, along with
+the 228 selected x64 native checks, external consumer, and focused x86 checks.
+The scene content fixture covers successful clipboard naming and actor removal
+after a failed rename. The native save/load fixture matched all sixteen traces,
+including 449,472 bytes for actor copy, 41,344 for clipboard, 22,272 for actor
+paste, and 167,168 for route paste.
+All eight scene traces, ten asset preview fingerprints, and the Marcus headless
+startup canvas matched their baselines.
+
+SDL Studio passed 35 selected checks. The save, sound, content and actor traces
+and the authored 27,056-byte `.3mm` matched their baselines. The ordinary `.3mm`,
+five `.vmm` files, and two canvas captures also matched in the eight-check VMM
+workflow.
+
+Actor Audio and Dissolve suite `20261123T161530Z-a1f5ff5c` completed eight
+fresh captures with verified inputs. Each port matched the preceding seek
+canvases and states. Actor Audio matched all 60 frame positions and camera
+indices in retail and V3DMM. Studio matched all 240 retained actor snapshots to
+six significant digits in position. Dissolve matched 59 steady observations in
+each port and the settled canvas in retail and V3DMM.
+
+Evidence is under `tmp/c89-actor-paste-save`. The playback suite is in
+`tmp/c89-working-archive/capture/playback.sqlite`.

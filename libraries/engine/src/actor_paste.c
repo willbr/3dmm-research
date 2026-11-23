@@ -2,6 +2,13 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_paste.h"
 #include "mm/actor_effect.h"
+#include "mm/movie_save.h"
+#include "mm/text_resource.h"
+
+static int is_text(void *object, const MMActorPasteServices *s)
+{
+    return s->is_text ? s->is_text(s->context, object) : mm_template_owner_has_flag(object, MM_TEMPLATE_TEXT);
+}
 
 static int transfer_template(MMActorRuntime *r, void *scene, const MMActorPasteServices *s)
 {
@@ -10,7 +17,14 @@ static int transfer_template(MMActorRuntime *r, void *scene, const MMActorPasteS
     void *cache, *object;
     if (r->template_tag.sid != 0)
         s->diagnostic(s->context, MM_PASTE_TEXT_NOT_DOCUMENT);
-    if (!s->ensure_autosave(s->context, scene, &cache))
+    if (s->working_save)
+    {
+        MMResourceCache *working;
+        if (!mm_movie_save_ensure(&working, s->working_save))
+            return 0;
+        cache = working;
+    }
+    else if (!s->ensure_autosave(s->context, scene, &cache))
         return 0;
     if (cache == r->template_tag.cache)
         return 1;
@@ -50,7 +64,7 @@ int mm_actor_paste(MMActorOwner *actor, MMI32 frame, void *scene, const MMActorP
     MMI32 delta, i;
     void *bound_scene;
 
-    if (s->migrate_text && s->is_text(s->context, r->template_object) && !transfer_template(r, scene, s))
+    if (s->migrate_text && is_text(r->template_object, s) && !transfer_template(r, scene, s))
         return 0;
 
     r->first = frame;
@@ -108,7 +122,7 @@ int mm_actor_paste(MMActorOwner *actor, MMI32 frame, void *scene, const MMActorP
         mm_actor_events_set_payload(events, i, &sound);
     }
 
-    if (s->is_text(s->context, r->template_object))
+    if (is_text(r->template_object, s))
     {
         mm_actor_events_get_payload(events, 0, &entrance);
         entrance.y = s->camera_yaw(s->context, r->scene);

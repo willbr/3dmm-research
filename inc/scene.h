@@ -400,8 +400,6 @@ class Scene : public Scene_PAR
     //
     // Clipboard type functions
     //
-    bool FPasteActrCore(PActor pactr); // Pastes actor into current frame
-    bool FPasteActr(PActor pactr);     // Pastes actor into current frame and undo
 
     //
     // Playing functions

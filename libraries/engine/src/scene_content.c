@@ -195,6 +195,8 @@ int mm_scene_actor_paste(void *actor, const MMSceneContentServices *s)
 {
     MMActorOwner *owner = s->actors.owner(s->actors.context, actor);
     MMActorPasteServices paste = s->actor_paste(actor);
+    if (s->working_save)
+        paste.working_save = s->working_save;
     if (!mm_actor_paste(owner, s->events.owner->data.currentFrame, s->context, &paste) ||
         !mm_scene_actor_add(actor, s))
         return 0;

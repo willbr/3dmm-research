@@ -1,6 +1,8 @@
 /* Actor clipboard policy converted from engine actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_clipboard.h"
+#include "mm/movie_edit.h"
+#include "mm/scene_content.h"
 #include <string.h>
 
 static MMI32 name_count(const void *buffer, unsigned unit)
@@ -99,23 +101,30 @@ void mm_actor_clipboard_dispose(MMActorClipboard *c, const MMActorOwnerServices 
 int mm_actor_clipboard_paste(const MMActorClipboard *c, void *movie, const MMActorOwnerServices *owner,
                              const MMActorClipboardServices *s)
 {
+    const MMMovieEditServices *edit = s->movie_edit;
     MMActorOwnerResult result = {0};
     MMActorOwner *actor;
     const void *name;
     MMI32 count;
     int ok;
     if (c->route_only)
-        return s->paste_route(s->context, movie, c->actor);
+        return edit ? mm_movie_paste_route(c->actor, edit) : s->paste_route(s->context, movie, c->actor);
     if (!mm_actor_owner_duplicate(c->actor, 1, &result, owner))
         return 0;
-    ok = s->paste_actor(s->context, movie, result.actor);
+    ok = edit ? mm_movie_paste_actor(result.actor, edit) : s->paste_actor(s->context, movie, result.actor);
     if (ok)
     {
         actor = owner->owner(owner->context, result.actor);
         name = mm_actor_clipboard_name(c, &count);
-        ok = s->rename(s->context, movie, actor->runtime.actor, name, count);
+        ok = edit ? mm_movie_rollcall_rename(actor->runtime.actor, name, count, &edit->rollcall)
+                  : s->rename(s->context, movie, actor->runtime.actor, name, count);
         if (!ok)
-            s->remove(s->context, movie, actor->runtime.actor);
+        {
+            if (edit)
+                mm_scene_actor_remove(actor->runtime.actor, edit->paste_scene);
+            else
+                s->remove(s->context, movie, actor->runtime.actor);
+        }
     }
     owner->release(owner->context, result.actor);
     return ok != 0;

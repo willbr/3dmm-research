@@ -1,4 +1,6 @@
 #include "mm/scene_content.h"
+#include "mm/actor_clipboard.h"
+#include "mm/movie_edit.h"
 #include "actor_stage_owner_fixture.h"
 #include "scene_member_fixture.h"
 #include <stdio.h>
@@ -505,6 +507,92 @@ static void seed_actor_track(Obj *actor, int entrance)
     if (entrance)
         CHECK(mm_actor_events_insert(actor->stage.owner.track.events, 0, sizeof(add), &add, &event));
 }
+static int clipboard_add_roll(void *p, void *actor, int tmpl)
+{
+    Obj *object = actor;
+    if (!add_roll(p, actor, tmpl))
+        return 0;
+    object->stage.owner.runtime.actor = object->id;
+    return 1;
+}
+static void *clipboard_view(void *p)
+{
+    return p;
+}
+static void clipboard_select(void *p, void *actor)
+{
+    Test *t = p;
+    mm_scene_select_actor(actor, &t->s.selection);
+}
+static void clipboard_place(void *p, int entire)
+{
+    Test *t = p;
+    CHECK(entire && t->owner.selected_actor);
+    ++t->placement;
+}
+static void clipboard_invalidate(void *p, int bars)
+{
+    CHECK(bars);
+    invalidate(p);
+}
+static void test_actor_clipboard(void)
+{
+    Test t;
+    MMActorClipboard clipboard;
+    MMMovieState movie;
+    MMMovieScenes scenes;
+    MMMovieEditServices edit;
+    MMActorClipboardServices services;
+    MMRollCallActor row = {0};
+    const void *name;
+    MMU32 count;
+    Obj *original;
+    int missing;
+    for (missing = 0; missing < 2; ++missing)
+    {
+        init(&t);
+        original = new_obj(&t, 0);
+        seed_actor_track(original, 1);
+        mm_actor_clipboard_init(&clipboard, 1);
+        clipboard.actor = original;
+        ((unsigned char *)clipboard.name)[0] = 4;
+        memcpy((unsigned char *)clipboard.name + 1, "Copy", 4);
+        memset(&movie, 0, sizeof(movie));
+        CHECK(mm_rollcall_table_init(&movie.actors, sizeof(row), 1, 0x0303, 0, NULL) == MM_STORAGE_OK);
+        row.data.actor_id = t.next_id;
+        if (!missing)
+            CHECK(mm_rollcall_table_add(&movie.actors, "Template", 8, &row));
+        memset(&scenes, 0, sizeof(scenes));
+        scenes.open = &t;
+        memset(&edit, 0, sizeof(edit));
+        edit.context = &t;
+        edit.scenes = &scenes;
+        edit.first_view = clipboard_view;
+        edit.select_actor = clipboard_select;
+        edit.place_actor = clipboard_place;
+        edit.dirty = dirty;
+        edit.invalidate = clipboard_invalidate;
+        edit.paste_scene = &t.s;
+        edit.rollcall.context = &t;
+        edit.rollcall.data = &movie;
+        edit.rollcall.changed = update;
+        t.s.add_roll = clipboard_add_roll;
+        memset(&services, 0, sizeof(services));
+        services.movie_edit = &edit;
+        CHECK(mm_actor_clipboard_paste(&clipboard, &t, &t.s.actors, &services) == !missing);
+        CHECK(t.placement == 1 + missing && original->refs == 1 && t.live == 2 - missing);
+        CHECK(t.starts->rows.count == !missing && mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) == !missing);
+        CHECK((t.owner.selected_actor != NULL) == !missing);
+        if (!missing)
+        {
+            CHECK(mm_movie_rollcall_name(&movie.actors, row.data.actor_id, &name, &count));
+            CHECK(count == 4 && !memcmp(name, "Copy", count));
+        }
+        CHECK(mm_rollcall_table_dispose(&movie.actors) == MM_STORAGE_OK);
+        mm_actor_clipboard_dispose(&clipboard, &t.s.actors);
+        clean(&t);
+    }
+}
 static void test_actor(void)
 {
     Test t;
@@ -856,6 +944,7 @@ static void test_dispose(void)
 int main(void)
 {
     test_actor();
+    test_actor_clipboard();
     test_text();
     test_public();
     test_actor_undo();

@@ -30,6 +30,11 @@ static const int kPostponedActorCopy = 1;
 static const int kPostponedActorCopy = 0;
 #endif
 
+static MMMovieSoundServices ActorSceneSoundServices(void *scene)
+{
+    return static_cast<PScene>(scene)->Pmvie()->SoundServices();
+}
+
 /***************************************************************************
 
     Duplicate the actor from this frame through
@@ -41,9 +46,7 @@ MMActorCopyServices Actor::_CopyServices()
     MMActorCopyServices s{};
     s.context = this;
     s.create = _CreateServices();
-    s.resolve_sound=[](void *p,MMActorSound *value) {
-        return int(static_cast<Actor *>(p)->_Scene()->Pmvie()->FResolveSndTag(value->tag, value->child));
-    };
+    s.movie_sound = ActorSceneSoundServices;
     s.distance=[](void *,const MMActorPoint *v)->MMI32 { return BR_LENGTH3(v->dxr,v->dyr,v->dzr); };
     s.unknown_event=[](void *) { Bug("Unknown event type... Copy or Not?"); };
     return s;
@@ -159,17 +162,10 @@ MMActorPasteServices Actor::_PasteServices()
     s.context = this;
     s.create = _CreateServices();
     s.edits = _EventEditServices();
-    s.is_text=[](void *,void *p) { return mm_template_owner_has_flag(static_cast<PTemplate>(p), MM_TEMPLATE_TEXT); };
-    s.ensure_autosave=[](void *,void *p,void **cache) {
-        MMResourceCache *resource=nullptr; bool ok=static_cast<PScene>(p)->Pmvie()->FEnsureAutosave(&resource);
-        *cache=resource; return int(ok);
-    };
     s.placement=[](void *p,MMActorPoint *point) {
         static_cast<Actor *>(p)->_GetNewOrigin(point);
     };
-    s.movie_sound=[](void *scene) {
-        return static_cast<PScene>(scene)->Pmvie()->SoundServices();
-    };
+    s.movie_sound = ActorSceneSoundServices;
     s.camera_yaw=[](void *,void *p) { return mm_background_owner_camera(static_cast<PScene>(p)->Pbkgd())->yaw; };
     s.dirty=[](void *,void *p) { static_cast<PScene>(p)->MarkDirty(); };
     s.diagnostic=[](void *,int fault) {
@@ -216,7 +212,7 @@ RTCLASS(ActorClipboard)
     This is from the current frame forward
 
 ***************************************************************************/
-MMActorClipboardServices ActorClipboard::_Services()
+MMActorClipboardServices ActorClipboard::_CreateServices()
 {
     MMActorClipboardServices s{};
     s.create=[](void *, MMActorClipboard **storage)->void * {
@@ -237,18 +233,12 @@ MMActorClipboardServices ActorClipboard::_Services()
         mm_string_value_set(value, prefix.Prgch(), prefix.Cch());
     };
     s.name_too_long=[](void *) { PushErc(ercSocNameTooLong); };
-    s.paste_route=[](void *,void *movie,void *actor) { return int(static_cast<PMovie>(movie)->FPasteActrPath(static_cast<PActor>(actor))); };
-    s.paste_actor=[](void *,void *movie,void *actor) { return int(static_cast<PMovie>(movie)->FPasteActr(static_cast<PActor>(actor))); };
-    s.rename=[](void *, void *movie, MMI32 actor, const void *text, MMI32 count) {
-        return int(static_cast<PMovie>(movie)->FNameActr(actor, static_cast<const achar *>(text), count));
-    };
-    s.remove=[](void *,void *movie,MMI32 actor) { static_cast<PMovie>(movie)->Pscen()->RemActrCore(actor); };
     return s;
 }
 PActorClipboard ActorClipboard::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
 {
     AssertPo(pactr,0); Assert(!fRteOnly || !fEntireScene,"Expecting subroute only");
-    const auto services = _Services();
+    const auto services = _CreateServices();
     const auto copy = pactr->_CopyServices();
     auto clipboard = static_cast<PActorClipboard>(
         mm_actor_clipboard_create(pactr, fRteOnly, fEntireScene, kPostponedActorCopy, &copy, &services));
@@ -262,9 +252,7 @@ ActorClipboard::~ActorClipboard(void)
 bool ActorClipboard::FPaste(PMovie pmvie)
 {
     AssertThis(0); AssertPo(pmvie,0);
-    const auto owner = Actor::_OwnerServices();
-    const auto services = _Services();
-    return mm_actor_clipboard_paste(&_clipboard, pmvie, &owner, &services) != 0;
+    return pmvie->_FPasteActorClipboard(_clipboard);
 }
 
 #ifdef DEBUG

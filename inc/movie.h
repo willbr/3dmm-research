@@ -564,6 +564,7 @@ struct MoviePlaybackTestProgress
 #define kclsMovie 'MVIE'
 class Movie : public Movie_PAR
 {
+    friend class ActorClipboard;
     friend class MovieSaveProbe;
     friend class MovieSceneUndo;
     friend class MovieView;
@@ -610,6 +611,7 @@ class Movie : public Movie_PAR
     MMMovieRollCallServices _RollCallServices();
     MMMovieUndoServices _UndoServices();
     MMMovieEditServices _EditServices();
+    bool _FPasteActorClipboard(const struct MMActorClipboard &);
     MMMovieContentServices _ContentServices(const MMMovieSaveServices * = nullptr);
     MMMovieComposeServices _ComposeServices(const MMMovieSceneServices &);
     struct SaveHost
@@ -880,8 +882,6 @@ class Movie : public Movie_PAR
     void RenderWorld();
     bool FNewScenInsCore(long iscen);           // Inserts a blank scene before iscen
     bool FRemScenCore(long iscen);              // Removes a scene from the movie
-    bool FPasteActr(PActor pactr);               // Pastes an actor into current scene.
-    bool FPasteActrPath(PActor pactr);           // Pastes the path onto selected actor.
     MMFrameSoundQueue *SoundQueue() { return &_runtime.sounds; }
 
     //

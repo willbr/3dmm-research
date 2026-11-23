@@ -63,6 +63,7 @@ extern "C"
         int (*commit_undo)(void *, void *undo);
         void (*release_undo)(void *, void *undo), (*clear_undo)(void *), (*not_undoable)(void *);
         void (*diagnostic)(void *, int issue);
+        const struct MMMovieSaveServices *working_save;
     } MMSceneContentServices;
     /* Event and selection services refer to the same initialized scene owner.
      * Valid object inputs are required. Start groups own

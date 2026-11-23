@@ -7,6 +7,11 @@
 class MovieSaveProbe
 {
   public:
+    using SaveHost = Movie::SaveHost;
+    static MMMovieSaveServices SaveServices(SaveHost *host)
+    {
+        return host->movie->_SaveServices(host);
+    }
     static void Container(PMovie movie, MMMovieContainer container)
     {
         movie->_save.container = container;

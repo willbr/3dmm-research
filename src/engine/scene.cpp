@@ -2280,53 +2280,6 @@ void Scene::MarkDirty(bool fDirty)
 
 /****************************************************
  *
- * This routine pastes an actor into the current scene
- *
- * Parameters:
- *  pactr - Pointer to the actor to paste
- *
- * Returns:
- *  fTrue if successful, else fFalse.
- *
- ****************************************************/
-bool Scene::FPasteActrCore(PActor actor)
-{
-    AssertThis(0);
-    auto s = _ContentServices();
-    return mm_scene_actor_paste(actor, &s) != 0;
-}
-
-/****************************************************
- *
- * This routine pastes an actor into the current scene
- * and creates an undo object for the action.
- *
- * NOTE: This does not need an undo object, since the
- * tool is getting set to a "place" tool, which will
- * create the appropriate undo type.
- *
- * Parameters:
- *  pactr - Pointer to the actor to paste
- *
- * Returns:
- *  fTrue if successful, else fFalse.
- *
- ****************************************************/
-bool Scene::FPasteActr(PActor pactr)
-{
-    AssertThis(0);
-    AssertPo(pactr, 0);
-
-    if (!FPasteActrCore(pactr))
-    {
-        return (fFalse);
-    }
-
-    return (fTrue);
-}
-
-/****************************************************
- *
  * This routine makes all actors go to a specific frame.
  *
  * Parameters:

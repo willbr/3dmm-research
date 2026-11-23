@@ -24,6 +24,16 @@ static int fail(MMActorOwnerResult *out, const MMActorOwnerServices *s)
     return 0;
 }
 
+static int resolve_sound(void *scene, MMActorSound *sound, const MMActorCopyServices *s)
+{
+    if (s->movie_sound)
+    {
+        const MMMovieSoundServices movie = s->movie_sound(scene);
+        return mm_movie_sound_resolve(&sound->tag, sound->child, MM_SOUND_NO_SCENE, NULL, &movie);
+    }
+    return s->resolve_sound(s->context, sound);
+}
+
 static int insert(MMActorOwner *target, MMActorEventTable *source, MMI32 i, MMI32 added,
                   const void *replacement, const MMActorEvent *event, const MMActorEditServices *edits)
 {
@@ -76,7 +86,7 @@ int mm_actor_copy(MMActorOwner *source, int entire, int postponed,
             break;
         case MM_ACTOR_SOUND:
             mm_actor_events_get_payload(events, i, &sound);
-            if (!s->resolve_sound(s->context, &sound))
+            if (!resolve_sound(source->runtime.scene, &sound, s))
                 return fail(out, owner);
             mm_actor_events_set_payload(events, i, &sound);
             if (sound.cel == -1 && i >= state.firstEventInFrame)

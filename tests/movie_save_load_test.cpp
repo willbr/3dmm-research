@@ -442,7 +442,10 @@ class TrackTestActor : public Actor
         _owner.runtime.origin={BR_SCALAR(30),BR_SCALAR(31),BR_SCALAR(32)}; _owner.runtime.first=1; _owner.runtime.last=20; _owner.runtime.life_dirty=(mode&4)!=0;
         if (!scene->TrackActor(this,3)) return false;
         const long frame=(mode%3)==0?1:(mode%3)==1?10:-3;
-        const auto services = _PasteServices();
+        MovieSaveProbe::SaveHost host(scene->Pmvie());
+        const auto save = MovieSaveProbe::SaveServices(&host);
+        auto services = _PasteServices();
+        services.working_save = &save;
         bool pasted=mm_actor_paste(&_owner,frame,scene,&services)!=0; vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,pasted,_owner.runtime.first,_owner.runtime.last,_owner.runtime.life_dirty,_owner.runtime.state.frame,_owner.runtime.state.nextEvent,

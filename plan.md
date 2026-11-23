@@ -2274,6 +2274,10 @@ obtain the archive writer and graph from the live resource cache.
 Studio sound copy and import, material insertion, and 3D text authoring use
 the same C89 working-save services. Sound links and tags read the live C89
 movie and scene state. The host supplies audio decoding and file operations.
+Actor clipboard paste calls the C89 scene and movie edit controllers directly.
+It uses the working save for local 3D text and the live C89 sound bindings
+for source resolution and destination adoption. The clipboard controller also
+handles roll-call naming and removes the pasted actor on rename failure.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

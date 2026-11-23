@@ -27,6 +27,7 @@ typedef struct MMActorPasteServices
     unsigned short (*camera_yaw)(void *,void *scene);
     void (*dirty)(void *,void *scene);
     void (*diagnostic)(void *,int);
+    const struct MMMovieSaveServices *working_save;
 } MMActorPasteServices;
 /* Paste an already copied actor. Tables must contain an initial route point and
  * a first Add event with native actor payload layouts. A non-Add first event
@@ -34,6 +35,8 @@ typedef struct MMActorPasteServices
  * diagnoses the legacy assertion at that point. migrate_text selects BUG1888.
  *
  * C owns template transfer/ownership, positioning, retiming and sound adoption.
+ * Template transfer prepares the destination working save, or uses the
+ * alternate cache callback. A null is_text tests the live template owner.
  * The tag service redirects a duplicated tag to the destination cache. Failed
  * save/fetch closes that duplicate; successful transfer closes the old tag and
  * releases the old template before publishing the new template pointer.

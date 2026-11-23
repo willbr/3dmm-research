@@ -108,8 +108,8 @@ extern "C"
                                            const MMMovieSaveState *);
     int mm_movie_save_temporary(const MMMovieSaveServices *);
     int mm_movie_save_resources(const MMMovieSaveServices *);
-    int mm_movie_save_ensure(void *output, void (*publish)(void *, void *resources),
-                                   const MMMovieSaveServices *);
+    /* Publish the working cache before switching it to a temporary file. */
+    int mm_movie_save_ensure(MMResourceCache **output, const MMMovieSaveServices *);
     int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices *);
     int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *);
     int mm_movie_needs_container(const MMMovieSaveServices *);

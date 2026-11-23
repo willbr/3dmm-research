@@ -259,7 +259,7 @@ int mm_movie_sound_copy(void *source_cache, MMU32 number, MMU32 *output, const M
     MMChunkFileCopy target_binding;
     MMChunkEndpoint from, to;
     int status;
-    if (!(s->working_save ? mm_movie_save_ensure(NULL, NULL, s->working_save) : s->ensure_autosave(s->context)))
+    if (!(s->working_save ? mm_movie_save_ensure(NULL, s->working_save) : s->ensure_autosave(s->context)))
         return 0;
     read_sound_state(s, &state);
     from = s->tags->bind_cache(source_cache, &source_binding);

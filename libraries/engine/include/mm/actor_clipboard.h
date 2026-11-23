@@ -27,6 +27,7 @@ typedef struct MMActorClipboardServices
     int (*paste_actor)(void *,void *movie,void *actor);
     int (*rename)(void *, void *movie, MMI32 actor, const void *name, MMI32 count);
     void (*remove)(void *,void *movie,MMI32 actor);
+    const struct MMMovieEditServices *movie_edit;
 } MMActorClipboardServices;
 /* The document factory returns initialized storage with a native code unit of
  * one or two bytes. The name callbacks fill borrowed scratch strings.
@@ -48,6 +49,8 @@ void mm_actor_clipboard_dispose(MMActorClipboard *, const MMActorOwnerServices *
 /* Borrow the stored native code units and their count, including embedded zeros. */
 const void *mm_actor_clipboard_name(const MMActorClipboard *, MMI32 *count);
 /* Route paste returns directly. Full paste duplicates, pastes, then renames.
+ * An initialized movie edit binding supplies the live scene, roll call and
+ * placement for paste. Alternate hosts can supply the individual callbacks.
  * Rename failure removes the new actor before releasing the duplicate. IDs are
  * queried separately for rename and removal, retaining native callback order.
  * The stored actor/name remain borrowed and unchanged throughout paste. */

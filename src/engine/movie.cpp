@@ -571,7 +571,6 @@ MMMovieEditServices Movie::_EditServices()
     };
     s.place_actor = [](void *p, int entire) { static_cast<PMovieView>(p)->StartPlaceActor(entire != 0); };
     s.placement_undo = [](void *p, void *owned) { static_cast<PMovieView>(p)->SetActrUndo(static_cast<PActor>(owned)); };
-    s.paste_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FPasteActr(static_cast<PActor>(actor)); };
     s.route_paste = [](void *p) { return static_cast<PActor>(p)->_RoutePasteServices(); };
     s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
     s.cache_tag = [](void *, const MMTag *value, int background) -> int {
@@ -1219,9 +1218,7 @@ bool Movie::FEnsureAutosave(MMResourceCache **ppcrf)
     AssertThis(0);
     SaveHost host(this);
     auto services = _SaveServices(&host);
-    return mm_movie_save_ensure(ppcrf, ppcrf ? +[](void *output, void *resources) {
-        *static_cast<MMResourceCache **>(output) = static_cast<MMResourceCache *>(resources);
-    } : nullptr, &services) != 0;
+    return mm_movie_save_ensure(ppcrf, &services) != 0;
 }
 
 /****************************************************
@@ -2645,40 +2642,19 @@ bool Movie::FSetTransition(TRANS trans)
     return mm_movie_edit_scene(MM_MOVIE_EDIT_TRANSITION, &q, &services) != 0;
 }
 
-/***************************************************************************
- *
- * This pastes an actor into the movie.
- *
- * Parameters:
- *	pactr - A pointer to the actor to paste.
- *
- * Returns:
- *  fTrue if successful, else fFalse.
- *
- **************************************************************************/
-bool Movie::FPasteActr(PActor pactr)
+bool Movie::_FPasteActorClipboard(const MMActorClipboard &clipboard)
 {
-    AssertThis(0); AssertPo(pactr, 0); AssertPo(Pscen(), 0);
-    const auto services = _EditServices();
-    return mm_movie_paste_actor(pactr, &services) != 0;
-}
-
-/***************************************************************************
- *
- * This pastes an actor path onto the selected actor.
- *
- * Parameters:
- *	pactr - A pointer to the actor to paste from.
- *
- * Returns:
- *  fTrue if successful, else fFalse.
- *
- **************************************************************************/
-bool Movie::FPasteActrPath(PActor pactr)
-{
-    AssertThis(0); AssertPo(pactr, 0); AssertPo(Pscen(), 0);
-    const auto services = _EditServices();
-    return mm_movie_paste_route(pactr, &services) != 0;
+    AssertThis(0);
+    AssertPo(Pscen(), 0);
+    SaveHost host(this);
+    const auto save = _SaveServices(&host);
+    auto scene = Pscen()->_ContentServices();
+    scene.working_save = &save;
+    auto edit = _EditServices();
+    edit.paste_scene = &scene;
+    MMActorClipboardServices services = {};
+    services.movie_edit = &edit;
+    return mm_actor_clipboard_paste(&clipboard, this, &edit.actors, &services) != 0;
 }
 
 /***************************************************************************

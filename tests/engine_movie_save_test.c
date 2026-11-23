@@ -103,6 +103,7 @@ struct Test
     MMU32 materials[16], templates[16], materialChild, materialParent, materialFlags, materialReferences;
     int materialCount, templateCount, tossed, deletedChunks, allocations, failAlloc, liveAlloc;
     MMResourceCache assetCache;
+    MMResourceCache *published;
     MMReference assetCacheRefs;
     int assetFileRefs;
     MMSourceNames sourceNames;
@@ -1236,11 +1237,11 @@ static int autosaving(void)
     CHECK(!mm_movie_autosave(0, 0, &t.s) && !t.begins);
     return 0;
 }
-static void publish(void *p, void *resources_value)
+static void *temporary_after_publication(void *p)
 {
     Test *t = p;
-    if (resources_value == t)
-        event(t, PUBLICATION);
+    assert(t->published == t->data.resources);
+    return temporary(p);
 }
 static int ownership(void)
 {
@@ -1277,7 +1278,8 @@ static int ownership(void)
     t.temp = 0;
     t.fail = PATH;
     t.left = 1;
-    CHECK(!mm_movie_save_ensure(&t, publish, &t.s) && t.events[0] == PUBLICATION && !t.begins);
+    t.s.temporary_path = temporary_after_publication;
+    CHECK(!mm_movie_save_ensure(&t.published, &t.s) && t.published == t.data.resources && !t.begins);
     init(&t);
     t.temp = 0;
     t.changeSavedRoot = 1;

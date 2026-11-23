@@ -78,6 +78,7 @@ extern "C"
         void (*release_sound)(void *sound);
         void (*dirty)(void *), (*invalidate)(void *, int scrollbars), (*actor_nuked)(void *),
             (*diagnostic)(void *, int);
+        const struct MMSceneContentServices *paste_scene;
     } MMMovieEditServices;
 
     enum

@@ -3,11 +3,6 @@
 #include "mm/movie_content.h"
 #include "mm/movie_save.h"
 
-static void publish_resources(void *output, void *resources)
-{
-    *(MMResourceCache **)output = resources;
-}
-
 int mm_movie_insert_material(MMMaterialOwner *material, MMTag *output, int *written,
                                    const MMMovieContentServices *s)
 {
@@ -15,7 +10,7 @@ int mm_movie_insert_material(MMMaterialOwner *material, MMTag *output, int *writ
     MMArchiveWriter archive;
     MMU32 number;
     *written = 0;
-    if (!(s->working_save ? mm_movie_save_ensure(&resources, publish_resources, s->working_save)
+    if (!(s->working_save ? mm_movie_save_ensure(&resources, s->working_save)
                           : s->ensure(s->edit.context, &resources)))
         return 0;
     archive = mm_resource_cache_writer(resources);

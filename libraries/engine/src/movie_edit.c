@@ -4,6 +4,7 @@
 #include "mm/actor_motion.h"
 #include "mm/actor_transform_edit.h"
 #include "mm/actor_undo.h"
+#include "mm/scene_content.h"
 #include "mm/scene_selection.h"
 #include "mm/wide.h"
 static void changed(int bars, const MMMovieEditServices *s)
@@ -361,7 +362,9 @@ int mm_movie_edit_scene(int kind, const MMMovieEditRequest *input, const MMMovie
 int mm_movie_paste_actor(void *actor, const MMMovieEditServices *s)
 {
     void *view = s->first_view(s->context);
-    if (!view || !s->paste_actor(s->scenes->open, actor))
+    if (!view)
+        return 0;
+    if (!(s->paste_scene ? mm_scene_actor_paste(actor, s->paste_scene) : s->paste_actor(s->scenes->open, actor)))
         return 0;
     s->select_actor(s->scenes->open, actor);
     s->place_actor(view, 1);

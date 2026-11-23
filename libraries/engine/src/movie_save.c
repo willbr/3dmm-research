@@ -125,13 +125,12 @@ int mm_movie_save_resources(const MMMovieSaveServices *s)
     s->state->autosaveDirty = 1;
     return mm_movie_autosave(0, 0, s);
 }
-int mm_movie_save_ensure(void *output, void (*publish)(void *, void *resources),
-                               const MMMovieSaveServices *s)
+int mm_movie_save_ensure(MMResourceCache **output, const MMMovieSaveServices *s)
 {
     if (!mm_movie_save_resources(s))
         return 0;
-    if (publish)
-        publish(output, s->data->resources);
+    if (output)
+        *output = s->data->resources;
     return mm_movie_save_temporary(s);
 }
 static int clean_actors(const MMMovieSaveServices *s)

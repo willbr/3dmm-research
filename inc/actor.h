@@ -412,7 +412,7 @@ class ActorClipboard : public ActorClipboard_PAR
 
   protected:
     MMActorClipboard _clipboard;
-    static MMActorClipboardServices _Services();
+    static MMActorClipboardServices _CreateServices();
 
     ActorClipboard(void)
     {
