@@ -24566,3 +24566,35 @@ reproduced 60 dissolve seeks and 59 steady observations per port. The
 settled dissolve canvas matched retail and V3DMM.
 
 Evidence is under `tmp/c89-body-owner`.
+
+## C89 portfolio previews and scrolling clock (23 November 2026)
+
+The C89 picker policy opens a movie cache, reads its first scene thumbnail
+and tries the bitmap import when requested. Both Studio hosts supply native
+paths, bitmap palette services and error-stack isolation. C89 also edits
+the counted save extension with rollback on overflow. The scrolling
+regression calls the same C89 clock as Studio and Marcus. The C++ portfolio
+data and scroll modules are out of the engine build.
+
+Both the native Windows and SDL Studio applications built and linked.
+The portfolio fixture exercised the first scene thumbnail, bitmap fallback,
+an undisturbed pending error, and save-extension overflow. Its two-byte
+name case reached the maximum length and preserved all characters when an
+append would exceed it.
+
+The 227 native suite checks and 18 SDL checks passed, including the
+strict C89 checks. The x86 portfolio and core-link checks and all three
+worker fixtures passed. The nine body, template, text and movie traces
+matched byte for byte. The native tag lifecycle trace, all eight scene
+traces, both SDL movie traces and all ten Preview fingerprints matched.
+Marcus relaunched headlessly with the same startup image. The separate
+`scene-load` debug assertion reproduced the same 63,224-byte trace and
+fingerprint `0D666753`. Studio's authored movie matched all 27,056 bytes.
+
+All four headless port runs of Text Acid completed in
+`20261123T144422Z-ae2354e4`. Each port matched its previous 240 seek
+canvases and caption/camera states, and its 371 playback presentations
+after removing consecutive duplicates. All 240 authored frames followed
+the retained retail and V3DMM order in seek and continuous playback.
+
+Evidence is under `tmp/c89-portfolio-core`.

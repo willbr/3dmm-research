@@ -1142,8 +1142,7 @@ static void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, SystemRec
     CommDlg_OpenSave_GetSpec(GetParent(hwndCustom), file, sizeof(file));
     if (!CchSz(file))
         return;
-    // Path resolution stays with the native picker; loading/decoding is shared
-    // with the SDL host and requires no window, graphics port or Windows SDK.
+    // Both pickers use the same archive and bitmap preview loader.
     String path;
     path.SetSz(file);
     auto bitmap = StudioPortfolio::LoadPreviewPath(&path, portfolio->grfPrevType);

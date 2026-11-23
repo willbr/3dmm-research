@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "portfolio_data.h"
+#include "mm/portfolio.h"
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error Portfolio data tests must run without the Windows SDK
 #endif
@@ -108,6 +109,22 @@ int main(int argc, char **argv)
     String unchanged = name;
     CHECK(!StudioPortfolio::AppendSaveExtension(&name, PszLit("3mm"), true));
     CHECK(name.FEqual(&unchanged));
+
+    unsigned short wide[257] = {};
+    unsigned short stem[252];
+    for (auto &unit : stem)
+        unit = 0x03c0;
+    const unsigned short extension[] = {'3', 'm', 'm'};
+    const MMStringValue wideName = {wide, sizeof(*wide)};
+    mm_string_value_set(&wideName, stem, 252);
+    CHECK(!mm_portfolio_append_extension(&wideName, extension, 3));
+    CHECK(mm_string_value_equal(&wideName, stem, 252));
+    mm_string_value_set(&wideName, stem, 251);
+    CHECK(mm_portfolio_append_extension(&wideName, extension, 3));
+    CHECK(wide[0] == 255 && wide[252] == '.' && wide[253] == '3' && wide[255] == 'm' && wide[256] == 0);
+    mm_portfolio_remove_extension(&wideName);
+    CHECK(mm_string_value_equal(&wideName, stem, 251));
+
     CHECK(movie.FDelete() && texture.FDelete());
     std::puts("Portfolio data: movie thumbnail pixels, BMP fallback, quiet failures, legacy save suffixes and "
               "transactional overflow passed without UI/SDK services.");

@@ -1220,8 +1220,6 @@ target_link_libraries(brender
 add_library(engine-core)
 target_sources(engine-core
     PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/engine/portfolio_data.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
 )
 target_include_directories(engine-core PUBLIC
@@ -1308,8 +1306,11 @@ target_link_libraries(preview-actor-tree-test PRIVATE MM::Preview engine-core)
 add_custom_target(preview-checks DEPENDS preview-api-test preview-scene-test preview-session-test preview-metadata-test preview-media-test text-store-test preview-background-test
   preview-background-mesh-test preview-actor-tree-test preview-scene-fixture)
 add_executable(mbmp-pixels-test EXCLUDE_FROM_ALL tests/mbmp_pixels_test.cpp)
+add_library(studio-portfolio-data STATIC src/studio/portfolio_data_host.cpp)
+target_include_directories(studio-portfolio-data PUBLIC "${PROJECT_SOURCE_DIR}/inc")
+target_link_libraries(studio-portfolio-data PUBLIC kauai-core)
 add_executable(portfolio-data-test EXCLUDE_FROM_ALL tests/portfolio_data_test.cpp)
-target_link_libraries(portfolio-data-test PRIVATE engine-core)
+target_link_libraries(portfolio-data-test PRIVATE studio-portfolio-data)
 target_link_libraries(mbmp-pixels-test PRIVATE kauai-core)
 add_executable(archive-api-test EXCLUDE_FROM_ALL tests/archive_api_test.cpp tests/archive_api_include_order.cpp)
 target_link_libraries(archive-api-test PRIVATE MM::Archive)
@@ -1421,7 +1422,7 @@ target_chomp_sources(studio
   "${PROJECT_SOURCE_DIR}/src/shared/shared.cht"
   "${PROJECT_SOURCE_DIR}/src/shared/sharecd.cht")
 
-target_link_libraries(studio PRIVATE engine studio-content studio-mcp-io)
+target_link_libraries(studio PRIVATE engine studio-content studio-mcp-io studio-portfolio-data)
 if(STUDIO_SDL3)
   target_sources(studio PRIVATE src/studio/iso_bootstrap.cpp src/studio/embedded_midi.cpp)
   target_link_libraries(studio PRIVATE studio-iso-cache SDL3::SDL3-static kauai-compressed-wave)

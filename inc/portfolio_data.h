@@ -6,7 +6,7 @@
 namespace StudioPortfolio
 {
 // UI-thread operation: preview failures are isolated from the application's
-// error stack. Returns an owned bitmap (ReleasePpo), or null for no preview.
+// error stack. Returns an owned bitmap (ReleaseMaskedBitmap), or null for no preview.
 // Preserves movie-first / bitmap-second priority; sound has no visual preview.
 // Indexed pixels use the caller's Studio palette, including BMP previews.
 PMaskedBitmapMBMP LoadPreview(Filename *selection, LegacyUlong previews);

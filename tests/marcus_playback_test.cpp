@@ -12,7 +12,6 @@
 #include "playback.h"
 #include "storyboard.h"
 #include "timing_job.h"
-#include "retail_scroll.h"
 #include "mm/pixel_raster.h"
 #include "mm/playback.h"
 #include <miniz.h>
@@ -94,29 +93,30 @@ void MismatchedTiming(const char *path, const char *resources, const char *conte
 }
 void RetailScrollSteps()
 {
-    RetailScrollPlayback clock;
-    auto update = clock.Update(10000, true);
+    MMScrollPlayback clock;
+    mm_scroll_reset(&clock);
+    auto update = mm_scroll_update(&clock, 10000, 1);
     CHECK(update.holding && !update.step); // Entry arms an alarm, not a jump.
-    CHECK(!clock.Update(83, true).step);
-    CHECK(clock.Update(1, true).step);
-    update = clock.Update(10000, true);
+    CHECK(!mm_scroll_update(&clock, 83, 1).step);
+    CHECK(mm_scroll_update(&clock, 1, 1).step);
+    update = mm_scroll_update(&clock, 10000, 1);
     CHECK(update.step && update.holding); // A late callback moves one pixel.
-    CHECK(!clock.Update(0, true).step); // No accumulated catch-up debt.
-    CHECK(!clock.Update(83, true).step);
-    CHECK(clock.Update(1, true).step);
-    update = clock.Update(0, false); // Final pixel still has a pending alarm.
+    CHECK(!mm_scroll_update(&clock, 0, 1).step); // No accumulated catch-up debt.
+    CHECK(!mm_scroll_update(&clock, 83, 1).step);
+    CHECK(mm_scroll_update(&clock, 1, 1).step);
+    update = mm_scroll_update(&clock, 0, 0); // Final pixel still has a pending alarm.
     CHECK(update.holding && !update.step);
-    CHECK(clock.Update(83, false).holding);
-    update = clock.Update(1, false);
+    CHECK(mm_scroll_update(&clock, 83, 0).holding);
+    update = mm_scroll_update(&clock, 1, 0);
     CHECK(!update.holding && !update.step);
-    CHECK(!clock.Update(10000, true).step); // Completed frame stays completed.
-    clock.Reset();
-    CHECK(!clock.Update(0, false).holding); // No overflow requires no hold.
-    clock.Reset();
-    CHECK(clock.Update(0, true).holding);
-    CHECK(clock.Update(84, true).step); // Rewind starts at the first step.
-    CHECK(std::abs(RetailScrollPlayback::NominalSeconds(3) - 4.0 / 12) < 1e-9);
-    CHECK(RetailScrollPlayback::NominalSeconds(0) == 0);
+    CHECK(!mm_scroll_update(&clock, 10000, 1).step); // Completed frame stays completed.
+    mm_scroll_reset(&clock);
+    CHECK(!mm_scroll_update(&clock, 0, 0).holding); // No overflow requires no hold.
+    mm_scroll_reset(&clock);
+    CHECK(mm_scroll_update(&clock, 0, 1).holding);
+    CHECK(mm_scroll_update(&clock, 84, 1).step); // Rewind starts at the first step.
+    CHECK(std::abs(mm_scroll_nominal_seconds(3) - 4.0 / 12) < 1e-9);
+    CHECK(mm_scroll_nominal_seconds(0) == 0);
 }
 void WaveformPeaks()
 {

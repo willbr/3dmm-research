@@ -2245,6 +2245,11 @@ native font mapping call, so buffer relocation keeps the mapped ID current.
 The stored rich-text path also owns its property and argument tables
 directly in C89. The archive binding uses the same collection codec for
 Studio, Preview and Marcus, including authored byte order.
+Both Studio file pickers use C89 to select the first scene thumbnail or
+bitmap fallback and to edit the save extension. The native host supplies
+the selected path, bitmap palette and scoped error stack. The scrolling
+regression calls the same C89 playback clock used by Studio and Marcus.
+The C++ portfolio data and scroll modules are out of the engine build.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
