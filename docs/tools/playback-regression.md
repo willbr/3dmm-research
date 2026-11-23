@@ -25088,3 +25088,37 @@ port matched its retained capture for the entire 100 ms WAVE cue and first
 
 Evidence is under `tmp/c89-shared-sdl-output`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 SoundFont MIDI and SDL stream reuse (23 November 2026)
+
+The SoundFont bank loader, synthesizer, and locked MIDI sequencer build in
+C89. Studio MIDI opens and closes the shared SDL output stream through the
+same owner used for PCM and Marcus movie audio. The Studio host returns
+borrowed buffers outside the sequencer lock. Marcus movie audio uses the
+C89 synthesis callbacks directly.
+
+A C-only synthesis probe played all 128 General MIDI programs and 47 standard
+percussion notes. Its float PCM fingerprint `B605C16B` matched a probe built
+from the preceding C++ synthesizer with the same instrument bank. The x64
+MIDI scheduling trace retained `28316524`. The x86 MIDI and SoundFont checks
+passed. The real-bank fixture checks alignment, rejects bank replacement
+while a buffer is queued or awaiting return, and checks seek prefixes,
+repeats, and fractional sample carry. SDL
+checks buffer return tags, refusal to deactivate with pending audio,
+stop, and successful device reopen.
+
+The 228 selected native, 48 SDL, five focused SDL audio, and 23 standalone
+C89 checks passed, along with all 16 strict syntax checks. Classic Studio
+rebuilt and the external consumer passed. The native save/load and scene
+traces, headless Marcus startup canvas, and SDL authoring and VMM outputs
+matched their baselines.
+
+Fresh suite `20261123T175138Z-e70a3c8a` completed eight captures. Replay suite
+`20261123T175312Z-6e4d7e27` completed four. All input hashes were verified.
+Actor Audio matched all 60 frame positions and 60 camera indices and 59 seek
+canvases against retained retail and V3DMM runs. Both ports reproduced the
+PCM16 peak of 4,081 in both modes. The embedded MIDI fixture reproduced each
+port's retained 100 ms WAVE cue and first 400 ms of MIDI sample for sample.
+
+Evidence is under `tmp/c89-midi-host`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

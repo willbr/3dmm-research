@@ -6,6 +6,10 @@
 namespace KauaiMidi
 {
 StreamHost *CreateSDLStreamHost(Completion completion, std::uintptr_t user);
+struct RenderStats
+{
+    std::uint64_t queued = 0, completed = 0, messages = 0, notes = 0, frames = 0, audibleFrames = 0;
+};
 struct SDLStats
 {
     bool attempted = false, loaded = false, active = false;

@@ -1,40 +1,24 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef KAUAI_MIDI_RENDER_H
 #define KAUAI_MIDI_RENDER_H
-#include "midi_events.h"
-#include <cstddef>
-#include <memory>
-namespace KauaiMidi
-{
-struct RenderStats
-{
-    std::uint64_t queued = 0, completed = 0, messages = 0, notes = 0, frames = 0, audibleFrames = 0;
-};
-struct ReturnedBuffer
-{
-    void *data = nullptr;
-    std::uintptr_t tag = 0;
-};
-// Frame-clock sequencer. Render never allocates or calls client code. Producer
-// methods and returned-buffer draining synchronize with Render internally.
-class Renderer
-{
-    struct Impl;
-    std::unique_ptr<Impl> impl;
+#include "mm/midi_render.h"
 
-  public:
-    Renderer();
-    ~Renderer();
-    bool Load(const void *bank, std::size_t bytes, int sampleRate);
-    bool Queue(void *data, std::int32_t bytes, std::int32_t offset, std::int32_t repeats, std::uintptr_t tag);
-    bool Render(float *stereo, std::size_t frames); // True if buffers await return.
-    void Stop();
-    bool Reset();         // Fresh device state; requires no borrowed buffers awaiting return.
-    void SilenceIfIdle(); // Call after delivering completions, which may queue more data.
-    bool PopReturned(ReturnedBuffer &buffer);
-    bool Pending() const;
-    void SetVolume(float volume);
-    RenderStats Stats() const;
-};
-} // namespace KauaiMidi
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct MMMidiDeviceRenderer MMMidiDeviceRenderer;
+MMMidiDeviceRenderer *mm_midi_device_renderer_create(void);
+/* Stop the device and its completion worker before destroying the renderer. */
+void mm_midi_device_renderer_destroy(MMMidiDeviceRenderer *);
+/* Borrow the sequencer under its native recursive lock. Rendering never
+ * allocates or invokes a client completion. Deliver returns after leave. */
+MMMidiRenderer *mm_midi_device_renderer_enter(MMMidiDeviceRenderer *);
+void mm_midi_device_renderer_leave(MMMidiDeviceRenderer *);
+/* Requires no pending or returned buffers. Failure preserves the bank and clock. */
+int mm_midi_device_renderer_load(MMMidiDeviceRenderer *, const void *bank, size_t bytes, int rate);
+int mm_midi_device_renderer_queue(MMMidiDeviceRenderer *, void *data, MMI32 bytes,
+                                  MMI32 offset, MMI32 repeats, size_t tag);
+#ifdef __cplusplus
+}
+#endif
 #endif

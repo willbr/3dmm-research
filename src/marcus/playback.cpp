@@ -111,16 +111,10 @@ int CreateAudioSynth(void *p, MMMovieAudioSynth *out)
     {
         std::size_t bytes;
         const auto bank = marcus_playback_audio_bank(ctx.audio, &bytes);
-        auto synth = std::make_unique<KauaiMidi::Synth>();
-        if (!synth->Load(bank, bytes, MARCUS_PLAYBACK_AUDIO_RATE))
+        auto synth = mm_midi_synth_load(bank, bytes, MARCUS_PLAYBACK_AUDIO_RATE);
+        if (!synth)
             return Fail(ctx.error, "Cannot load the General MIDI instrument bank (assets/GeneralUserGS.sf2).");
-        *out = {synth.release(),
-            [](void *p) { delete static_cast<KauaiMidi::Synth *>(p); },
-            [](void *p, MMU32 message) { static_cast<KauaiMidi::Synth *>(p)->Message(message); },
-            [](void *p, float *output, std::size_t frames) {
-                static_cast<KauaiMidi::Synth *>(p)->Render(output, frames);
-            },
-            [](void *p) { static_cast<KauaiMidi::Synth *>(p)->Reset(); }};
+        *out = {synth, mm_midi_synth_destroy, mm_midi_synth_message, mm_midi_synth_render, mm_midi_synth_reset};
         return 1;
     }
     catch (...) { ctx.failure = std::current_exception(); return 0; }

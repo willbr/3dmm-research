@@ -2299,6 +2299,11 @@ Studio PCM playback and recording preview share a C89 SDL output service
 with Marcus movie audio. The PCM mixer owns its native recursive lock and
 reads active Studio sound queue entries directly when publishing voices.
 Studio's host supplies the decoded sample lookup.
+Studio SDL MIDI uses the shared output service for stream open, clear, close,
+and reopen. C89 owns the SoundFont synthesizer and the locked MIDI sequencer.
+Marcus creates its movie MIDI voices through the same C89 bank loader and
+synthesizer. The Studio binding returns borrowed buffers on its completion
+worker after releasing the sequencer lock.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

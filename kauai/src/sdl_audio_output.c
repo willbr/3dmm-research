@@ -77,7 +77,7 @@ void mm_sdl_audio_output_destroy(MMSdlAudioOutput *output)
 {
     if (!output)
         return;
-    SDL_DestroyAudioStream(output->stream);
+    mm_sdl_audio_output_close(output);
     if (output->initialized)
         SDL_QuitSubSystem(SDL_INIT_AUDIO);
     mm_audio_device_mixer_destroy(output->mixer);
@@ -106,9 +106,14 @@ int mm_sdl_audio_output_open(MMSdlAudioOutput *output, void *error_context, MMSd
         return 1;
     if (error)
         error(error_context, 0, SDL_GetError());
+    mm_sdl_audio_output_close(output);
+    return 0;
+}
+
+void mm_sdl_audio_output_close(MMSdlAudioOutput *output)
+{
     SDL_DestroyAudioStream(output->stream);
     output->stream = NULL;
-    return 0;
 }
 
 void mm_sdl_audio_output_clear(MMSdlAudioOutput *output)

@@ -3,7 +3,6 @@
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <cstdio>
 #include <memory>
@@ -11,6 +10,7 @@
 #include <string>
 #include "midi_worker.h"
 #include "midi_sdl.h"
+#include "sdl_audio_output.h"
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error SDL MIDI must not import the Windows SDK
 #endif
@@ -19,10 +19,24 @@ namespace KauaiMidi
 {
 namespace
 {
-constexpr int sampleRate = 48000;
+class RendererLock
+{
+    MMMidiDeviceRenderer *device;
+    MMMidiRenderer *core;
+
+  public:
+    explicit RendererLock(MMMidiDeviceRenderer *renderer)
+        : device(renderer), core(mm_midi_device_renderer_enter(renderer)) {}
+    ~RendererLock() { mm_midi_device_renderer_leave(device); }
+    RendererLock(const RendererLock &) = delete;
+    RendererLock &operator=(const RendererLock &) = delete;
+    MMMidiRenderer *Get() const { return core; }
+};
+using AudioOutput = std::unique_ptr<MMSdlAudioOutput, decltype(&mm_sdl_audio_output_destroy)>;
 struct Playback
 {
-    Renderer renderer;
+    std::unique_ptr<MMMidiDeviceRenderer, decltype(&mm_midi_device_renderer_destroy)> renderer{
+        mm_midi_device_renderer_create(), mm_midi_device_renderer_destroy};
     std::atomic<bool> active{false};
     Completion complete;
     std::uintptr_t user;
@@ -30,28 +44,20 @@ struct Playback
     static std::uint32_t ReturnBuffers(void *data)
     {
         auto &self = *static_cast<Playback *>(data);
-        ReturnedBuffer buffer;
-        while (self.renderer.PopReturned(buffer))
-            self.complete(self.user, buffer.data, buffer.tag);
+        void *buffer;
+        std::size_t tag;
+        while (mm_midi_render_pop(RendererLock(self.renderer.get()).Get(), &buffer, &tag))
+            self.complete(self.user, buffer, tag);
         // A seek-state prefix may complete before its main buffer is queued.
         // Deliver callbacks first: the mixer lock orders those submissions.
-        self.renderer.SilenceIfIdle();
+        mm_midi_render_idle(RendererLock(self.renderer.get()).Get());
         return UINT32_MAX;
     }
-    static void SDLCALL Feed(void *data, SDL_AudioStream *stream, int additional, int)
+    static void Render(void *data, float *samples, std::size_t frames)
     {
         auto &self = *static_cast<Playback *>(data);
-        std::array<float, 1024> samples;
-        while (additional > 0)
-        {
-            const auto frames = std::min<std::size_t>(512, (static_cast<std::size_t>(additional) + 7) / 8);
-            if (self.renderer.Render(samples.data(), frames))
-                self.callbacks.Signal();
-            const auto bytes = static_cast<int>(frames * 8);
-            if (!SDL_PutAudioStreamData(stream, samples.data(), bytes))
-                break;
-            additional -= bytes;
-        }
+        if (mm_midi_render(RendererLock(self.renderer.get()).Get(), samples, frames))
+            self.callbacks.Signal();
     }
 };
 std::mutex currentMutex;
@@ -60,21 +66,19 @@ std::atomic<bool> attempted{false};
 class SDLStreamHost : public StreamHost
 {
     std::shared_ptr<Playback> playback;
-    SDL_AudioStream *stream = nullptr;
-    bool initialized = false;
+    AudioOutput output;
     LegacyLong volume = kvlmFull;
 
   public:
-    explicit SDLStreamHost(const std::shared_ptr<Playback> &state) : playback(state)
+    SDLStreamHost(const std::shared_ptr<Playback> &state, AudioOutput device)
+        : playback(state), output(std::move(device))
     {
     }
     ~SDLStreamHost()
     {
-        SDL_DestroyAudioStream(stream);
+        mm_sdl_audio_output_close(output.get());
         playback->active.store(false);
         playback->callbacks.Stop();
-        if (initialized)
-            SDL_QuitSubSystem(SDL_INIT_AUDIO);
     }
     const char *ProviderName() const override
     {
@@ -83,7 +87,7 @@ class SDLStreamHost : public StreamHost
     void SetVlm(LegacyLong value) override
     {
         volume = std::max<LegacyLong>(0, value);
-        playback->renderer.SetVolume(volume / float(kvlmFull));
+        mm_midi_render_volume(RendererLock(playback->renderer.get()).Get(), volume / float(kvlmFull));
     }
     LegacyLong VlmCur() override
     {
@@ -99,46 +103,30 @@ class SDLStreamHost : public StreamHost
             return true;
         if (!active)
         {
-            if (playback->renderer.Pending())
+            if (RendererLock(playback->renderer.get()).Get()->head)
                 return false;
-            SDL_DestroyAudioStream(stream);
-            stream = nullptr;
+            mm_sdl_audio_output_close(output.get());
             playback->active.store(false);
             return true;
         }
         SDL_SetMainReady();
-        if (!playback->renderer.Reset())
+        if (!mm_midi_render_reset(RendererLock(playback->renderer.get()).Get()))
             return false;
-        if (!initialized)
-        {
-            if (!SDL_InitSubSystem(SDL_INIT_AUDIO))
-                return false;
-            initialized = true;
-        }
-        const SDL_AudioSpec spec = {SDL_AUDIO_F32, 2, sampleRate};
-        stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, Playback::Feed, playback.get());
-        if (!stream)
+        if (!mm_sdl_audio_output_open(output.get(), nullptr, nullptr))
             return false;
-        if (!SDL_ResumeAudioStreamDevice(stream))
-        {
-            SDL_DestroyAudioStream(stream);
-            stream = nullptr;
-            return false;
-        }
         playback->active.store(true);
         return true;
     }
     bool FQueueBuffer(void *data, LegacyLong bytes, LegacyLong offset, LegacyLong repeats, std::uintptr_t tag) override
     {
-        return FActive() && playback->renderer.Queue(data, bytes, offset, repeats, tag);
+        return FActive() && mm_midi_device_renderer_queue(playback->renderer.get(), data, bytes, offset, repeats, tag);
     }
     void StopPlaying() override
     {
-        playback->renderer.Stop();
+        mm_midi_render_stop(RendererLock(playback->renderer.get()).Get());
         // Release the renderer mutex before touching SDL's stream lock. Client
         // callbacks run on their own worker, never on SDL's audio thread.
-        if (stream)
-            SDL_ClearAudioStream(stream);
+        mm_sdl_audio_output_clear(output.get());
         playback->callbacks.Signal();
     }
 };
@@ -159,17 +147,22 @@ StreamHost *CreateSDLStreamHost(Completion completion, std::uintptr_t user)
         std::size_t bytes = 0;
         std::unique_ptr<void, decltype(&SDL_free)> bank(SDL_LoadFile(path.c_str(), &bytes), SDL_free);
         auto state = std::make_shared<Playback>();
+        if (!state->renderer)
+            return nullptr;
         state->complete = completion;
         state->user = user;
-        if (!bank || !state->renderer.Load(bank.get(), bytes, sampleRate))
+        if (!bank || !mm_midi_device_renderer_load(state->renderer.get(), bank.get(), bytes, MM_AUDIO_MIX_RATE))
         {
             SDL_SetError("Cannot load a complete General MIDI bank from %s", path.c_str());
             std::fprintf(stderr, "SDL MIDI: %s\n", SDL_GetError());
             return nullptr;
         }
+        AudioOutput output(mm_sdl_audio_output_create(state.get(), Playback::Render, 512), mm_sdl_audio_output_destroy);
+        if (!output)
+            return nullptr;
         if (!state->callbacks.Start(Playback::ReturnBuffers, state.get()))
             return nullptr;
-        auto host = NewObj SDLStreamHost(state);
+        auto host = NewObj SDLStreamHost(state, std::move(output));
         if (!host)
         {
             state->callbacks.Stop();
@@ -197,7 +190,11 @@ SDLStats StudioMidiStats()
     {
         stats.loaded = true;
         stats.active = state->active.load();
-        stats.rendering = state->renderer.Stats();
+        const RendererLock lock(state->renderer.get());
+        const auto r = lock.Get();
+        const auto number = [](MMAudioCounter n) { return (std::uint64_t(n.high) << 32) | n.low; };
+        stats.rendering = {number(r->queued), number(r->completed), number(r->messages),
+                           number(r->notes), number(r->frames), number(r->audible_frames)};
     }
     return stats;
 }

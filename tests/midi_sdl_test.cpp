@@ -66,6 +66,7 @@ int main()
     CHECK(host->FQueueBuffer(mute, sizeof(mute), 0, 1, tag));
     Wait(results, 2);
     CHECK(host->FQueueBuffer(notes, sizeof(notes), 0, 0, tag));
+    CHECK(!host->FActivate(false) && host->FActive());
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     host->StopPlaying();
     Wait(results, 3);

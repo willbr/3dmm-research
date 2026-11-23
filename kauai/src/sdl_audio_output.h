@@ -17,6 +17,8 @@ MMSdlAudioOutput *mm_sdl_audio_output_create(void *context, MMSdlAudioRender, si
 MMSdlAudioOutput *mm_sdl_audio_output_create_mixer(void);
 void mm_sdl_audio_output_destroy(MMSdlAudioOutput *);
 int mm_sdl_audio_output_open(MMSdlAudioOutput *, void *error_context, MMSdlAudioOutputError);
+/* Close the stream and wait for render, keeping SDL initialized for a reopen. */
+void mm_sdl_audio_output_close(MMSdlAudioOutput *);
 /* Do not hold the render callback's lock while clearing the stream. */
 void mm_sdl_audio_output_clear(MMSdlAudioOutput *);
 /* Only the PCM mixer factory supplies a device mixer. */
