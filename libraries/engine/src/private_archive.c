@@ -6,7 +6,9 @@
 #include "mm/handle_memory.h"
 #include "mm/reference.h"
 #include "mm/text_resource.h"
+#include "mm/string_wire.h"
 #include <stdlib.h>
+#include <string.h>
 
 struct MMPrivateArchive
 {
@@ -597,15 +599,32 @@ int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destinat
            mm_chunk_copy(&source_end, &destination_end, type, number, clone, copy) == MM_CHUNK_OK;
 }
 
-int mm_private_archive_store_text_draft(MMPrivateArchive *archive, const MMChunkNameValue *name,
+int mm_private_archive_store_text_draft(MMPrivateArchive *archive, const MMTextAuthorName *name,
                                         const MMTextDescriptor *text, MMU32 creator)
 {
+    unsigned short counted[MM_STRING_MAX + 2], converted[MM_TEXT_NAME_BYTES - 1];
+    MMStringValue value = {0};
     MMArchiveWriter writer;
     MMU32 number;
-    if (!archive->writable)
+    const char *end = memchr(name->legacy, '\0', sizeof(name->legacy));
+    const void *characters = name->legacy;
+    size_t count;
+    if (!archive->writable || !end || end == name->legacy)
         return 0;
+    count = (size_t)(end - name->legacy);
+    value.buffer = counted;
+    value.unit = archive->profile.unit;
+    if (value.unit == 2)
+    {
+        count = mm_text_utf16(NULL, characters, count, MM_TEXT_WINDOWS, converted, MM_TEXT_NAME_BYTES - 1);
+        if (!count)
+            return 0;
+        characters = converted;
+    }
+    mm_string_value_set(&value, characters, (MMI32)count);
     writer = mm_private_archive_writer(archive);
-    return mm_text_write_draft(name, text, &number, &writer) && number == 0 && mm_private_archive_save(archive, creator);
+    return mm_text_write_draft(&value, text, &number, &writer) && number == 0 &&
+           mm_private_archive_save(archive, creator);
 }
 
 int mm_private_archive_bind_font(MMPrivateArchive *archive, const MMChunkEndpoint *source, MMU32 tmpl, MMU32 font)

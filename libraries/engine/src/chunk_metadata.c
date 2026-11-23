@@ -1,6 +1,7 @@
 /* Chunk metadata converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_metadata.h"
+#include "mm/string_wire.h"
 #include <string.h>
 static MMArray runtime_view(MMChunkRuntime *runtime)
 {
@@ -133,6 +134,31 @@ static int name_range(const MMChunkNames *names, MMU32 position, MMU32 *offset, 
     *bytes = entry.variable_bytes - *offset;
     return *bytes <= names->max_bytes;
 }
+int mm_chunk_name_encode(const MMStringValue *value, int encoding, void *wire, MMU32 capacity, MMChunkNameValue *out)
+{
+    const unsigned short order = 1;
+    MMStringWire name = {0};
+    MMChunkNameValue encoded = {NULL, 0, 0};
+    MMU32 size;
+    name.buffer = value->buffer;
+    name.unit = value->unit;
+    name.current_encoding = encoding;
+    name.native_big_endian = *(const unsigned char *)&order == 0;
+    size = mm_string_wire_size(&name);
+    if (!size)
+        return 0;
+    encoded.characters = (size - 2) / name.unit - 2;
+    if (encoded.characters)
+    {
+        if (!mm_string_wire_get(&name, wire, capacity))
+            return 0;
+        encoded.wire = wire;
+        encoded.bytes = size;
+    }
+    *out = encoded;
+    return 1;
+}
+
 int mm_chunk_name_set(const MMChunkNames *names, MMU32 position, const MMChunkNameValue *value)
 {
     MMU32 offset, old_bytes, bytes;

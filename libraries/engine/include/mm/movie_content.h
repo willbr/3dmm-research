@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MOVIE_CONTENT_H
 #define MM_ENGINE_MOVIE_CONTENT_H
 #include "movie_edit.h"
+#include "text_resource.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -12,12 +13,9 @@ extern "C"
         MMMovieEditServices edit;
         int (*ensure)(void *, void **resources), (*make_valid)(void *), (*use_temp)(void *);
         int (*write_material)(void *material, void *resources, MMU32 *number);
-        void *(*new_text)(const void *name, MMI32 shape, const void *font);
-        int (*write_text)(void *text, void *resources, MMU32 *number);
-        void (*release_text)(void *text);
+        const MMTemplateOwnerHost *text_host;
+        MMTextGenerationServices text_generation;
         const MMTagServices *tags;
-        const void *(*name_units)(const void *name, MMU32 *count);
-        MMI32 (*character)(const void *name, MMI32 index);
         int (*change_template)(void *actor, const MMTag *);
         void (*restore_template_edit)(void *actor, void *snapshot); /* Studio template/body checks on rollback. */
         void *(*new_caption)(void *scene, const void *bounds, int story);
@@ -31,8 +29,8 @@ extern "C"
         void (*missing_caption)(void *);
     } MMMovieContentServices;
     /* Initialized synchronous services and stable Movie/Scene owners are required.
-     * Names, bounds and font tags are borrowed host representations; new_text and
-     * new_caption return one owned reference. Scene add retains its own reference.
+     * Counted names, caption bounds and font tags are borrowed. New captions
+     * return one owned reference. Scene add retains its own reference.
      * Authored local tags retain the active document cache. Material output is
      * defined once writing succeeds. Before that it is untouched and written=0
      * (native hosts may poison output).
@@ -47,9 +45,9 @@ extern "C"
      * selection unchanged for negative/out-of-range indexes. */
     int mm_movie_insert_material(void *material, MMTag *output, int *written,
                                        const MMMovieContentServices *);
-    int mm_movie_insert_text(const void *name, MMI32 shape, const void *font,
+    int mm_movie_insert_text(const MMStringValue *name, MMI32 shape, const MMTag *font,
                                    const MMMovieContentServices *);
-    int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void *font,
+    int mm_movie_change_text(void *actor, const MMStringValue *name, MMI32 shape, const MMTag *font,
                                    const MMMovieContentServices *);
     int mm_movie_insert_caption(const void *bounds, int story, const MMMovieContentServices *);
     int mm_movie_remove_caption(int hide, const MMMovieContentServices *);

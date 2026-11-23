@@ -23850,3 +23850,39 @@ Text Acid candidate `20261123T103739Z-2c1ad42d` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-text-edit-owner`.
+
+## C89 3D text archive authoring (23 November 2026)
+
+Studio's movie insertion and replacement transactions create the C89 text
+template, write it through the captured working cache and release it before
+opening the resulting tag. The live template and Marcus draft writers use
+the same counted-name encoder, TMPL header and TDT descriptor codecs.
+The C fixtures exercise the working-cache switch, partial writes, failed
+roll-call insertion and the draft cleanup path.
+
+A C-only consumer saved and reopened accented text with Windows ANSI and
+UTF-16 names. It checked the stored counts, names, descriptor bytes and
+the font reference after reopening both native archives. The native
+279,277-byte resource and 4,392,481-byte generation traces matched the
+previous build. Native and SDL both matched their 91,484-byte movie-content
+traces and passed the movie save/load fixtures.
+
+All 230 selected native checks, 13 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks. The headless
+Marcus startup image matched the previous build.
+
+The edited and copied 3D text saves matched their retained archives byte
+for byte. The rebuilt ports reopened the copied save in
+`20261123T105045Z-a6830044` and matched the single frame and canvas from
+the retail and V3DMM runs in `20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T105027Z-84c626a7` matched baseline
+`20261123T103739Z-262c620b` on all 60 seek canvases and scene states per
+port. Both ports matched the retained retail and V3DMM authored frame order
+in seek and playback.
+
+Text Acid candidate `20261123T105027Z-049fd380` matched baseline
+`20261123T103739Z-2c1ad42d` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-text-archive-writer`.

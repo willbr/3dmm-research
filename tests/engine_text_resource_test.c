@@ -297,15 +297,14 @@ static void wire(void)
     Context c; MMTemplateOwner *o,*loaded; void *tags; MMTag font={-1,NULL,0xfedcba98U,0x87654321U}; MMU32 number; int endian,failure,error;
     TemplateWriterFixture output;
     MMArchiveWriter writer;
-    const MMChunkNameValue name = {"saved",5,5};
     for (endian=0;endian<2;++endian)
     {
         MMStringValue loaded_name;
         init(&c); c.services.host_big_endian=endian; o=create_text(&c,"saved",9,&font); assert(o);
-        writer=writer_fixture(&output,endian,0x1234);
-        assert(mm_text_write(mm_template_owner_state(o),mm_template_owner_descriptor(o),&name,MM_TMPL,&number,&writer) && number==0 && !output.archive.file_refs);
+        writer=writer_fixture(&output,endian,MM_TEXT_WINDOWS);
+        assert(mm_text_write_owner(o, MM_TMPL, &number, &writer) && number==0 && !output.archive.file_refs);
         memcpy(c.wire,output.descriptor,sizeof(c.wire));
-        assert(c.wire[endian?1:0]==1 && c.wire[2]==(endian?0x12:0x34) && c.wire[3]==(endian?0x34:0x12));
+        assert(c.wire[endian?1:0]==1 && c.wire[2]==3 && c.wire[3]==3);
         assert(!c.wire[12] && !c.wire[13] && !c.wire[14] && !c.wire[15]);
         c.source.cache = &c.cache;
         for (failure=0;failure<2;++failure)
@@ -463,7 +462,7 @@ static void drafts(void)
     Context c;
     TemplateWriterFixture normal, saved;
     MMArchiveWriter writer;
-    const MMChunkNameValue name = {"saved", 5, 5};
+    MMStringValue name;
     MMTextDescriptor draft = {9, {123, NULL, 0x54444620UL, 29}};
     MMTemplateState header;
     MMU32 number;
@@ -475,20 +474,20 @@ static void drafts(void)
         c.services.host_big_endian = big;
         object = create_text(&c, "saved", draft.shape, &draft.font);
         assert(object);
+        name = mm_template_owner_name(object);
         for (failure = 1; failure <= 6; ++failure)
         {
-            writer = writer_fixture(&normal, big, 0x1234);
+            writer = writer_fixture(&normal, big, MM_TEXT_WINDOWS);
             normal.fail = failure;
             number = 99;
-            assert(!mm_text_write(mm_template_owner_state(object), mm_template_owner_descriptor(object), &name,
-                                  MM_TMPL, &number, &writer));
+            assert(!mm_text_write_owner(object, MM_TMPL, &number, &writer));
             assert(number == (failure < 3 ? 99U : 0U) && !normal.archive.file_refs);
             assert(normal.archive.index.count == (failure >= 4 ? 1U : 0U));
             if (failure >= 4)
                 assert(normal.archive.index.rows[0].entry.type == MM_TMPL && !normal.archive.index.rows[0].entry.child_count);
             if (failure >= 5)
                 assert(normal.deleted == 1 && normal.last_deleted == MM_TDT);
-            writer = writer_fixture(&saved, big, 0x1234);
+            writer = writer_fixture(&saved, big, MM_TEXT_WINDOWS);
             fixture_chunk_add(&saved.archive.index, MM_GLPI, 0);
             saved.fail = failure;
             number = 99;
@@ -497,16 +496,16 @@ static void drafts(void)
             assert(saved.archive.index.rows[0].entry.type == MM_GLPI);
             assert(saved.deleted == (failure == 1 ? 0 : failure >= 5 ? 2 : 1));
         }
-        writer = writer_fixture(&normal, big, 0x1234);
-        assert(mm_text_write(mm_template_owner_state(object), mm_template_owner_descriptor(object), &name,
-                             MM_TMPL, &number, &writer));
-        mm_template_owner_release(object);
-        writer = writer_fixture(&saved, big, 0x1234);
+        writer = writer_fixture(&normal, big, MM_TEXT_WINDOWS);
+        assert(mm_text_write_owner(object, MM_TMPL, &number, &writer));
+        writer = writer_fixture(&saved, big, MM_TEXT_WINDOWS);
         assert(mm_text_write_draft(&name, &draft, &number, &writer) && number == 0);
+        mm_template_owner_release(object);
         assert(mm_template_decode_header(saved.header, 0, &header));
         assert(!header.x && !header.y && !header.z && header.flags == MM_TEMPLATE_TEXT);
         assert(!memcmp(saved.header, normal.header, sizeof(saved.header)));
         assert(!memcmp(saved.descriptor, normal.descriptor, sizeof(saved.descriptor)));
+        assert(!memcmp(saved.archive.name, "\003\003\005saved", 9));
         assert(!memcmp(saved.archive.name, normal.archive.name, sizeof(saved.archive.name)) && !saved.archive.file_refs && !normal.archive.file_refs);
         localize_font(&saved, draft.font.type);
     }

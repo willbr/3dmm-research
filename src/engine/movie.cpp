@@ -1194,26 +1194,9 @@ MMMovieContentServices Movie::_ContentServices()
         if (ok) *out = number;
         return ok;
     };
-    s.new_text = [](const void *name, MMI32 shape, const void *font) -> void * {
-        return EngineText::PtdtNew(const_cast<PString>(static_cast<const String *>(name)), shape,
-                                  const_cast<PTAG>(static_cast<const TAG *>(font)));
-    };
-    s.write_text = [](void *p, void *resources, MMU32 *out) -> int {
-        const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(resources));
-        ChunkNumber number; bool ok = EngineText::FWrite(static_cast<PThreeDText>(p), writer, kctgTmpl, &number);
-        if (ok) *out = number;
-        return ok;
-    };
-    s.release_text = [](void *p) { mm_template_owner_release(static_cast<PThreeDText>(p)); };
+    s.text_host = mm_kauai_template_host();
+    mm_brender_text_generation_services(&s.text_generation);
     s.tags = &TagManager::CoreServices();
-    s.name_units = [](const void *p, MMU32 *count) -> const void * {
-        auto name = const_cast<PString>(static_cast<const String *>(p));
-        *count = name->Cch();
-        return name->Prgch();
-    };
-    s.character = [](const void *name, MMI32 i) -> MMI32 {
-        return static_cast<unsigned char>(const_cast<PString>(static_cast<const String *>(name))->Psz()[i]);
-    };
     s.change_template = [](void *p, const MMTag *value) -> int {
         return static_cast<PActor>(p)->FChangeTagTmpl(*value);
     };
@@ -1287,7 +1270,9 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
     AssertThis(0); AssertPo(pstn, 0); Assert(pstn->Cch() > 0, "can't insert 0-length ThreeDText");
     AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     const auto services = _ContentServices();
-    return mm_movie_insert_text(pstn, tdts, ptagTdf, &services) != 0;
+    const MMStringValue name = {pstn->Pst(), sizeof(achar)};
+    const auto font = TagToCore(*ptagTdf);
+    return mm_movie_insert_text(&name, tdts, &font, &services) != 0;
 }
 
 /****************************************************
@@ -1310,7 +1295,9 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
     AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     Assert(pactr == Pscen()->PactrSelected(), 0);
     const auto services = _ContentServices();
-    return mm_movie_change_text(pactr, pstn, tdts, ptagTdf, &services) != 0;
+    const MMStringValue name = {pstn->Pst(), sizeof(achar)};
+    const auto font = ptagTdf ? TagToCore(*ptagTdf) : MMTag{};
+    return mm_movie_change_text(pactr, &name, tdts, ptagTdf ? &font : nullptr, &services) != 0;
 }
 
 /****************************************************

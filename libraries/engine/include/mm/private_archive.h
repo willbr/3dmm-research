@@ -75,9 +75,10 @@ struct MMChunkFileCopy;
 struct MMChunkEndpoint mm_private_archive_copy_endpoint(MMPrivateArchive *, struct MMChunkFileCopy *);
 struct MMChunkEndpoint mm_private_archive_copy_target(MMPrivateArchive *, struct MMChunkFileCopy *);
 struct MMTextDescriptor;
+struct MMTextAuthorName;
 /* Store template zero in a fresh private archive. The caller owns the
- * unpublished file and discards it on failure. */
-int mm_private_archive_store_text_draft(MMPrivateArchive *, const MMChunkNameValue *,
+ * unpublished file and discards it on failure. Supply a prepared 3D text name. */
+int mm_private_archive_store_text_draft(MMPrivateArchive *, const struct MMTextAuthorName *,
                                         const struct MMTextDescriptor *, MMU32 creator);
 int mm_private_archive_bind_font(MMPrivateArchive *, const struct MMChunkEndpoint *source,
                                 MMU32 template_number, MMU32 font_number);

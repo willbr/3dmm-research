@@ -200,11 +200,7 @@ bool EngineText::FWrite(PThreeDText owner, PChunkyFile pcfl, ChunkTagOrType ctg,
 bool EngineText::FWrite(PThreeDText owner, const MMArchiveWriter &writer, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     TEXT_VALIDATE(owner); AssertVarMem(pcno);
-    byte wire[kcbMaxDataStn];
-    String name;
-    EngineTemplate::GetName(owner, &name);
-    const auto encoded = ChunkyFile::EncodeName(&name, wire);
-    return mm_text_write(mm_template_owner_state(owner), mm_template_owner_descriptor(owner), &encoded, ctg, pcno, &writer) != 0;
+    return mm_text_write_owner(owner, ctg, pcno, &writer) != 0;
 }
 
 bool EngineText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, const TAG &font, ChunkNumber *number)
@@ -216,7 +212,6 @@ bool EngineText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, c
     draft.shape = shape;
     TextTagToCore(&font, &draft.font);
     const auto writer = file->WriteIndex();
-    byte wire[kcbMaxDataStn];
-    const auto encoded = ChunkyFile::EncodeName(name, wire);
-    return mm_text_write_draft(&encoded, &draft, number, &writer) != 0;
+    const MMStringValue value = {name->Pst(), sizeof(achar)};
+    return mm_text_write_draft(&value, &draft, number, &writer) != 0;
 }

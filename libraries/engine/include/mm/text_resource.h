@@ -106,11 +106,11 @@ int mm_text_change(MMTemplateOwner *, const MMStringValue *, MMI32 shape, const 
 /* Supply a live cache or a standalone archive and its chunk access. */
 int mm_text_read(MMTemplateOwner *,const MMTextResourceSource *,MMU32 type,MMU32 number,MMOwnedBlock *,
                  const MMTextResourceServices *);
-int mm_text_write(const MMTemplateState *, const MMTextDescriptor *, const MMChunkNameValue *,
-                  MMU32 type, MMU32 *number, const MMArchiveWriter *);
+/* The live owner and draft name use the writer's native character encoding. */
+int mm_text_write_owner(MMTemplateOwner *, MMU32 type, MMU32 *number, const MMArchiveWriter *);
 /* Write the two persisted chunks for new 3D text without generating renderer
  * state. Only a successful draft publishes its template number. */
-int mm_text_write_draft(const MMChunkNameValue *, const MMTextDescriptor *, MMU32 *number,
+int mm_text_write_draft(const MMStringValue *, const MMTextDescriptor *, MMU32 *number,
                         const MMArchiveWriter *);
 struct MMChunkEndpoint;
 /* Localize the font tag in an editable text preview. The descriptor must be

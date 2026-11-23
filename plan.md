@@ -2081,6 +2081,10 @@ directly, binds the font provider on success, and restores the previous text
 and descriptor if generation fails. Marcus, its Preview helper and regression
 runner build and link without engine-core. Studio still uses native engine
 and archive interfaces around the shared engine.
+Studio's movie insertion and replacement transactions author and write the
+typed 3D text owner directly from the C89 working-cache binding. Studio's
+live writer and the Marcus draft writer share the C89 counted-name encoder
+and the TMPL and TDT codecs.
 The C89 MSND owner holds the counted sound name, payload metadata and
 cache binding. Studio's cache reader, invalidation and frame-sound dispatch
 use the bound C89 operations. Preview reads the same sound state from its

@@ -16,31 +16,38 @@ int mm_movie_insert_material(void *material, MMTag *output, int *written,
     *written = 1;
     return mm_tag_open(output, s->edit.data->resources, NULL, s->tags);
 }
-static int author(const void *name, MMI32 shape, const void *font, MMTag *tag,
+static int author(const MMStringValue *name, MMI32 shape, const MMTag *font, MMTag *tag,
                   const MMMovieContentServices *s)
 {
-    void *text = s->new_text(name, shape, font), *resources;
+    MMTemplateOwner *text;
+    MMResourceCache *resources;
+    MMArchiveWriter writer;
     MMU32 number;
-    int ok;
+    int ok = 0;
+    if (!font)
+        return 0;
+    text = mm_text_create(s->text_host, name, shape, font, NULL, &s->text_generation);
     if (!text)
         return 0;
-    if (!s->make_valid(s->edit.context))
+    if (s->make_valid(s->edit.context))
     {
-        s->release_text(text);
-        return 0;
+        resources = s->edit.data->resources;
+        if (s->use_temp(s->edit.context))
+        {
+            writer = mm_resource_cache_writer(resources);
+            ok = mm_text_write_owner(text, MM_TMPL, &number, &writer);
+        }
     }
-    resources = s->edit.data->resources;
-    ok = s->use_temp(s->edit.context) && s->write_text(text, resources, &number);
-    s->release_text(text);
+    mm_template_owner_release(text);
     if (!ok)
         return 0;
     tag->sid = 0;
     tag->cache = 0;
-    tag->type = 0x544d504cU;
+    tag->type = MM_TMPL;
     tag->number = number;
     return mm_tag_open(tag, s->edit.data->resources, NULL, s->tags);
 }
-int mm_movie_insert_text(const void *name, MMI32 shape, const void *font,
+int mm_movie_insert_text(const MMStringValue *name, MMI32 shape, const MMTag *font,
                                const MMMovieContentServices *s)
 {
     MMTag tag;
@@ -51,19 +58,23 @@ int mm_movie_insert_text(const void *name, MMI32 shape, const void *font,
     mm_tag_close(&tag, s->tags);
     return ok;
 }
-int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void *font,
+int mm_movie_change_text(void *actor, const MMStringValue *name, MMI32 shape, const MMTag *font,
                                const MMMovieContentServices *s)
 {
-    MMU32 i, count;
+    MMU32 i, character, count;
     MMTag tag;
     MMMovieEditRequest request = {0};
     MMActorOwnerResult snapshot = {NULL, NULL, NULL};
     const MMActorOwnerServices *actors = &s->edit.actors;
     int ok = 0;
-    const void *units = s->name_units(name, &count);
+    const unsigned char *units = (const unsigned char *)name->buffer + name->unit;
+    count = name->unit == 1 ? *(const unsigned char *)name->buffer : *(const unsigned short *)name->buffer;
     for (i = 0; i < count; ++i)
-        if (s->character(name, i) != ' ')
+    {
+        character = name->unit == 1 ? units[i] : ((const unsigned short *)units)[i];
+        if ((unsigned char)character != ' ')
             break;
+    }
     if (i == count)
         return mm_movie_edit_actor(MM_MOVIE_EDIT_REMOVE, &request, &s->edit);
     if (!author(name, shape, font, &tag, s))

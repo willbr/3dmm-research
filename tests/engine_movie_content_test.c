@@ -1,5 +1,8 @@
 /* Movie content transaction ownership, failure prefixes and caption selection. */
 #include "mm/movie_content.h"
+#include "mm/material_resource.h"
+#include "mm/string_wire.h"
+#include "template_writer_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,14 +60,9 @@ enum
 typedef struct Test Test;
 typedef struct Resource
 {
+    MMResourceCache cache;
     Test *test;
-    int id;
 } Resource;
-typedef struct Name
-{
-    Test *test;
-    const char *text;
-} Name;
 typedef struct Actor
 {
     Test *test;
@@ -83,12 +81,16 @@ struct Test
     MMMovieState data;
     MMMovieScenes scenes;
     Resource before, after;
-    Name name;
+    MMStringValue name;
+    unsigned char name_buffer[MM_STRING_MAX + 2];
+    TemplateWriterFixture archive;
+    MMTemplateOwnerHost text_host;
+    MMStorageAllocator text_allocator;
     Actor actor, copy, inserted;
     Caption captions[3], *selected;
     int fail, events[128], n, refs, opened, closed, textRefs, writes, chunks;
     int dirty, invalidates, bars, releases, restored, removeActor, nuked, cacheBegin, cacheEnd;
-    int captionCount, attached, missing, hidden, removed, queries, query[8], characterCalls;
+    int captionCount, attached, missing, hidden, removed, queries, query[8];
     void *writtenResources, *openedResources;
 };
 static void note(Test *t, int e)
@@ -125,22 +127,61 @@ static int write_asset(void *p, void *resources, MMU32 *number)
     *number = 27;
     return t->fail != FAIL_WRITE;
 }
-static void *text(const void *p, MMI32 shape, const void *font_input)
+static MMArchiveWriter text_writer(void *p)
 {
-    const MMTag *font = font_input;
-    const Name *name = p;
-    Test *t = name->test;
-    note(t, NEW_TEXT);
-    if (shape != 4 || font->sid != 123 || t->fail == FAIL_TEXT)
-        return 0;
-    ++t->textRefs;
-    return t;
+    Resource *resource = p;
+    Test *t = resource->test;
+    MMArchiveWriter writer = writer_fixture(&t->archive, 0, MM_TEXT_WINDOWS);
+    note(t, WRITE);
+    ++t->writes;
+    t->writtenResources = &resource->cache;
+    fixture_chunk_add(&t->archive.archive.index, 0x4d564945UL, 0);
+    writer.names.max_bytes = sizeof(t->archive.archive.name);
+    if (t->fail == FAIL_WRITE)
+        t->archive.fail = 6;
+    return writer;
 }
-static void release_text(void *p)
+static void *allocate_text(void *p, void *value, MMU32 old_size, MMU32 bytes, int priority)
 {
     Test *t = p;
+    (void)value;
+    (void)old_size;
+    (void)priority;
+    note(t, NEW_TEXT);
+    if (t->fail == FAIL_TEXT)
+        return NULL;
+    ++t->textRefs;
+    return malloc(bytes);
+}
+static void release_text(void *p, void *value, MMU32 bytes)
+{
+    Test *t = p;
+    (void)bytes;
     note(t, TEXT_RELEASE);
     --t->textRefs;
+    free(value);
+}
+static MMTextGenerated *text_state(void *context, void *owner)
+{
+    (void)context;
+    return mm_template_owner_generated(owner);
+}
+static MMI32 text_length(void *context, void *owner)
+{
+    const MMStringValue name = mm_template_owner_name(owner);
+    (void)context;
+    return *(const unsigned char *)name.buffer;
+}
+static MMTemplateState *template_state(void *context, void *owner)
+{
+    (void)context;
+    return mm_template_owner_state(owner);
+}
+static void *text_material(void *context)
+{
+    static const MMMaterialOwnerHost host = {0};
+    (void)context;
+    return mm_material_owner_create(&host, MM_MATERIAL);
 }
 static void retain_tag_cache(void *p)
 {
@@ -158,18 +199,6 @@ static void release_tag_cache(void *p)
     note(t, CLOSE);
     --t->refs;
     ++t->closed;
-}
-static const void *name_units(const void *p, MMU32 *count)
-{
-    const Name *name = p;
-    *count = (MMU32)strlen(name->text);
-    return name->text;
-}
-static MMI32 character(const void *p, MMI32 i)
-{
-    const Name *n = p;
-    ++n->test->characterCalls;
-    return (unsigned char)n->text[i];
 }
 static MMActorOwner *actor_owner(void *p, void *actor)
 {
@@ -249,7 +278,7 @@ static void *resize(void *p, void *data, MMU32 old_size, MMU32 size, int priorit
 {
     (void)old_size;
     (void)priority;
-    return ((Test *)p)->fail == FAIL_APPEND ? NULL : realloc(data, size);
+    return p && ((Test *)p)->fail == FAIL_APPEND ? NULL : realloc(data, size);
 }
 static void release(void *p, void *data, MMU32 size)
 {
@@ -414,10 +443,11 @@ static void init(Test *t)
     memset(t, 0, sizeof(*t));
     t->before.test = t;
     t->after.test = t;
-    t->before.id = 1;
-    t->after.id = 2;
-    t->name.test = t;
-    t->name.text = " A";
+    t->before.cache.file = &t->before;
+    t->before.cache.services.live_writer = text_writer;
+    t->name.buffer = t->name_buffer;
+    t->name.unit = 1;
+    mm_string_value_set(&t->name, " A", 2);
     t->actor.test = t;
     mm_actor_owner_init(&t->actor.owner);
     t->actor.owner.runtime.actor = 7;
@@ -463,12 +493,19 @@ static void init(Test *t)
     s->make_valid = valid;
     s->use_temp = temp;
     s->write_material = write_asset;
-    s->new_text = text;
-    s->write_text = write_asset;
-    s->release_text = release_text;
+    t->text_allocator.context = t;
+    t->text_allocator.resize = allocate_text;
+    t->text_allocator.release = release_text;
+    t->text_host.allocator = &t->text_allocator;
+    t->text_host.name_unit = 1;
+    s->text_host = &t->text_host;
+    s->text_generation.state = text_state;
+    s->text_generation.length = text_length;
+    s->text_generation.template_state = template_state;
+    s->text_generation.table_allocator.resize = resize;
+    s->text_generation.table_allocator.release = release;
+    s->text_generation.material_new = text_material;
     s->tags = &t->tags;
-    s->name_units = name_units;
-    s->character = character;
     s->change_template = change;
     s->restore_template_edit = restore_template_edit;
     s->new_caption = new_caption;
@@ -538,8 +575,11 @@ static int inserting(void)
         if (!fault)
         {
             const int prefix[] = {NEW_TEXT, VALID, TEMP, WRITE, TEXT_RELEASE, OPEN, ACTOR_RELEASE, DIRTY, CLOSE};
-            CHECK(t.n == sizeof(prefix) / sizeof(prefix[0]) &&
-                  !memcmp(t.events, prefix, sizeof(prefix)) && t.bars && t.chunks == 1);
+            MMTextDescriptor saved;
+            CHECK(t.n == sizeof(prefix) / sizeof(prefix[0]) && !memcmp(t.events, prefix, sizeof(prefix)) && t.bars);
+            CHECK(t.archive.archive.index.count == 3 && !t.archive.archive.file_refs &&
+                  !memcmp(t.archive.archive.name, "\003\003\002 A", 6));
+            CHECK(mm_text_decode_descriptor(t.archive.descriptor, 0, &saved) && saved.shape == 4 && saved.font.sid == 123);
             release_actor(&t, &t.inserted);
         }
     }
@@ -566,7 +606,7 @@ static int changing(void)
         CHECK(mm_actor_track_create(&t.actor.owner.track, NULL, 0, NULL));
         t.fail = faults[fault];
         if (t.fail == FAIL_APPEND)
-            t.name.text = long_name;
+            mm_string_value_set(&t.name, long_name, sizeof(long_name) - 1);
         CHECK(mm_movie_change_text(&t.actor, &t.name, 4, &font, &t.s) == !fault);
         CHECK(!t.copy.refs && !t.textRefs && t.refs == !fault && t.dirty == !fault && !t.invalidates);
         CHECK(t.restored == (t.fail == FAIL_APPEND) && t.data.actors.count == (MMU32)(1 + !fault) &&
@@ -598,15 +638,15 @@ static int changing(void)
         CHECK(!t.refs && mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     }
     init(&t);
-    t.name.text = "   ";
+    mm_string_value_set(&t.name, "   ", 3);
     CHECK(mm_movie_change_text(&t.actor, &t.name, 4, 0, &t.s) && t.removeActor == 1 && t.nuked == 1);
-    CHECK(!t.writes && t.dirty == 1 && t.bars && t.characterCalls == 3);
+    CHECK(!t.writes && t.dirty == 1 && t.bars);
     init(&t);
-    t.name.text = "";
+    mm_string_value_clear(&t.name);
     t.fail = FAIL_ADD;
-    CHECK(!mm_movie_change_text(&t.actor, &t.name, 4, 0, &t.s) && !t.dirty && !t.nuked && !t.characterCalls);
+    CHECK(!mm_movie_change_text(&t.actor, &t.name, 4, 0, &t.s) && !t.dirty && !t.nuked && !t.writes);
     init(&t);
-    t.name.text = "\t";
+    mm_string_value_set(&t.name, "\t", 1);
     CHECK(seed_rollcall(&t));
     CHECK(mm_movie_change_text(&t.actor, &t.name, 4, &font, &t.s) && !t.removeActor && t.writes == 1);
     CHECK(mm_rollcall_table_extra(&t.data.actors, 1, &row));

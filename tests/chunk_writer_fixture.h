@@ -1,6 +1,7 @@
 #ifndef CHUNK_WRITER_FIXTURE_H
 #define CHUNK_WRITER_FIXTURE_H
 #include "mm/chunk_storage.h"
+#include "mm/chunk_loading.h"
 #include "chunk_edit_fixture.h"
 #include "engine_resource_block_fixture.h"
 
@@ -11,7 +12,7 @@ typedef struct ChunkWriterFixture
     MMChunkPayloadServices payloads;
     void *context;
     int (*grow_name)(void *);
-    unsigned char name[64];
+    unsigned char name[MM_CHUNK_NAME_WIRE_BYTES];
     int file_refs, pins;
 } ChunkWriterFixture;
 static int writer_fixture_read(void *p, void *file, MMU32 offset, void *bytes, size_t count)

@@ -183,14 +183,10 @@ std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(MMTextAuthorName textN
 {
     Require(shape >= 0 && shape < MM_TEXT_SHAPE_COUNT, "Choose a valid 3D text shape.");
     auto result = WorkingCopy({}, nullptr);
-    String text;
-    text.SetSzs(textName.legacy);
     auto file = MarcusOpenArchive(result->path, MM_PRIVATE_ARCHIVE_CREATE);
     Require(bool(file), "Cannot create the 3D text template.");
     const MMTextDescriptor draft{shape, {source, nullptr, kctgTdf, font}};
-    byte wire[kcbMaxDataStn];
-    const auto name = MarcusArchiveName(text, wire);
-    Require(mm_private_archive_store_text_draft(file.get(), &name, &draft, kctgSoc),
+    Require(mm_private_archive_store_text_draft(file.get(), &textName, &draft, kctgSoc),
         "Cannot create the 3D text template.");
     return result;
 }

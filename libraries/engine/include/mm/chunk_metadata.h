@@ -5,6 +5,7 @@
 #include "chunky_file.h"
 #include "chunk_edit.h"
 #include "collections.h"
+#include "string_value.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -45,6 +46,9 @@ extern "C"
         const void *wire;
         MMU32 bytes, characters;
     } MMChunkNameValue;
+    /* Encode an existing native counted name into caller-owned scratch. An
+     * empty value omits the name. Failure leaves the output view unchanged. */
+    int mm_chunk_name_encode(const MMStringValue *, int encoding, void *wire, MMU32 capacity, MMChunkNameValue *);
     typedef struct MMChunkNameDecoder
     {
         void *context;
