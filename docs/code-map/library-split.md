@@ -2122,10 +2122,12 @@ These corrections are separate from the frozen successful native trace. The
 background-frame discard retains native debug poison/release no-op behavior.
 
 The public chop transaction saves/commits a snapshot undo before editing and
-releases its temporary undo reference before core. Persistent snapshot state owns
-the resource cache and chunk number in C. Save retains the cache on a failed
-write for later disposal. Do and undo share the C swap: read/play/switch, retain
-the old Scene, insert the restored Scene, close its temporary reference, delete
+releases its temporary undo reference before core. The C snapshot owns a
+private archive and chunk number. Scene chop and scene deletion both use the
+native archive file owner for this scratch storage. A failed write leaves the
+archive with the undo record for disposal. Do and undo share the C swap. It
+switches to the target Scene, retains the old Scene, inserts the restored Scene,
+closes its temporary reference, deletes
 the old snapshot, rewind/write the previous Scene, close it and remove its old
 list entry. Failed writes/removals preserve the native destructive prefixes;
 failed final switch/seek remain nonfatal. Close and release stay distinct typed

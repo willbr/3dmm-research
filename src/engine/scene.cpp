@@ -54,8 +54,8 @@
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
 #include "scene_control_undo.h"
+#include "private_archive_host.h"
 #include "mm/chunk_copy.h"
-#include "mm/private_archive.h"
 #include <new>
 #include <exception>
 #include <cstring>
@@ -3413,7 +3413,10 @@ void SceneUndoBackground::AssertValid(LegacyUlong grf)
 MMSceneSnapshotServices Scene::SnapshotServices()
 {
     MMSceneSnapshotServices s = {};
-    s.open = [](void *) { return KauaiTemporaryArchive(); };
+    s.open = [](void *) {
+        const auto profile = KauaiPrivateArchiveProfile();
+        return mm_native_private_archive_temporary(&profile);
+    };
     s.begin = [](void *) { vpappb->BeginLongOp(); };
     s.end = [](void *) { vpappb->EndLongOp(); };
     s.write = [](void *, void *scene, MMPrivateArchive *archive, MMU32 *number) -> int {
@@ -3503,43 +3506,6 @@ bool SceneUndoChop::FUndo(PDocumentBase pdocb)
     AssertThis(0);
     return (FDo(pdocb));
 }
-
-#ifdef DEBUG
-/****************************************************
- * Mark memory used by the SceneUndoChop
- *
- * Parameters:
- * 	None.
- *
- * Returns:
- *  None.
- *
- ****************************************************/
-void SceneUndoChop::MarkMem(void)
-{
-    AssertThis(0);
-    SceneUndoChop_PAR::MarkMem();
-    if (_snapshot.archive)
-    {
-        const auto &files = mm_private_archive_reader(_snapshot.archive)->storage->owner->files;
-        MarkMemObj(static_cast<PFileObject>(files.main_file));
-        MarkMemObj(static_cast<PFileObject>(files.extra_file));
-    }
-}
-
-/***************************************************************************
-    Assert the validity of the SceneUndoChop.
-***************************************************************************/
-void SceneUndoChop::AssertValid(LegacyUlong grf)
-{
-    if (_snapshot.archive)
-    {
-        const auto &files = mm_private_archive_reader(_snapshot.archive)->storage->owner->files;
-        AssertPo(static_cast<PFileObject>(files.main_file), grf);
-        AssertNilOrPo(static_cast<PFileObject>(files.extra_file), grf);
-    }
-}
-#endif
 
 void ReleasePpsse(MMSceneSound **ppsse)
 {

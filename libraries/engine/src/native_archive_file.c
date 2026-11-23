@@ -86,6 +86,21 @@ static int write_block(void *context, void *p, MMU32 offset, const void *data, s
     return write_at(p, offset, data, bytes);
 }
 
+static int copy_extent(void *context, void *source, MMU32 from, void *destination, MMU32 to, MMU32 bytes)
+{
+    MMBlockIO input = {0}, output = {0};
+    (void)context;
+    input.view.kind = output.view.kind = MM_BLOCK_FILE;
+    input.view.start = from;
+    output.view.start = to;
+    input.view.length = output.view.length = bytes;
+    input.context = source;
+    output.context = destination;
+    input.read_file = read_at;
+    output.write_file = write_at;
+    return mm_block_copy(&input, &output, 0, NULL) == MM_DATA_OK;
+}
+
 static int file_size(MMNativeArchiveFile *file, MMU32 *bytes)
 {
     int ok;
@@ -167,17 +182,43 @@ static void release_block(void *context, void *p)
     mm_native_archive_file_release(p);
 }
 
-static void *create_extra(void *context)
+static MMNativeArchiveFile *allocate_file(void)
 {
+    MMNativeArchiveFile *file = malloc(sizeof(*file));
+    if (!file)
+        return NULL;
+    file->mutex = mm_native_mutex_create(NULL);
+    if (!file->mutex)
+    {
+        free(file);
+        return NULL;
+    }
+    file->handle = NULL;
+    file->references = 1;
+    return file;
+}
+
+static void *create_temporary(void *context)
+{
+    MMNativeArchiveFile *file = allocate_file();
     (void)context;
+    if (!file)
+        return NULL;
+    file->handle = mm_native_file_temporary();
+    if (file->handle)
+        return file;
+    mm_native_archive_file_release(file);
     return NULL;
 }
 
 const MMBlockFileServices *mm_native_archive_file_blocks(void)
 {
-    static const MMBlockFileServices blocks = {NULL, retain, release_block, create_extra, read_block, write_block};
+    static const MMBlockFileServices blocks = {NULL, retain, release_block, create_temporary, read_block, write_block};
     return &blocks;
 }
+
+static const MMChunkOwnerFileIO private_files = {NULL, create_temporary, read_stream, size, resize, copy_extent,
+                                                 write_at, release, NULL, NULL, NULL, NULL, NULL};
 
 static MMNativeArchiveFile *open_file(const void *path, int utf8, int mode)
 {
@@ -185,26 +226,18 @@ static MMNativeArchiveFile *open_file(const void *path, int utf8, int mode)
     MMNativeArchiveFile *file;
     if (!path)
         return NULL;
-    file = malloc(sizeof(*file));
+    file = allocate_file();
     if (!file)
         return NULL;
-    file->mutex = mm_native_mutex_create(NULL);
-    if (file->mutex)
-    {
-        mm_native_open_options_init(&options);
-        options.write = mode != MM_PRIVATE_ARCHIVE_READ;
-        options.deny_read = utf8 && options.write;
-        if (mode == MM_PRIVATE_ARCHIVE_CREATE)
-            options.creation = MM_NATIVE_CREATE_ALWAYS;
-        file->handle = utf8 ? mm_native_file_open_utf8(path, &options) : mm_native_file_open(path, &options);
-        if (file->handle)
-        {
-            file->references = 1;
-            return file;
-        }
-        mm_native_mutex_destroy(file->mutex);
-    }
-    free(file);
+    mm_native_open_options_init(&options);
+    options.write = mode != MM_PRIVATE_ARCHIVE_READ;
+    options.deny_read = utf8 && options.write;
+    if (mode == MM_PRIVATE_ARCHIVE_CREATE)
+        options.creation = MM_NATIVE_CREATE_ALWAYS;
+    file->handle = utf8 ? mm_native_file_open_utf8(path, &options) : mm_native_file_open(path, &options);
+    if (file->handle)
+        return file;
+    mm_native_archive_file_release(file);
     return NULL;
 }
 
@@ -445,13 +478,11 @@ MMPrivateArchiveProfile mm_native_archive_profile(int encoding, int swapped_unic
 
 static MMPrivateArchive *open_private(const void *path, int utf8, int mode, const MMPrivateArchiveProfile *profile)
 {
-    static const MMChunkOwnerFileIO owner = {NULL, create_extra, read_stream, size, resize, NULL,
-                                             write_at, release, NULL, NULL, NULL, NULL, NULL};
     MMNativeArchiveFile *file;
     if (mode != MM_PRIVATE_ARCHIVE_CREATE && mode != MM_PRIVATE_ARCHIVE_EDIT && mode != MM_PRIVATE_ARCHIVE_READ)
         return NULL;
     file = open_file(path, utf8, mode);
-    return mm_private_archive_open(file, mode, &owner, mm_native_archive_file_blocks(), profile);
+    return mm_private_archive_open(file, mode, &private_files, mm_native_archive_file_blocks(), profile);
 }
 
 MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *path, int mode,
@@ -463,4 +494,10 @@ MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *path, i
 MMPrivateArchive *mm_native_private_archive_open_utf8(const char *path, int mode, const MMPrivateArchiveProfile *profile)
 {
     return open_private(path, 1, mode, profile);
+}
+
+MMPrivateArchive *mm_native_private_archive_temporary(const MMPrivateArchiveProfile *profile)
+{
+    return mm_private_archive_open(create_temporary(NULL), MM_PRIVATE_ARCHIVE_CREATE,
+                                   &private_files, mm_native_archive_file_blocks(), profile);
 }

@@ -100,6 +100,8 @@ MMPrivateArchiveProfile mm_native_archive_profile(int encoding, int swapped_unic
 MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *, int mode,
                                                  const MMPrivateArchiveProfile *);
 MMPrivateArchive *mm_native_private_archive_open_utf8(const char *, int mode, const MMPrivateArchiveProfile *);
+/* Own an empty writable archive backed by a private, non-publishable file. */
+MMPrivateArchive *mm_native_private_archive_temporary(const MMPrivateArchiveProfile *);
 
 #ifdef __cplusplus
 }

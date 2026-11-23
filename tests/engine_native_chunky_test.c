@@ -562,6 +562,45 @@ static int check_archive_profiles(void)
     return 1;
 }
 
+static int check_temporary_archive(void)
+{
+    const MMU32 type = 0x54455354UL;
+    const char payload[] = "snapshot chunk";
+    MMPrivateArchiveProfile profile = mm_native_archive_profile(MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, 0, 0);
+    MMPrivateArchive *archive = mm_native_private_archive_temporary(&profile);
+    MMChunkOwnerRead *reader;
+    MMArchiveWriter writer;
+    MMChunkAccess chunks;
+    MMChunkLocation cached;
+    MMOwnedBlock block;
+    MMBlockIO io;
+    MMU32 number, position;
+    char copy[sizeof(payload)];
+    int ok;
+    if (!archive)
+        return 0;
+    reader = mm_private_archive_reader(archive);
+    writer = mm_private_archive_writer(archive);
+    if (mm_owned_block_init(&block, reader->payloads.handles, reader->payloads.files) != MM_DATA_OK)
+    {
+        mm_private_archive_close(archive);
+        return 0;
+    }
+    ok = mm_chunk_add_bytes(&writer.edit, writer.payloads->files, type, payload, sizeof(payload), &number) ==
+         MM_CHUNK_OK;
+    chunks = mm_chunk_owner_access(reader->storage);
+    ok = ok && mm_chunk_find(&chunks, type, number, &position) == MM_CHUNK_OK &&
+         mm_chunk_owner_cache(reader->storage, position, &cached) == MM_CHUNK_OK &&
+         cached.file != reader->storage->owner->files.main_file &&
+         mm_chunk_payload_bind_block(&reader->payloads, reader, type, number, &block) == MM_CHUNK_PAYLOAD_OK &&
+         block.file == cached.file;
+    mm_private_archive_close(archive);
+    ok = ok && mm_owned_block_io(&block, &io) == MM_DATA_OK &&
+         mm_block_read(&io, 0, copy, sizeof(copy), 0) == MM_DATA_OK && !memcmp(payload, copy, sizeof(copy));
+    mm_owned_block_clear(&block);
+    return ok;
+}
+
 int main(int argc, char **argv)
 {
     MMNativeOpenOptions options;
@@ -578,6 +617,11 @@ int main(int argc, char **argv)
     if (!check_archive_profiles())
     {
         fputs("Native archive text profile failed\n", stderr);
+        return 1;
+    }
+    if (!check_temporary_archive())
+    {
+        fputs("Native temporary archive ownership failed\n", stderr);
         return 1;
     }
 

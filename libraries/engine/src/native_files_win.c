@@ -1,6 +1,7 @@
 /* Native file services converted from Kauai platform_files_win.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/native_files.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #define NOMINMAX
@@ -57,6 +58,37 @@ void *mm_native_file_open_utf8(const char *path, const MMNativeOpenOptions *o)
     }
     free(wide);
     return file;
+}
+void *mm_native_file_temporary(void)
+{
+    static volatile LONG serial;
+    const unsigned long process = GetCurrentProcessId() * 0x9e3779b9UL;
+    WCHAR path[MAX_PATH];
+    char leaf[sizeof("3mm-01234567")];
+    DWORD base, error, previous;
+    BOOL changed;
+    HANDLE file = INVALID_HANDLE_VALUE;
+    unsigned attempt, i;
+    base = GetTempPathW(MAX_PATH, path);
+    if (!base || base > MAX_PATH - sizeof(leaf))
+        return NULL;
+    changed = SetThreadErrorMode(GetThreadErrorMode() | SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX, &previous);
+    for (attempt = 0; attempt < 128; ++attempt)
+    {
+        sprintf(leaf, "3mm-%08lx", process + (unsigned long)InterlockedIncrement(&serial));
+        for (i = 0; i < sizeof(leaf); ++i)
+            path[base + i] = (WCHAR)leaf[i];
+        file = CreateFileW(path, GENERIC_READ | GENERIC_WRITE | DELETE, 0, NULL, CREATE_NEW,
+                           FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE, NULL);
+        if (file != INVALID_HANDLE_VALUE)
+            break;
+        error = GetLastError();
+        if (error != ERROR_FILE_EXISTS && error != ERROR_ALREADY_EXISTS)
+            break;
+    }
+    if (changed)
+        SetThreadErrorMode(previous, NULL);
+    return file == INVALID_HANDLE_VALUE ? NULL : file;
 }
 void mm_native_file_close(void *handle) { if (handle) CloseHandle(handle); }
 int mm_native_file_flush(void *handle) { return FlushFileBuffers(handle) != 0; }

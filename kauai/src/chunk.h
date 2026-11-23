@@ -54,7 +54,6 @@ const MMChunkPayloadServices *KauaiChunkPayloadServices();
 int KauaiEncodeLegacyChunkName(void *, const char *, void *, MMU32 capacity, MMU32 *written);
 MMChunkTitleIO KauaiChunkTitleIO();
 MMChunkTitleIO KauaiChunkOwnerTitleIO();
-MMPrivateArchive *KauaiTemporaryArchive();
 MMPrivateArchive *KauaiWorkingArchive(Filename *, bool create);
 bool KauaiSaveChunkOwner(MMChunkOwnerStorage *, ChunkTagOrType creator, Filename *);
 bool KauaiSetChunkOwnerOptions(MMChunkOwnerStorage *, LegacyUlong flags, LegacyUlong mask);

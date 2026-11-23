@@ -53,6 +53,20 @@ static void check_utf8_file(void)
     CHECK(remove(path) == 0);
 #endif
 }
+static void check_temporary_file(void)
+{
+    void *first = mm_native_file_temporary();
+    void *second = mm_native_file_temporary();
+    MMU32 bytes;
+    char data[4];
+    CHECK(first && second && first != second);
+    CHECK(mm_native_file_write(first, "CHN2", sizeof(data)));
+    CHECK(mm_native_file_size(second, &bytes) && bytes == 0);
+    mm_native_file_close(second);
+    CHECK(mm_native_file_seek(first, 0) && mm_native_file_read(first, data, sizeof(data)) &&
+          !memcmp(data, "CHN2", sizeof(data)));
+    mm_native_file_close(first);
+}
 int main(void)
 {
     MMNativePathChar temp[2048], root[2048], file[2048], moved[2048], nested[2048], output[2048], saved[2048], entry[1024];
@@ -94,6 +108,7 @@ int main(void)
     CHECK(mm_native_current_directory(saved,2048));
     CHECK(mm_native_change_directory(root,&error)&&!error&&mm_native_current_directory(output,2048)&&mm_native_paths_equal(output,root));
     check_utf8_file();
+    check_temporary_file();
     CHECK(mm_native_change_directory(saved,&error)&&!error);
     n=mm_native_executable_path(output,2048);CHECK(n);sentinel='X';CHECK(!mm_native_executable_path(&sentinel,0)&&sentinel=='X');
     CHECK(!mm_native_executable_path(output,n)&&!output[0]);CHECK(mm_native_executable_path(output,n+1)==n);

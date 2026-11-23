@@ -1,9 +1,9 @@
 /* Headless Movie save publication and working-file compatibility probe. */
 #ifndef MOVIE_SAVE_FIXTURE_H
 #define MOVIE_SAVE_FIXTURE_H
-#include "mm/private_archive.h"
 #include "movie_archive_fixture.h"
 #include "movie_state_fixture.h"
+#include "resource_archive_host.h"
 class MovieSaveProbe
 {
   public:
@@ -159,10 +159,8 @@ static bool TestMovieSave(PMovie parent)
 
 static MMResourceCache *NewPrivateMovieResources()
 {
-    auto archive = KauaiTemporaryArchive();
-    auto resources = NewTypedPrivateCache(archive, 0);
-    mm_private_archive_close(archive);
-    return resources;
+    Filename path;
+    return path.FGetTemp() ? OpenWorkingResourceCache(&path, true) : nullptr;
 }
 
 static bool TestPrivateMovieSave(PMovie parent)

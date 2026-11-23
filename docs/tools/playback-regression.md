@@ -25607,3 +25607,40 @@ ports' 400 ms references. The two new captures per port in
 
 Evidence is under `tmp/c89-packed-codec`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 scratch files for scene undo (23 November 2026)
+
+Studio's scene chop and scene deletion store undo snapshots through the
+native archive owner shared with Marcus. A snapshot owns a private scratch
+file. The engine uses the same provider for spill files and copies between
+file extents. Windows requests deletion on close and POSIX unlinks each
+scratch file immediately after creating it.
+
+The standalone archive fixture writes a chunk, copies it into spill storage,
+closes the archive, and reads the retained chunk. The Windows ANSI and
+wide file fixtures check independent scratch handles. The POSIX provider and
+fixtures compiled with strict C89 flags for Linux x64. Runtime verification
+used Windows.
+
+The native x64, x86, and Studio SDL scene edit and content fixtures passed.
+Coverage includes repeated scene-chop undo and redo with a caption and an
+embedded background. The movie save fixture exercises scene deletion and undo.
+Eight x64 scene traces and nineteen save and edit traces matched their
+baselines. The SDL scene edit and content traces also matched their retained
+references. The 228 selected native tests, 37 standalone engine checks,
+and 23 strict C89 checks passed. Resource-cache and preview fingerprints,
+four SDL save traces, eight VMM workflow outputs, and the headless Marcus
+startup canvas matched their baselines. Both Studio builds and the external
+core, archive, and preview consumers passed.
+
+Fresh suite `20261123T204030Z-6f2d60af` completed eight captures and replay
+suite `20261123T204159Z-877ccd86` completed four with verified input hashes.
+Studio and Marcus matched all 60 Actor Audio frame positions and camera
+indices and 59 of 60 seek canvases against retained retail and V3DMM. They
+matched all 60 seek canvases and scene states against the prior port build.
+The first 100 ms of all four Actor Audio spans, the embedded WAVE cue, and
+the first 400 ms of embedded MIDI matched the retained port samples in both
+fresh playback and replay.
+
+Evidence is under `tmp/c89-scene-snapshot-file`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

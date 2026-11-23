@@ -9,8 +9,6 @@ typedef class SceneUndoChop *PSceneUndoChop;
 class SceneUndoChop : public SceneUndoChop_PAR
 {
     RTCLASS_DEC
-    MARKMEM
-    ASSERT
 
   protected:
     MMSceneSnapshot _snapshot = {};

@@ -126,6 +126,35 @@ void *mm_native_file_open_utf8(const char *path, const MMNativeOpenOptions *o)
 {
     return path && *path ? mm_native_file_open(path, o) : NULL;
 }
+void *mm_native_file_temporary(void)
+{
+    const char suffix[] = "/3mm-XXXXXX";
+    const char *configured = getenv("TMPDIR");
+    char *directory = normalize(configured && *configured ? configured : "/tmp");
+    char *path;
+    size_t length, skip;
+    int fd, removed;
+    if (!directory)
+        return NULL;
+    length = strlen(directory);
+    skip = directory[length - 1] == '/';
+    path = join(directory, length, suffix + skip, sizeof(suffix) - 1 - skip);
+    free(directory);
+    if (!path)
+        return NULL;
+    fd = mkstemp(path);
+    if (fd >= 0)
+    {
+        do { removed = unlink(path); } while (removed < 0 && errno == EINTR);
+        if (removed != 0 || fcntl(fd, F_SETFD, FD_CLOEXEC) < 0)
+        {
+            close(fd);
+            fd = -1;
+        }
+    }
+    free(path);
+    return fd < 0 ? NULL : file_handle(fd);
+}
 void mm_native_file_close(void *h) { if (h) close(descriptor(h)); }
 int mm_native_file_flush(void *h)
 { int result; do { result = fsync(descriptor(h)); } while (result < 0 && errno == EINTR); return result == 0; }

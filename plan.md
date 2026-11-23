@@ -2341,8 +2341,9 @@ paths. The archive API publishes UTF-8 strings and native chunk-name code
 units from the C reader.
 Marcus also uses the shared native archive file and index owners for browser
 reads, editing, clipboard transfers, and saves. Its UTF-8 paths enter through
-the native wide file API on Windows. Studio's archive readers and private
-drafts use the same C file services.
+the native wide file API on Windows. Studio's archive readers, private drafts,
+and scene undo snapshots use the same C file services. Scratch storage is
+released when the last archive or extent reference closes.
 The Windows code-page, case mapping, and collation providers now build as C89.
 Archive readers and private editors get the shared C archive text profile,
 including the writer for legacy counted names.

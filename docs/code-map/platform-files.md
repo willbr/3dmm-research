@@ -87,6 +87,11 @@ fails rather than truncating a file another process created in the meantime.
 Ordinary `PfilCreate` retains its overwrite behavior. Temporary-name selection
 still uses the existing bounded search and is not a new reservation API.
 
+Private archive scratch files use `mm_native_file_temporary`. Windows creates
+them exclusively with delete-on-close. POSIX creates them with `mkstemp` and
+unlinks them before returning the descriptor. The archive owner releases the
+handle when the last retained block or archive reference closes.
+
 ## POSIX backend
 
 `native_files_posix.c` supplies macOS/Linux file descriptors, native byte

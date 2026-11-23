@@ -40,7 +40,6 @@ Actors, Text boxes, etc.
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_sound_archive.h"
 #include "engine_sound_writer.h"
-#include "mm/private_archive.h"
 ASSERTNAME
 
 static_assert(kdtsSecond / kfps == MM_RECORD_FRAME_TICKS && ivNil == -1, "Actor recording gesture ABI");
@@ -5535,13 +5534,7 @@ void MovieSceneUndo::MarkMem(void)
 {
     AssertThis(0);
     MovieSceneUndo_PAR::MarkMem();
-    if (_sceneUndo.operation == MM_MOVIE_REMOVE_SCENE && _sceneUndo.saved.snapshot.archive)
-    {
-        const auto &files = mm_private_archive_reader(_sceneUndo.saved.snapshot.archive)->storage->owner->files;
-        MarkMemObj(static_cast<PFileObject>(files.main_file));
-        MarkMemObj(static_cast<PFileObject>(files.extra_file));
-    }
-    else if (_sceneUndo.operation == MM_MOVIE_INSERT_SCENE && !_sceneUndo.saved.background.sid)
+    if (_sceneUndo.operation == MM_MOVIE_INSERT_SCENE && !_sceneUndo.saved.background.sid)
         mm_resource_cache_mark(static_cast<MMResourceCache *>(_sceneUndo.saved.background.cache));
 }
 
@@ -5556,15 +5549,9 @@ void MovieSceneUndo::MarkMem(void)
  *  None.
  *
  **************************************************************************/
-void MovieSceneUndo::AssertValid(LegacyUlong grf)
+void MovieSceneUndo::AssertValid(LegacyUlong)
 {
-    if (_sceneUndo.operation == MM_MOVIE_REMOVE_SCENE && _sceneUndo.saved.snapshot.archive)
-    {
-        const auto &files = mm_private_archive_reader(_sceneUndo.saved.snapshot.archive)->storage->owner->files;
-        AssertPo(static_cast<PFileObject>(files.main_file), grf);
-        AssertNilOrPo(static_cast<PFileObject>(files.extra_file), grf);
-    }
-    else if (_sceneUndo.operation == MM_MOVIE_INSERT_SCENE && !_sceneUndo.saved.background.sid)
+    if (_sceneUndo.operation == MM_MOVIE_INSERT_SCENE && !_sceneUndo.saved.background.sid)
         AssertNilOrVarMem(static_cast<MMResourceCache *>(_sceneUndo.saved.background.cache));
 }
 #endif // DEBUG
