@@ -129,7 +129,7 @@ class Actor : public Actor_PAR
     void _InitXfrm(void);               // Initialize rotation & scaling
     bool _FCreateGroups(void);
     void _InitState(void);
-    void _GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr);
+    void _GetNewOrigin(MMActorPoint *);
     void _SetStateRewound(void);
 
     bool _FGetStatic(long anid, bool *pfStatic);

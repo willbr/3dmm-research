@@ -264,6 +264,25 @@ bool World::FSetBackground(MMResourceCache *cache, ChunkTagOrType rgbType, Chunk
     return mm_world_buffers_background(&_buffers, cache, rgbType, rgb, zType, z, &s) != 0;
 }
 
+MMBRenderBackgroundWorld World::BackgroundServices()
+{
+    AssertThis(0);
+    return {
+        this,
+        [](void *p, br_actor *light) { static_cast<PWorld>(p)->AddActor(light); },
+        [](void *p, MMResourceCache *cache, MMU32 rgb, MMU32 depth) -> int {
+            return static_cast<PWorld>(p)->FSetBackground(cache, kctgMbmp, rgb, kctgZbmp, depth);
+        },
+        [](void *p, const MMBackgroundCameraData *camera) {
+            Assert(camera->far_z > camera->near_z, "Yon must be further than hither");
+            auto world = static_cast<PWorld>(p);
+            const auto services = world->_CameraServices();
+            mm_world_camera_set(&world->_camera, &camera->matrix, camera->near_z, camera->far_z, camera->fov, &services);
+        },
+        [](void *p) { static_cast<PWorld>(p)->MarkDirty(); }
+    };
+}
+
 /***************************************************************************
     Change the camera matrix
 ***************************************************************************/

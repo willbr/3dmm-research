@@ -24354,3 +24354,37 @@ in seek and playback. Both ports matched 59 of 60 retail and V3DMM seek
 canvases, with the same difference at scene 0, frame 4.
 
 Evidence is under `tmp/c89-scene-background-owner`.
+
+## C89 background camera and palette bindings (23 November 2026)
+
+Studio reads the C89 background's camera, placement cursor, and authored
+name directly. The BRender C binding applies the selected camera and its
+images through World services. The C tag path resolves the background's
+dependent chunks in the existing order. Studio and Preview now overlay
+the authored colours through the same C89 operation. Studio applies them
+directly to the system palette copy used by the transition. The C++
+background module has been removed from the engine build. The view still
+writes the debug actor-placement file with its original format.
+
+The 227 native suite checks, 15 SDL checks and three x86 worker fixtures
+passed, including the C89 syntax check. All ten Preview fingerprints and
+all eight native scene traces matched. The existing `scene-load` debug
+assertion repeated with a 63,224-byte trace and fingerprint `0D666753`.
+Studio created, saved and reopened the same 27,056-byte movie. Marcus
+relaunched headlessly with a byte-identical startup image.
+The 29,440-byte native save trace and 91,484-byte movie-content trace
+matched the retained captures.
+
+Candidate `20261123T133246Z-e9cc176c` completed eight headless port runs.
+Actor Audio matched all 60 previous seek canvases and scene states in each
+port. Both ports matched all 60 retail and V3DMM camera indices and the
+authored frame order in seek and playback. The existing canvas difference
+at scene 0, frame 4, reproduced against both originals.
+
+The dissolve case matched all 60 seek canvases, 59 steady playback
+observations and the settled dissolve from the previous comparison build.
+Both ports matched the authored frame order and settled dissolve canvas
+from retail and V3DMM. The transition comparison covers steady frames and
+the settled canvas.
+
+Evidence is under `tmp/c89-background-bindings`.

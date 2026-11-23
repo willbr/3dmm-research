@@ -539,10 +539,7 @@ const unsigned char *mm_background_preview_palette(const MMBackgroundPreviewOwne
 
 void mm_background_preview_overlay_palette(const MMBackgroundPreviewOwner *owner, unsigned char colours[1024])
 {
-    MMU32 count;
-    MMI32 base;
-    const unsigned char *bytes = mm_background_palette(mm_background_owner_resource(owner->resource), &count, &base);
-    mm_display_palette_overlay(colours, 256, base, bytes, count);
+    mm_background_overlay_palette(mm_background_owner_resource(owner->resource), colours, 256);
 }
 
 int mm_background_preview_set_camera(MMBackgroundPreviewOwner *owner, MMU32 slot, int update_placement)

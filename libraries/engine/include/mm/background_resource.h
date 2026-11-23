@@ -155,6 +155,7 @@ extern "C"
     void mm_background_resource_dispose(MMBackgroundResource *, const MMBackgroundServices *);
     /* Borrow the native-order four-byte colours until disposal. */
     const unsigned char *mm_background_palette(const MMBackgroundResource *, MMU32 *count, MMI32 *base);
+    int mm_background_overlay_palette(const MMBackgroundResource *, unsigned char *, size_t count);
     typedef struct MMBackgroundFactoryServices
     {
         void *context;
@@ -182,6 +183,7 @@ extern "C"
      * tags: cache references acquired by child services retain that lifetime. */
     int mm_background_tags(MMTagList *, const MMTag *parent);
     int mm_background_cache(const MMTag *, const MMBackgroundTagServices *);
+    int mm_background_cache_tag(const MMTag *, const MMTagServices *);
 #ifdef __cplusplus
 }
 #endif

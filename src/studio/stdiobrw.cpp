@@ -149,7 +149,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         ckiRoot.ctg = kctgBkth;
         ckiRoot.cno = mm_background_owner_binding(_pmvie->Pscen()->Pbkgd())->number;
 
-        thumSelect = EngineBackground::Icam(_pmvie->Pscen()->Pbkgd());
+        thumSelect = mm_background_owner_camera(_pmvie->Pscen()->Pbkgd())->current;
         pbrwd = (PBrowserDisplay)(BrowserCamera::PbrwcNew(_pcrm));
         if (pvNil == pbrwd)
             goto LFail;

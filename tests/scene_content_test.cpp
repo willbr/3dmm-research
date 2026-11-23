@@ -521,13 +521,19 @@ static void BackgroundFixture(const MovieArchiveFixture &archive, ChunkNumber *n
     b.Free();
     if (!id)
     {
-        BackgroundDefaultSoundOnFile sound = {};
+        struct BackgroundSoundRecord
+        {
+            int16_t bo, osk;
+            int32_t vlm, fLoop;
+            TAGOnFile tagSnd;
+        } sound = {};
+        static_assert(sizeof(sound) == 28, "Background sound wire layout");
         sound.bo = kboCur;
         sound.osk = koskCur;
         sound.vlm = 12345;
         sound.fLoop = true;
         sound.tagSnd = {-1, 0x1BADB002U, kctgMsnd, 0xFEDC1234U};
-        SwapBytesBom(&sound, kbomBds);
+        SwapBytesBom(&sound, 0x5f000000 | kbomTag >> 8);
         CHECK(archive.AddChildBytes(kctgBkgd, *number, 0, &sound, sizeof(sound), kctgBds, &child));
         auto colors = DynamicArray::PglNew(sizeof(Color));
         CHECK(colors);
@@ -644,71 +650,64 @@ int main()
     TAG tag = {ksidUseCrf, observed, kctgBkgd, background}, old;
     CHECK(scene->FSetBkgdCore(&tag, &old));
     {
-        auto background = EngineBackground::Fetch(observed, kctgBkgd, tag.cno);
+        auto background = mm_brender_background_fetch(observed, kctgBkgd, tag.cno);
         CHECK(background);
-        TAG sound;
-        long volume;
-        bool loop;
-        EngineBackground::GetDefaultSound(background, &sound, &volume, &loop);
-        Value(sound.sid);
-        Value(sound.cache != nullptr);
-        Value(sound.ctg);
-        Value(sound.cno);
-        Value(volume);
-        Value(loop);
+        auto resource = mm_background_owner_resource(background);
+        auto cameraState = mm_background_owner_camera(background);
+        const auto world = movie->Pbwld()->BackgroundServices();
+        const auto &sound = resource->sound;
+        Value(sound.tag.sid);
+        Value(sound.tag.cache != nullptr);
+        Value(sound.tag.type);
+        Value(sound.tag.number);
+        Value(sound.volume);
+        Value(sound.loop);
         for (int i = 0; i < 2; ++i)
         {
-            PDynamicArray colors;
-            long base;
-            Value(EngineBackground::FGetPalette(background, &colors, &base));
+            unsigned char palette[256 * sizeof(Color)] = {};
+            MMU32 count;
+            MMI32 base;
+            const auto colors = mm_background_palette(resource, &count, &base);
+            const bool applied = mm_background_overlay_palette(resource, palette, 256);
+            CHECK(applied && base == 20 && count == 2);
+            CHECK(!std::memcmp(palette + base * sizeof(Color), colors, count * sizeof(Color)));
+            Value(applied);
             Value(base);
-            Value(colors->IvMac());
-            for (long j = 0; j < colors->IvMac(); ++j)
-            {
-                Color color;
-                colors->Get(j, &color);
-                Record(&color, sizeof(color));
-            }
-            if (!i)
-            {
-                Color changed = {9, 8, 7, 0};
-                colors->Put(0, &changed);
-            }
-            ReleasePpo(&colors);
+            Value(count);
+            Record(palette + base * sizeof(Color), count * sizeof(Color));
+            palette[base * sizeof(Color)] ^= 255;
+            CHECK(palette[base * sizeof(Color)] != colors[0]);
         }
         mm_background_owner_lights_off(background);
-        EngineBackground::TurnOnLights(background, movie->Pbwld());
-        EngineBackground::SetFLeaveLitesOn(background, true);
-        Value(EngineBackground::FLeaveLitesOn(background));
+        mm_brender_background_lights_on(background, &world);
+        resource->leave_on = 1;
+        Value(resource->leave_on);
         mm_background_owner_lights_off(background);
-        EngineBackground::SetFLeaveLitesOn(background, false);
-        Value(EngineBackground::FLeaveLitesOn(background));
+        resource->leave_on = 0;
+        Value(resource->leave_on);
         mm_background_owner_lights_off(background);
         mm_background_owner_lights_off(background);
-        EngineBackground::TurnOnLights(background, movie->Pbwld());
-        EngineBackground::TurnOnLights(background, movie->Pbwld());
-        for (long camera : {0, 1, 2, 1, 0})
+        mm_brender_background_lights_on(background, &world);
+        mm_brender_background_lights_on(background, &world);
+        for (MMU32 camera : {0U, 1U, 2U, 1U, 0U})
         {
-            Value(EngineBackground::FSetCamera(background, movie->Pbwld(), camera));
-            Value(EngineBackground::Ccam(background));
-            Value(EngineBackground::Icam(background));
-            BRS x, y, z;
-            EngineBackground::GetCameraPos(background, &x, &y, &z);
-            Value(x);
-            Value(y);
-            Value(z);
-            BMAT34 mouse;
-            EngineBackground::GetMouseMatrix(background, &mouse);
-            Record(&mouse, sizeof(mouse));
-            Value(EngineBackground::BraRotYCamera(background));
+            Value(mm_brender_background_select(background, camera, &world));
+            Value(cameraState->count);
+            Value(cameraState->current);
+            Value(cameraState->position.dxr);
+            Value(cameraState->position.dyr);
+            Value(cameraState->position.dzr);
+            Record(&cameraState->mouse, sizeof(cameraState->mouse));
+            Value(cameraState->yaw);
             for (int i = 0; i < 5; ++i)
             {
-                EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
-                Value(x);
-                Value(y);
-                Value(z);
+                MMActorPoint point;
+                mm_background_place(cameraState, &point);
+                Value(point.dxr);
+                Value(point.dyr);
+                Value(point.dzr);
                 if (i == 1)
-                    EngineBackground::ReuseActorPlacePoint(background);
+                    mm_background_reuse_place(cameraState);
             }
         }
         /* Foreign-order appended points used to be swapped past a stack header.
@@ -731,23 +730,23 @@ int main()
         std::memcpy(foreign.data(), &camera, sizeof(camera));
         std::memcpy(foreign.data() + sizeof(camera), points, sizeof(points));
         CHECK(archive.PutBytes(foreign.data(), foreign.size(), kctgCam, child));
-        CHECK(EngineBackground::FSetCamera(background, movie->Pbwld(), 1));
-        BRS x, y, z;
-        EngineBackground::GetCameraPos(background, &x, &y, &z);
-        CHECK(x == BR_SCALAR(1) && y == 0 && z == 0 && EngineBackground::Icam(background) == 1);
-        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
-        CHECK(x == 0 && y == 0 && z == 0);
-        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
-        CHECK(x == BR_SCALAR(2) && y == BR_SCALAR(-3) && z == BR_SCALAR(4));
-        EngineBackground::ReuseActorPlacePoint(background);
-        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
-        CHECK(x == BR_SCALAR(2) && y == BR_SCALAR(-3) && z == BR_SCALAR(4));
-        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
-        CHECK(x == BR_SCALAR(5) && y == BR_SCALAR(6) && z == BR_SCALAR(-7));
-        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
-        CHECK(x == 0 && y == 0 && z == 0);
+        CHECK(mm_brender_background_select(background, 1, &world));
+        const auto &position = cameraState->position;
+        CHECK(position.dxr == BR_SCALAR(1) && position.dyr == 0 && position.dzr == 0 && cameraState->current == 1);
+        MMActorPoint point;
+        mm_background_place(cameraState, &point);
+        CHECK(point.dxr == 0 && point.dyr == 0 && point.dzr == 0);
+        mm_background_place(cameraState, &point);
+        CHECK(point.dxr == BR_SCALAR(2) && point.dyr == BR_SCALAR(-3) && point.dzr == BR_SCALAR(4));
+        mm_background_reuse_place(cameraState);
+        mm_background_place(cameraState, &point);
+        CHECK(point.dxr == BR_SCALAR(2) && point.dyr == BR_SCALAR(-3) && point.dzr == BR_SCALAR(4));
+        mm_background_place(cameraState, &point);
+        CHECK(point.dxr == BR_SCALAR(5) && point.dyr == BR_SCALAR(6) && point.dzr == BR_SCALAR(-7));
+        mm_background_place(cameraState, &point);
+        CHECK(point.dxr == 0 && point.dyr == 0 && point.dzr == 0);
         CHECK(archive.PutBytes(native.data(), native.size(), kctgCam, child));
-        CHECK(EngineBackground::FSetCamera(background, movie->Pbwld(), 0));
+        CHECK(mm_brender_background_select(background, 0, &world));
         mm_background_owner_release(background);
     }
     {

@@ -1216,8 +1216,8 @@ target_link_libraries(brender
     BRender::Libraries)
 
 # --- engine-core: stored data, assets, evaluation and playback policy ---
-# Actor editing/playback, backgrounds bound to World, sound import/playback
-# and recording belong to engine. World binding lives in body_world.cpp.
+# Actor editing/playback, sound import/playback and recording belong to engine.
+# Body binding to World lives in body_world.cpp.
 add_library(engine-core)
 target_sources(engine-core
     PRIVATE
@@ -1342,7 +1342,6 @@ target_sources(engine
     "${PROJECT_SOURCE_DIR}/src/engine/actredit.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actrsave.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actrsnd.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/bkgd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie_container.cpp"

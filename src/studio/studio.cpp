@@ -388,7 +388,7 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
         if ((pscen = pmvieOld->Pscen()) != pvNil)
         {
             if ((pbkgd = pscen->Pbkgd()) != pvNil)
-                EngineBackground::SetFLeaveLitesOn(pbkgd, fTrue);
+                mm_background_owner_resource(pbkgd)->leave_on = 1;
         }
     }
 
@@ -421,7 +421,7 @@ LFail:
     ReleasePpo(&pmvie);
 
     if (pbkgd != pvNil)
-        EngineBackground::SetFLeaveLitesOn(pbkgd, fFalse);
+        mm_background_owner_resource(pbkgd)->leave_on = 0;
 
     /* Restore old movie if loading new one failed */
     if (_pmvie == pvNil)
@@ -441,7 +441,10 @@ LFail:
         /* Turn lights back on, in new World (they got turned off when releasing
             the old movie) */
         if (fResetLites)
-            EngineBackground::TurnOnLights(pbkgd, _pmvie->Pbwld());
+        {
+            const auto world = _pmvie->Pbwld()->BackgroundServices();
+            mm_brender_background_lights_on(pbkgd, &world);
+        }
     }
 
 #ifdef BUG1959

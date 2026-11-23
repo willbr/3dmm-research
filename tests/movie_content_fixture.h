@@ -36,7 +36,7 @@ class MovieContentSceneAccess : public Scene
     {
         if (scene->Pbkgd())
             return false;
-        auto background = mm_background_owner_create(&EngineBackground::Host());
+        auto background = mm_background_owner_create(&mm_kauai_background_host()->owner);
         if (!background)
             return false;
         if (!InitializeStageBackground(background))

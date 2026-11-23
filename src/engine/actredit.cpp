@@ -165,12 +165,12 @@ MMActorPasteServices Actor::_PasteServices()
         *cache=resource; return int(ok);
     };
     s.placement=[](void *p,MMActorPoint *point) {
-        BRS x,y,z; static_cast<Actor *>(p)->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
+        static_cast<Actor *>(p)->_GetNewOrigin(point);
     };
     s.movie_sound=[](void *scene) {
         return static_cast<PScene>(scene)->Pmvie()->SoundServices();
     };
-    s.camera_yaw=[](void *,void *p) { return EngineBackground::BraRotYCamera(static_cast<PScene>(p)->Pbkgd()); };
+    s.camera_yaw=[](void *,void *p) { return mm_background_owner_camera(static_cast<PScene>(p)->Pbkgd())->yaw; };
     s.dirty=[](void *,void *p) { static_cast<PScene>(p)->MarkDirty(); };
     s.diagnostic=[](void *,int fault) {
         switch (fault)

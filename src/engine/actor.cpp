@@ -649,17 +649,13 @@ bool Actor::FSetStep(BRS dwrStep)
     at Y = 1.0 meters.
 
 ***************************************************************************/
-void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
+void Actor::_GetNewOrigin(MMActorPoint *point)
 {
     AssertThis(0);
-    AssertVarMem(pxr);
-    AssertVarMem(pyr);
-    AssertVarMem(pzr);
+    AssertVarMem(point);
 
     static_assert(kzrDefault == -1638400, "Placement distance ABI");
-    BRS x, y, z;
-    EngineBackground::GetActorPlacePoint(_Scene()->Pbkgd(), &x, &y, &z);
-    MMActorPoint point{x, y, z};
+    mm_background_place(mm_background_owner_camera(_Scene()->Pbkgd()), point);
     MMActorPlacementServices services{};
     services.context = this;
     services.camera = [](void *context, MMActorMatrix *matrix, MMI32 *hither, MMI32 *yon) {
@@ -672,10 +668,7 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
         *yon = farClip;
         std::memcpy(matrix, &camera, sizeof(camera));
     };
-    mm_actor_placement(&point, EngineTemplate::FIsTdt(_Template()), &services);
-    *pxr = point.dxr;
-    *pyr = point.dyr;
-    *pzr = point.dzr;
+    mm_actor_placement(point, EngineTemplate::FIsTdt(_Template()), &services);
 }
 
 /***************************************************************************
@@ -695,10 +688,10 @@ MMActorStageEditServices Actor::_StageEditServices()
     MMActorStageEditServices s{}; s.subroute=_SubrouteEditServices();
     TrashVar(&s.external_child);
     s.placement=[](void *p,MMActorPoint *point,MMActorPoint *origin,unsigned short *yaw) {
-        auto actor=static_cast<Actor *>(p); BRS x,y,z;
-        actor->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
+        auto actor=static_cast<Actor *>(p);
+        actor->_GetNewOrigin(point);
         std::memcpy(origin,&actor->_owner.runtime.origin,sizeof(*origin));
-        *yaw=EngineBackground::BraRotYCamera(actor->_Scene()->Pbkgd());
+        *yaw=mm_background_owner_camera(actor->_Scene()->Pbkgd())->yaw;
     };
     s.diagnostic=[](void *,int fault) { Assert(fault==MM_STAGE_INSERT_FAILED,"Unknown stage edit fault"); Bug("Logic error"); };
     return s;

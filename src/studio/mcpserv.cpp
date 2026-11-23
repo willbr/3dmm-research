@@ -1544,9 +1544,10 @@ static JVal Tool_GetState(const JVal &args)
           JVal::MkBool(movie && movie->FPlaying() && playbackView && playbackView->FPausing()));
     auto scene = movie ? movie->Pscen() : nullptr;
     o.Set("movie_scene", JVal::MkInt(movie ? movie->Iscen() : -1));
-    o.Set("scene_camera", JVal::MkInt(scene && scene->Pbkgd() ? EngineBackground::Icam(scene->Pbkgd()) : -1));
+    const auto camera = scene && scene->Pbkgd() ? mm_background_owner_camera(scene->Pbkgd()) : nullptr;
+    o.Set("scene_camera", JVal::MkInt(camera ? camera->current : -1));
     o.Set("scene_transition", JVal::MkInt(scene ? scene->Trans() : transNil));
-    o.Set("scene_camera_count", JVal::MkInt(scene && scene->Pbkgd() ? EngineBackground::Ccam(scene->Pbkgd()) : 0));
+    o.Set("scene_camera_count", JVal::MkInt(camera ? camera->count : 0));
     if (const auto details = args.Get("movie_details"))
         if (details->AsBool())
             o.Set("scene_actors", MovieDetails(scene));

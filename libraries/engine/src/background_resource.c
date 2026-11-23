@@ -631,6 +631,10 @@ const unsigned char *mm_background_palette(const MMBackgroundResource *b, MMU32 
     *base = (MMI32)b->palette_base;
     return b->palette.buffers[0].data;
 }
+int mm_background_overlay_palette(const MMBackgroundResource *b, unsigned char *colours, size_t count)
+{
+    return mm_display_palette_overlay(colours, count, b->palette_base, b->palette.buffers[0].data, b->palette_count);
+}
 int mm_background_factory(MMU32 type, MMU32 number, int materialize,
                                 const MMBackgroundFactoryServices *s)
 {
@@ -673,7 +677,7 @@ int mm_background_tags(MMTagList *list, const MMTag *parent)
 }
 int mm_background_cache(const MMTag *parent, const MMBackgroundTagServices *s)
 {
-    MMTag tags[4];
+    MMTag tags[4] = {{0}};
     int i;
     for (i = 0; i < 4; ++i)
         if (!s->child(s->context, children[i], &tags[i]))
@@ -684,4 +688,34 @@ int mm_background_cache(const MMTag *parent, const MMBackgroundTagServices *s)
         if (!s->cache(s->context, &tags[i], 1))
             return 0;
     return 1;
+}
+
+typedef struct BackgroundCache
+{
+    const MMTag *parent;
+    const MMTagServices *tags;
+} BackgroundCache;
+
+static int background_child_tag(void *context, MMU32 type, MMTag *out)
+{
+    const BackgroundCache *binding = context;
+    return mm_tag_child(binding->parent, 0, type, out, binding->tags);
+}
+
+static int cache_background_tag(void *context, const MMTag *tag, int include_children)
+{
+    (void)context;
+    return mm_tag_cache_file(tag, include_children);
+}
+
+int mm_background_cache_tag(const MMTag *parent, const MMTagServices *tags)
+{
+    BackgroundCache binding;
+    MMBackgroundTagServices services;
+    binding.parent = parent;
+    binding.tags = tags;
+    services.context = &binding;
+    services.child = background_child_tag;
+    services.cache = cache_background_tag;
+    return mm_background_cache(parent, &services);
 }

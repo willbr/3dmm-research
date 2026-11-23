@@ -276,8 +276,8 @@ class TrackTestTemplate
 
 static bool InitializeStageBackground(PBackground background)
 {
-    auto &camera = EngineBackground::Camera(background);
-    auto &resource = EngineBackground::Resource(background);
+    auto &camera = *mm_background_owner_camera(background);
+    auto &resource = *mm_background_owner_resource(background);
     camera.count = 1;
     resource.light_count = 1;
     camera.place = {BR_SCALAR(100), BR_SCALAR(2), BR_SCALAR(-30)};
@@ -298,7 +298,7 @@ class StageTestScene : public Scene
     }
     bool Init()
     {
-        auto background=mm_background_owner_create(&EngineBackground::Host()); _owner.background=background;
+        auto background=mm_background_owner_create(&mm_kauai_background_host()->owner); _owner.background=background;
         _owner.data.firstFrame=1; _owner.data.lastFrame=20; _owner.data.currentFrame=3;
         return background && InitializeStageBackground(background);
     }

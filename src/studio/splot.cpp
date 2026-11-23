@@ -311,7 +311,7 @@ bool SplotMachine::FCmdUpdate(PCommand pcmd)
         /* Still need to ensure on HD though */
         _pbclBkgd->GetThd(_ithdBkgd, &thd);
         Assert(thd.tag.sid != ksidUseCrf, "Need to open tag before using it");
-        if (!EngineBackground::FCacheToHD(&thd.tag))
+        if (!vptagm->FCacheBackground(TagToCore(thd.tag)))
             goto LFail;
         if (!_pmvie->FAddScen(&thd.tag))
             goto LFail;

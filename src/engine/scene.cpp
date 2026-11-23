@@ -347,7 +347,7 @@ void Scene::MarkMem(void)
     }
     MarkMaskedBitmap(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]));
     mm_resource_cache_mark(static_cast<MMResourceCache *>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
-    EngineBackground::Mark(Pbkgd());
+    mm_kauai_background_mark(Pbkgd());
 
     for (const auto &list : _owner.members)
         MarkPv(list.storage.buffers[0].data);
@@ -373,7 +373,7 @@ void Scene::AssertValid(LegacyUlong grf)
     AssertNilOrPo(PactrSelected(), 0);
     for (MMI32 i = 0; i < mm_scene_member_count(&_owner, MM_SCENE_SELECTION); ++i)
         AssertPo(static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_SELECTION, i)), 0);
-    EngineBackground::Validate(Pbkgd());
+    mm_kauai_background_validate(Pbkgd());
     AssertMaskedBitmap(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]), true);
     for (const auto &track : _owner.tracks)
         Assert(track.rows.storage == &track.storage, "bad scene track storage");
@@ -705,14 +705,12 @@ MMSceneEventServices Scene::_EventServices()
         mm_scene_sound_play(static_cast<MMSceneSound *>(payload), 0, &services);
     };
     s.fetch_background = [](void *, MMTag *value) -> PBackground {
-        TAG tag;
-        TagFromCore(&tag, *value);
-        auto background = EngineBackground::Fetch(&tag);
-        *value = {tag.sid, tag.cache, tag.ctg, tag.cno};
-        return background;
+        return vptagm->FetchBackground(*value);
     };
     s.set_camera = [](void *p, PBackground background, MMI32 camera) -> int {
-        return EngineBackground::FSetCamera(background, static_cast<PScene>(p)->Pmvie()->Pbwld(), camera);
+        AssertIn(camera, 0, mm_background_owner_camera(background)->count);
+        const auto world = static_cast<PScene>(p)->Pmvie()->Pbwld()->BackgroundServices();
+        return mm_brender_background_select(background, camera, &world);
     };
     s.transition = [](void *p) -> int { return static_cast<PScene>(p)->Pmvie()->Trans(); };
     s.set_transition = [](void *p, int value) { static_cast<PScene>(p)->Pmvie()->SetTrans(static_cast<TRANS>(value)); };

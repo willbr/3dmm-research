@@ -33,6 +33,7 @@
 #include "mm/native_archive_file.h"
 #include "resource_archive_host.h"
 #include "handle_services.h"
+#include "background_renderer.h"
 #include <functional>
 PTagManager vptagm;
 
@@ -724,6 +725,16 @@ bool TagManager::FCacheTagToHD(PTAG tag, bool children)
     const MMTag value = {tag->sid, nullptr, 0, 0};
     return mm_tag_cache_file(&value, children) != 0;
 }
+bool TagManager::FCacheBackground(const MMTag &value)
+{
+    AssertThis(0);
+    Assert(value.sid >= 0, "Invalid sid");
+    TAG asset;
+    TagFromCore(&asset, value);
+    NativeTagHost host = {this, nullptr, &asset};
+    const auto services = _Services(&host);
+    return mm_background_cache_tag(&value, &services) != 0;
+}
 bool TagManager::FCacheTagList(MMTagList *list)
 {
     const MMTagListServices services = {
@@ -771,6 +782,21 @@ PTemplate TagManager::FetchTemplate(const MMTag &value, const TAG *asset)
     NativeTagHost host = {this, nullptr, asset};
     const auto services = _Services(&host);
     return mm_brender_template_fetch_tag(&value, &services, &StudioFontProvider());
+}
+MMBackgroundOwner *TagManager::FetchBackground(const MMTag &value, const TAG *asset)
+{
+    AssertThis(0);
+    Assert(value.sid >= 0, "Invalid sid");
+    TAG native;
+    if (!asset)
+    {
+        TagFromCore(&native, value);
+        asset = &native;
+    }
+    NativeTagHost host = {this, nullptr, asset};
+    const auto services = _Services(&host);
+    return static_cast<MMBackgroundOwner *>(
+        mm_tag_fetch_owned(&value, mm_brender_background_read, mm_background_owner_services(), false, &services));
 }
 void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
 {

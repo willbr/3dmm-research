@@ -36,7 +36,6 @@ Actors, Text boxes, etc.
 #include "movie_archive_host.h"
 #include "mm/chunk_copy.h"
 #include "studio_preferences.h"
-#include "mm/indexed_display.h"
 #include "mm/actor_archive.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_sound_archive.h"
@@ -607,7 +606,8 @@ MMMovieEditServices Movie::_EditServices()
     s.route_paste = [](void *p) { return static_cast<PActor>(p)->_RoutePasteServices(); };
     s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
     s.cache_tag = [](void *, const MMTag *value, int background) -> int {
-        TAG tag; TagFromCore(&tag, *value); return background ? EngineBackground::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
+        Assert(value->sid >= 0, "Invalid sid");
+        return background ? vptagm->FCacheBackground(*value) : mm_tag_cache_file(value, 1);
     };
     s.default_title = [](void *p) { static_cast<PMovie>(p)->_SetTitle(); };
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
@@ -2954,23 +2954,15 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
     AssertVarMem(prcDst);
     AssertVarMem(prcSrc);
 
-    PDynamicArray pglclrSystem = pvNil;
-    PDynamicArray pglclrBkgd = pvNil;
-    long iclrMin;
-
-    pglclrSystem = GraphicsPort::PglclrGetPalette();
-    if (Pscen() == pvNil || !EngineBackground::FGetPalette(Pscen()->Pbkgd(), &pglclrBkgd, &iclrMin))
+    PDynamicArray pglclrSystem = GraphicsPort::PglclrGetPalette();
+    const auto background = Pscen() ? Pscen()->Pbkgd() : nullptr;
+    if (background && pglclrSystem && pglclrSystem->IvMac())
     {
-        pglclrBkgd = pvNil;
-    }
-    if (pvNil != pglclrSystem && pvNil != pglclrBkgd)
-    {
-        Assert(pglclrBkgd->IvMac() + iclrMin <= pglclrSystem->IvMac(), "Background palette too large");
         static_assert(sizeof(Color) == 4, "Transition palettes use BGRX");
-        if (pglclrBkgd->IvMac() && pglclrSystem->IvMac())
-            mm_display_palette_overlay(static_cast<unsigned char *>(pglclrSystem->QvGet(0)), pglclrSystem->IvMac(),
-                                       iclrMin, static_cast<const unsigned char *>(pglclrBkgd->QvGet(0)),
-                                       pglclrBkgd->IvMac());
+        AssertDo(mm_background_overlay_palette(mm_background_owner_resource(background),
+                                               static_cast<unsigned char *>(pglclrSystem->QvGet(0)),
+                                               pglclrSystem->IvMac()),
+                 "Background palette too large");
     }
 
     struct TransitionHost
@@ -3005,7 +2997,6 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
         Bug("bad trans");
 
     ReleasePpo(&pglclrSystem);
-    ReleasePpo(&pglclrBkgd);
     if (host.failure)
         std::rethrow_exception(host.failure);
 
@@ -3830,12 +3821,8 @@ void MovieView::MouseToWorld(MMActorPoint &delta, bool recording)
 {
     AssertThis(0);
 
-    BMAT34 native;
-    MMActorMatrix camera;
-    EngineBackground::GetMouseMatrix(Pmvie()->Pscen()->Pbkgd(), &native);
-    static_assert(sizeof(camera) == sizeof(native), "Mouse matrix ABI");
-    std::memcpy(&camera, &native, sizeof(camera));
-    mm_actor_mouse_to_world(&delta, &_mouseAxes, &camera, recording);
+    const auto camera = mm_background_owner_camera(Pmvie()->Pscen()->Pbkgd());
+    mm_actor_mouse_to_world(&delta, &_mouseAxes, &camera->mouse, recording);
 }
 
 bool MovieView::_fKbdDelayed = fFalse;
@@ -4264,7 +4251,7 @@ void MovieView::_PositionActr(const MMActorPoint &delta)
     {
         Pmvie()->Pbwld()->MarkDirty();
         Pmvie()->MarkViews();
-        EngineBackground::ReuseActorPlacePoint(scene->Pbkgd());
+        mm_background_reuse_place(mm_background_owner_camera(scene->Pbkgd()));
     }
 }
 
@@ -4347,6 +4334,49 @@ MMSceneActorPointerView MovieView::_ActorPointerView()
         [](void *p) { static_cast<PMovieView>(p)->Pmvie()->MarkViews(); }};
 }
 
+#ifdef DEBUG
+static bool WriteActorPlaceFile(PBackground background, BRS xrPlace, BRS yrPlace, BRS zrPlace)
+{
+    mm_kauai_background_validate(background);
+    Assert(yrPlace == rZero, "are you sure you want non-zero Y?");
+
+    String stnFile;
+    Filename fni;
+    PFileObject pfil = pvNil;
+    String stnData;
+    FilePosition fp;
+    LegacyLong xr1 = BrScalarToInt(xrPlace);
+    LegacyLong xr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(xrPlace - BrIntToScalar(xr1))));
+    LegacyLong yr1 = BrScalarToInt(yrPlace);
+    LegacyLong yr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(yrPlace - BrIntToScalar(yr1))));
+    LegacyLong zr1 = BrScalarToInt(zrPlace);
+    LegacyLong zr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(zrPlace - BrIntToScalar(zr1))));
+
+    String name;
+    name.SetSt(static_cast<PPascalString>(mm_background_owner_name(background).buffer));
+    const auto camera = static_cast<LegacyLong>(mm_background_owner_camera(background)->current) + 1;
+    if (!stnFile.FFormatSz("%s-cam.1-%d.pos", &name, camera))
+        goto LFail;
+    if (!fni.FBuildFromPath(&stnFile))
+        goto LFail;
+    if (fni.TExists() == tYes)
+        pfil = FileObject::PfilOpen(&fni, ffilWriteEnable);
+    else
+        pfil = FileObject::PfilCreate(&fni);
+    if (!pfil || !stnData.FFormatSz("NEW_ACTOR_POS %d.%06d %d.%06d %d.%06d\n\r", xr1, xr2, yr1, yr2, zr1, zr2))
+        goto LFail;
+    if ((fp = pfil->FpMac()) > 0)
+        fp--; // Overwrite the previous string's terminating null.
+    if (!pfil->FWriteRgb(stnData.Psz(), stnData.Cch() + 1, fp))
+        goto LFail;
+    ReleasePpo(&pfil);
+    return fTrue;
+LFail:
+    ReleasePpo(&pfil);
+    return fFalse;
+}
+#endif
+
 /***************************************************************************
  *
  * Handle Mousedown
@@ -4412,7 +4442,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         BRS zr;
 
         EngineBody::GetPosition(pactr->Pbody(), &xr, &yr, &zr);
-        if (!EngineBackground::FWritePlaceFile(Pmvie()->Pscen()->Pbkgd(), xr, yr, zr))
+        if (!WriteActorPlaceFile(Pmvie()->Pscen()->Pbkgd(), xr, yr, zr))
         {
             Bug("ouch.  bkgd write failed.");
         }
@@ -4815,7 +4845,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     // Scale movement based on selected actor
     //
     pactr->GetXyzWorld(pvNil, pvNil, &zrActr);
-    EngineBackground::GetCameraPos(pscen->Pbkgd(), pvNil, pvNil, &zrCam);
+    zrCam = mm_background_owner_camera(pscen->Pbkgd())->position.dzr;
     mm_actor_scale_drag_depth(&world, zrActr, zrCam);
 
     switch (Tool())

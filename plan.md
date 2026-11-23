@@ -1846,6 +1846,11 @@ replacement and close use the background owner's light teardown, and undo
 captures the camera from that owner. Background edits assign the scene title
 from the resource's counted name. Studio supplies resource lookup and the
 world camera and display effects.
+The background C++ facade is out of the engine build. Studio reads the
+shared camera and placement state directly and applies cameras through the
+C89 renderer. Studio and Preview overlay the background palette through the
+same C89 operation. The native source manager and World supply tag lookup
+and display effects, and the debug placement export stays with the view.
 Studio dispatches the C89 startup and render commands directly. C89 also
 owns its alarm scheduling, deferred render after a user pause, and stop
 cleanup, including the distinct behavior after an alarm retry fails. The

@@ -10,7 +10,6 @@
 #include "actor.h"
 #include "scene.h"
 #include "movie.h"
-#include "bkgd.h"
 #include "tbox.h"
 
 #define khidMscb khidLimKidFrame

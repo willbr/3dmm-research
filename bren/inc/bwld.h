@@ -14,6 +14,7 @@
 #include "mm/world_camera.h"
 #include "mm/world_render.h"
 #include "mm/world_export.h"
+#include "background_renderer.h"
 #include "scene_pick.h"
 
 namespace BRender {
@@ -89,6 +90,7 @@ class World : public World_PAR
     void MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp);
 
     // Background stuff
+    MMBRenderBackgroundWorld BackgroundServices();
     bool FSetBackground(MMResourceCache *cache, ChunkTagOrType ctgRGB, ChunkNumber cnoRGB, ChunkTagOrType ctgZ, ChunkNumber cnoZ);
     void SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov);
     void GetCamera(BMAT34 *pbmat34, BRS *pzrHither = pvNil, BRS *pzrYon = pvNil, BRA *paFov = pvNil);

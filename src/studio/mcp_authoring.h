@@ -151,13 +151,13 @@ static JVal Tool_ListAssets(const JVal &args)
         }
         else if (kind == "backgrounds")
         {
-            auto asset = EngineBackground::Fetch(&descriptor.tag);
+            auto asset = vptagm->FetchBackground(TagToCore(descriptor.tag), &descriptor.tag);
             if (!asset)
             {
                 ReleasePpo(&list);
                 return ContentError("Cannot read a background in the catalog");
             }
-            EngineBackground::GetName(asset, &name);
+            name.SetSt(static_cast<PPascalString>(mm_background_owner_name(asset).buffer));
             mm_background_owner_release(asset);
         }
         else
