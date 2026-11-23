@@ -476,6 +476,11 @@ static int SharedArchiveSourceCase()
     reader = nullptr;
     CHECK(!OpenSharedTypedCache(&path, false, selected, &reader) && !selected && !reader);
 
+    cache = OpenSourceResourceCache(&path, 4096, false);
+    CHECK(cache && cache->wire_index && !mm_resource_cache_reader(cache) && cache->budget == 4096);
+    CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&saved));
+    mm_resource_cache_release(cache);
+
     auto working = KauaiWorkingArchive(&path, false);
     CHECK(working);
     cache = OpenSharedTypedCache(&path, false, selected, &reader);
@@ -487,6 +492,11 @@ static int SharedArchiveSourceCase()
                                    encoded.wire, encoded.bytes) == MM_CHUNK_OK);
     mm_private_archive_close(working);
     CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&pending));
+    mm_resource_cache_release(cache);
+
+    cache = OpenSourceResourceCache(&path, 0, true);
+    CHECK(cache && mm_resource_cache_reader(cache) && !cache->wire_index);
+    CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&saved));
     mm_resource_cache_release(cache);
 
     reader = nullptr;

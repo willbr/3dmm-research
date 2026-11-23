@@ -352,7 +352,7 @@ Useful existing integration points:
 | --- | --- | --- |
 | Package storage | [pack_store.cpp](../../src/studio/pack_store.cpp), [pack_import.cpp](../../src/studio/pack_import.cpp) | Variable package records, original VXP retention, staged ZIP import and bounded materialization |
 | Source registration | [pack_runtime.cpp](../../src/studio/pack_runtime.cpp), `StudioPacks::Products/Resolve` | Portable shared source and library identities; independent installed/enabled/active state |
-| Engine resolution | [tagman.h](../../inc/tagman.h), [tagman.cpp](../../src/engine/tagman.cpp), `SetSourceResolver` | Explicit ordered archive sets for a source; directory-only resolution is insufficient for package ordering |
+| Engine resolution | [tagman.h](../../inc/tagman.h), [tag_host.cpp](../../src/engine/tag_host.cpp), `SetSourceResolver` | Explicit archive sets preserve package order for each source |
 | Browser enumeration | [browser.cpp](../../src/studio/browser.cpp), `ThumbnailFileEnumerator` | Enumerate the same active `.3th` set and SID as runtime resolution |
 | Startup registration | [utest.cpp](../../src/studio/utest.cpp), `_FInitProductNames` | Register portable source without reassigning existing movie IDs |
 | Movie document | [movie.cpp](../../src/engine/movie.cpp), [studio.cpp](../../src/studio/studio.cpp) | Container-aware open/save coordinator and ownership of the selected content session |

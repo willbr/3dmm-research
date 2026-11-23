@@ -186,11 +186,7 @@ class TagManager : public TagManager_PAR
     bool _FRetry(LegacyLong sid, const TAG *asset = nullptr);
     bool _FEnsureFniCD(LegacyLong sid, PFilename pfniCD, PString pstn = pvNil);
     bool _FFindFniCD(LegacyLong sid, PFilename pfniCD, bool *pfFniChanged);
-    bool _FDetermineIfSourceHD(LegacyLong sid, bool *pfSourceIsOnHD);
     bool _FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni);
-
-    bool _FGetFniHD(LegacyLong sid, PFilename pfniHD);
-    bool _FGetFniCD(LegacyLong sid, PFilename pfniHD, bool fAskForCD);
 
     bool _FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists);
     MMResourceManager *_BuildSourceManager(LegacyLong sid, PFilename pfniInfo, bool media);

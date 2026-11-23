@@ -14,14 +14,14 @@ target_link_libraries(preview-consumer PRIVATE MM::Preview)
 # required definitions and include paths from its library dependencies.
 add_executable(core-consumer ../core_link_test.cpp)
 target_compile_definitions(core-consumer PRIVATE TEST_ENGINE_CORE)
-target_link_libraries(core-consumer PRIVATE engine-core)
+target_link_libraries(core-consumer PRIVATE studio-tag-host)
 if(MSVC)
   target_link_options(core-consumer PRIVATE /OPT:NOREF
-    /WHOLEARCHIVE:$<TARGET_FILE:engine-core>
+    /WHOLEARCHIVE:$<TARGET_FILE:studio-tag-host>
     /WHOLEARCHIVE:$<TARGET_FILE:brender-core>
     /WHOLEARCHIVE:$<TARGET_FILE:kauai-core>)
 elseif(APPLE)
-  foreach(core IN ITEMS engine-core brender-core kauai-core)
+  foreach(core IN ITEMS studio-tag-host brender-core kauai-core)
     target_link_options(core-consumer PRIVATE "LINKER:-force_load,$<TARGET_FILE:${core}>")
   endforeach()
 endif()

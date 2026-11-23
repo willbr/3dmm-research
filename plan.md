@@ -2250,6 +2250,13 @@ bitmap fallback and to edit the save extension. The native host supplies
 the selected path, bitmap palette and scoped error stack. The scrolling
 regression calls the same C89 playback clock used by Studio and Marcus.
 The C++ portfolio data and scroll modules are out of the engine build.
+Source-manager construction retains, orders, and releases archive caches in
+C89. Studio's source tags and the archive input used by Preview and Marcus
+share C89 live-cache selection. The C89 source lookup falls back to a stored
+index when live selection leaves that choice open. The Studio tag host
+provides native path, drive, prompt, and diagnostic services. The old
+`engine-core` target now groups the C89 engine and native bindings as an
+interface, and callers needing the Studio tag host link it separately.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

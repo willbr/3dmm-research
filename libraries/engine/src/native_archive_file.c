@@ -237,6 +237,36 @@ MMResourceCache *mm_native_archive_source_cache(const MMNativeArchiveSource *sou
     return mm_resource_cache_create(&wire, budget, &services, owner, storage);
 }
 
+static MMResourceCache *open_live_cache(const MMNativeArchiveInputHost *host, int prefer_working,
+                                        int *selected, struct MMChunkOwnerRead **reader)
+{
+    MMResourceCache *cache = NULL;
+    if (host->open_live)
+        cache = host->open_live(host->context, prefer_working, selected, reader);
+    if (*selected)
+        return cache;
+    if (cache)
+        mm_resource_cache_release(cache);
+    *reader = NULL;
+    return NULL;
+}
+
+MMResourceCache *mm_native_archive_open_cache(const MMNativeArchiveInputHost *host, int media, int removable,
+                                              MMI32 budget, const MMResourceServices *profile,
+                                              const MMStorageAllocator *owner, const MMStorageAllocator *storage)
+{
+    MMNativeArchiveSource source = {0};
+    struct MMChunkOwnerRead *reader = NULL;
+    int selected = 0;
+    MMResourceCache *cache = open_live_cache(host, media || removable, &selected, &reader);
+    if (selected)
+        return cache;
+    if (host->open_stored(host->context, &source) == MM_ARCHIVE_READ_OK)
+        cache = mm_native_archive_source_cache(&source, budget, profile, owner, storage);
+    mm_native_archive_source_clear(&source);
+    return cache;
+}
+
 void mm_native_archive_input_close(MMNativeArchiveInput *input)
 {
     mm_archive_reader_close(input->reader);
@@ -251,8 +281,8 @@ int mm_native_archive_input_open(MMNativeArchiveInput *input, int mode, const MM
 {
     MMNativeArchiveInput next = {0};
     int selected = 0, status = MM_ARCHIVE_INVALID_PAYLOAD;
-    if (mode != MM_NATIVE_ARCHIVE_STORED && host->open_live)
-        next.live = host->open_live(host->context, mode == MM_NATIVE_ARCHIVE_LIVE, &selected, &next.live_reader);
+    if (mode != MM_NATIVE_ARCHIVE_STORED)
+        next.live = open_live_cache(host, mode == MM_NATIVE_ARCHIVE_LIVE, &selected, &next.live_reader);
     if (selected)
     {
         if (!next.live)
@@ -261,10 +291,6 @@ int mm_native_archive_input_open(MMNativeArchiveInput *input, int mode, const MM
     }
     else
     {
-        if (next.live)
-            mm_resource_cache_release(next.live);
-        next.live = NULL;
-        next.live_reader = NULL;
         status = host->open_stored(host->context, &next.stored);
         if (status == MM_ARCHIVE_READ_OK)
             status = mm_native_archive_source_reader(&next.stored, options, &next.reader);

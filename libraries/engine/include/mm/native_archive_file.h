@@ -62,6 +62,13 @@ typedef struct MMNativeArchiveInputHost
     int (*open_stored)(void *, MMNativeArchiveSource *);
 } MMNativeArchiveInputHost;
 
+/* Open the cache used for source tags. Once selected, a live archive's
+ * result is authoritative, including an open failure. Media sources and
+ * removable paths prefer the working archive. */
+MMResourceCache *mm_native_archive_open_cache(const MMNativeArchiveInputHost *, int media, int removable,
+                                              MMI32 budget, const MMResourceServices *,
+                                              const MMStorageAllocator *owner, const MMStorageAllocator *storage);
+
 /* Initialize input to zero. A failed open leaves it intact. A successful
  * input owns the reader and its live cache or stored file and index.
  * Host callbacks run synchronously and must not unwind. */

@@ -16,6 +16,13 @@ typedef struct Paths
 {
     int local, media;
 } Paths;
+struct Host;
+typedef struct BuildCache
+{
+    struct Host *host;
+    MMResourceCache cache;
+    MMReference references;
+} BuildCache;
 typedef struct Host
 {
     MMSourceCatalogue catalogue;
@@ -23,7 +30,8 @@ typedef struct Host
         fail_manager;
     int paths, managers, allocations, probes, builds, retries, news, outputs, output, leaf_calls, leaf_at, prepare,
         cleared, issues;
-    int create_fail, begin_fail, open_fail, add_fail, files, added, next_calls, begins;
+    int create_fail, begin_fail, open_failure_at, add_fail, file_count, next_calls, begins;
+    BuildCache files[2];
     char log[256];
     int used;
 } Host;
@@ -366,14 +374,25 @@ static void paths_cases(void)
     finish(&h);
     CHECK(!strcmp(h.log, "mmmmmmmppppppp"));
 }
-static void *create(void *p)
+static void *allocate_manager(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
 {
     Host *h = (Host *)p;
     event(h, 'N');
     if (h->create_fail)
         return NULL;
     ++h->managers;
-    return h;
+    return resize(p, old, before, bytes, priority);
+}
+static void free_manager(void *p, void *data, MMU32 bytes)
+{
+    release_manager(p);
+    release_memory(p, data, bytes);
+}
+static void *allocate_rows(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
+{
+    Host *h = p;
+    event(h, 'A');
+    return h->add_fail ? NULL : resize(p, old, before, bytes, priority);
 }
 static int begin(void *p)
 {
@@ -390,69 +409,68 @@ static int next(void *p, MMI32 sid, MMU32 index, int archive)
     event(h, 'Q');
     return index < 2;
 }
-static void *open_file(void *p, MMI32 budget)
-{
-    Host *h = (Host *)p;
-    CHECK(budget == 128);
-    event(h, 'O');
-    if (h->open_fail)
-        return NULL;
-    ++h->files;
-    return h;
-}
-static int add(void *p, void *file)
-{
-    Host *h = (Host *)p;
-    CHECK(file == h);
-    event(h, 'A');
-    if (h->add_fail)
-        return 0;
-    ++h->added;
-    return 1;
-}
 static void release_file(void *p)
 {
-    Host *h = (Host *)p;
-    CHECK(h->files == 1);
-    --h->files;
+    BuildCache *file = p;
+    Host *h = file->host;
+    CHECK(h->file_count > 0);
+    --h->file_count;
     event(h, 'f');
+}
+static MMResourceCache *open_file(void *p, MMI32 budget)
+{
+    Host *h = (Host *)p;
+    BuildCache *file;
+    CHECK(budget == 128);
+    event(h, 'O');
+    if (h->open_failure_at == h->next_calls)
+        return NULL;
+    CHECK(h->next_calls >= 1 && h->next_calls <= 2);
+    file = &h->files[h->next_calls - 1];
+    file->host = h;
+    file->cache.owner = file;
+    file->cache.references = &file->references;
+    file->cache.services.destroy_owner = release_file;
+    mm_reference_init(&file->references);
+    ++h->file_count;
+    return &file->cache;
 }
 static void build_cases(void)
 {
     Host h;
     MMSourceBuildServices s;
-    MMSourceServices unused;
-    void *manager;
+    MMResourceManager *manager;
+    MMStorageAllocator owner = {NULL, allocate_manager, free_manager};
+    MMStorageAllocator rows = {NULL, allocate_rows, release_memory};
     int mode;
-    for (mode = 0; mode < 6; ++mode)
+    owner.context = rows.context = &h;
+    for (mode = 0; mode < 7; ++mode)
     {
-        unused = init(&h);
-        (void)unused;
+        init(&h);
         h.create_fail = mode == 1;
         h.begin_fail = mode == 2;
-        h.open_fail = mode == 3;
+        h.open_failure_at = mode == 3 ? 1 : mode == 6 ? 2 : 0;
         h.add_fail = mode == 4;
         h.archive = mode == 5;
         s.context = &h;
-        s.create = create;
         s.archive_source = archives;
         s.begin = begin;
         s.next = next;
         s.open = open_file;
-        s.add = add;
-        s.release_file = release_file;
-        s.release_manager = release_manager;
-        manager = mm_source_build(42, 128, &s);
-        CHECK((manager != NULL) == (mode == 0 || mode == 5) && !h.files);
+        manager = mm_source_build(42, 128, &s, &owner, &rows);
+        CHECK((manager != NULL) == (mode == 0 || mode == 5));
         if (manager)
         {
-            CHECK(h.added == 2 && h.next_calls == 3 && h.begins == !h.archive);
-            release_manager(manager);
+            CHECK(manager->count == 2 && h.file_count == 2 && h.next_calls == 3 && h.begins == !h.archive);
+            CHECK(mm_resource_manager_at(manager, 0) == &h.files[0].cache && h.files[0].references.count == 1);
+            CHECK(mm_resource_manager_at(manager, 1) == &h.files[1].cache && h.files[1].references.count == 1);
+            mm_resource_manager_destroy(manager);
         }
-        else
-            CHECK(!h.managers);
+        CHECK(!h.managers && !h.file_count);
         if (mode == 4)
-            CHECK(!strcmp(h.log, "NHIQOAfm"));
+            CHECK(!strcmp(h.log, "NHIQOAAfm"));
+        if (mode == 6)
+            CHECK(!strcmp(h.log, "NHIQOAQOfm"));
         finish(&h);
     }
 }

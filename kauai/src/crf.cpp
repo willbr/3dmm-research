@@ -182,6 +182,14 @@ MMResourceCache *NewTypedCache(const MMResourceSource &source, const MMResourceS
     const auto services = TypedCacheServices(profile);
     return mm_resource_cache_create(&source, budget, &services, KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
+
+MMResourceServices NativeSourceCacheServices()
+{
+    auto services = TypedCacheServices({});
+    services.handles = KauaiHandleServices();
+    services.copy = ResourceCopyProfile(false);
+    return services;
+}
 }
 
 int OpenNativeArchiveSource(Filename *filename, MMNativeArchiveSource *out)
@@ -199,9 +207,7 @@ int OpenNativeArchiveSource(Filename *filename, MMNativeArchiveSource *out)
 
 MMResourceCache *NewTypedSourceCache(const MMNativeArchiveSource *source, int budget)
 {
-    auto services = TypedCacheServices({});
-    services.handles = KauaiHandleServices();
-    services.copy = ResourceCopyProfile(false);
+    const auto services = NativeSourceCacheServices();
     return mm_native_archive_source_cache(source, budget, &services,
                                            KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
@@ -321,6 +327,32 @@ MMResourceCache *OpenSharedTypedCache(Filename *name, bool preferWorking, bool &
     const auto cache = mm_shared_archive_cache_open(&services, name, preferWorking, budget, &live, reader);
     selected = live != 0;
     return cache;
+}
+
+MMResourceCache *OpenSourceResourceCache(Filename *name, MMI32 budget, bool media)
+{
+    struct SourcePath
+    {
+        Filename *filename;
+        MMI32 budget;
+    } source = {name, budget};
+    const MMNativeArchiveInputHost host = {
+        &source,
+        [](void *p, int preferWorking, int *selected, MMChunkOwnerRead **) {
+            const auto &path = *static_cast<SourcePath *>(p);
+            bool shared;
+            auto cache = OpenSharedTypedCache(path.filename, preferWorking != 0, shared, nullptr, path.budget);
+            *selected = shared;
+            return cache;
+        },
+        [](void *p, MMNativeArchiveSource *out) {
+            return OpenNativeArchiveSource(static_cast<SourcePath *>(p)->filename, out);
+        }
+    };
+    const auto services = NativeSourceCacheServices();
+    const bool removable = !media && (name->Grfvk() & (fvkCD | fvkFloppy | fvkRemovable));
+    return mm_native_archive_open_cache(&host, media, removable, budget, &services,
+                                        KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
 
 MMResourceServices ChunkyResourceFile::_Services()

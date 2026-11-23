@@ -37,7 +37,7 @@ ENGINE_TARGETS =\
     $(TARGET_DIR)scene.obj\
     $(TARGET_DIR)srec.obj\
     $(TARGET_DIR)tagl.obj\
-    $(TARGET_DIR)tagman.obj\
+    $(TARGET_DIR)tag_host.obj\
     $(TARGET_DIR)tbox.obj
 
 

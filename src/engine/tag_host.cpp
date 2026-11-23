@@ -3,7 +3,7 @@
 
 /***************************************************************************
 
-    tagman.cpp: Tag Manager class (TagManager)
+    tag_host.cpp: Native services for the C89 tag and source catalogue
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
@@ -30,7 +30,6 @@
 #include "soc_core.h"
 #include "engine_movie_source.h"
 #include "mm/movie_session.h"
-#include "mm/native_archive_file.h"
 #include "resource_archive_host.h"
 #include "handle_services.h"
 #include "background_renderer.h"
@@ -82,21 +81,6 @@ struct NativeDiscoveryHost
     FileNameEnumerator drives;
 };
 
-MMResourceCache *OpenSourceArchive(Filename &filename, LegacyLong budget, bool media)
-{
-    bool selected;
-    const bool preferWorking = media || (filename.Grfvk() & (fvkCD | fvkFloppy | fvkRemovable));
-    const auto shared = OpenSharedTypedCache(&filename, preferWorking, selected, nullptr, budget);
-    if (selected)
-        return shared;
-
-    MMNativeArchiveSource source = {};
-    if (OpenNativeArchiveSource(&filename, &source) != MM_ARCHIVE_READ_OK)
-        return nullptr;
-    const auto cache = NewTypedSourceCache(&source, budget);
-    mm_native_archive_source_clear(&source);
-    return cache;
-}
 } // namespace
 MMSourceOwners TagManager::_SourceOwners()
 {
@@ -541,7 +525,6 @@ MMResourceManager *TagManager::_BuildSourceManager(LegacyLong sid, PFilename dir
     } host = {this, directory, media};
     const MMSourceBuildServices services = {
         &host,
-        [](void *) -> void * { return mm_resource_manager_create(KauaiResourceObjectAllocator(), KauaiCopyAllocator()); },
         [](void *c, MMI32 sid) -> int { return static_cast<Host *>(c)->manager->HasArchiveSource(sid); },
         [](void *c) -> int {
             auto h = static_cast<Host *>(c);
@@ -551,17 +534,11 @@ MMResourceManager *TagManager::_BuildSourceManager(LegacyLong sid, PFilename dir
             auto h = static_cast<Host *>(c);
             return archive ? h->manager->SourceArchive(sid, h->type, i, &h->current) : h->files.FNextFni(&h->current);
         },
-        [](void *c, MMI32 budget) -> void * {
+        [](void *c, MMI32 budget) {
             const auto h = static_cast<Host *>(c);
-            return OpenSourceArchive(h->current, budget, h->media);
-        },
-        [](void *m, void *f) -> int {
-            return mm_resource_manager_add_cache(static_cast<MMResourceManager *>(m),
-                                                 static_cast<MMResourceCache *>(f), nullptr) == MM_STORAGE_OK;
-        },
-        [](void *f) { mm_resource_cache_release(static_cast<MMResourceCache *>(f)); },
-        [](void *m) { mm_resource_manager_destroy(static_cast<MMResourceManager *>(m)); }};
-    return static_cast<MMResourceManager *>(mm_source_build(sid, _cbCache, &services));
+            return OpenSourceResourceCache(&h->current, budget, h->media);
+        }};
+    return mm_source_build(sid, _cbCache, &services, KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
 
 /***************************************************************************
@@ -574,46 +551,6 @@ MMResourceManager *TagManager::_GetSourceManager(LegacyLong sid, bool localOnly,
     NativeSourcePaths paths;
     const auto services = _SourceServices(&host);
     return static_cast<MMResourceManager *>(mm_source_manager(&_sources, sid, localOnly, &paths, &services));
-}
-
-/***************************************************************************
-    Determines whether source is on HD (if it is, don't cache its stuff to
-    HD!)  Note that the function return value is whether the function
-    completed without error, not whether the source is on HD.
-***************************************************************************/
-bool TagManager::_FDetermineIfSourceHD(LegacyLong sid, bool *exists)
-{
-    AssertThis(0);
-    NativeSourceHost host = {this, nullptr, nullptr, nullptr};
-    NativeSourcePaths paths;
-    const auto services = _SourceServices(&host);
-    int value = 0;
-    const bool ok = mm_source_local_content(&_sources, sid, &paths, &value, &services) != 0;
-    if (ok)
-        *exists = value != 0;
-    return ok;
-}
-
-/***************************************************************************
-    Get the Filename for the HD directory
-***************************************************************************/
-bool TagManager::_FGetFniHD(LegacyLong sid, PFilename output)
-{
-    NativeSourceHost host = {this, output, nullptr, nullptr};
-    NativeSourcePaths paths;
-    const auto services = _SourceServices(&host);
-    return mm_source_local_path(&_sources, sid, &paths, &services) != 0;
-}
-
-/***************************************************************************
-    Get the Filename for the CD directory
-***************************************************************************/
-bool TagManager::_FGetFniCD(LegacyLong sid, PFilename output, bool ask)
-{
-    NativeSourceHost host = {this, output, nullptr, nullptr};
-    NativeSourcePaths paths;
-    const auto services = _SourceServices(&host);
-    return mm_source_media_path(&_sources, sid, ask, &paths, &services) != 0;
 }
 
 /***************************************************************************

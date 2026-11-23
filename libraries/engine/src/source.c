@@ -269,11 +269,13 @@ int mm_source_find_file(MMSourceCatalogue *c, MMI32 sid, int ask, void *paths,
     s->clear_output(s->context);
     return 0;
 }
-void *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *s)
+MMResourceManager *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *s,
+                                   const MMStorageAllocator *owner, const MMStorageAllocator *storage)
 {
-    void *manager = s->create(s->context), *file = NULL;
+    MMResourceManager *manager = mm_resource_manager_create(owner, storage);
+    MMResourceCache *cache;
     MMU32 index;
-    int archive;
+    int archive, status;
     if (!manager)
         return NULL;
     archive = s->archive_source(s->context, sid);
@@ -281,16 +283,16 @@ void *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *s)
         goto fail;
     for (index = 0; s->next(s->context, sid, index, archive); ++index)
     {
-        file = s->open(s->context, budget);
-        if (!file || !s->add(manager, file))
+        cache = s->open(s->context, budget);
+        if (!cache)
             goto fail;
-        s->release_file(file);
-        file = NULL;
+        status = mm_resource_manager_add_cache(manager, cache, NULL);
+        mm_resource_cache_release(cache);
+        if (status != MM_STORAGE_OK)
+            goto fail;
     }
     return manager;
 fail:
-    if (file)
-        s->release_file(file);
-    s->release_manager(manager);
+    mm_resource_manager_destroy(manager);
     return NULL;
 }

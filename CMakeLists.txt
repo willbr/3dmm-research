@@ -367,7 +367,7 @@ add_executable(actor-render-test EXCLUDE_FROM_ALL)
 target_sources(actor-render-test PRIVATE
     "${PROJECT_SOURCE_DIR}/tests/actor_render_test.cpp"
 )
-target_link_libraries(actor-render-test PRIVATE engine-core)
+target_link_libraries(actor-render-test PRIVATE studio-tag-host)
 add_executable(sparse-costume-test EXCLUDE_FROM_ALL tests/sparse_costume_test.cpp)
 target_compile_features(sparse-costume-test PRIVATE cxx_std_17)
 target_link_libraries(sparse-costume-test PRIVATE engine-core)
@@ -1214,20 +1214,18 @@ target_link_libraries(brender
     kauai
     BRender::Libraries)
 
-# --- engine-core: stored data, assets, evaluation and playback policy ---
-# Actor editing/playback, sound import/playback and recording belong to engine.
-# The renderer binds to Studio through World.
-add_library(engine-core)
-target_sources(engine-core
-    PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
-)
-target_include_directories(engine-core PUBLIC
+# --- engine-core: shared engine and native data/renderer bindings ---
+add_library(engine-core INTERFACE)
+target_include_directories(engine-core INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/inc>
   # brender wrapper headers (BMAT34 alias, etc); the gui-side bwld.cpp
   # is NOT linked from engine-core, so we just need the include path.
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/bren/inc>)
-target_link_libraries(engine-core PUBLIC kauai-core brender-core mm-engine-c89 PRIVATE mm-brender-resources mm-native-archive-file)
+target_link_libraries(engine-core INTERFACE kauai-core brender-core mm-engine-c89 mm-brender-resources mm-native-archive-file)
+
+# Native paths, removable drives, source prompts and debug diagnostics.
+add_library(studio-tag-host STATIC "${PROJECT_SOURCE_DIR}/src/engine/tag_host.cpp")
+target_link_libraries(studio-tag-host PUBLIC engine-core)
 add_executable(script-name-test EXCLUDE_FROM_ALL tests/script_name_test.cpp)
 target_link_libraries(script-name-test PRIVATE kauai-core)
 add_executable(brender-list-test EXCLUDE_FROM_ALL tests/brender_list_test.c)
@@ -1282,7 +1280,7 @@ target_link_libraries(mm-preview PUBLIC MM::Archive PRIVATE brender-core mm-bren
 add_executable(preview-api-test EXCLUDE_FROM_ALL tests/preview_api_test.cpp tests/preview_api_include_order.cpp)
 target_link_libraries(preview-api-test PRIVATE MM::Preview)
 add_executable(preview-scene-fixture EXCLUDE_FROM_ALL tests/preview_scene_fixture.cpp)
-target_link_libraries(preview-scene-fixture PRIVATE engine-core)
+target_link_libraries(preview-scene-fixture PRIVATE studio-tag-host)
 add_executable(preview-scene-test EXCLUDE_FROM_ALL tests/preview_scene_test.cpp)
 target_link_libraries(preview-scene-test PRIVATE MM::Preview)
 add_executable(preview-session-test EXCLUDE_FROM_ALL tests/preview_session_test.cpp)
@@ -1344,7 +1342,7 @@ target_sources(engine
 )
 target_include_directories(engine PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/inc>)
-target_link_libraries(engine PUBLIC engine-core kauai brender)
+target_link_libraries(engine PUBLIC engine-core kauai brender PRIVATE studio-tag-host)
 # Compile the actual playback sources with SDL interfaces independently of the
 # complete GUI link, so POSIX type/OS dependencies cannot hide behind headers.
 get_target_property(ENGINE_RUNTIME_SOURCES engine SOURCES)
@@ -1602,7 +1600,10 @@ foreach(core IN ITEMS kauai-core brender-core engine-core)
   set(core_archives ${core})
   if(core STREQUAL "engine-core")
     target_compile_definitions(${core}-link-test PRIVATE TEST_ENGINE_CORE)
-    list(APPEND core_archives mm-brender-resources brender-core kauai-core)
+    if(MSVC OR APPLE)
+      target_link_libraries(${core}-link-test PRIVATE studio-tag-host)
+    endif()
+    set(core_archives studio-tag-host mm-brender-resources brender-core kauai-core)
   elseif(core STREQUAL "brender-core")
     target_compile_definitions(${core}-link-test PRIVATE TEST_BRENDER_CORE)
     list(APPEND core_archives mm-brender-resources kauai-core)

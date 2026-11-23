@@ -25,6 +25,7 @@ MMResourceCache *OpenSharedTypedCache(Filename *, bool preferWorking, bool &sele
 // Supply the host path and chunk dialect for a C-owned immutable source.
 int OpenNativeArchiveSource(Filename *, MMNativeArchiveSource *);
 MMResourceCache *NewTypedSourceCache(const MMNativeArchiveSource *, int budget);
+MMResourceCache *OpenSourceResourceCache(Filename *, MMI32 budget, bool media);
 }
 
 #endif

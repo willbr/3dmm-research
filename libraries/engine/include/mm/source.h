@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_SOURCE_H
 #define MM_ENGINE_SOURCE_H
 #include "collections.h"
+#include "resource_cache.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -77,19 +78,16 @@ extern "C"
     typedef struct MMSourceBuildServices
     {
         void *context;
-        void *(*create)(void *);
         int (*archive_source)(void *, MMI32 sid);
         int (*begin)(void *);
         int (*next)(void *, MMI32 sid, MMU32 index, int archive);
-        void *(*open)(void *, MMI32 budget);
-        int (*add)(void *manager, void *file);
-        void (*release_file)(void *);
-        void (*release_manager)(void *);
+        MMResourceCache *(*open)(void *, MMI32 budget);
     } MMSourceBuildServices;
     /* Ordered archive sets bypass directory enumeration. False next means normal
-     * end, as in legacy enumeration. Failure releases the current file and partial
-     * manager; successful adds consume no caller file reference. */
-    void *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *);
+     * end, as in legacy enumeration. Open transfers one cache reference. This
+     * operation returns an owned manager or releases all partial state on failure. */
+    MMResourceManager *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *,
+                                      const MMStorageAllocator *owner, const MMStorageAllocator *storage);
 #ifdef __cplusplus
 }
 #endif

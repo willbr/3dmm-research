@@ -24598,3 +24598,55 @@ after removing consecutive duplicates. All 240 authored frames followed
 the retained retail and V3DMM order in seek and continuous playback.
 
 Evidence is under `tmp/c89-portfolio-core`.
+
+## C89 source archives and native tag host (23 November 2026)
+
+C89 constructs the source resource manager, retains its caches in source
+order, and releases them on an incomplete build. Studio's tag lookup and the
+archive input used by Preview and Marcus share the C89 live-cache probe.
+An open failure on a selected live source returns through that path.
+When the live probe leaves the choice open, C89 opens the stored index.
+Media and removable paths prefer the working archive. The native tag host
+supplies paths, drive enumeration, prompts, and diagnostics.
+
+`engine-core` is an interface for the C89 engine and native data and renderer
+bindings. The Studio runtime and fixtures that use its native tag adapter
+link that host separately.
+
+The standalone C build passed the source, native archive, engine, and
+strict C89 checks. The source fixture exercised both allocation attempts
+for the cache table and released the first cache after the second open
+failed. The native resource fixture read a stored cache and a working
+cache through the same source API. The separate CMake consumer built
+and passed its checks.
+
+The x64 and x86 builds reproduced the tag, source-name, and source-cache
+traces byte for byte. Nine body and movie traces and eight scene traces
+also matched their previous bytes. The `scene-load` fixture still reports
+the baseline fingerprint mismatch (`0D666753`) with its 63,224-byte trace
+intact. Ten asset preview fingerprints and the Marcus headless startup
+image matched their baselines. The three x86 ASM worker fixtures passed.
+
+The native suite passed 227 selected checks. SDL Studio passed 21 targeted
+checks. Its authoring fixture saved and reopened a 27,056-byte `.3mm` with
+the same SHA-256 as the baseline
+(`e5a3ff003deb995ec6a08239c7a93105b3704de96c1da4587a31c3b8d0d3027c`).
+
+The final Actor Audio and Dissolve run `20261123T150254Z-e6dc2dc4`
+completed eight captures with verified inputs. Both ports matched their
+60 prior seek canvases and scene states in each case. Actor Audio matched
+the retained retail and V3DMM frame order and all 60 camera indices.
+Studio matched 240 actor snapshots at six significant digits for position.
+Both ports matched 59 of 60 seek canvases against each original player.
+Dissolve matched 59 prior steady observations and the settled canvas in
+both original players.
+
+The final Text Acid run `20261123T150254Z-ddd47058` completed four
+captures with verified inputs. Each port matched its 240 prior seek
+canvases and caption and camera states, and 371 continuous presentations
+after removing consecutive duplicates. Both ports matched the retained
+retail and V3DMM order for all 240 authored frames in both modes. The
+earlier run `20261123T145612Z-8a896c0b` failed the input integrity check
+because Studio was relinked during capture.
+
+Evidence is under `tmp/c89-native-tag-host`.

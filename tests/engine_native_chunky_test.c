@@ -478,6 +478,13 @@ static int check_index(void *file, const char *path, MMU32 type, int movie, Seek
             MM_NATIVE_ARCHIVE_INPUT_OPEN && source.live_calls == 2 && !source.prefer_working &&
          source.stored_calls == 2 && input.reader == reader;
 
+    source.select_live = 1;
+    ok = ok && !mm_native_archive_open_cache(&host, 0, 1, 0, NULL, NULL, NULL) &&
+         source.live_calls == 3 && source.prefer_working && source.stored_calls == 2;
+    source.select_live = 0;
+    ok = ok && !mm_native_archive_open_cache(&host, 0, 0, 0, NULL, NULL, NULL) &&
+         source.live_calls == 4 && !source.prefer_working && source.stored_calls == 3;
+
     access = mm_archive_reader_access(reader);
     ok = ok && mm_archive_reader_catalog(reader, NULL, NULL, NULL) == MM_ARCHIVE_CATALOG_OK &&
          mm_chunk_type_at(&access, type, 0, &entry, &position) == MM_CHUNK_OK &&
