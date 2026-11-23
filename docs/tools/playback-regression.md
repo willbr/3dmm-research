@@ -23923,3 +23923,39 @@ Text Acid candidate `20261123T110336Z-3e223e47` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-actor-save-owner`.
+
+## C89 template and font binding (23 November 2026)
+
+Studio sends actor template tags directly to the C89 cache reader. The
+native tag manager still supplies media lookup and diagnostic context.
+The C89 template owner keeps Studio's installed font resolver when a
+template returns from the cache. Preview binds the current document's
+resolver through the same owner and reads the selected font through the
+C89 BRender resource binding. The C fixture checks both provider policies.
+
+The native template creation, template runtime and font resource traces
+matched across 306,720, 241,552 and 210,880 bytes respectively. The native
+3D text resource and generation traces also matched. SDL movie save/load
+passed and matched the 12,320-byte actor creation trace and the 91,484-byte
+movie-content trace. The headless Studio authoring workflow produced the
+same 27,056-byte movie after transforming, saving and reopening its actors.
+
+All 230 selected native checks, 13 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks. The headless
+Marcus startup image matched the previous build.
+
+The edited and copied 3D text saves matched their retained archives byte
+for byte. Both rebuilt ports reopened the copied save in
+`20261123T111514Z-c0de7c75` and matched the single frame and canvas from the
+retail and V3DMM runs in `20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T111509Z-a173c92c` matched baseline
+`20261123T110336Z-885134fb` on all 60 seek canvases and scene states per
+port. Both ports matched the retained retail and V3DMM authored frame order
+in seek and playback.
+
+Text Acid candidate `20261123T111509Z-360fa3b1` matched baseline
+`20261123T110336Z-3e223e47` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-template-font-binding`.

@@ -118,17 +118,14 @@ struct Preview::Impl
         info.currentCamera = s.current_camera;
     }
     std::string resolveError;
-    void BindTemplate(PTemplate value)
+    MMBRenderFontSource fontSource = {
+        this, [](void *p, MMI32 source, MMU32 type, MMU32 number) {
+            return static_cast<Impl *>(p)->Resolve({source, 0, type, number});
+        }
+    };
+    MMTemplateFontProvider Fonts()
     {
-        if (!mm_template_owner_is_text(value))
-            return;
-        *mm_template_owner_font(value) = {
-            this, [](void *context, const MMTag *font) -> MMFontOwner * {
-                auto self = static_cast<Impl *>(context);
-                auto source = self->Resolve({font->sid, 0, font->type, font->number});
-                return source ? mm_brender_font_fetch(source, font->type, font->number) : nullptr;
-            }
-        };
+        return mm_brender_template_font_provider(&fontSource);
     }
     struct BackgroundDeleter
     {
@@ -166,13 +163,11 @@ struct Preview::Impl
     {
         return {
             this,
-            [](void *p, MMI32 source, MMU32 type, MMU32 number) {
-                return static_cast<Impl *>(p)->Resolve({source, 0, type, number});
-            },
+            fontSource.resolve,
             [](void *p, const MMTag &tag, MMMovieSessionGraph &graph) {
                 return static_cast<Impl *>(p)->ResolveGraph({tag.sid, 0, tag.type, tag.number}, graph);
             },
-            [](void *p, MMTemplateOwner *tmpl) { static_cast<Impl *>(p)->BindTemplate(tmpl); }};
+            Fonts()};
     }
     void DescribeMissingResource(const TAGOnFile &tag);
     void PublishGeometry()

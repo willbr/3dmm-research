@@ -2058,7 +2058,10 @@ Preview. Marcus, its Preview helper and its regression runner link the C89
 body adapter directly. Kauai supplies allocation and diagnostic callbacks.
 Actor-track editing in both hosts uses the shared C89 local tag operations.
 Loaded 3D text carries its host's font provider. Studio binds its catalogue
-and Preview binds the archive set for its session. Materials and shade
+through the C89 tag-based template fetch. The template owner keeps an
+installed provider on Studio cache hits. Preview binds the document resolver
+through the same owner and fetches its font from the selected archive in C89.
+Materials and shade
 tables retain C89 texture owners. The
 BRender adapter supplies a writable pixelmap view in the same allocation,
 and imported pixelmaps retain their original renderer allocation. Studio and

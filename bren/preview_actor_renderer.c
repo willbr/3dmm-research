@@ -64,7 +64,8 @@ static int fetch_template(void *p, const MMActorHeader *header, void **out)
 static int bind_template(void *p, void *tmpl)
 {
     const MMBRenderPreviewActor *binding = p;
-    return binding->bind ? binding->bind(binding->context, tmpl) : 1;
+    mm_template_owner_bind_font(tmpl, binding->fonts, 1);
+    return 1;
 }
 
 static int body_create(void *p, void *tmpl, void **out)

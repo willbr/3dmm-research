@@ -35,7 +35,8 @@ static void TextTagFromCore(TAG *tag, const MMTag *in)
 
 void EngineText::SetFontResolver(PThreeDText owner, void *context, MMFontOwner *(*fetch)(void *, const MMTag *))
 {
-    *mm_template_owner_font(owner) = {context, fetch};
+    const MMTemplateFontProvider provider = {context, fetch};
+    mm_template_owner_bind_font(owner, &provider, 1);
 }
 
 /***************************************************************************

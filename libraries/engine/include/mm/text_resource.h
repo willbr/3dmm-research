@@ -48,7 +48,10 @@ void mm_template_owner_release(MMTemplateOwner *);
 int mm_template_owner_is_text(const MMTemplateOwner *);
 MMTextDescriptor *mm_template_owner_descriptor(MMTemplateOwner *);
 MMTextGenerated *mm_template_owner_generated(MMTemplateOwner *);
-MMTemplateFontProvider *mm_template_owner_font(MMTemplateOwner *);
+const MMTemplateFontProvider *mm_template_owner_font(MMTemplateOwner *);
+/* Copy the provider into a text owner. Its context is borrowed. With replace
+ * unset, keep the installed resolver. Null providers leave the owner alone. */
+void mm_template_owner_bind_font(MMTemplateOwner *, const MMTemplateFontProvider *, int replace);
 MMTemplateProvider *mm_template_owner_provider(MMTemplateOwner *);
 enum { MM_TEXT_DESCRIPTOR_BYTES = 24 };
 enum { MM_TEXT_NAME_BYTES = 51, MM_TEXT_NAME_UTF8_BYTES = 3 * (MM_TEXT_NAME_BYTES - 1) + 1 };

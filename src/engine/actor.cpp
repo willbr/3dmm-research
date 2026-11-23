@@ -155,9 +155,7 @@ Actor::~Actor(void)
 ***************************************************************************/
 void *Actor::_FetchTemplate(void *, const MMTag *value)
 {
-    TAG tag;
-    TagFromCore(&tag, *value);
-    return EngineTemplate::Fetch(&tag);
+    return vptagm->FetchTemplate(*value);
 }
 
 MMActorCreateServices Actor::_CreateServices()

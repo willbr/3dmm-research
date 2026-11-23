@@ -73,15 +73,8 @@ struct PreviewActor::Host
             });
             return cache;
         };
-        if (actor->resources.bind)
-            binding.bind = [](void *p, MMTemplateOwner *tmpl) -> int {
-                auto &h = *static_cast<Host *>(p);
-                return h.Guard([&] {
-                    const auto &resources = h.actor->resources;
-                    resources.bind(resources.context, tmpl);
-                    return 1;
-                });
-            };
+        if (actor->resources.fonts.fetch)
+            binding.fonts = &actor->resources.fonts;
         binding.fault = [](void *p) { return static_cast<Host *>(p)->failure; };
         binding.diagnostic = EngineActorTimeline::Diagnostic;
         return &binding;

@@ -20,6 +20,14 @@ void mm_kauai_text_action_name_missing(void *);
 void mm_brender_template_read_services(MMTemplateCreateServices *, MMResourceCache *);
 int mm_brender_template_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 MMTemplateOwner *mm_brender_template_fetch(MMResourceCache *, MMU32 type, MMU32 number, int *error);
+MMTemplateOwner *mm_brender_template_fetch_tag(const MMTag *, const MMTagServices *, const MMTemplateFontProvider *);
+typedef struct MMBRenderFontSource
+{
+    void *context;
+    MMResourceCache *(*resolve)(void *, MMI32 sid, MMU32 type, MMU32 number);
+} MMBRenderFontSource;
+/* The source record and its context outlive templates that use the provider. */
+MMTemplateFontProvider mm_brender_template_font_provider(MMBRenderFontSource *);
 int mm_brender_action_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 int mm_brender_text_initialize(MMTemplateOwner *, MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
 void mm_brender_text_generation_services(MMTextGenerationServices *);

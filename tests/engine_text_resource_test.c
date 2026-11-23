@@ -213,7 +213,7 @@ static void lifecycle(void)
     const unsigned short wide_space = ' ';
     Context c;
     MMTag font = {123, NULL, 0x54444620U, 29};
-    MMTemplateFontProvider provider = {0};
+    MMTemplateFontProvider provider = {0}, document_provider = {0};
     MMStringValue value = {0}, name;
     unsigned short storage[MM_STRING_MAX + 2];
     const void *old_text, *space;
@@ -225,6 +225,8 @@ static void lifecycle(void)
     font.cache = &font;
     provider.context = &c;
     provider.fetch = test_font;
+    document_provider.context = &font;
+    document_provider.fetch = test_font;
     value.buffer = storage;
     for (unit = 1; unit <= 2; ++unit)
     {
@@ -254,6 +256,8 @@ static void lifecycle(void)
         mm_string_value_set(&value, old_text, 3);
         owner = mm_text_create(&c.template_host, &value, 9, &font, &provider, &c.services.generation);
         assert(owner);
+        mm_template_owner_bind_font(owner, &document_provider, 0);
+        assert(mm_template_owner_font(owner)->context == &c);
         name = mm_template_owner_name(owner);
         descriptor = mm_template_owner_descriptor(owner);
         parts = mm_template_owner_generated(owner);
@@ -284,6 +288,9 @@ static void lifecycle(void)
         copy = mm_text_duplicate(owner, &c.services.generation);
         assert(copy && mm_template_owner_generated(copy)->material != parts->material);
         assert(mm_template_owner_font(copy)->fetch == provider.fetch && mm_template_owner_font(copy)->context == &c);
+        mm_template_owner_bind_font(copy, &document_provider, 1);
+        assert(mm_template_owner_font(copy)->fetch == test_font && mm_template_owner_font(copy)->context == &font);
+        assert(mm_template_owner_font(owner)->context == &c);
         name = mm_template_owner_name(copy);
         descriptor = mm_template_owner_descriptor(copy);
         assert(mm_string_value_equal(&name, space, 1) && !descriptor->shape && descriptor->font.cache == font.cache);

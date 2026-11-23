@@ -138,6 +138,28 @@ MMTemplateOwner *mm_brender_template_fetch(MMResourceCache *cache, MMU32 type, M
     return mm_resource_cache_fetch_owned(cache, &request, mm_template_owner_services(), error);
 }
 
+MMTemplateOwner *mm_brender_template_fetch_tag(const MMTag *tag, const MMTagServices *tags,
+                                               const MMTemplateFontProvider *fonts)
+{
+    MMTemplateOwner *owner = mm_tag_fetch_owned(tag, mm_brender_template_read, mm_template_owner_services(), 0, tags);
+    mm_template_owner_bind_font(owner, fonts, 0);
+    return owner;
+}
+
+static MMFontOwner *fetch_resolved_font(void *context, const MMTag *tag)
+{
+    const MMBRenderFontSource *source = context;
+    MMResourceCache *cache = source->resolve(source->context, tag->sid, tag->type, tag->number);
+    return cache ? mm_brender_font_fetch(cache, tag->type, tag->number) : NULL;
+}
+
+MMTemplateFontProvider mm_brender_template_font_provider(MMBRenderFontSource *source)
+{
+    MMTemplateFontProvider provider = {NULL, fetch_resolved_font};
+    provider.context = source;
+    return provider;
+}
+
 int mm_brender_action_read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                           void **out, MMI32 *bytes)
 {

@@ -20,7 +20,7 @@ class PreviewActor
         void *context;
         MMResourceCache *(*resolve)(void *, MMI32 source, MMU32 type, MMU32 number);
         bool (*graph)(void *, const MMTag &, MMMovieSessionGraph &);
-        void (*bind)(void *, MMTemplateOwner *);
+        MMTemplateFontProvider fonts;
     };
 
   private:

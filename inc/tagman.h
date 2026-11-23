@@ -151,6 +151,7 @@ typedef class TagManager *PTagManager;
 // Default content resolver, owned/configured by the host; initially null.
 extern PTagManager vptagm;
 #define TagManager_PAR BASE
+struct MMTemplateOwner;
 #define kclsTagManager 'TAGM'
 class TagManager : public TagManager_PAR
 {
@@ -233,6 +234,7 @@ class TagManager : public TagManager_PAR
     bool FCacheTagList(MMTagList *);
     PBaseCacheableObject PbacoFetch(PTAG ptag, ResourceReader reader, bool fUseCD = fFalse);
     void *FetchResource(PTAG tag, ResourceReader reader, const MMResourceObjectServices *, bool useMedia = false);
+    MMTemplateOwner *FetchTemplate(const MMTag &, const TAG *asset = nullptr);
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     void SetMissingTagTestCallback(void (*callback)(PTAG)) { _missingTagTest = callback; }
 #endif

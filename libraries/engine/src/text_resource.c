@@ -65,7 +65,13 @@ static MMTemplateText *text_data(MMTemplateOwner *owner)
 
 MMTextDescriptor *mm_template_owner_descriptor(MMTemplateOwner *owner) { return &text_data(owner)->descriptor; }
 MMTextGenerated *mm_template_owner_generated(MMTemplateOwner *owner) { return &text_data(owner)->generated; }
-MMTemplateFontProvider *mm_template_owner_font(MMTemplateOwner *owner) { return &text_data(owner)->font; }
+const MMTemplateFontProvider *mm_template_owner_font(MMTemplateOwner *owner) { return &text_data(owner)->font; }
+
+void mm_template_owner_bind_font(MMTemplateOwner *owner, const MMTemplateFontProvider *provider, int replace)
+{
+    if (owner && owner->text && provider && (replace || !text_data(owner)->font.fetch))
+        text_data(owner)->font = *provider;
+}
 
 MMStringValue mm_template_owner_name(MMTemplateOwner *owner)
 {
@@ -204,8 +210,7 @@ MMTemplateOwner *mm_text_create(const MMTemplateOwnerHost *host, const MMStringV
         mm_template_owner_release(owner);
         return NULL;
     }
-    if (provider)
-        data->font = *provider;
+    mm_template_owner_bind_font(owner, provider, 1);
     return owner;
 }
 

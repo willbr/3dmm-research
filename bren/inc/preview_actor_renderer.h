@@ -8,6 +8,8 @@
 extern "C" {
 #endif
 
+struct MMTemplateFontProvider;
+
 /* Borrow the binding for one synchronous actor operation. The renderer
  * provides the track, template, material and body effects. The host resolves
  * document-specific resources, binds text fonts and supplies diagnostics.
@@ -20,7 +22,7 @@ typedef struct MMBRenderPreviewActor
     int trash_unused;
     void *context;
     MMResourceCache *(*resolve)(void *, MMI32 source, MMU32 type, MMU32 number);
-    int (*bind)(void *, struct MMTemplateOwner *);
+    const struct MMTemplateFontProvider *fonts;
     int (*fault)(void *);
     void (*diagnostic)(void *, int);
 } MMBRenderPreviewActor;

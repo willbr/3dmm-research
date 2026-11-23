@@ -112,10 +112,9 @@ struct Preview::Impl::AdmissionHost
         };
         s.template_bind = [](void *v, void *t) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
-            return h.Guard([&] {
-                h.impl->BindTemplate(static_cast<PTemplate>(t));
-                return 1;
-            });
+            const auto fonts = h.impl->Fonts();
+            mm_template_owner_bind_font(static_cast<PTemplate>(t), &fonts, 1);
+            return 1;
         };
         s.body_create = [](void *v, PTemplate t, PBody *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);

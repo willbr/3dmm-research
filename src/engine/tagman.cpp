@@ -58,25 +58,17 @@ PThreeDText EngineText::PtdtNew(PString text, LegacyLong shape, PTAG font)
     return PtdtNew(text, shape, font, StudioFontProvider());
 }
 
-static PTemplate BindStudioFont(PTemplate owner)
-{
-    if (owner && EngineTemplate::FIsTdt(owner))
-    {
-        auto font = mm_template_owner_font(owner);
-        if (!font->fetch)
-            *font = StudioFontProvider();
-    }
-    return owner;
-}
-
 PTemplate EngineTemplate::Fetch(PTAG tag)
 {
-    return BindStudioFont(static_cast<PTemplate>(vptagm->FetchResource(tag, Read, mm_template_owner_services())));
+    AssertVarMem(tag);
+    return vptagm->FetchTemplate(TagToCore(*tag), tag);
 }
 
 PTemplate EngineTemplate::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number, bool *error)
 {
-    return BindStudioFont(Fetch(file->CoreCache(), type, number, error));
+    auto owner = Fetch(file->CoreCache(), type, number, error);
+    mm_template_owner_bind_font(owner, &StudioFontProvider(), 0);
+    return owner;
 }
 
 RTCLASS(TagManager)
@@ -765,6 +757,20 @@ void *TagManager::FetchResource(PTAG tag, ResourceReader reader, const MMResourc
     const auto services = _Services(&host);
     auto value = TagToCore(*tag);
     return mm_tag_fetch_owned(&value, reader, objects, useMedia, &services);
+}
+PTemplate TagManager::FetchTemplate(const MMTag &value, const TAG *asset)
+{
+    AssertThis(0);
+    Assert(value.sid >= 0, "Invalid sid");
+    TAG native;
+    if (!asset)
+    {
+        TagFromCore(&native, value);
+        asset = &native;
+    }
+    NativeTagHost host = {this, nullptr, asset};
+    const auto services = _Services(&host);
+    return mm_brender_template_fetch_tag(&value, &services, &StudioFontProvider());
 }
 void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
 {
