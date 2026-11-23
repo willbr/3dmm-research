@@ -25222,3 +25222,37 @@ The SDL replay reached the previously recorded later PCM16 peak of 7,609.
 
 Evidence is under `tmp/c89-midi-schedule`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 SDL MIDI device (23 November 2026)
+
+Studio's SDL MIDI device owns SoundFont loading, activation, queue and stop
+operations, and callback delivery in C89. The renderer lock is dropped
+before calls into the SDL stream or the completion client. The C++ host
+forwards the device operations and publishes the current device's counters.
+
+The new device fixture links as a C executable against the SDL device,
+SoundFont, shared output, native runtime, and C89 worker libraries. It tests
+recovery after a missing bank, a completion callback that queries the live
+device, the original buffer and full-width tag, rejection of deactivation
+with an outstanding loop, stop, and reopen. The existing Studio adapter
+fixture also passes with the real bank and dummy SDL audio driver. Both
+SDL MIDI fixtures passed 15 consecutive runs.
+
+The 228 selected native, 27 standalone C89, and 17 native strict syntax
+checks passed, along with the SDL device's strict syntax check and both
+native WinMM fixture architectures. Classic Studio rebuilt and the external
+consumer passed. The SDL authoring and save checks, headless Marcus startup
+canvas, and VMM workflow outputs matched their baselines.
+
+Fresh suite `20261123T183132Z-59e6bf56` completed eight captures. Replay suite
+`20261123T183249Z-e061aa0f` completed four. All input hashes were verified.
+Both ports matched all 60 Actor Audio frame positions and camera indices
+and 59 of 60 seek canvases against retained retail and V3DMM runs. The
+100 ms WAVE cue and first 400 ms of embedded MIDI matched the retained port
+captures sample for sample. Aligned at MIDI onset, SDL also matched every
+stereo sample over the shared capture length against the preceding build,
+38,814 frames in the fresh run and 39,774 in replay. The SDL replay reached
+the previously recorded later PCM16 peak of 7,609.
+
+Evidence is under `tmp/c89-sdl-midi-device`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

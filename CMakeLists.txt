@@ -39,6 +39,10 @@ add_library(kauai-audio-mixer STATIC kauai/src/audio_mixer.c kauai/src/audio_sam
 set_target_properties(kauai-audio-mixer PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(kauai-audio-mixer PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
 target_link_libraries(kauai-audio-mixer PUBLIC mm-engine-c89 PRIVATE mm-native-runtime)
+add_library(kauai-midi-worker STATIC kauai/src/midi_worker.c)
+set_target_properties(kauai-midi-worker PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_include_directories(kauai-midi-worker PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+target_link_libraries(kauai-midi-worker PUBLIC mm-engine-c89 PRIVATE mm-native-runtime)
 add_executable(audio-mixer-test EXCLUDE_FROM_ALL tests/audio_mixer_test.cpp)
 target_link_libraries(audio-mixer-test PRIVATE kauai-audio-mixer)
 add_executable(audio-runtime-trace-test EXCLUDE_FROM_ALL tests/audio_runtime_trace.cpp)
@@ -162,11 +166,20 @@ if(STUDIO_SDL3 OR BUILD_SDL_MIDI)
     message(FATAL_ERROR "SDL MIDI requires KAUAI_MIDI_SYNTH=ON")
   endif()
   include(SDL3Dependency)
+  add_library(kauai-sdl-midi-device STATIC kauai/src/midi_sdl_device.c)
+  set_target_properties(kauai-sdl-midi-device PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+  target_include_directories(kauai-sdl-midi-device PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-sdl-midi-device PUBLIC mm-engine-c89
+    PRIVATE kauai-midi-worker kauai-midi-synth kauai-sdl-output mm-native-runtime SDL3::SDL3-static)
   add_library(kauai-sdl-midi STATIC kauai/src/midi_sdl.cpp)
   target_include_directories(kauai-sdl-midi PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
-  target_link_libraries(kauai-sdl-midi PUBLIC kauai-core PRIVATE kauai-midi-synth kauai-sdl-output SDL3::SDL3-static)
+  target_link_libraries(kauai-sdl-midi PUBLIC kauai-core PRIVATE kauai-sdl-midi-device)
   add_executable(midi-sdl-test EXCLUDE_FROM_ALL tests/midi_sdl_test.cpp)
   target_link_libraries(midi-sdl-test PRIVATE kauai-sdl-midi)
+  add_executable(midi-sdl-device-test EXCLUDE_FROM_ALL tests/midi_sdl_device_test.c)
+  set_target_properties(midi-sdl-device-test PROPERTIES
+    C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+  target_link_libraries(midi-sdl-device-test PRIVATE kauai-sdl-midi-device mm-native-runtime)
   kauai_copy_midi_assets(midi-sdl-test)
   file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/assets")
   get_filename_component(bank_source "${KAUAI_MIDI_BANK_FILE}" ABSOLUTE)
@@ -967,7 +980,6 @@ target_sources(kauai-core
     # WinMM output remains on the gui target in midi_stream_win.cpp.
     "${PROJECT_SOURCE_DIR}/kauai/src/midi.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev2.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/midi_worker.c"
     # Fixed picture envelope and opaque payload; native decoding is on kauai.
     "${PROJECT_SOURCE_DIR}/kauai/src/picture_data.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/dialog_resource.cpp"
@@ -1032,7 +1044,7 @@ target_compile_definitions(kauai-core PUBLIC
 # Allocation, synchronization and ticks use the portable core_platform layer.
 find_package(Threads REQUIRED)
 target_link_libraries(kauai-core
-  PRIVATE mm-native-archive-file
+  PRIVATE mm-native-archive-file kauai-midi-worker
   PUBLIC
     mm-engine-c89
     mm-native-files
@@ -1196,6 +1208,13 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
       COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
         -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
         -isystem "${PROJECT_SOURCE_DIR}/vendor/SDL3/include" -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/sdl_audio_output.c")
+  endif()
+  if(TARGET kauai-sdl-midi-device)
+    add_test(NAME kauai-sdl-midi-device-c89-syntax
+      COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+        -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
+        -isystem "${PROJECT_SOURCE_DIR}/vendor/SDL3/include" -fsyntax-only
+        "${PROJECT_SOURCE_DIR}/kauai/src/midi_sdl_device.c" "${PROJECT_SOURCE_DIR}/tests/midi_sdl_device_test.c")
   endif()
   if(TARGET kauai-midi-synth)
     add_test(NAME kauai-midi-synth-c89-syntax
@@ -1766,7 +1785,7 @@ if(KAUAI_MIDI_SYNTH OR BUILD_MARCUS)
   add_dependencies(core-checks midi-synth-test)
 endif()
 if(TARGET midi-sdl-test)
-  add_dependencies(core-checks midi-sdl-test)
+  add_dependencies(core-checks midi-sdl-test midi-sdl-device-test)
 endif()
 add_dependencies(core-checks sdl-runtime-compile-check studio-runtime-compile-check engine-runtime-compile-check studio-layout-test studio-resources-test studio-content-test studio-startup-test studio-entry-test midi-mixer-test midi-worker-test midi-stream-api-check palette-state-test pixel-buffer-test damage-map-test studio-shortcuts-test audio-mixer-test wave-codec-test recording-data-test ellipse-geometry-test)
 add_dependencies(core-checks engine-audio-runtime-test audio-runtime-trace-test midi-runtime-trace-test)
@@ -1934,7 +1953,8 @@ if(BUILD_TESTING)
   endif()
   if(TARGET midi-sdl-test)
     add_test(NAME midi-sdl COMMAND midi-sdl-test)
-    set_tests_properties(midi-sdl PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy" TIMEOUT 15)
+    add_test(NAME midi-sdl-device COMMAND midi-sdl-device-test "${KAUAI_MIDI_BANK_FILE}")
+    set_tests_properties(midi-sdl midi-sdl-device PROPERTIES ENVIRONMENT "SDL_AUDIODRIVER=dummy" TIMEOUT 15)
   endif()
   add_test(NAME midi-mixer COMMAND midi-mixer-test)
   set_tests_properties(midi-mixer PROPERTIES TIMEOUT 10)
