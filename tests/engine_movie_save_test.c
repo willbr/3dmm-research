@@ -760,7 +760,7 @@ static void destroy_asset_cache(void *p)
 }
 static int init_asset_cache(Test *t)
 {
-    MMResourceSource source = {NULL, NULL, NULL};
+    MMResourceSource source = {0};
     MMResourceServices services = {0};
     source.live = t;
     services.objects.state = asset_state;

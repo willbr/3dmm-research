@@ -309,8 +309,10 @@ MMPrivateArchive *KauaiWorkingArchive(Filename *name, bool create)
 PChunkyFile ChunkyFile::_PcflNew()
 {
     const auto io = ChunkOwnerFileIO();
+    const MMChunkWriteOptions write = {kckidMax, koskCur, DebugShip(1, 0),
+        [](MMU32 *number) { (void)number; TrashVar(number); }};
     auto archive = mm_chunk_archive_new(expandedRecords, KauaiCopyAllocator(), &io, KauaiChunkPayloadServices(),
-                                        kcbMaxDataStn);
+                                        kcbMaxDataStn, &write);
     if (!archive)
         return nullptr;
     auto file = NewObj ChunkyFile(archive);
@@ -340,7 +342,7 @@ ChunkyFile::ChunkyFile(MMChunkArchive *archive)
     };
 #endif
     // add it to the linked list
-    mm_chunk_link_init(&_link, this, &_owner, &_references);
+    mm_chunk_link_init(&_link, this, &_reader, &_references);
     AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
     AssertBaseThis(0);
 }
@@ -462,7 +464,8 @@ PChunkyFile ChunkyFile::PcflCreateTemp(Filename *pfni)
 PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
-    return static_cast<PChunkyFile>(mm_chunk_context_find(&_context, FileObject::PfilFromFni(pfni), DiagnoseExtraFile));
+    const auto link = mm_chunk_context_find(&_context, FileObject::PfilFromFni(pfni), DiagnoseExtraFile);
+    return link ? static_cast<PChunkyFile>(link->owner) : nullptr;
 }
 
 void ChunkyFile::DiagnoseExtraFile(void *)
@@ -1739,8 +1742,7 @@ MMArchiveWriter ChunkyFile::WriteIndex()
 
 MMArchiveWriter ChunkyFile::WriteOwnerIndex()
 {
-    return mm_chunk_owner_writer(&_reader, kckidMax, DebugShip(1, 0), koskCur,
-        [](MMU32 *number) { (void)number; TrashVar(number); });
+    return mm_chunk_owner_writer(&_reader);
 }
 /***************************************************************************
     Retrieve the name of the chunk.  Returns whether the string is

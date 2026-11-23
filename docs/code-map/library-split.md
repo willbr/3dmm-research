@@ -6846,7 +6846,7 @@ expanded-index variants compile with `/Zs`.
 
 `chunk_context.c` owns container registry links through explicit independent C
 contexts and caller-owned link records. No allocation or callbacks enter list
-insertion/removal. Links borrow owner tokens, live C archive state, and reference
+insertion/removal. Links borrow owner tokens, live C archive readers, and reference
 counts. They insert newest first and detach without retaining owners. Attached
 link and context addresses must remain stable. Detach is idempotent and duplicate
 attachment is rejected. Hosts remove links before freeing the owner.
@@ -6952,9 +6952,13 @@ backend reads its collection from the same block stream and retains its own
 platform selection policy.
 
 The cache also exposes a borrowed C graph for a synchronous operation. It uses
-the retained index for an immutable archive and acquires a fresh graph from
-the live file for each request. Template lookup uses that graph to select child
-keys and feeds them directly into the same cache with the registered reader.
+the retained index for an immutable archive. Legacy and private live caches
+bind a stable reader from the C archive owner, including on the registered
+cache-selection path. The C cache uses that reader for graph lookup, serialized
+names, physical extents, and a fresh writer over the current index. Typed siblings
+retain the same source and see index and extent replacements after reload.
+Template lookup uses the graph to select child keys and feeds them directly into
+the same cache with the registered resource reader.
 
 Both tables use C-owned storage. Entries are copied before callbacks; readers
 may load other keys and detach/destruction callbacks may remove other entries.

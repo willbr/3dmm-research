@@ -877,8 +877,9 @@ static void private_archive_cases(void)
     MMChunkContext legacy_registry = {0};
     MMChunkLink legacy_link;
     MMChunkOwner legacy_owner = {0};
+    MMChunkOwnerStorage legacy_storage = {0};
+    MMChunkOwnerRead legacy_reader = {0};
     MMReference legacy_ref = {0};
-    MMResourceCache cache = {0};
     MMChunkTitleIO titles = {0};
     MMMovieTitle title;
     MMChunkOwnerFileIO io = storage_io(&host);
@@ -888,8 +889,10 @@ static void private_archive_cases(void)
     MMSharedArchiveCacheServices shared = {NULL, NULL, NULL, NULL, NULL, refuse_legacy_archive, NULL, NULL};
     NamedFiles name = {0};
     MMPrivateArchive *archive, *alias;
-    MMResourceCache *shared_cache;
+    MMResourceCache *shared_cache, *cache, *sibling;
     MMChunkOwnerRead *borrowed = NULL;
+    MMOwnedBlock payload;
+    MMBlockIO block;
     MMMovieArchiveEditor editor;
     MMRichTextArchive rich;
     MMTextLocation text;
@@ -920,7 +923,9 @@ static void private_archive_cases(void)
     file_ops.context = &name;
     file_ops.equal_names = equal_named_files;
     file_ops.retain = retain_block;
-    mm_chunk_link_init(&legacy_link, &name, &legacy_owner, &legacy_ref);
+    legacy_storage.owner = &legacy_owner;
+    legacy_reader.storage = &legacy_storage;
+    mm_chunk_link_init(&legacy_link, &name, &legacy_reader, &legacy_ref);
     legacy_owner.files.main_file = name.file;
     archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks,
                                                   &profile);
@@ -931,13 +936,14 @@ static void private_archive_cases(void)
     mm_private_archive_close(archive);
     CHECK(editor.add(editor.context, 1, 0, &number, NULL) && number == 0);
     CHECK(editor.put(editor.context, 1, number, "test", sizeof(value)));
-    cache.file = archive;
-    mm_private_archive_cache_services(archive, NULL, &cache.services);
+    cache = mm_private_archive_cache_create(archive, 0, NULL, NULL, NULL);
+    CHECK(cache && mm_resource_cache_reader(cache) == mm_private_archive_reader(archive));
     titles.encoding = MM_TEXT_WINDOWS;
     titles.swapped_unicode_encoding = MM_TEXT_UTF16_LE;
     titles = mm_resource_cache_title_io(titles);
     CHECK(mm_movie_title_init(&title, 1) && mm_movie_title_set(&title, "Title", 5));
-    CHECK(mm_chunk_title_write(&title, &cache, 1, number, &titles));
+    CHECK(mm_chunk_title_write(&title, cache, 1, number, &titles));
+    mm_resource_cache_release(cache);
     graph.access(graph.context, &access);
     CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
     CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
@@ -977,21 +983,26 @@ static void private_archive_cases(void)
     CHECK(shared_cache && live && borrowed == mm_private_archive_reader(archive) && name.opens == 2 &&
           name.legacy_prepares == 1);
     CHECK(mm_chunk_context_detach(&legacy_link) == MM_CHUNK_OK);
-    mm_resource_cache_release(shared_cache);
     CHECK(archive && mm_private_archive_reader(archive)->storage->owner->add_to_extra);
-    cache.file = archive;
-    mm_private_archive_cache_services(archive, NULL, &cache.services);
-    mm_chunk_title_read(&title, &cache, 1, number, &titles);
+    cache = shared_cache;
+    sibling = mm_resource_cache_typed_sibling(cache, 0);
+    CHECK(sibling && mm_resource_cache_reader(sibling) == borrowed);
+    CHECK(mm_resource_cache_contains(sibling, 1, number, 0) && mm_resource_cache_chunks(sibling).count == 1);
+    mm_chunk_title_read(&title, sibling, 1, number, &titles);
     CHECK(title.count == 5 && !memcmp(mm_movie_title_text(&title), "Title", 5));
     editor = mm_private_archive_editor(archive);
     CHECK(editor.put(editor.context, 1, number, "edit", sizeof(value)));
     CHECK(mm_private_archive_reader(archive)->storage->owner->files.extra_file == &host.extra);
+    CHECK(mm_owned_block_init(&payload, sibling->services.handles, &blocks) == MM_DATA_OK);
+    CHECK(mm_resource_cache_read_block(sibling, 1, number, &payload) == MM_CHUNK_OK && payload.file == &host.extra);
+    CHECK(mm_owned_block_io(&payload, &block) == MM_DATA_OK);
+    CHECK(mm_block_read(&block, 0, value, sizeof(value), 0) == MM_DATA_OK && !memcmp(value, "edit", sizeof(value)));
     memcpy(value, host.main.bytes + MM_CHUNK_PREFIX_BYTES, sizeof(value));
     CHECK(!memcmp(value, "test", sizeof(value)));
     graph = mm_movie_owner_graph(mm_private_archive_reader(archive));
     CHECK(mm_private_archive_reopen(archive, 1) == MM_CHUNK_BAD_FILE);
     host.main.flags = MM_FILE_WRITE;
-    mm_resource_cache_reopen(&cache);
+    mm_resource_cache_reopen(cache);
     CHECK(mm_private_archive_reader(archive)->storage->owner->files.extra_file == &host.extra);
     host.main.flags = 0;
     magic = host.main.bytes[0];
@@ -1003,16 +1014,19 @@ static void private_archive_cases(void)
     CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
     CHECK(!memcmp(value, "edit", sizeof(value)));
     host.main.bytes[0] = magic;
-    mm_resource_cache_reopen(&cache);
+    mm_resource_cache_reopen(cache);
     CHECK(!mm_private_archive_reader(archive)->storage->owner->files.extra_file &&
           mm_private_archive_find(&registry, &host.main) == archive);
+    CHECK(mm_resource_cache_writer(sibling).names.context == borrowed->storage->owner->files.index);
+    CHECK(mm_resource_cache_read_block(sibling, 1, number, &payload) == MM_CHUNK_OK && payload.file == &host.main);
+    CHECK(mm_owned_block_clear(&payload) == MM_DATA_OK);
     graph.access(graph.context, &access);
     CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
     CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
     CHECK(!memcmp(value, "test", sizeof(value)));
-    CHECK(mm_movie_title_set(&title, NULL, 0) && mm_chunk_title_write(&title, &cache, 1, number, &titles));
+    CHECK(mm_movie_title_set(&title, NULL, 0) && mm_chunk_title_write(&title, cache, 1, number, &titles));
     CHECK(mm_movie_title_set(&title, "Title", 5));
-    mm_chunk_title_read(&title, &cache, 1, number, &titles);
+    mm_chunk_title_read(&title, sibling, 1, number, &titles);
     CHECK(!title.count);
     rich = mm_private_archive_rich_text(archive, &editor);
     CHECK(!rich.location(&rich, 0, &text));
@@ -1024,7 +1038,10 @@ static void private_archive_cases(void)
     CHECK(mm_read_exact(&stream.stream, 1, value, 2) && !memcmp(value, "ex", 2));
     CHECK(!rich.read_at(&rich, &text, 3, value, 2) && !memcmp(value, "ex", 2));
     CHECK(rich.read_at(&rich, &text, sizeof(value), NULL, 0));
+    mm_resource_cache_release(cache);
     mm_private_archive_close(archive);
+    CHECK(mm_private_archive_find(&registry, &host.main) != NULL);
+    mm_resource_cache_release(sibling);
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
     mm_file_registry_detach(&file_registry, &name.registration);
 }

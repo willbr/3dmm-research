@@ -53,30 +53,7 @@ static int validate_index(void *context)
 
 MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *archive)
 {
-    return mm_chunk_owner_writer(mm_private_archive_reader(archive), max_references(archive),
-                                 archive->profile.trash_unused, archive->profile.encoding, NULL);
-}
-
-static MMChunkAccess cache_chunks(void *context)
-{
-    return mm_chunk_owner_access(mm_private_archive_reader(context)->storage);
-}
-
-static int cache_contains(void *context, MMU32 type, MMU32 number)
-{
-    const MMChunkAccess chunks = cache_chunks(context);
-    MMU32 position;
-    return mm_chunk_find(&chunks, type, number, &position) == MM_CHUNK_OK;
-}
-
-static int cache_locate(void *context, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
-{
-    return mm_chunk_owner_locate(mm_private_archive_reader(context)->storage, type, number, file, packed);
-}
-
-static int cache_name(void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
-{
-    return mm_chunk_owner_title_read(mm_private_archive_reader(context), type, number, wire, capacity, written);
+    return mm_chunk_owner_writer(mm_private_archive_reader(archive));
 }
 
 static void cache_copy_source(void *context, MMChunkFileCopy *binding, MMChunkEndpoint *out)
@@ -88,9 +65,6 @@ static void cache_copy_target(void *context, MMChunkFileCopy *binding, MMChunkEn
 {
     *out = mm_private_archive_copy_target(context, binding);
 }
-
-static MMChunkOwnerRead *cache_reader(void *context) { return mm_private_archive_reader(context); }
-static MMArchiveWriter cache_writer(void *context) { return mm_private_archive_writer(context); }
 
 static void cache_retain(void *context) { mm_private_archive_retain(context); }
 static void cache_release(void *context) { mm_private_archive_close(context); }
@@ -110,16 +84,10 @@ void mm_private_archive_cache_services(MMPrivateArchive *archive, const MMHandle
     const MMChunkPayloadServices *payloads = &reader->payloads;
     services->handles = handles ? handles : payloads->handles;
     services->block_files = payloads->files;
-    services->live_chunks = cache_chunks;
-    services->contains = cache_contains;
-    services->locate = cache_locate;
     services->retain_file = cache_retain;
     services->release_file = cache_release;
-    services->live_name = cache_name;
     services->live_copy_source = cache_copy_source;
     services->live_copy_target = cache_copy_target;
-    services->live_reader = cache_reader;
-    services->live_writer = cache_writer;
     if (!services->copy)
         services->copy = &archive->copy;
     if (reader->storage->io.is_writable)
@@ -137,6 +105,7 @@ MMResourceCache *mm_private_archive_cache_create(MMPrivateArchive *archive, MMI3
     if (profile)
         services = *profile;
     source.live = archive;
+    source.reader = mm_private_archive_reader(archive);
     mm_private_archive_cache_services(archive, services.handles, &services);
     return mm_resource_cache_create(&source, budget, &services, owner, storage);
 }
@@ -179,7 +148,8 @@ static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *
                                           const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
 {
     MMPrivateArchive *archive;
-    MMChunkOwner *owner;
+    MMChunkOwnerRead *reader;
+    MMChunkWriteOptions write = {0};
     MMChunkPayloadServices payloads = {0};
     if (!file || !io || !io->release)
         return NULL;
@@ -195,9 +165,12 @@ static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *
         return NULL;
     }
     archive->profile = *profile;
+    write.max_references = max_references(archive);
+    write.system = profile->encoding;
+    write.scan_all_references = profile->trash_unused;
     payloads.handles = mm_chunk_handle_services();
     payloads.files = blocks;
-    archive->backing = mm_chunk_archive_new(profile->expanded, NULL, io, &payloads, max_title_bytes(archive));
+    archive->backing = mm_chunk_archive_new(profile->expanded, NULL, io, &payloads, max_title_bytes(archive), &write);
     if (!archive->backing)
     {
         free(archive);
@@ -205,9 +178,9 @@ static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *
         return NULL;
     }
     mm_reference_init(&archive->references);
-    owner = mm_private_archive_reader(archive)->storage->owner;
-    mm_chunk_link_init(&archive->link, archive, owner, &archive->references);
-    owner->files.main_file = file;
+    reader = mm_private_archive_reader(archive);
+    mm_chunk_link_init(&archive->link, archive, reader, &archive->references);
+    reader->storage->owner->files.main_file = file;
     return archive;
 }
 
@@ -351,7 +324,8 @@ MMPrivateArchive *mm_private_archive_open_resource_forest(MMResourceCache *sourc
 
 MMPrivateArchive *mm_private_archive_find(const MMChunkContext *registry, void *file)
 {
-    return mm_chunk_context_find(registry, file, NULL);
+    const MMChunkLink *link = mm_chunk_context_find(registry, file, NULL);
+    return link ? link->owner : NULL;
 }
 
 MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *registry, void *file, int mode,
@@ -436,12 +410,16 @@ MMResourceCache *mm_shared_archive_cache_open(const MMSharedArchiveCacheServices
         mm_private_archive_retain(archive);
     else
     {
-        source.live = mm_chunk_context_find(s->legacy_registry, backing, s->extra_collision);
-        if (source.live)
+        const MMChunkLink *link = mm_chunk_context_find(s->legacy_registry, backing, s->extra_collision);
+        if (link)
         {
-            if (s->prepare_legacy(source.live))
+            if (s->prepare_legacy(link->owner))
+            {
+                source.live = link->owner;
+                source.reader = link->reader;
                 cache = mm_resource_cache_create(&source, budget, s->legacy, s->owner_allocator,
                                                  s->storage_allocator);
+            }
         }
         else
         {

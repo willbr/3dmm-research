@@ -390,7 +390,7 @@ static void init_source(Host *h, MMI32 budget, const MMResourceSource *source)
 }
 static void init(Host *h, MMI32 budget)
 {
-    MMResourceSource source = {NULL, NULL, NULL};
+    MMResourceSource source = {0};
     source.live = h;
     init_source(h, budget, &source);
 }
@@ -750,7 +750,7 @@ static void wire_index_lifetime(void)
     MMMemoryStream memory;
     MMChunkPolicy policy = {0, 0, 516};
     MMChunkIndex *index;
-    MMResourceSource source = {NULL, NULL, NULL};
+    MMResourceSource source = {0};
     Host h, backing = {0};
     Object *object;
     MMResourceCache *sibling;

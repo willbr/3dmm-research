@@ -360,12 +360,16 @@ static void lookup(void)
     MMChunkContext registry = {0};
     MMChunkLink links[3];
     MMChunkOwner owners[3] = {0};
+    MMChunkOwnerStorage storage[3] = {0};
+    MMChunkOwnerRead readers[3] = {0};
     MMReference references[3] = {0};
     int collisions[3] = {0};
     int a, b, c, i;
     for (i = 2; i >= 0; --i)
     {
-        mm_chunk_link_init(links + i, collisions + i, owners + i, references + i);
+        storage[i].owner = owners + i;
+        readers[i].storage = storage + i;
+        mm_chunk_link_init(links + i, collisions + i, readers + i, references + i);
         CHECK(mm_chunk_context_attach(&registry, links + i) == MM_CHUNK_OK);
     }
     owners[0].files.main_file = &a;
@@ -373,13 +377,13 @@ static void lookup(void)
     owners[1].files.main_file = &b;
     owners[1].files.extra_file = &a;
     owners[2].files.main_file = &a;
-    CHECK(mm_chunk_context_find(&registry, &a, collision) == collisions + 2 && collisions[1] == 1);
-    CHECK(mm_chunk_context_find(&registry, &b, collision) == collisions + 1 && collisions[1] == 1);
+    CHECK(mm_chunk_context_find(&registry, &a, collision) == links + 2 && collisions[1] == 1);
+    CHECK(mm_chunk_context_find(&registry, &b, collision) == links + 1 && collisions[1] == 1);
     CHECK(!mm_chunk_context_find(&registry, &c, collision) && !mm_chunk_context_find(&registry, NULL, collision));
-    CHECK(mm_chunk_context_find(&registry, &a, NULL) == collisions + 2);
+    CHECK(mm_chunk_context_find(&registry, &a, NULL) == links + 2);
     owners[2].files.main_file = &c;
     CHECK(!mm_chunk_context_find(&registry, &a, collision) && collisions[1] == 2);
-    CHECK(mm_chunk_context_find(&registry, &c, collision) == collisions + 2);
+    CHECK(mm_chunk_context_find(&registry, &c, collision) == links + 2);
     for (i = 0; i < 3; ++i)
         CHECK(mm_chunk_context_detach(links + i) == MM_CHUNK_OK);
 }
@@ -448,6 +452,8 @@ static void context_cases(void)
     MMChunkContext a, b;
     MMChunkLink links[4];
     MMChunkOwner owners[4] = {0};
+    MMChunkOwnerStorage storage[4] = {0};
+    MMChunkOwnerRead readers[4] = {0};
     MMReference references[4] = {0};
     MMChunkLink **saved;
     int values[4], i;
@@ -455,7 +461,11 @@ static void context_cases(void)
     mm_chunk_context_init(&b);
     CHECK(!mm_chunk_context_first(&a) && !mm_chunk_context_first(NULL));
     for (i = 0; i < 4; ++i)
-        mm_chunk_link_init(links + i, values + i, owners + i, references + i);
+    {
+        storage[i].owner = owners + i;
+        readers[i].storage = storage + i;
+        mm_chunk_link_init(links + i, values + i, readers + i, references + i);
+    }
     for (i = 0; i < 3; ++i)
         CHECK(mm_chunk_context_attach(&a, links + i) == MM_CHUNK_OK);
     CHECK(mm_chunk_context_first(&a) == values + 2 && mm_chunk_context_next(links + 2) == values + 1);

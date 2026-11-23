@@ -25786,3 +25786,36 @@ embedded MIDI matched the retained port samples in fresh playback and replay.
 
 Evidence is under `tmp/c89-container-lookup`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## Live resource caches bind the C89 archive reader (23 November 2026)
+
+Legacy and private live resource caches now retain a source with its C archive
+reader. Graph lookup, serialized names, and payload extents use that reader
+directly. The cache builds a writer against the current index using the archive's
+stored options. Typed siblings retain the same source. The Kauai binding still
+provides allocation, lifetime, reload, and diagnostics for legacy objects.
+
+The standalone archive fixture creates a typed sibling, reads a staged edit
+from its spill file, and checks that a reload restores both the backing extent
+and the writer's index. The sibling keeps the archive alive through the last
+cache release. All 41 standalone engine checks passed. The changed C modules
+compiled with strict C89 flags for Linux x64. Runtime checks used Windows.
+All 23 strict C89 checks passed. The resource-cache trace, the native x64 and
+x86 registry, construction, and lifecycle traces, and all twelve file traces
+matched their baselines. Classic and SDL Studio rebuilt. The headless Marcus
+startup image matched, and the external core, archive, and preview consumers
+passed. SDL authoring and save/reopen passed. Four SDL save traces and eight
+VMM outputs matched their baselines.
+All 228 selected native tests passed. The 27 native scene, save, and edit
+traces and ten preview fingerprints matched their baselines.
+
+Fresh suite `20261123T213820Z-e9be2549` completed eight captures and replay
+suite `20261123T214014Z-31b78f97` completed four with verified input hashes.
+Both ports matched all 60 Actor Audio frame positions and camera indices and
+59 of 60 seek canvases against retained retail and V3DMM. Both matched all 60
+seek canvases and scene states against the prior port build. The first 100 ms
+of all four Actor Audio spans, the embedded WAVE cue, and the first 400 ms of
+embedded MIDI matched the retained port samples in fresh playback and replay.
+
+Evidence is under `tmp/c89-live-resource-reader`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

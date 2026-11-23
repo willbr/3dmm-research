@@ -105,25 +105,33 @@ extern "C"
     int mm_chunk_owner_write_name(MMChunkOwnerStorage *, MMU32 type, MMU32 number, MMU32 max_name_bytes,
                                   const void *wire, MMU32 bytes);
 
-    /* Borrow a stable storage binding and platform block services. */
+    typedef struct MMChunkWriteOptions
+    {
+        MMU32 max_references, system;
+        int scan_all_references;
+        void (*invalidate_number)(MMU32 *);
+    } MMChunkWriteOptions;
+    /* Borrow a stable storage binding and platform block services. Nonzero
+     * write.max_references enables a writer bound to the current table. */
     typedef struct MMChunkOwnerRead
     {
         MMChunkOwnerStorage *storage;
         MMChunkPayloadServices payloads;
         MMU32 max_name_bytes;
+        MMChunkWriteOptions write;
     } MMChunkOwnerRead;
     MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *, const MMChunkPayloadServices *, MMU32 max_name_bytes);
     /* MMChunkTitleIO callbacks for a borrowed MMChunkOwnerRead. */
     int mm_chunk_owner_title_read(void *, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written);
     int mm_chunk_owner_title_write(void *, MMU32 type, MMU32 number, const void *wire, MMU32 bytes);
-    MMArchiveWriter mm_chunk_owner_writer(const MMChunkOwnerRead *, MMU32 max_references, int scan_all_references,
-                                          MMU32 system, void (*invalidate_number)(MMU32 *));
+    MMArchiveWriter mm_chunk_owner_writer(const MMChunkOwnerRead *);
 
     typedef struct MMChunkArchive MMChunkArchive;
     /* Allocate an empty owner and stable views. The caller attaches its file
      * and table using the owner services. The archive releases both on close. */
     MMChunkArchive *mm_chunk_archive_new(int expanded, const MMStorageAllocator *, const MMChunkOwnerFileIO *,
-                                         const MMChunkPayloadServices *, MMU32 max_name_bytes);
+                                         const MMChunkPayloadServices *, MMU32 max_name_bytes,
+                                         const MMChunkWriteOptions *);
     MMChunkOwnerRead *mm_chunk_archive_reader(MMChunkArchive *);
     int mm_chunk_archive_close(MMChunkArchive *);
 

@@ -70,7 +70,7 @@ static int world_test_write_file(void *context, void *file, MMU32 offset, const 
 
 static void world_test_cache_init(WorldTestAssets *assets, int budget, int *phase, int *fail)
 {
-    MMResourceSource source = {NULL, NULL, NULL};
+    MMResourceSource source = {0};
     MMResourceServices services = {0};
     assets->phase = phase;
     assets->fail = fail;

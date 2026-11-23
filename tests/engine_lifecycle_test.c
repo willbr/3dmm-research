@@ -96,6 +96,8 @@ typedef struct Link
 {
     MMChunkLink link;
     MMChunkOwner owner;
+    MMChunkOwnerStorage storage;
+    MMChunkOwnerRead reader;
     MMReference references;
     int *destroyed;
     int dead, validations;
@@ -125,7 +127,9 @@ static void registry(void)
     for (i = 3; i >= 0; --i)
     {
         nodes[i].destroyed = &destroyed;
-        mm_chunk_link_init(&nodes[i].link, nodes + i, &nodes[i].owner, &nodes[i].references);
+        nodes[i].storage.owner = &nodes[i].owner;
+        nodes[i].reader.storage = &nodes[i].storage;
+        mm_chunk_link_init(&nodes[i].link, nodes + i, &nodes[i].reader, &nodes[i].references);
         CHECK(mm_chunk_context_attach(&registry, &nodes[i].link) == MM_CHUNK_OK);
     }
     nodes[1].owner.marked = 1;

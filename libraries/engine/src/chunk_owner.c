@@ -504,7 +504,7 @@ static int reader_locate(void *context, MMU32 type, MMU32 number, MMBlockFile *e
 MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *storage, const MMChunkPayloadServices *payloads,
                                        MMU32 max_name_bytes)
 {
-    MMChunkOwnerRead reader;
+    MMChunkOwnerRead reader = {0};
     reader.storage = storage;
     reader.payloads = *payloads;
     reader.payloads.locate = reader_locate;
@@ -512,17 +512,19 @@ MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *storage, const MMChu
     return reader;
 }
 
-MMArchiveWriter mm_chunk_owner_writer(const MMChunkOwnerRead *reader, MMU32 max_references, int scan_all_references,
-                                      MMU32 system, void (*invalidate_number)(MMU32 *))
+MMArchiveWriter mm_chunk_owner_writer(const MMChunkOwnerRead *reader)
 {
     const unsigned short order = 1;
-    MMArchiveWriter writer;
-    writer.edit = mm_chunk_owner_editor(reader->storage, max_references, scan_all_references);
+    MMArchiveWriter writer = {0};
+    if (!reader || !reader->write.max_references)
+        return writer;
+    writer.edit = mm_chunk_owner_editor(reader->storage, reader->write.max_references,
+                                        reader->write.scan_all_references);
     writer.names = mm_chunk_table_names(owner_table(reader->storage), reader->max_name_bytes);
     writer.payloads = &reader->payloads;
     writer.big_endian = *(const unsigned char *)&order == 0;
-    writer.system = system;
-    writer.invalidate_number = invalidate_number;
+    writer.system = reader->write.system;
+    writer.invalidate_number = reader->write.invalidate_number;
     writer.transfer_allocator = reader->storage->allocator;
     return writer;
 }
@@ -535,7 +537,8 @@ struct MMChunkArchive
 };
 
 MMChunkArchive *mm_chunk_archive_new(int expanded, const MMStorageAllocator *allocator, const MMChunkOwnerFileIO *io,
-                                     const MMChunkPayloadServices *payloads, MMU32 max_name_bytes)
+                                      const MMChunkPayloadServices *payloads, MMU32 max_name_bytes,
+                                      const MMChunkWriteOptions *write)
 {
     MMChunkArchive *archive;
     if (!io || !io->release || !payloads)
@@ -551,6 +554,8 @@ MMChunkArchive *mm_chunk_archive_new(int expanded, const MMStorageAllocator *all
     mm_chunk_owner_bind_storage(&archive->storage, &archive->owner, allocator,
                                 expanded ? 0x7fffffffUL : 0x00ffffffUL, io);
     archive->reader = mm_chunk_owner_reader(&archive->storage, payloads, max_name_bytes);
+    if (write)
+        archive->reader.write = *write;
     return archive;
 }
 

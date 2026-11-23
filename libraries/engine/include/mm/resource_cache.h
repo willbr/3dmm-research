@@ -93,7 +93,6 @@ extern "C"
         void (*live_copy_source)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
         void (*live_copy_target)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
         const struct MMResourceCopyServices *copy; /* Borrowed codec and backing access services. */
-        struct MMChunkOwnerRead *(*live_reader)(void *file);
         struct MMArchiveWriter (*live_writer)(void *file);
         void (*live_reopen)(void *file);
         void (*mark_source)(MMResourceCache *);
@@ -103,18 +102,23 @@ extern "C"
         const MMResourceTypedHost *typed; /* Optional, borrowed diagnostics and allocators for typed siblings. */
     } MMResourceServices;
     /* Select exactly one source. A wire index and backing file describe the
-     * same immutable archive. */
+     * same immutable archive. A live source may bind its stable reader, which
+     * must use the cache's block-file services and live through its last retained
+     * reference. The reader supplies live lookup, names, extents and writers.
+     * Live sources without a reader use the corresponding service callbacks. */
     typedef struct MMResourceSource
     {
         void *live;
         const MMChunkIndex *index;
         void *backing;
+        struct MMChunkOwnerRead *reader;
     } MMResourceSource;
     struct MMResourceCache
     {
         MMCollectionStorage storage;
         MMResourceServices services;
         void *owner, *file;
+        struct MMChunkOwnerRead *reader;
         MMChunkIndex *wire_index;
         void *wire_file;
         MMReference *references;

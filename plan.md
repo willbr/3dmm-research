@@ -2356,8 +2356,10 @@ directly for mark clearing and zero-reference cleanup.
 The Windows code-page, case mapping, and collation providers now build as C89.
 Archive readers and private editors get the shared C archive text profile,
 including the writer for legacy counted names.
-The shared C resource cache creates typed siblings and decodes names directly
-into the counted values used by template, background, and sound readers.
+The shared C resource cache uses the live archive reader for chunk lookup,
+names, and payload extents. It builds a writer from the current index using
+the archive's write options. Typed siblings carry the same source, and names
+decode into the counted values used by template, background, and sound readers.
 Legacy allocation and diagnostics remain host services.
 Stored preview caches and native private archives use the shared C heap
 handles and KCDC/KCD2 decoder. Resource readers use the decoder paired with

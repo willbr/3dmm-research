@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/resource_cache.h"
 #include "mm/chunk_copy.h"
+#include "mm/chunk_owner.h"
 #include "mm/chunk_storage.h"
 #include "mm/string_value.h"
 #include <stdlib.h>
@@ -140,8 +141,12 @@ int mm_resource_cache_init(MMResourceCache *c, void *owner, MMReference *referen
         mm_owned_block_init(&block, s->handles, s->block_files) != MM_DATA_OK)
         return MM_STORAGE_ARGUMENT;
     if (source->live ?
-            source->index || source->backing || !s->contains || !s->locate || !s->retain_file || !s->release_file :
-            !source->index || !source->backing)
+            source->index || source->backing || !s->retain_file || !s->release_file :
+            !source->index || !source->backing || source->reader)
+        return MM_STORAGE_ARGUMENT;
+    if (source->live && (source->reader ?
+            !source->reader->storage || source->reader->payloads.files != s->block_files :
+            !s->contains || !s->locate))
         return MM_STORAGE_ARGUMENT;
     memset(c, 0, sizeof(*c));
     if (mm_storage_init(&c->storage, allocator) != MM_STORAGE_OK)
@@ -162,6 +167,7 @@ int mm_resource_cache_init(MMResourceCache *c, void *owner, MMReference *referen
     c->services = *s;
     c->owner = owner;
     c->file = source->live;
+    c->reader = source->reader;
     c->references = references;
     c->budget = budget;
     c->diagnostic_refs = diagnostic_refs;
@@ -226,6 +232,7 @@ MMResourceSource mm_resource_cache_source(const MMResourceCache *c)
     source.live = c->file;
     source.index = c->wire_index;
     source.backing = c->wire_file;
+    source.reader = c->reader;
     return source;
 }
 
@@ -272,6 +279,8 @@ int mm_resource_cache_read_name(const MMResourceCache *c, MMU32 type, MMU32 numb
     MMChunkAccess access;
     if (!c || !wire || !bytes)
         return 0;
+    if (c->reader)
+        return mm_chunk_owner_title_read(c->reader, type, number, wire, capacity, bytes);
     if (!c->wire_index)
         return c->services.live_name && c->services.live_name(c->file, type, number, wire, capacity, bytes);
     access = mm_chunk_index_access(c->wire_index);
@@ -555,6 +564,12 @@ static int contains(MMResourceCache *c, MMU32 type, MMU32 number)
 {
     if (c->wire_index)
         return wire_find(c, type, number, NULL, NULL);
+    if (c->reader)
+    {
+        const MMChunkAccess access = mm_chunk_owner_access(c->reader->storage);
+        MMU32 position;
+        return mm_chunk_find(&access, type, number, &position) == MM_CHUNK_OK;
+    }
     return c->services.contains(c->file, type, number);
 }
 static int scope(MMResourceCache *c, MMU32 rsc)
@@ -589,6 +604,8 @@ MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *c)
     MMChunkAccess empty = {0};
     if (c && c->wire_index)
         return mm_chunk_index_access(c->wire_index);
+    if (c && c->reader)
+        return mm_chunk_owner_access(c->reader->storage);
     if (c && c->file && c->services.live_chunks)
         return c->services.live_chunks(c->file);
     return empty;
@@ -596,14 +613,14 @@ MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *c)
 
 struct MMChunkOwnerRead *mm_resource_cache_reader(const MMResourceCache *c)
 {
-    if (c && !c->wire_index && c->services.live_reader)
-        return c->services.live_reader(c->file);
-    return NULL;
+    return c ? c->reader : NULL;
 }
 
 MMArchiveWriter mm_resource_cache_writer(const MMResourceCache *c)
 {
     MMArchiveWriter empty = {0};
+    if (c && c->reader)
+        return mm_chunk_owner_writer(c->reader);
     if (c && !c->wire_index && c->services.live_writer)
         return c->services.live_writer(c->file);
     return empty;
@@ -618,8 +635,11 @@ void mm_resource_cache_reopen(MMResourceCache *cache)
 static int locate_payload(void *context, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
 {
     MMResourceCache *c = (MMResourceCache *)context;
-    return c->wire_index ? wire_find(c, type, number, file, packed) :
-                           c->services.locate(c->file, type, number, file, packed);
+    if (c->wire_index)
+        return wire_find(c, type, number, file, packed);
+    if (c->reader)
+        return mm_chunk_owner_locate(c->reader->storage, type, number, file, packed);
+    return c->services.locate(c->file, type, number, file, packed);
 }
 
 int mm_resource_cache_read_block(MMResourceCache *c, MMU32 type, MMU32 number, MMOwnedBlock *out)
@@ -901,6 +921,7 @@ int mm_resource_cache_dispose(MMResourceCache *c)
     }
     file = c->file;
     c->file = NULL;
+    c->reader = NULL;
     if (file)
         c->services.release_file(file);
     return result;

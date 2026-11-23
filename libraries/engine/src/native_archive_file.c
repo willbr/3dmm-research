@@ -295,11 +295,10 @@ MMResourceCache *mm_native_archive_source_cache(const MMNativeArchiveSource *sou
                                                  const MMResourceServices *profile,
                                                  const MMStorageAllocator *owner, const MMStorageAllocator *storage)
 {
-    MMResourceSource wire;
+    MMResourceSource wire = {0};
     MMResourceServices services;
     if (!source || !source->index || !source->file || !profile)
         return NULL;
-    wire.live = NULL;
     wire.index = source->index;
     wire.backing = source->file;
     services = *profile;

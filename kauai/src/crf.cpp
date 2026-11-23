@@ -231,23 +231,11 @@ namespace
 MMResourceServices LegacyCacheServices()
 {
     MMResourceServices s = {};
-    s.contains = [](void *file, MMU32 type, MMU32 number) -> int {
-        return static_cast<PChunkyFile>(file)->FFind(type, number);
-    };
-    s.live_chunks = [](void *file) { return static_cast<PChunkyFile>(file)->ReadChunkAccess(); };
-    s.live_reader = [](void *file) { return static_cast<PChunkyFile>(file)->ReadOwner(); };
-    s.live_writer = [](void *file) { return static_cast<PChunkyFile>(file)->WriteOwnerIndex(); };
     s.live_reopen = [](void *file) { static_cast<PChunkyFile>(file)->FReopen(); };
-    const auto blocks = KauaiChunkPayloadServices();
-    s.handles = blocks->handles;
-    s.block_files = blocks->files;
-    s.locate = blocks->locate;
+    s.handles = KauaiHandleServices();
+    s.block_files = KauaiBlockFileServices();
     s.retain_file = [](void *file) { static_cast<PChunkyFile>(file)->AddRef(); };
     s.release_file = [](void *file) { static_cast<PChunkyFile>(file)->Release(); };
-    s.live_name = [](void *file, MMU32 type, MMU32 number, void *out, MMU32 capacity, MMU32 *bytes) {
-        const auto reader = static_cast<PChunkyFile>(file)->ReadOwner();
-        return mm_chunk_owner_title_read(reader, type, number, out, capacity, bytes);
-    };
     s.copy = ResourceCopyProfile(false);
 #ifdef DEBUG
     s.mark_source = [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyFile>(cache->file)); };
@@ -275,7 +263,7 @@ MMResourceServices PrivateCacheProfile()
 
 MMResourceCache *NewTypedLiveCache(PChunkyFile file, MMI32 budget)
 {
-    const MMResourceSource source = {file, nullptr, nullptr};
+    const MMResourceSource source = {file, nullptr, nullptr, file ? file->ReadOwner() : nullptr};
     return NewTypedCache(source, LegacyCacheServices(), budget);
 }
 
@@ -422,13 +410,13 @@ ChunkyResourceFile::~ChunkyResourceFile(void)
 PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong budget)
 {
     AssertPo(file, 0);
-    return _PcrfNew({file, nullptr, nullptr}, budget);
+    return _PcrfNew({file, nullptr, nullptr, file ? file->ReadOwner() : nullptr}, budget);
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfNewPrivate(MMPrivateArchive *archive, LegacyLong budget)
 {
     if (!archive || mm_private_archive_reader(archive)->payloads.files != KauaiBlockFileServices())
         return nullptr;
-    return _PcrfNew({archive, nullptr, nullptr}, budget, nullptr, nullptr, archive);
+    return _PcrfNew({archive, nullptr, nullptr, mm_private_archive_reader(archive)}, budget, nullptr, nullptr, archive);
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfOpenWorking(PFilename name, bool create, LegacyLong budget)
 {
@@ -440,12 +428,12 @@ PChunkyResourceFile ChunkyResourceFile::PcrfOpenWorking(PFilename name, bool cre
 PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, PFileObject backing, LegacyLong budget)
 {
     AssertPo(backing, 0);
-    return _PcrfNew({nullptr, index, backing}, budget);
+    return _PcrfNew({nullptr, index, backing, nullptr}, budget);
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, void *backing,
                                                     const MMBlockFileServices &files, String &path, LegacyLong budget)
 {
-    return _PcrfNew({nullptr, index, backing}, budget, &files, &path);
+    return _PcrfNew({nullptr, index, backing, nullptr}, budget, &files, &path);
 }
 
 PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source, LegacyLong budget,
@@ -566,7 +554,7 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
         return PcrfNewPrivate(_privateArchive, budget);
     if (_cache.wire_index && !_legacyWireFile)
         return PcrfNewIndex(_cache.wire_index, _cache.wire_file, *_cache.services.block_files, _wirePath, budget);
-    return _PcrfNew({Pcfl(), _cache.wire_index, _cache.wire_file}, budget);
+    return _PcrfNew(mm_resource_cache_source(&_cache), budget);
 }
 #ifdef DEBUG
 void ChunkyResourceFile::AssertValid(LegacyUlong flags)
