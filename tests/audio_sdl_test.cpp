@@ -57,17 +57,21 @@ int main()
     CHECK(!KauaiAudio::DecodeWave("bad", 3, sample) && sample.get() == retained);
     bytes[0] = 'X';
     CHECK(!KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && sample.get() == retained);
-    KauaiAudio::Output output;
-    CHECK(output.Open());
-    auto queue = output.Engine().AddQueue();
-    CHECK(queue);
+    const std::unique_ptr<MMSdlAudioOutput, decltype(&mm_sdl_audio_output_destroy)> output(
+        mm_sdl_audio_output_create_mixer(), mm_sdl_audio_output_destroy);
+    CHECK(output && mm_sdl_audio_output_open(output.get(), nullptr, nullptr));
+    const auto queue = mm_audio_mixer_add(KauaiAudio::LockedMixer(output.get()).Get());
+    CHECK(queue.low && !queue.high);
     const auto voice = mm_audio_sample_voice(sample.get(), 1, 1);
-    CHECK(output.Engine().Sync(queue, &voice, 1));
+    CHECK(mm_audio_mixer_sync(KauaiAudio::LockedMixer(output.get()).Get(), queue, &voice, 1));
     sample.reset();
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (!output.Engine().Done(queue, 1) && std::chrono::steady_clock::now() < deadline)
+    while (!mm_audio_mixer_done(KauaiAudio::LockedMixer(output.get()).Get(), queue, 1) &&
+           std::chrono::steady_clock::now() < deadline)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    CHECK(output.Engine().Done(queue, 1) && output.Engine().Stats().started == 1 &&
-          output.Engine().Stats().completed == 1);
+    const KauaiAudio::LockedMixer lock(output.get());
+    const auto mixer = lock.Get();
+    CHECK(mm_audio_mixer_done(mixer, queue, 1) && mixer->started.low == 1 && !mixer->started.high &&
+          mixer->completed.low == 1 && !mixer->completed.high);
     std::puts("SDL audio: exact PCM/MS ADPCM decode, rejected input, and real dummy-device callback playback passed.");
 }

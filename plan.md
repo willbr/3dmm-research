@@ -2295,6 +2295,10 @@ Studio and Marcus adopt SDL's decoded stereo PCM through a C89 sample owner.
 The portable mixer retains each published voice's sample and releases it on
 replacement or queue removal. Marcus playback and waveform readers use the
 same decoded buffer interface.
+Studio PCM playback and recording preview share a C89 SDL output service
+with Marcus movie audio. The PCM mixer owns its native recursive lock and
+reads active Studio sound queue entries directly when publishing voices.
+Studio's host supplies the decoded sample lookup.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

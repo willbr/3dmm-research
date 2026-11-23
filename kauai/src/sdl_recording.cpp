@@ -22,10 +22,15 @@ struct Recorder::Impl
 {
     RecordingBuffer buffer;
     SDL_AudioStream *capture = nullptr;
-    Output output;
-    std::uint64_t queue = 0;
+    std::unique_ptr<MMSdlAudioOutput, decltype(&mm_sdl_audio_output_destroy)> output;
+    MMAudioCounter queue = {};
     std::vector<std::uint8_t> wave;
     bool initialized = false, recording = false, playing = false, failed = false;
+    Impl() : output(mm_sdl_audio_output_create_mixer(), mm_sdl_audio_output_destroy)
+    {
+        if (!output)
+            throw std::bad_alloc();
+    }
     ~Impl()
     {
         SDL_DestroyAudioStream(capture);
@@ -100,7 +105,7 @@ bool Recorder::Stop()
 {
     if (impl->playing)
     {
-        impl->output.Engine().Sync(impl->queue, nullptr, 0);
+        mm_audio_mixer_sync(LockedMixer(impl->output.get()).Get(), impl->queue, nullptr, 0);
         impl->playing = false;
     }
     if (!impl->recording)
@@ -139,16 +144,17 @@ bool Recorder::Play(float volume)
 {
     try
     {
-        if (impl->recording || !HaveSound() || !Stop() || !impl->output.Open())
+        if (impl->recording || !HaveSound() || !Stop() || !mm_sdl_audio_output_open(impl->output.get(), nullptr, nullptr))
             return false;
         Sample sample;
         if (!DecodeWave(impl->wave.data(), impl->wave.size(), sample))
             return false;
-        if (!impl->queue)
-            impl->queue = impl->output.Engine().AddQueue();
+        const LockedMixer lock(impl->output.get());
+        if (!impl->queue.low && !impl->queue.high)
+            impl->queue = mm_audio_mixer_add(lock.Get());
         const auto voice = mm_audio_sample_voice(sample.get(), 1, 1);
-        impl->output.Engine().SetVolume(volume);
-        if (!impl->queue || !impl->output.Engine().Sync(impl->queue, &voice, 1))
+        mm_audio_mixer_volume(lock.Get(), volume);
+        if ((!impl->queue.low && !impl->queue.high) || !mm_audio_mixer_sync(lock.Get(), impl->queue, &voice, 1))
             return false;
         impl->playing = true;
         ++previewed;
@@ -161,11 +167,11 @@ bool Recorder::Play(float volume)
 }
 void Recorder::SuspendPreview(bool suspended)
 {
-    impl->output.Engine().Suspend(suspended);
+    mm_audio_mixer_suspend(LockedMixer(impl->output.get()).Get(), suspended);
 }
 bool Recorder::Playing()
 {
-    if (impl->playing && impl->output.Engine().Done(impl->queue, 1))
+    if (impl->playing && mm_audio_mixer_done(LockedMixer(impl->output.get()).Get(), impl->queue, 1))
         Stop();
     return impl->playing;
 }

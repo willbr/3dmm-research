@@ -7,6 +7,7 @@
 extern "C"
 {
 #endif
+    enum { MM_AUDIO_MIX_RATE = 48000 };
     typedef struct MMAudioVoice
     {
         MMI32 id, plays; /* Zero plays loops indefinitely. */
@@ -17,6 +18,7 @@ extern "C"
         MMU32 offset_ms;
         int paused, stopped;
     } MMAudioVoice;
+    typedef int (*MMAudioVoiceReader)(void *, size_t index, MMAudioVoice *);
     typedef struct MMAudioAllocator
     {
         void *context;
@@ -49,6 +51,9 @@ extern "C"
     MMAudioCounter mm_audio_mixer_add(MMAudioMixer *);
     void mm_audio_mixer_remove(MMAudioMixer *, MMAudioCounter);
     int mm_audio_mixer_sync(MMAudioMixer *, MMAudioCounter, const MMAudioVoice *, size_t);
+    /* Read each candidate once while the old voices and their samples are live.
+     * Readers must not reenter the mixer. Failure leaves the queue untouched. */
+    int mm_audio_mixer_sync_read(MMAudioMixer *, MMAudioCounter, size_t, void *, MMAudioVoiceReader);
     int mm_audio_mixer_done(const MMAudioMixer *, MMAudioCounter, MMI32);
     void mm_audio_mixer_volume(MMAudioMixer *, float);
     void mm_audio_mixer_suspend(MMAudioMixer *, int);

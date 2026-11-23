@@ -25055,3 +25055,36 @@ of MIDI in both modes.
 
 Evidence is under `tmp/c89-pcm-sample-owner`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## Shared C89 SDL audio output (23 November 2026)
+
+Studio PCM playback and recording preview share a C89 SDL stream owner with
+Marcus movie audio. It opens the device, requests bounded stereo render
+blocks, and closes the stream before mixer teardown. Marcus supplies its
+movie mixer and error reporter. Studio's C89 PCM mixer owns the recursive
+native lock and reads live sound queue entries directly when publishing
+voices. Starting at the playback cursor, the reader copies each entry's
+volume, repeat count, offset, and pause state into the mixer transaction.
+
+The native mixer fixture checks recursive locking and rejection after a
+partially read queue. The C-only mixer probe links the C library and renders
+PCM from a queue. A C-only SDL probe checks bounded render blocks, a driver
+initialization error, a successful retry on the same owner, and teardown.
+The 4,000-step mixer trace retained fingerprint `D1FA52C3`.
+
+The 228 selected native, 48 SDL, five focused SDL audio, and 23 standalone
+C89 checks passed. All 15 strict syntax checks and the focused x86 fixtures
+passed. Classic Studio rebuilt and the external consumer passed. Native
+save/load and scene traces, the Marcus headless startup canvas, and both
+SDL authoring and VMM outputs matched their baselines.
+
+Fresh suite `20261123T174013Z-2beb508b` completed eight captures and replay
+suite `20261123T174159Z-65d2d18e` completed four, with verified input hashes.
+Actor Audio matched all 60 frame positions, 60 camera indices, and 59 seek
+canvases against retained retail and V3DMM runs. Both ports' sampled audio
+peaked at 4,081 in PCM16 in both modes. In the embedded MIDI fixture, each
+port matched its retained capture for the entire 100 ms WAVE cue and first
+400 ms of MIDI in both modes.
+
+Evidence is under `tmp/c89-shared-sdl-output`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

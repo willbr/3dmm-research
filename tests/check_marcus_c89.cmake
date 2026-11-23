@@ -8,6 +8,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   -DIMGUI_ENABLE_FREETYPE -DIMGUI_ENABLE_STB_TRUETYPE
   -Werror=declaration-after-statement -Wall -Wextra -fsyntax-only ${includes}
   "-I${SOURCE}/libraries/engine/include" "-I${SOURCE}/libraries/v3dmm/include" "-I${SOURCE}/bren/inc"
+  "-I${SOURCE}/kauai/src"
   "-I${SOURCE}/src/marcus" "-I${GENERATED}" "${SOURCE}/src/marcus/main.c" "${SOURCE}/src/marcus/ui.c"
   "${SOURCE}/src/marcus/settings.c"
   "${SOURCE}/src/marcus/text_dialog.c"

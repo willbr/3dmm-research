@@ -1,4 +1,5 @@
 #include "playback_audio.h"
+#include "sdl_audio_output.h"
 #include <SDL3/SDL.h>
 
 struct MarcusPlaybackAudio
@@ -6,60 +7,39 @@ struct MarcusPlaybackAudio
     MMMovieAudio *mixer;
     MMMovieAudioCache *clips;
     SDL_Mutex *mutex;
-    SDL_AudioStream *stream;
+    MMSdlAudioOutput *output;
     const char *fallback_bank;
     void *bank;
     size_t bank_bytes;
-    int initialized, auditioning;
+    int auditioning;
 };
 
-static void SDLCALL feed(void *p, SDL_AudioStream *stream, int additional, int total)
+static void render_output(void *p, float *buffer, size_t frames)
 {
     MarcusPlaybackAudio *audio = p;
-    float output[MM_MOVIE_AUDIO_BLOCK_FRAMES * 2];
-    const size_t frame_bytes = 2 * sizeof(*output);
-    size_t frames;
-    int bytes;
-    (void)total;
-    while (additional > 0)
-    {
-        frames = ((size_t)additional + frame_bytes - 1) / frame_bytes;
-        if (frames > MM_MOVIE_AUDIO_BLOCK_FRAMES)
-            frames = MM_MOVIE_AUDIO_BLOCK_FRAMES;
-        SDL_LockMutex(audio->mutex);
-        mm_movie_audio_render(audio->mixer, output, frames);
-        SDL_UnlockMutex(audio->mutex);
-        bytes = (int)(frames * frame_bytes);
-        if (!SDL_PutAudioStreamData(stream, output, bytes))
-            break;
-        additional -= bytes;
-    }
+    SDL_LockMutex(audio->mutex);
+    mm_movie_audio_render(audio->mixer, buffer, frames);
+    SDL_UnlockMutex(audio->mutex);
 }
 
+typedef struct AudioDeviceError
+{
+    char *message;
+    size_t capacity;
+} AudioDeviceError;
+
+static void report_device_error(void *p, int initializing, const char *detail)
+{
+    AudioDeviceError *error = p;
+    SDL_snprintf(error->message, error->capacity, initializing ? "Cannot initialize movie audio: %s"
+                                                                : "Cannot open movie audio output: %s", detail);
+}
 static int open_device(MarcusPlaybackAudio *audio, char *error, size_t capacity)
 {
-    const SDL_AudioSpec spec = {SDL_AUDIO_F32, 2, MARCUS_PLAYBACK_AUDIO_RATE};
-    SDL_AudioStream *stream;
-    if (audio->stream)
-        return 1;
-    if (!audio->initialized)
-    {
-        if (!SDL_InitSubSystem(SDL_INIT_AUDIO))
-        {
-            SDL_snprintf(error, capacity, "Cannot initialize movie audio: %s", SDL_GetError());
-            return 0;
-        }
-        audio->initialized = 1;
-    }
-    stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, feed, audio);
-    if (!stream || !SDL_ResumeAudioStreamDevice(stream))
-    {
-        SDL_snprintf(error, capacity, "Cannot open movie audio output: %s", SDL_GetError());
-        SDL_DestroyAudioStream(stream);
-        return 0;
-    }
-    audio->stream = stream;
-    return 1;
+    AudioDeviceError report;
+    report.message = error;
+    report.capacity = capacity;
+    return mm_sdl_audio_output_open(audio->output, &report, report_device_error);
 }
 
 MarcusPlaybackAudio *marcus_playback_audio_create(const char *fallback_bank)
@@ -71,7 +51,8 @@ MarcusPlaybackAudio *marcus_playback_audio_create(const char *fallback_bank)
     audio->mutex = SDL_CreateMutex();
     audio->mixer = mm_movie_audio_create();
     audio->clips = mm_movie_audio_cache_create(256UL * 1024UL * 1024UL);
-    if (!audio->mutex || !audio->mixer || !audio->clips)
+    audio->output = mm_sdl_audio_output_create(audio, render_output, MM_MOVIE_AUDIO_BLOCK_FRAMES);
+    if (!audio->mutex || !audio->mixer || !audio->clips || !audio->output)
     {
         marcus_playback_audio_destroy(audio);
         return NULL;
@@ -83,9 +64,7 @@ void marcus_playback_audio_destroy(MarcusPlaybackAudio *audio)
 {
     if (!audio)
         return;
-    SDL_DestroyAudioStream(audio->stream);
-    if (audio->initialized)
-        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    mm_sdl_audio_output_destroy(audio->output);
     mm_movie_audio_destroy(audio->mixer);
     mm_movie_audio_cache_destroy(audio->clips);
     SDL_free(audio->bank);
@@ -99,8 +78,7 @@ void marcus_playback_audio_clear(MarcusPlaybackAudio *audio)
     mm_movie_audio_clear(audio->mixer);
     SDL_UnlockMutex(audio->mutex);
     /* SDL can hold the stream lock while calling feed. */
-    if (audio->stream)
-        SDL_ClearAudioStream(audio->stream);
+    mm_sdl_audio_output_clear(audio->output);
     mm_movie_audio_cache_clear(audio->clips);
 }
 

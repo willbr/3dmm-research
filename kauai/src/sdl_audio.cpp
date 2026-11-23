@@ -5,10 +5,6 @@
 #include "mm/collection_storage.h"
 #include "compressed_wave.h"
 #include <SDL3/SDL.h>
-#define SDL_MAIN_HANDLED
-#include <SDL3/SDL_main.h>
-#include <algorithm>
-#include <array>
 #include <climits>
 #include <new>
 namespace KauaiAudio
@@ -182,60 +178,5 @@ bool DecodeWave(const void *data, std::size_t bytes, Sample &sample)
     }
     sample.reset(owner);
     return true;
-}
-struct Output::Impl
-{
-    Mixer mixer;
-    SDL_AudioStream *stream = nullptr;
-    bool initialized = false;
-    ~Impl()
-    {
-        SDL_DestroyAudioStream(stream);
-        if (initialized)
-            SDL_QuitSubSystem(SDL_INIT_AUDIO);
-    }
-    static void SDLCALL Feed(void *data, SDL_AudioStream *stream, int additional, int)
-    {
-        auto self = static_cast<Impl *>(data);
-        std::array<float, 1024> buffer;
-        while (additional > 0)
-        {
-            const auto frames = std::min<std::size_t>(buffer.size() / 2, (std::size_t(additional) + 7) / 8);
-            self->mixer.Render(buffer.data(), frames);
-            const auto bytes = static_cast<int>(frames * 2 * sizeof(float));
-            if (!SDL_PutAudioStreamData(stream, buffer.data(), bytes))
-                break;
-            additional -= bytes;
-        }
-    }
-};
-Output::Output() : impl(new Impl)
-{
-}
-Output::~Output() = default;
-bool Output::Open()
-{
-    if (impl->stream)
-        return true;
-    if (!impl->initialized)
-    {
-        SDL_SetMainReady();
-        if (!SDL_InitSubSystem(SDL_INIT_AUDIO))
-            return false;
-        impl->initialized = true;
-    }
-    const SDL_AudioSpec spec = {SDL_AUDIO_F32, 2, SampleRate};
-    impl->stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, Impl::Feed, impl.get());
-    if (!impl->stream)
-        return false;
-    if (SDL_ResumeAudioStreamDevice(impl->stream))
-        return true;
-    SDL_DestroyAudioStream(impl->stream);
-    impl->stream = nullptr;
-    return false;
-}
-Mixer &Output::Engine()
-{
-    return impl->mixer;
 }
 } // namespace KauaiAudio

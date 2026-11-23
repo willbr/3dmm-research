@@ -104,12 +104,13 @@ void mm_audio_mixer_remove(MMAudioMixer *m, MMAudioCounter id)
             return;
         }
 }
-int mm_audio_mixer_sync(MMAudioMixer *m, MMAudioCounter id, const MMAudioVoice *v, size_t n)
+static int sync_voices(MMAudioMixer *m, MMAudioCounter id, const MMAudioVoice *v, size_t n, void *context,
+                       MMAudioVoiceReader read)
 {
     MMAudioQueue *q = find(m, id);
     Playing *p = NULL, *previous;
     size_t i, j, previous_count;
-    if (!q || (n && !v) || n > (size_t)-1 / sizeof(*p))
+    if (!q || (n && !v && !read) || n > (size_t)-1 / sizeof(*p))
         return 0;
     if (n)
     {
@@ -119,28 +120,37 @@ int mm_audio_mixer_sync(MMAudioMixer *m, MMAudioCounter id, const MMAudioVoice *
     }
     for (i = 0; i < n; ++i)
     {
-        if (!v[i].id || v[i].plays < 0 || !v[i].sample || (v[i].frames && !v[i].stereo) || !finite_volume(v[i].volume))
+        MMAudioVoice voice;
+        if (read)
+        {
+            if (!read(context, i, &voice))
+                goto fail;
+        }
+        else
+            voice = v[i];
+        if (!voice.id || voice.plays < 0 || !voice.sample || (voice.frames && !voice.stereo) ||
+            !finite_volume(voice.volume))
             goto fail;
         for (j = 0; j < i; ++j)
-            if (v[j].id == v[i].id)
+            if (p[j].voice.id == voice.id)
                 goto fail;
         memset(p + i, 0, sizeof(*p));
         for (j = 0; j < q->count; ++j)
-            if (q->voices[j].voice.id == v[i].id)
+            if (q->voices[j].voice.id == voice.id)
                 break;
         if (j < q->count)
         {
-            if (q->voices[j].voice.sample != v[i].sample || q->voices[j].voice.plays != v[i].plays ||
-                q->voices[j].voice.offset_ms != v[i].offset_ms)
+            if (q->voices[j].voice.sample != voice.sample || q->voices[j].voice.plays != voice.plays ||
+                q->voices[j].voice.offset_ms != voice.offset_ms)
                 goto fail;
             p[i] = q->voices[j];
         }
         else
         {
-            p[i].position = mm_audio_count_multiply(v[i].offset_ms, 48);
+            p[i].position = mm_audio_count_multiply(voice.offset_ms, MM_AUDIO_MIX_RATE / 1000);
             p[i].grouped = m->groups > 0;
         }
-        p[i].voice = v[i];
+        p[i].voice = voice;
     }
     if (m->samples.retain)
         for (i = 0; i < n; ++i)
@@ -156,6 +166,14 @@ fail:
     if (p)
         m->allocator.release(m->allocator.context, p);
     return 0;
+}
+int mm_audio_mixer_sync(MMAudioMixer *m, MMAudioCounter id, const MMAudioVoice *voices, size_t count)
+{
+    return sync_voices(m, id, voices, count, NULL, NULL);
+}
+int mm_audio_mixer_sync_read(MMAudioMixer *m, MMAudioCounter id, size_t count, void *context, MMAudioVoiceReader read)
+{
+    return sync_voices(m, id, NULL, count, context, read);
 }
 int mm_audio_mixer_done(const MMAudioMixer *m, MMAudioCounter id, MMI32 voice)
 {

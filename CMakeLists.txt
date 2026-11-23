@@ -35,10 +35,10 @@ target_include_directories(kauai-recording-data PUBLIC "${PROJECT_SOURCE_DIR}/ka
 target_link_libraries(kauai-recording-data PUBLIC kauai-wave-codec)
 add_executable(recording-data-test EXCLUDE_FROM_ALL tests/recording_data_test.cpp)
 target_link_libraries(recording-data-test PRIVATE kauai-recording-data)
-add_library(kauai-audio-mixer STATIC kauai/src/audio_mixer.cpp kauai/src/audio_sample.c)
+add_library(kauai-audio-mixer STATIC kauai/src/audio_mixer.c kauai/src/audio_sample.c)
 set_target_properties(kauai-audio-mixer PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(kauai-audio-mixer PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
-target_link_libraries(kauai-audio-mixer PUBLIC Threads::Threads mm-engine-c89 PRIVATE mm-native-runtime)
+target_link_libraries(kauai-audio-mixer PUBLIC mm-engine-c89 PRIVATE mm-native-runtime)
 add_executable(audio-mixer-test EXCLUDE_FROM_ALL tests/audio_mixer_test.cpp)
 target_link_libraries(audio-mixer-test PRIVATE kauai-audio-mixer)
 add_executable(audio-runtime-trace-test EXCLUDE_FROM_ALL tests/audio_runtime_trace.cpp)
@@ -205,7 +205,8 @@ endif()
 if(STUDIO_SDL3 OR BUILD_MARCUS)
   include(SDL3Dependency)
   include(CompressedAudioDependency)
-  add_library(kauai-sdl-audio STATIC kauai/src/sdl_audio.cpp kauai/src/sdl_recording.cpp)
+  add_library(kauai-sdl-audio STATIC kauai/src/sdl_audio.cpp kauai/src/sdl_audio_output.c kauai/src/sdl_recording.cpp)
+  set_target_properties(kauai-sdl-audio PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
   target_include_directories(kauai-sdl-audio PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
   target_link_libraries(kauai-sdl-audio PUBLIC kauai-audio-mixer kauai-wave-codec kauai-recording-data
     PRIVATE SDL3::SDL3-static kauai-compressed-wave)
@@ -1171,10 +1172,16 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
       -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/movie_sound.c")
-  add_test(NAME kauai-audio-sample-c89-syntax
+  add_test(NAME kauai-audio-mixer-c89-syntax
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
-      -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/audio_sample.c")
+      -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/audio_mixer.c" "${PROJECT_SOURCE_DIR}/kauai/src/audio_sample.c")
+  if(TARGET kauai-sdl-audio)
+    add_test(NAME kauai-sdl-audio-output-c89-syntax
+      COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+        -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
+        -isystem "${PROJECT_SOURCE_DIR}/vendor/SDL3/include" -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/sdl_audio_output.c")
+  endif()
 endif()
 
 # brender-core: BRender wrapper minus the World/PWorld gui binding.

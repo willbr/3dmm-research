@@ -2,46 +2,26 @@
 #ifndef KAUAI_AUDIO_MIXER_H
 #define KAUAI_AUDIO_MIXER_H
 #include "audio_sample.h"
-#include <cstddef>
-#include <cstdint>
-#include <memory>
-#include <vector>
-namespace KauaiAudio
-{
-constexpr int SampleRate = 48000;
-struct SampleDeleter
-{
-    void operator()(MMAudioSample *sample) const { mm_audio_sample_release(sample); }
-};
-using Sample = std::unique_ptr<MMAudioSample, SampleDeleter>;
-struct MixerStats
-{
-    std::uint64_t started = 0, completed = 0, renderedFrames = 0;
-};
-// Fixed-rate stereo mixer. Queues play sequentially and mix concurrently.
-// Rendering performs no allocations and never calls the Kauai framework.
-class Mixer
-{
-    struct Impl;
-    std::unique_ptr<Impl> impl;
+#include "mm/sound_queue.h"
 
-  public:
-    Mixer();
-    ~Mixer();
-    std::uint64_t AddQueue();
-    void RemoveQueue(std::uint64_t queue);
-    bool Sync(std::uint64_t queue, const MMAudioVoice *voices, std::size_t count);
-    bool Sync(std::uint64_t queue, const std::vector<MMAudioVoice> &voices);
-    bool Done(std::uint64_t queue, std::int32_t voice) const;
-    void SetVolume(float volume);
-    void Suspend(bool suspended);
-    void BeginGroup();
-    void EndGroup();
-    void Render(float *stereo, std::size_t frames);
-    MixerStats Stats() const;
-    // Recursive main-thread transaction used by Kauai's queue adapter.
-    void Lock();
-    void Unlock();
-};
-} // namespace KauaiAudio
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct MMAudioDeviceMixer MMAudioDeviceMixer;
+
+MMAudioDeviceMixer *mm_audio_device_mixer_create(void);
+/* Stop render callbacks and other users before destroying the mixer. */
+void mm_audio_device_mixer_destroy(MMAudioDeviceMixer *);
+/* The lock is recursive. The returned core is borrowed until leave. */
+MMAudioMixer *mm_audio_device_mixer_enter(MMAudioDeviceMixer *);
+void mm_audio_device_mixer_leave(MMAudioDeviceMixer *);
+/* The sound-queue host must use this mixer's lock for its entries and cursor.
+ * The sample reader borrows PCM and leaves the queue and mixer untouched. */
+int mm_audio_device_mixer_sync_queue(MMAudioDeviceMixer *, MMAudioCounter, const MMSoundQueue *,
+                                     MMI32 full_volume, const MMAudioSample *(*sample)(void *));
+
+#ifdef __cplusplus
+}
+#endif
 #endif

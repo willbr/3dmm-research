@@ -1,6 +1,7 @@
 #ifndef MARCUS_PLAYBACK_AUDIO_H
 #define MARCUS_PLAYBACK_AUDIO_H
 
+#include "mm/audio_mixer.h"
 #include "mm/movie_audio_cache.h"
 #include "mm/preview_metadata.h"
 
@@ -10,7 +11,7 @@ extern "C" {
 
 typedef struct MarcusPlaybackAudio MarcusPlaybackAudio;
 
-enum { MARCUS_PLAYBACK_AUDIO_RATE = 48000 };
+enum { MARCUS_PLAYBACK_AUDIO_RATE = MM_AUDIO_MIX_RATE };
 /* The fallback bank path is borrowed for the lifetime of the audio owner. */
 MarcusPlaybackAudio *marcus_playback_audio_create(const char *fallback_bank);
 void marcus_playback_audio_destroy(MarcusPlaybackAudio *);
