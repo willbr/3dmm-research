@@ -615,15 +615,10 @@ void SceneSound(PGeneralGroup events, int frame, ChunkNumber sound, int slot, bo
 }
 void Actor(PChunkyFile file, ChunkNumber scene, ChunkNumber sound, PGeneralGroup starts)
 {
-    ActorChunkOnFile header = {};
-    header.bo = kboCur;
-    header.osk = koskCur;
-    header.arid = 42;
-    header.nfrmFirst = -2;
-    header.nfrmLast = 4;
-    header.tagTmpl = {2, 0, kctgTmpl, 0x2010};
+    const MMActorHeader header = {kboCur, koskCur, {}, 42, -2, 4, 2, 0, kctgTmpl, 0x2010};
+    const auto archive = file->WriteIndex();
     ChunkNumber number, child;
-    CHECK(file->FAdd(0, kctgActr, &number) && ActorData::FWriteHeader(file, number, &header));
+    CHECK(file->FAdd(0, kctgActr, &number) && mm_actor_write_header(number, &header, &archive));
     CHECK(file->FAdoptChild(kctgScen, scene, kctgActr, number, 0));
     ActorTrack track;
     CHECK(track.FCreate());
@@ -653,10 +648,10 @@ void Actor(PChunkyFile file, ChunkNumber scene, ChunkNumber sound, PGeneralGroup
     CHECK(mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), sizeof(cue), &cue, &event));
     DataBlock block;
     CHECK(file->FAddChild(kctgActr, number, 0, mm_actor_path_wire_size(track.Route()), kctgPath, &child, &block));
-    CHECK(ActorData::FWritePath(track.Route(), &block));
-    auto wire = ActorData::PeventsEncode(track.Events());
+    CHECK(mm_actor_write_path_block(track.Route(), koskCur, block.CoreBlock()));
+    auto wire = mm_actor_encode_events(track.Events());
     CHECK(wire && file->FAddChild(kctgActr, number, 0, mm_actor_events_wire_size(wire), kctgGgae, &child, &block));
-    CHECK(ActorData::FWriteEvents(wire, &block));
+    CHECK(mm_actor_write_events_block(wire, koskCur, 0, block.CoreBlock()));
     mm_actor_events_release(wire);
     std::uint32_t slot = 0;
     SceneEvent start = {-2, sevtAddActr};

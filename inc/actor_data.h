@@ -6,6 +6,7 @@
 #include "bren_core.h"
 #include "tagman.h"
 #include "mm/actor_motion.h"
+#include <cstddef>
 #include <cstdint>
 using namespace BRender;
 
@@ -211,36 +212,26 @@ enum
 // actor jump in angle when choosing between the two methods of editing.
 //
 } // end of namespace ActorEvent
-struct ActorChunkOnFile // Actor chunk on file
-{
-    int16_t bo;             // Byte order
-    int16_t osk;            // OS kind
-    RoutePoint dxyzFullRte; // Translation of the route
-    int32_t arid;           // Unique id assigned to this actor.
-    int32_t nfrmFirst;      // First frame in this actor's stage life
-    int32_t nfrmLast;       // Last frame in this actor's stage life
-    TAGOnFile tagTmpl;      // Tag to actor's template (16-byte wire format; convert with From / TagFromOnFile)
-};
-static_assert(sizeof(ActorChunkOnFile) == 44, "ActorChunkOnFile on-disk layout drift");
-const ByteOrderMask kbomActf = 0x5fffff00;
 
-// Actor persistence without Scene, Movie, World, audio or UI objects.
-struct MMActorPath;
-struct MMActorEventTable;
-struct ActorData
-{
-    static bool FReadHeader(PDataBlock block, ActorChunkOnFile *header);
-    static bool FReadHeader(PChunkyFile file, ChunkNumber actor, void *header);
-    static bool FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header);
-    static bool FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta);
-    static MMActorPath *PpathRead(PDataBlock block);
-    static MMActorPath *PpathRead(PChunkyFile file, ChunkNumber actor);
-    static bool FWritePath(MMActorPath *, PDataBlock);
-    // Returned events have runtime-width values with unopened TAGs (pcrf=nil).
-    static MMActorEventTable *PeventsRead(PDataBlock block);
-    static MMActorEventTable *PeventsRead(PChunkyFile file, ChunkNumber actor);
-    // Borrows runtime events. Returned wire values own no TAG references.
-    static MMActorEventTable *PeventsEncode(MMActorEventTable *events);
-    static bool FWriteEvents(MMActorEventTable *, PDataBlock, short order = kboCur);
-};
+static_assert(sizeof(TAG) == sizeof(MMTag) && offsetof(TAG, sid) == offsetof(MMTag, sid) &&
+                  offsetof(TAG, cache) == offsetof(MMTag, cache) && offsetof(TAG, ctg) == offsetof(MMTag, type) &&
+                  offsetof(TAG, cno) == offsetof(MMTag, number),
+              "actor tag ABI");
+static_assert(sizeof(tribool) == 4 && sizeof(ActorEvent::Costume) == sizeof(MMActorCostume) &&
+                  offsetof(ActorEvent::Costume, tag) == offsetof(MMActorCostume, tag) &&
+                  offsetof(ActorEvent::Costume, fCmtl) == 8,
+              "actor costume payload ABI");
+static_assert(sizeof(BMAT34) == sizeof(MMActorMatrix) && sizeof(ActorEvent::Add) == 20 &&
+                  offsetof(ActorEvent::Add, xa) == 12 && offsetof(ActorEvent::Add, ya) == 14 &&
+                  offsetof(ActorEvent::Add, za) == 16 && sizeof(ActorEvent::Action) == 8 &&
+                  sizeof(ActorEvent::Stretch) == 12,
+              "actor scalar payload ABI");
+static_assert(ActorEvent::aetAdd == MM_ACTOR_ADD && ActorEvent::aetActn == MM_ACTOR_ACTION &&
+                  ActorEvent::aetCost == MM_ACTOR_COSTUME && ActorEvent::aetRotF == MM_ACTOR_ROTATE_FORWARD &&
+                  ActorEvent::aetPull == MM_ACTOR_STRETCH && ActorEvent::aetSize == MM_ACTOR_SIZE &&
+                  ActorEvent::aetSnd == MM_ACTOR_SOUND && ActorEvent::aetMove == MM_ACTOR_MOVE &&
+                  ActorEvent::aetFreeze == MM_ACTOR_FREEZE && ActorEvent::aetTweak == MM_ACTOR_TWEAK &&
+                  ActorEvent::aetStep == MM_ACTOR_STEP && ActorEvent::aetRem == MM_ACTOR_REMOVE &&
+                  ActorEvent::aetRotH == MM_ACTOR_ROTATE_HERE,
+              "actor event kinds");
 #endif

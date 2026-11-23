@@ -372,8 +372,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   normalization, checked ID adjustment, PATH and GGAE storage, embedded tag
   opening, template selection, and legacy lifetime recovery. The 40/44-byte
   headers, mixed-width Add angles, resource order and partial-save behavior are
-  retained. Studio and preview share the typed decoders. Native services
-  supply resource access, chunk creation and byte I/O.
+  retained. Studio and Preview share the typed decoders. `movie-chomp`
+  reads ACTR and PATH blocks through the C89 codecs. Native fixtures use
+  the same block readers and writers as the engine. The C++ actor data and
+  track translation units have been removed from the build. Native services
+  supply resource access, archive storage and cross-archive copy diagnostics.
 - Actor track state, table/tag ownership, transactional creation/cloning, tag lookup
   and ordered cleanup now use C89. Studio and preview borrow typed views of the
   tables they own in C. Preview also uses C for draft cloning and event-track

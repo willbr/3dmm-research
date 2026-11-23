@@ -10,7 +10,7 @@
 
     Here's the chunk hierarchy:
 
-    Actor // contains an ActorChunkOnFile (origin, arid, nfrmFirst, tagTmpl...)
+    Actor // contains an MMActorHeader (origin, actor ID, lifetime, template tag)
      |
      +---PATH (chid 0) // _pglxyz (actor path)
      |
@@ -66,7 +66,7 @@ PActor Actor::PactrRead(MMResourceCache *pcrf, ChunkNumber cnoActr)
         return nullptr;
     const auto allocator = CollectionAllocator();
     MMActorLoadServices services = {};
-    services.tags = &EngineActorTagServices();
+    services.tags = mm_tag_local_cache_services();
     services.allocator = &allocator;
     services.trash_unused = DebugShip(1, 0);
     services.create = [](void *, MMActorOwner **owner) -> void * {

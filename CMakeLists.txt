@@ -1225,8 +1225,6 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/movie_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/portfolio_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/scene_data.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actor_data.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/actor_track.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/text_box_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"

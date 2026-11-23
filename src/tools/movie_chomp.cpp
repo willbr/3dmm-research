@@ -1,5 +1,8 @@
 #include "movie_chomp.h"
+#include "handle_services.h"
+#include "mm/actor_persistence.h"
 #include "mm/chunky_decompile.h"
+#include "mm/wide.h"
 #include "actor.h"
 
 ASSERTNAME
@@ -640,35 +643,35 @@ void DumpActorEvents(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, ChunkNumbe
     printf("\t\t\t\t\t]\n");
 }
 
+static MMActorPath *ReadActorPath(DataBlock &block)
+{
+    const auto allocator = CollectionAllocator();
+    const MMActorPathFactory factory = {&allocator, DebugShip(1, 0)};
+    return mm_actor_block_path(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &factory);
+}
+
 void DumpActorsPath(PChunkyFile pcfl, PMSNK pmsnk, PMSNK pmsnkError, PDataBlock pdata_block)
 {
-    short bo = 1;
-    PDynamicArray pglrpt;
     int indent = 40;
 
     printf("%*.s" "path = [\n", indent, "");
-    pglrpt = DynamicArray::PglRead(pdata_block, &bo);
-    if (pvNil == pglrpt) {
+    MMActorPath *path = ReadActorPath(*pdata_block);
+    if (!path)
         return;
-    }
-    AssertBomRglw(kbomRpt, size(RouteDistancePoint));
-    if (kboOther == bo)
-    {
-        SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(int32_t)));
-    }
-    printf("%*.s" "\t//length of path: %d\n", indent, "", pglrpt->IvMac());
+    const MMI32 count = mm_actor_path_count(path);
+    printf("%*.s" "\t//length of path: %d\n", indent, "", count);
 
     indent += 8;
-    for (long irdp = 0; irdp < pglrpt->IvMac(); irdp++)
+    for (MMI32 irdp = 0; irdp < count; ++irdp)
     {
-        RouteDistancePoint rdp;
-        pglrpt->Get(irdp, &rdp);
-        // printf("%*.s" "\t// %d\n", indent, "", irdp);
+        MMActorRoutePoint rdp;
+        mm_actor_path_get(path, irdp, &rdp);
         printf("%*.s" "RouteDistancePoint(\n", indent, "");
         printf("%*.s" "\t{x=%d, y=%d, z=%d},\n", indent, "", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
         printf("%*.s" "\tdwr=%d\n", indent, "", rdp.dwr);
         printf("%*.s" ")\n", indent, "");
     }
+    mm_actor_path_release(path);
     indent -= 8;
     
     printf("%*.s" "]\n", indent, "");
@@ -778,9 +781,6 @@ MMChunkyBodyResult DumpMovieBody(void *context, const MMChunkEntry *entry)
 
     SceneOnFile scenh;
     short bo;
-    PDynamicArray pglrpt;
-    long irdp;
-    RouteDistancePoint rdp;
     PGeneralGroup pggsevFrm;
     long isevFrm;
     SceneEvent sev;
@@ -822,61 +822,59 @@ MMChunkyBodyResult DumpMovieBody(void *context, const MMChunkEntry *entry)
 
         return MM_CHUNKY_BODY_WRITTEN;
 
-    case kctgPath:
-        if (!load() || pvNil == (pglrpt = DynamicArray::PglRead(&blck, &bo)))
+    case kctgPath: {
+        if (!load())
             return MM_CHUNKY_BODY_ERROR;
-        AssertBomRglw(kbomRpt, size(RouteDistancePoint));
-        if (kboOther == bo)
+        MMActorPath *path = ReadActorPath(blck);
+        if (!path)
+            return MM_CHUNKY_BODY_ERROR;
+        const MMI32 count = mm_actor_path_count(path);
+        for (MMI32 irdp = 0; irdp < count; ++irdp)
         {
-            SwapBytesRglw(pglrpt->QvGet(0), LwMul(pglrpt->IvMac(), size(RouteDistancePoint) / size(int32_t)));
-        }
-        // printf("length of path: %d\n", pglrpt->IvMac());
-
-        for (irdp = 0; irdp < pglrpt->IvMac(); irdp++)
-        {
-            pglrpt->Get(irdp, &rdp);
+            MMActorRoutePoint rdp;
+            mm_actor_path_get(path, irdp, &rdp);
             printf("\t// %d\n", irdp);
             printf("\tRouteDistancePoint(\n");
             printf("\t\t{x=%d, y=%d, z=%d},\n", rdp.xyz.dxr, rdp.xyz.dyr, rdp.xyz.dzr);
             printf("\t\tdwr=%d\n", rdp.dwr);
             printf("\t)\n");
         }
-        ReleasePpo(&pglrpt);
+        mm_actor_path_release(path);
         return MM_CHUNKY_BODY_WRITTEN;
+    }
 
     case kctgGgae:
         Bug("TODO");
         return MM_CHUNKY_BODY_WRITTEN;
 
     case kctgActr: {
-        ActorChunkOnFile actf;
-        if (!load())
+        MMActorHeader actf;
+        if (!load() || !mm_actor_block_header(blck.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &actf))
             return MM_CHUNKY_BODY_ERROR;
-        ActorData::FReadHeader(&blck, &actf);
 
         printf("\tActor(\n");
-        printf("\t\tbo=%d,\n", actf.bo);
-        printf("\t\tosk=%d,\n", actf.osk);
+        printf("\t\tbo=%d,\n", actf.order);
+        printf("\t\tosk=%d,\n", actf.system);
 
         printf("\t\tRoutePoint(\n");
-        printf("\t\t\tdxyzFullRte.dxr=%ld,\n", actf.dxyzFullRte.dxr);
-        printf("\t\t\tdxyzFullRte.dyr=%ld,\n", actf.dxyzFullRte.dyr);
-        printf("\t\t\tdxyzFullRte.dzr=%ld\n", actf.dxyzFullRte.dzr);
+        printf("\t\t\tdxyzFullRte.dxr=%ld,\n", static_cast<long>(mm_signed_word(actf.translation[0])));
+        printf("\t\t\tdxyzFullRte.dyr=%ld,\n", static_cast<long>(mm_signed_word(actf.translation[1])));
+        printf("\t\t\tdxyzFullRte.dzr=%ld\n", static_cast<long>(mm_signed_word(actf.translation[2])));
         printf("\t\t)\n");
 
-        printf("\t\tarid=%d,\n", actf.arid);
-        printf("\t\tnfrmFirst=%d,\n", actf.nfrmFirst);
-        printf("\t\tnfrmLast=%d,\n", actf.nfrmLast);
+        printf("\t\tarid=%d,\n", actf.actor_id);
+        printf("\t\tnfrmFirst=%d,\n", actf.first_frame);
+        printf("\t\tnfrmLast=%d,\n", actf.last_frame);
 
         printf("\t\tTAG(\n");
-        printf("\t\t\ttagTmpl.cno=%d,\n", actf.tagTmpl.cno);
+        printf("\t\t\ttagTmpl.cno=%d,\n", mm_signed_word(actf.template_number));
 
         String template_tag;
-        template_tag.FFormatSz(PszLit("%f"), actf.tagTmpl.ctg);
+        template_tag.FFormatSz(PszLit("%f"), actf.template_type);
         printf("\t\t\ttagTmpl='%s',\n", template_tag.Psz());
 
-        printf("\t\t\ttagTmpl._pcrfPad=%u,\n", actf.tagTmpl._pcrfPad);
-        printf("\t\t\ttagTmpl.sid=%d\n", actf.tagTmpl.sid);
+        printf("\t\t\ttagTmpl._pcrfPad=%u,\n", actf.wire_pointer_pad);
+        printf("\t\t\ttagTmpl.sid=%d\n", actf.source_id);
         printf("\t\t)\n");
 
         printf("\t)\n");

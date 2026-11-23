@@ -28,7 +28,7 @@ using namespace BRender;
 //	RoutePoint : A point in x,y,z along an actor's RouTE.
 //
 #include "actor_data.h"
-#include "actor_track.h"
+#include "mm/actor_track.h"
 #include "mm/actor_sound_edit.h"
 #include "mm/actor_action_edit.h"
 #include "mm/actor_costume_edit.h"

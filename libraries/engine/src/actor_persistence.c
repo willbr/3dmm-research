@@ -3,6 +3,24 @@
 #include "mm/actor_persistence.h"
 #include "mm/wide.h"
 
+int mm_actor_block_header(MMOwnedBlock *block, void *context, MMBlockTransform decode, MMActorHeader *header)
+{
+    MMBlockIO io;
+    MMReadStream stream;
+    return mm_owned_block_decoded_stream(block, context, decode, &io, &stream) == MM_DATA_OK &&
+           mm_actor_read_header(&stream, header);
+}
+
+MMActorPath *mm_actor_block_path(MMOwnedBlock *block, void *context, MMBlockTransform decode,
+                                 const MMActorPathFactory *factory)
+{
+    MMBlockIO io;
+    MMReadStream stream;
+    if (mm_owned_block_decoded_stream(block, context, decode, &io, &stream) != MM_DATA_OK)
+        return NULL;
+    return mm_actor_path_read(&stream, factory);
+}
+
 int mm_actor_movie_path(const MMMovieSessionGraph *graph, MMU32 number, const MMActorPathFactory *factory,
                         MMActorPath **out)
 {

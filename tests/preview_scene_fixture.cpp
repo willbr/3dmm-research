@@ -213,7 +213,7 @@ static bool ActorAudioEvents(ActorTrack &track, PChunkyResourceFile resource, co
         sound.queue = cels[i] < 0 ? tYes : tNo;
         sound.child = cels[i] < 0 ? 0 : 1;
         sound.tag = {0, resource->CoreCache(), kctgMsnd, sounds[sound.child]};
-        mm_tag_dup(&sound.tag, &EngineActorTagServices());
+        mm_tag_dup(&sound.tag, mm_tag_local_cache_services());
         LegacyLong index = 0;
         for (; index < mm_actor_events_count(track.Events()); ++index)
         {
@@ -224,7 +224,7 @@ static bool ActorAudioEvents(ActorTrack &track, PChunkyResourceFile resource, co
         }
         if (!mm_actor_events_insert(track.Events(), index, sizeof(sound), &sound, &event))
         {
-            mm_tag_close(&sound.tag, &EngineActorTagServices());
+            mm_tag_close(&sound.tag, mm_tag_local_cache_services());
             return false;
         }
     }
@@ -348,19 +348,20 @@ int main(int argc, char **argv)
     {
         ChunkNumber actorNumber;
         DataBlock block;
-        ActorChunkOnFile header = {};
-        header.bo = kboCur;
-        header.osk = koskCur;
-        header.arid = actor;
-        header.nfrmFirst = 1;
-        header.nfrmLast = scene.lastFrame;
+        MMActorHeader header = {};
+        header.order = kboCur;
+        header.system = koskCur;
+        header.actor_id = actor;
+        header.first_frame = 1;
+        header.last_frame = scene.lastFrame;
         if (actor == 4)
-            header.nfrmFirst = header.nfrmLast = knfrmInvalid;
-        header.tagTmpl.sid = source;
-        header.tagTmpl.ctg = kctgTmpl;
-        header.tagTmpl.cno = actor == 0 ? 0x2010 : actor == 1 ? 0x1020 : 0x1010;
-        header.dxyzFullRte = {BrsAdd(camera.apos.xrPlace, BR_SCALAR(actor * 12 - 18)), camera.apos.yrPlace,
-                              camera.apos.zrPlace};
+            header.first_frame = header.last_frame = knfrmInvalid;
+        header.source_id = source;
+        header.template_type = kctgTmpl;
+        header.template_number = actor == 0 ? 0x2010 : actor == 1 ? 0x1020 : 0x1010;
+        header.translation[0] = static_cast<MMU32>(BrsAdd(camera.apos.xrPlace, BR_SCALAR(actor * 12 - 18)));
+        header.translation[1] = static_cast<MMU32>(camera.apos.yrPlace);
+        header.translation[2] = static_cast<MMU32>(camera.apos.zrPlace);
         if (actor == 3)
         {
             String text;
@@ -375,12 +376,13 @@ int main(int argc, char **argv)
                 ok = false;
                 break;
             }
-            header.tagTmpl.sid = 0;
-            header.tagTmpl.cno = templateNumber;
+            header.source_id = 0;
+            header.template_number = templateNumber;
         }
-        byte oldHeader[40];
-        CopyPb(&header, oldHeader, 24);
-        CopyPb(&header.tagTmpl, oldHeader + 24, sizeof(header.tagTmpl));
+        byte oldHeader[MM_ACTOR_OLD_HEADER_BYTES];
+        const size_t prefix = offsetof(MMActorHeader, last_frame);
+        CopyPb(&header, oldHeader, prefix);
+        CopyPb(&header.source_id, oldHeader + prefix, sizeof(oldHeader) - prefix);
         const LegacyLong headerBytes = actor == 1 && !movie ? sizeof(oldHeader) : sizeof(header);
         if (!file->FAddChild(kctgScen, sceneNumber, actor, headerBytes, kctgActr, &actorNumber, &block) ||
             !block.FWriteRgb(actor == 1 && !movie ? static_cast<void *>(oldHeader) : static_cast<void *>(&header),
@@ -389,7 +391,7 @@ int main(int argc, char **argv)
             ok = false;
             break;
         }
-        if (actor == 3 && !file->FAdoptChild(kctgActr, actorNumber, kctgTmpl, header.tagTmpl.cno, 0))
+        if (actor == 3 && !file->FAdoptChild(kctgActr, actorNumber, kctgTmpl, header.template_number, 0))
         {
             ok = false;
             break;
@@ -400,7 +402,7 @@ int main(int argc, char **argv)
             RollCallActorEntryOnFile entry = {};
             entry.arid = actor;
             entry.cactRef = 2;
-            entry.tagTmpl = header.tagTmpl;
+            entry.tagTmpl = {header.source_id, header.wire_pointer_pad, header.template_type, header.template_number};
             String name;
             name.SetSzs(actor == 0 ? PszLit("Animated actor") : actor == 3 ? PszLit("3D") : PszLit("Prop"));
             ok = roll && roll->FAddStn(&name, &entry);
@@ -449,10 +451,10 @@ int main(int argc, char **argv)
         }
         ChunkNumber child;
         ok = ok && file->FAddChild(kctgActr, actorNumber, 0, mm_actor_path_wire_size(track.Route()), kctgPath, &child, &block) &&
-             ActorData::FWritePath(track.Route(), &block);
-        auto wire = ActorData::PeventsEncode(track.Events());
+             mm_actor_write_path_block(track.Route(), koskCur, block.CoreBlock());
+        auto wire = mm_actor_encode_events(track.Events());
         ok = ok && wire && file->FAddChild(kctgActr, actorNumber, 0, mm_actor_events_wire_size(wire), kctgGgae, &child, &block) &&
-             ActorData::FWriteEvents(wire, &block);
+             mm_actor_write_events_block(wire, koskCur, 0, block.CoreBlock());
         mm_actor_events_release(wire);
         std::uint32_t slot = actor;
         SceneEvent start = {1, sevtAddActr};

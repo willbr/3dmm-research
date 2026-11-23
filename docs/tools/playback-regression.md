@@ -24114,3 +24114,45 @@ Text Acid candidate `20261123T115829Z-8772a0d7` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched retail and V3DMM frame order in seek and playback.
 Evidence is under `tmp/c89-actor-motion-facades`.
+
+## C89 actor archive bindings (23 November 2026)
+
+The C++ actor data and track translation units are out of the native, SDL
+and x86 worker builds. Studio and native fixtures use the C89 actor block
+codecs and local tag ownership services. Studio's cross-archive paste
+still receives the native diagnostic hook for missing resources.
+`movie-chomp` reads ACTR headers and PATH rows through the C89 codecs and
+reports a decode failure for malformed ACTR headers.
+
+The actor data, track and tag traces matched across 2,896, 192 and 336
+bytes. The core fixtures cover native and foreign byte order, 40-byte
+headers, actor ID adjustment, event payload layouts and tag ownership.
+The 15,122-byte `movie-chomp` output for `walk.3mm`, including route
+points, matched the previous build.
+
+All 231 selected native checks, 13 SDL checks and three x86 worker
+fixtures passed. The native group included the scene store fixture and
+13 strict C89 checks. The headless Marcus startup image matched.
+
+Native and SDL actor creation and movie-content traces matched. The
+native route-paste, sound-edit and save traces also matched. All ten
+Preview trace fingerprints matched the prior build, including the
+fixture with an older actor header. Headless Studio produced the same
+27,056-byte movie after editing, saving and reopening it.
+
+The edited and copied 3D text archives matched their retained saves. Both
+ports reopened the copied save in `20261123T121241Z-9df499be` and matched
+the frame and canvas from retail and V3DMM in `20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T121241Z-9d9de9f6` matched all 60 prior seek
+canvases and scene states per port. Both ports followed the same frame
+order as retail and V3DMM in seek and playback. Studio matched all 240
+actor snapshots, including root and part matrices and route positions at
+Studio's recorded precision. Both ports matched 59 of 60 retail and V3DMM
+seek canvases. The existing difference remained at scene 0, frame 4.
+
+Text Acid candidate `20261123T121241Z-4b3d158f` matched baseline
+`20261123T115829Z-8772a0d7` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched retail and V3DMM frame order in seek and playback.
+Evidence is under `tmp/c89-actor-archive-bindings`.

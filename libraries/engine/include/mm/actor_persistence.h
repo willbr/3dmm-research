@@ -34,9 +34,18 @@ typedef struct MMActorLoadServices
 /* Return a movie status and transfer an owned table on success only. */
 int mm_actor_movie_path(const MMMovieSessionGraph *, MMU32 number, const MMActorPathFactory *, MMActorPath **);
 int mm_actor_movie_events(const MMMovieSessionGraph *, MMU32 number, MMActorEventFactory *, MMActorEventTable **);
+/* Borrow the block and decode it in place before reading the native header or
+ * transferring an owned path. A failed header read may modify its output. */
+int mm_actor_block_header(MMOwnedBlock *, void *decode_context, MMBlockTransform, MMActorHeader *);
+MMActorPath *mm_actor_block_path(MMOwnedBlock *, void *decode_context, MMBlockTransform, const MMActorPathFactory *);
 /* Decode the owned block in place and transfer a validated runtime table. */
 int mm_actor_block_events(MMOwnedBlock *, void *decode_context, MMBlockTransform,
                           MMActorEventFactory *, MMActorEventTable **);
+/* Borrow the runtime table. The returned wire table uses the source allocator
+ * and owns no tag references. Block writers require preallocated storage. */
+MMActorEventTable *mm_actor_encode_events(MMActorEventTable *);
+int mm_actor_write_path_block(MMActorPath *, int system, MMOwnedBlock *);
+int mm_actor_write_events_block(MMActorEventTable *, int system, int foreign_order, MMOwnedBlock *);
 
 /* On failure report the diagnostic before disposing any partially loaded actor.
  * The actor's owner releases tracks, opened tags and fetched template references. */

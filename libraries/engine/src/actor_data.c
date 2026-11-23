@@ -519,20 +519,33 @@ static int add_track(const MMChunkEdit *edit, const MMU32 *actor, MMU32 type, MM
     return mm_chunk_add_block(edit, type, bytes, &child.number, block) == MM_CHUNK_OK && child.number == 0;
 }
 
+int mm_actor_write_path_block(MMActorPath *path, int system, MMOwnedBlock *block)
+{
+    MMBlockIO io;
+    MMStorageWriter writer;
+    return mm_owned_block_io(block, &io) == MM_DATA_OK && mm_block_io_writer(&io, &writer) == MM_DATA_OK &&
+           mm_actor_path_write(path, system, &writer);
+}
+
+int mm_actor_write_events_block(MMActorEventTable *events, int system, int foreign, MMOwnedBlock *block)
+{
+    MMBlockIO io;
+    MMStorageWriter writer;
+    return mm_owned_block_io(block, &io) == MM_DATA_OK && mm_block_io_writer(&io, &writer) == MM_DATA_OK &&
+           mm_actor_events_write(events, system, foreign, &writer);
+}
+
 static int store_track(const MMArchiveWriter *archive, const MMU32 *actor, MMU32 type, void *table)
 {
     MMOwnedBlock block;
-    MMBlockIO io;
-    MMStorageWriter writer;
     const MMU32 bytes = type == MM_ACTOR_ROUTE_CHUNK ? mm_actor_path_wire_size((MMActorPath *)table) :
                                                      mm_actor_events_wire_size((MMActorEventTable *)table);
     int ok;
     if (mm_owned_block_init(&block, archive->payloads->handles, archive->payloads->files) != MM_DATA_OK)
         return 0;
-    ok = add_track(&archive->edit, actor, type, bytes, &block) && mm_owned_block_io(&block, &io) == MM_DATA_OK &&
-         mm_block_io_writer(&io, &writer) == MM_DATA_OK &&
-         (type == MM_ACTOR_ROUTE_CHUNK ? mm_actor_path_write((MMActorPath *)table, archive->system, &writer) :
-                                        mm_actor_events_write((MMActorEventTable *)table, archive->system, 0, &writer));
+    ok = add_track(&archive->edit, actor, type, bytes, &block) &&
+         (type == MM_ACTOR_ROUTE_CHUNK ? mm_actor_write_path_block(table, archive->system, &block) :
+                                        mm_actor_write_events_block(table, archive->system, 0, &block));
     mm_owned_block_clear(&block);
     return ok;
 }
@@ -546,6 +559,11 @@ static MMActorEventTable *encode_track(MMActorEventTable *events, MMU32 actor, M
     factory.trash_unused = events->rows.trash_unused;
     services = mm_actor_events_services(&factory);
     return (MMActorEventTable *)write_events(events, &services, actor, scene, s);
+}
+
+MMActorEventTable *mm_actor_encode_events(MMActorEventTable *events)
+{
+    return events ? encode_track(events, 0, 0, NULL) : NULL;
 }
 
 static int store_tracks(MMU32 actor, MMU32 scene, const MMActorTrack *track, const MMActorStoreServices *s)
@@ -569,7 +587,7 @@ int mm_actor_store_edit_tracks(const MMActorTrack *track, int with_route, const 
     int ok;
     if (!track || !track->events || (with_route && !track->route) || !s || !s->create || !s->save)
         return 0;
-    wire = encode_track(track->events, 0, 0, NULL);
+    wire = mm_actor_encode_events(track->events);
     if (!wire)
         return 0;
     ok = s->create(s->context, &archive) && store_track(&archive, NULL, MM_ACTOR_EVENTS_CHUNK, wire);

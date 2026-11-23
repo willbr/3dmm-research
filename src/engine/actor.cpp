@@ -1181,7 +1181,7 @@ MMActorEditServices Actor::_EventEditServices()
 {
     MMActorEditServices services = {};
     services.context = this;
-    services.tables = mm_actor_edit_tables(_owner.track.events, &EngineActorTagServices());
+    services.tables = mm_actor_edit_tables(_owner.track.events, mm_tag_local_cache_services());
     services.scene_frame = [](void *context, MMI32 *frame) {
         auto actor = static_cast<Actor *>(context);
         if (!actor->_Scene()) return 0;
@@ -1572,7 +1572,7 @@ bool Actor::FChangeTagTmpl(const MMTag &tag)
 
     MMActorTemplateServices services = {};
     services.context = this;
-    services.tags = &EngineActorTagServices();
+    services.tags = mm_tag_local_cache_services();
     services.fetch = _FetchTemplate;
     services.adjust_body = mm_brender_text_adjust_body;
     services.pose = mm_brender_template_set_cel;

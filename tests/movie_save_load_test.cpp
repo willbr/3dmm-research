@@ -309,8 +309,8 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl,number, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl) return false;
-        if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
-        _owner.runtime.template_tag={ksidUseCrf,resource->CoreCache(),kctgTmpl,number}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
+        if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, mm_tag_local_cache_services());
+        _owner.runtime.template_tag={ksidUseCrf,resource->CoreCache(),kctgTmpl,number}; mm_tag_dup(&_owner.runtime.template_tag, mm_tag_local_cache_services());
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint first={{rZero,rZero,rZero},BR_SCALAR(10)},last={{BR_SCALAR(10),rZero,rZero},rZero};
         ActorEvent::Base event={aetAdd,1,{0,rZero,0}}; ActorEvent::Add add={}; ActorEvent::Action action={0,0}; LegacyLong step=rOne;
@@ -353,7 +353,7 @@ class TrackTestActor : public Actor
         Base soundEvent={aetSnd,100,{2,rZero,5}};
         MMActorSound sound={}; sound.tag = _owner.runtime.template_tag; sound.tag.type=kctgMsnd;
         if (!mm_actor_events_insert(_owner.track.events, mm_actor_events_count(_owner.track.events),sizeof(sound),&sound,&soundEvent)) return false;
-        mm_tag_dup(&sound.tag, &EngineActorTagServices());
+        mm_tag_dup(&sound.tag, mm_tag_local_cache_services());
         _owner.runtime.life_dirty=(mode&8)!=0; _owner.runtime.prerendered=(mode&32)!=0; _owner.runtime.time_frozen=true;
         _owner.runtime.recording.recording=(mode&4)!=0; _owner.runtime.recording.rejoining=(mode&16)!=0; _owner.runtime.recording.inserted=true;
         _owner.runtime.recording.insertion={1,123,4}; _owner.runtime.recording.timestamp=0xfffffff0UL; _owner.runtime.recording.gap=-17; _owner.runtime.recording.raw={11,-22,33};
@@ -416,7 +416,7 @@ class TrackTestActor : public Actor
         if (textTemplate)
         {
             mm_template_owner_retain(textTemplate); if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = textTemplate;
-            mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices()); _owner.runtime.template_tag={ksidUseCrf,source,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
+            mm_tag_close(&_owner.runtime.template_tag, mm_tag_local_cache_services()); _owner.runtime.template_tag={ksidUseCrf,source,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, mm_tag_local_cache_services());
         }
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint point={{BR_SCALAR(7),BR_SCALAR(2),-BR_SCALAR(3)},rZero};
@@ -427,9 +427,9 @@ class TrackTestActor : public Actor
         {
             MMActorSound sound={}; sound.cel=-1; sound.volume=100; sound.style=2; sound.child=55;
             sound.tag={((mode&2) && i==2)?1:ksidUseCrf,source,kctgMsnd,((mode&1) && i<2)?999999:soundNumber};
-            mm_tag_dup(&sound.tag, &EngineActorTagServices()); event={aetSnd,2+i,{0,rZero,i}};
+            mm_tag_dup(&sound.tag, mm_tag_local_cache_services()); event={aetSnd,2+i,{0,rZero,i}};
             if (!mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(sound),&sound,&event))
-            { mm_tag_close(&sound.tag, &EngineActorTagServices()); return false; }
+            { mm_tag_close(&sound.tag, mm_tag_local_cache_services()); return false; }
         }
         mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state);
         _owner.runtime.state.frame=3; _owner.runtime.state.nextEvent=3; _owner.runtime.state.firstEventInFrame=2; _owner.runtime.state.actionEvent=1; _owner.runtime.state.addEvent=0;
@@ -485,11 +485,11 @@ class TrackTestActor : public Actor
             case aetCost: bytes=sizeof(Costume); data.costume.ibset=0; data.costume.fCmtl=tNo;
                 data.costume.tag={ksidUseCrf,resource->CoreCache(),kctgMtrl,material}; TagManager::DupTag(&data.costume.tag); break;
             case aetSnd: bytes=sizeof(MMActorSound); data.sound.cel=-1; data.sound.style=2; data.sound.volume=100;
-                data.sound.tag={ksidUseCrf,resource->CoreCache(),kctgMsnd,soundNumber}; mm_tag_dup(&data.sound.tag, &EngineActorTagServices()); break;
+                data.sound.tag={ksidUseCrf,resource->CoreCache(),kctgMsnd,soundNumber}; mm_tag_dup(&data.sound.tag, mm_tag_local_cache_services()); break;
             }
             if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&data,&event)) return true;
             if (kind==aetCost) TagManager::CloseTag(&data.costume.tag);
-            if (kind==aetSnd) mm_tag_close(&data.sound.tag, &EngineActorTagServices());
+            if (kind==aetSnd) mm_tag_close(&data.sound.tag, mm_tag_local_cache_services());
             return false;
         };
         bool ok=append(aetAdd,1,0) && append(aetActn,1,0) && append(aetStep,2,0) && append(aetSize,2,0) &&
@@ -537,8 +537,8 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource, kctgTmpl,templateNumber, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl) return false;
-        if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
-        _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
+        if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, mm_tag_local_cache_services());
+        _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, mm_tag_local_cache_services());
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<5;++i)
         {
@@ -557,14 +557,14 @@ class TrackTestActor : public Actor
                 data.costume.tag={ksidUseCrf,resource,kctgMtrl,materialNumber}; TagManager::DupTag(&data.costume.tag); break;
             case aetSnd: bytes=sizeof(MMActorSound); data.sound.cel=scalar; data.sound.style=2; data.sound.volume=100;
                 data.sound.child=mode>=256?999999:child; data.sound.tag={ksidUseCrf,resource,kctgMsnd,soundNumber};
-                mm_tag_dup(&data.sound.tag, &EngineActorTagServices()); break;
+                mm_tag_dup(&data.sound.tag, mm_tag_local_cache_services()); break;
             case aetRotF: case aetRotH: bytes=sizeof(BMAT34); BrMatrix34Identity(&data.matrix); break;
             case aetPull: case aetMove: case aetTweak: bytes=sizeof(RoutePoint); data.point={rOne,rOne,rOne}; break;
             case aetRem: bytes=0; break;
             default: data.scalar=scalar; break;
             }
             if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&data,&event)) return true;
-            if (kind==aetSnd) mm_tag_close(&data.sound.tag, &EngineActorTagServices());
+            if (kind==aetSnd) mm_tag_close(&data.sound.tag, mm_tag_local_cache_services());
             if (kind==aetCost) TagManager::CloseTag(&data.costume.tag);
             return false;
         };
@@ -1058,7 +1058,7 @@ class TrackTestActor : public Actor
             { MMActorSound s; mm_actor_events_get_payload(_owner.track.events, i,&s); LegacyLong fields[]={s.cel,s.style,s.volume,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
             else { if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_owner.track.events, i,payload); saved=saved && record(payload,bytes); }
         }
-        EngineBody::Hide(_Body()); if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } mm_actor_track_dispose(&_owner.track, &EngineActorTagServices());
+        EngineBody::Hide(_Body()); if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } mm_actor_track_dispose(&_owner.track, mm_tag_local_cache_services());
         return saved;
     }
     bool FTestRouteEdit(int mode,FILE *snapshot)
@@ -1248,7 +1248,7 @@ class TrackTestActor : public Actor
         EngineBody::GetPartSetMaterial(_Body(), 0,&ordinary,&material,&custom);
         LegacyLong body[]={ordinary,ordinary ? (material==a?0:material==b?1:2) : (custom==ca?0:custom==cb?1:2)};
         saved=saved && record(body,sizeof(body));
-        mm_actor_track_dispose(&_owner.track, &EngineActorTagServices()); if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; }
+        mm_actor_track_dispose(&_owner.track, mm_tag_local_cache_services()); if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; }
         LegacyLong refs[]={mm_material_owner_references(a),mm_material_owner_references(b),
                            mm_material_owner_references(ca),mm_material_owner_references(cb)};
         saved=saved && record(refs,sizeof(refs));
@@ -1366,7 +1366,7 @@ class TrackTestActor : public Actor
             std::fprintf(stderr,"Costume merge lost owning TAG references\n");
             std::exit(1);
         }
-        mm_actor_track_dispose(&_owner.track, &EngineActorTagServices());
+        mm_actor_track_dispose(&_owner.track, mm_tag_local_cache_services());
         return replacement->references->count==replacementRefs;
     }
     bool FTestEventEdit(int mode, FILE *snapshot)
@@ -1657,7 +1657,7 @@ class TrackTestActor : public Actor
         _owner.runtime.template_tag.type = kctgTmpl;
         _owner.runtime.template_tag.number = 1;
         _owner.runtime.template_tag.cache = resource;
-        mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
+        mm_tag_dup(&_owner.runtime.template_tag, mm_tag_local_cache_services());
         _owner.runtime.scene =  scene;
         RouteDistancePoint point = {{BR_SCALAR(3), rZero, rZero}, rZero};
         ActorEvent::Base event = {};
@@ -1671,7 +1671,7 @@ class TrackTestActor : public Actor
         sound.tag.type = kctgMsnd;
         if (!mm_actor_events_insert(_owner.track.events, 1, sizeof(sound), &sound, &event))
             return false;
-        mm_tag_dup(&sound.tag, &EngineActorTagServices());
+        mm_tag_dup(&sound.tag, mm_tag_local_cache_services());
         MMActorMotionSound match = {};
         if (!mm_actor_sounds_insert(&_owner.sounds, &match.event, &match.sound))
             return false;

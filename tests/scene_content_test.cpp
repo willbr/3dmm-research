@@ -289,9 +289,9 @@ class ContentActor : public Actor
         if (_Template())
             mm_template_owner_release(_Template());
         _owner.runtime.template_object = tmpl;
-        mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
+        mm_tag_close(&_owner.runtime.template_tag, mm_tag_local_cache_services());
         _owner.runtime.template_tag = {ksidUseCrf, resource, kctgTmpl, number};
-        mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
+        mm_tag_dup(&_owner.runtime.template_tag, mm_tag_local_cache_services());
         ActorTrack track;
         if (!track.FCreate())
             return false;

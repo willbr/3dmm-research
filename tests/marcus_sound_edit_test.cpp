@@ -13,6 +13,7 @@
 #include <vector>
 #include "soc_core.h"
 #include "actor_track_fixture.h"
+#include "handle_services.h"
 #undef size
 ASSERTNAME
 namespace {
@@ -48,7 +49,13 @@ void ActorSounds(const std::string &path)
         file->FGetKidChidCtg(kctgActr, actor.cki.cno, 0, kctgGgae, &events) &&
         file->FGetKidChidCtg(kctgScen, scene.cno, 0, kctgMsnd, &sound), "Actor fixture links");
     DataBlock block; Require(file->FFind(kctgGgae, events.cki.cno, &block), "Read actor events");
-    ActorTrack track; Require(track.AdoptEvents(ActorData::PeventsRead(&block)) != nullptr, "Decode actor events");
+    const auto allocator = CollectionAllocator();
+    MMActorEventFactory groups = {&allocator, DebugShip(1, 0)};
+    MMActorEventTable *rows;
+    Require(mm_actor_block_events(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &groups, &rows) == MM_MOVIE_OK,
+            "Decode actor events");
+    ActorTrack track;
+    track.AdoptEvents(rows);
     ActorEvent::Base event = {}; event.aet = ActorEvent::aetSnd; event.nfrm = 1;
     // Insertion's first event supplies the unchanged route/cel position.
     ActorEvent::Base add; mm_actor_events_get_fixed(track.Events(), 0, &add); event.rtel = add.rtel;
@@ -57,8 +64,8 @@ void ActorSounds(const std::string &path)
     Require(mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), sizeof(cue), &cue, &event), "Insert actor sound");
     cue.style = stySfx; cue.cel = 0;
     Require(mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), sizeof(cue), &cue, &event), "Insert motion binding");
-    auto wire = ActorData::PeventsEncode(track.Events());
-    Require(wire && file->FPut(mm_actor_events_wire_size(wire), kctgGgae, events.cki.cno, &block) && ActorData::FWriteEvents(wire, &block) && file->FSave(kctgSoc), "Save actor fixture");
+    auto wire = mm_actor_encode_events(track.Events());
+    Require(wire && file->FPut(mm_actor_events_wire_size(wire), kctgGgae, events.cki.cno, &block) && mm_actor_write_events_block(wire, koskCur, 0, block.CoreBlock()) && file->FSave(kctgSoc), "Save actor fixture");
     mm_actor_events_release(wire); block.Free(); ReleasePpo(&file);
 }
 Filename NativeFilename(const std::filesystem::path &path)

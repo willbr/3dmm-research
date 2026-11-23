@@ -175,13 +175,9 @@ static ChunkNumber Fixture(PChunkyFile file, int scenario, bool swap)
         {
             ChunkNumber actor;
             CHECK(file->FAddChild(kctgScen, number, 17, 0, kctgActr, &actor));
-            ActorChunkOnFile header = {};
-            header.bo = kboCur;
-            header.osk = koskCur;
-            header.nfrmFirst = 3;
-            header.nfrmLast = 19;
-            header.tagTmpl = {2, 0, kctgTmpl, 77};
-            CHECK(ActorData::FWriteHeader(file, actor, &header));
+            const MMActorHeader header = {kboCur, koskCur, {}, 0, 3, 19, 2, 0, kctgTmpl, 77};
+            const auto archive = file->WriteIndex();
+            CHECK(mm_actor_write_header(actor, &header, &archive));
             auto events = GeneralGroup::PggNew(sizeof(ActorEvent::Base));
             CHECK(events);
             ChunkNumber ae;

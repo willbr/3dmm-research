@@ -241,9 +241,12 @@ static bool TestMovieCompose()
             MMRollCallActor row = {{i * 3, 1, 123, 1, kctgTmpl, ChunkNumber(100 + i)}, nullptr};
             String name;
             name.SetSzs(i ? PszLit("Second") : PszLit("First"));
-            ActorChunkOnFile header = {kboCur, koskCur, {}, i * 3, 1, 1, {123, 0, kctgTmpl, ChunkNumber(100 + i)}};
+            MMActorHeader header = {kboCur, koskCur, {}, i * 3, 1, 1, 123, 0, kctgTmpl, ChunkNumber(100 + i)};
             if (mode & 2)
-                SwapBytesBom(&header, kbomActf);
+            {
+                SwapBytesRgsw(&header.order, 2);
+                SwapBytesRglw(header.translation, 10);
+            }
             byte empty = 0;
             ok = mm_rollcall_table_add(&table.actors, name.Prgch(), name.Cch(), &row) &&
                  archive.AddBytes(&header, sizeof(header), kctgActr, &actors[i]) &&
@@ -259,15 +262,16 @@ static bool TestMovieCompose()
             for (int i = 0; ok && i < 2; ++i)
             {
                 DataBlock block;
-                ActorChunkOnFile header = {};
+                MMActorHeader header = {};
                 long id = 0, refs = 0;
                 String name;
                 TAG tag = {};
-                ok = archive.Find(kctgActr, actors[i], &block) && ActorData::FReadHeader(&block, &header) &&
+                ok = archive.Find(kctgActr, actors[i], &block) &&
+                     mm_actor_block_header(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &header) &&
                      movie->FGetArid(i, &id, &name, &refs, &tag);
                 LegacyLong values[] = {mode,
                                        i,
-                                       header.arid,
+                                       header.actor_id,
                                        LegacyLong(id),
                                        LegacyLong(refs),
                                        tag.sid,

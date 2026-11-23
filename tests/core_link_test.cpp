@@ -7,6 +7,7 @@
 #include "actor_track_fixture.h"
 #include "movie_archive_fixture.h"
 #include "movie_archive_host.h"
+#include "engine_movie_graph.h"
 #include "mm/chunk_copy.h"
 #include "mm/movie_session.h"
 #elif defined(TEST_BRENDER_CORE)
@@ -2283,58 +2284,62 @@ static void TestActorPersistence()
         Check(std::fwrite(&length, sizeof(length), 1, actorSnapshot) == 1 && std::fwrite(bytes, 1, length, actorSnapshot) == length);
     };
     const auto recordHeader = [&](DataBlock &value) {
-        ActorChunkOnFile output; std::memset(&output, 0xa5, sizeof(output));
-        uint32_t ok = ActorData::FReadHeader(&value, &output);
+        MMActorHeader output; std::memset(&output, 0xa5, sizeof(output));
+        uint32_t ok = mm_actor_block_header(value.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &output);
         if (actorSnapshot) Check(std::fwrite(&ok, sizeof(ok), 1, actorSnapshot) == 1 && std::fwrite(&output, sizeof(output), 1, actorSnapshot) == 1);
     };
-    ActorChunkOnFile header = {};
-    header.bo = kboCur;
-    header.osk = koskCur;
-    header.arid = 17;
-    header.nfrmFirst = -3;
-    header.nfrmLast = 25;
-    header.dxyzFullRte.dxr = BR_SCALAR(2.5);
-    header.tagTmpl.sid = 2;
-    header.tagTmpl.ctg = kctgTmpl;
-    header.tagTmpl.cno = 11;
+    MMActorHeader header = {};
+    header.order = kboCur;
+    header.system = koskCur;
+    header.actor_id = 17;
+    header.first_frame = -3;
+    header.last_frame = 25;
+    header.translation[0] = BR_SCALAR(2.5);
+    header.source_id = 2;
+    header.template_type = kctgTmpl;
+    header.template_number = 11;
     DataBlock block;
     Check(block.FSetTemp(sizeof(header)) && block.FWriteRgb(&header, sizeof(header), 0));
     recordHeader(block);
-    ActorChunkOnFile read;
-    Check(ActorData::FReadHeader(&block, &read));
-    Check(read.arid == 17 && read.nfrmFirst == -3 && read.nfrmLast == 25);
-    SwapBytesRgsw(&header.bo, 2);
-    SwapBytesRglw(&header.dxyzFullRte, 10);
+    MMActorHeader read;
+    Check(mm_actor_block_header(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &read));
+    Check(read.actor_id == 17 && read.first_frame == -3 && read.last_frame == 25);
+    SwapBytesRgsw(&header.order, 2);
+    SwapBytesRglw(header.translation, 10);
     Check(block.FWriteRgb(&header, sizeof(header), 0));
     recordHeader(block);
-    Check(ActorData::FReadHeader(&block, &read));
-    Check(read.tagTmpl.sid == 2 && read.dxyzFullRte.dxr == BR_SCALAR(2.5));
-    SwapBytesRgsw(&header.bo, 2);
-    SwapBytesRglw(&header.dxyzFullRte, 10);
+    Check(mm_actor_block_header(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &read));
+    Check(read.source_id == 2 && read.translation[0] == BR_SCALAR(2.5));
+    SwapBytesRgsw(&header.order, 2);
+    SwapBytesRglw(header.translation, 10);
     // The original 40-byte ACTR header omits nfrmLast.
-    byte legacy[sizeof(header) - sizeof(int32_t)];
-    const size_t lastOffset = offsetof(ActorChunkOnFile, nfrmLast);
+    byte legacy[MM_ACTOR_OLD_HEADER_BYTES];
+    const size_t lastOffset = offsetof(MMActorHeader, last_frame);
+    const size_t tagBytes = sizeof(header) - offsetof(MMActorHeader, source_id);
     std::memcpy(legacy, &header, lastOffset);
-    std::memcpy(legacy + lastOffset, &header.tagTmpl, sizeof(header.tagTmpl));
+    std::memcpy(legacy + lastOffset, &header.source_id, tagBytes);
     Check(block.FSetTemp(sizeof(legacy)) && block.FWriteRgb(legacy, sizeof(legacy), 0));
     recordHeader(block);
     {
-        auto bad = header; bad.bo = 3;
+        auto bad = header; bad.order = 3;
         DataBlock input; Check(input.FSetTemp(sizeof(bad)) && input.FWrite(&bad)); recordHeader(input);
-        std::memcpy(legacy, &bad, lastOffset); std::memcpy(legacy + lastOffset, &bad.tagTmpl, sizeof(bad.tagTmpl));
+        std::memcpy(legacy, &bad, lastOffset); std::memcpy(legacy + lastOffset, &bad.source_id, tagBytes);
         Check(input.FSetTemp(sizeof(legacy)) && input.FWriteRgb(legacy, sizeof(legacy), 0)); recordHeader(input);
         Check(input.FSetTemp(20)); recordHeader(input);
     }
-    Check(ActorData::FReadHeader(&block, &read));
-    Check(read.nfrmLast == knfrmInvalid && read.tagTmpl.cno == 11);
+    Check(mm_actor_block_header(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &read));
+    Check(read.last_frame == knfrmInvalid && read.template_number == 11);
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
     Check(file != pvNil);
     ChunkNumber number;
     Check(file->FAdd(sizeof(header), kctgActr, &number));
-    Check(ActorData::FWriteHeader(file, number, &header));
-    Check(ActorData::FAdjustId(file, number, 3));
-    Check(file->FFind(kctgActr, number, &block) && ActorData::FReadHeader(&block, &read));
-    Check(read.arid == 20);
+    const auto archive = file->WriteIndex();
+    const auto graph = EngineMovieGraph::FromFile(file);
+    Check(mm_actor_write_header(number, &header, &archive));
+    Check(mm_actor_adjust_id(number, 3, &graph, &archive));
+    Check(file->FFind(kctgActr, number, &block) &&
+          mm_actor_block_header(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &read));
+    Check(read.actor_id == 20);
     recordHeader(block);
     ReleasePpo(&file);
 
@@ -2345,12 +2350,15 @@ static void TestActorPersistence()
     point.dwr = BR_SCALAR(7);
     Check(route->FAdd(&point));
     Check(block.FSetTemp(route->CbOnFile()) && route->FWrite(&block));
-    auto readRoute = ActorData::PpathRead(&block);
+    const auto allocator = CollectionAllocator();
+    const MMActorPathFactory paths = {&allocator, DebugShip(1, 0)};
+    MMActorEventFactory groups = {&allocator, DebugShip(1, 0)};
+    auto readRoute = mm_actor_block_path(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &paths);
     Check(readRoute != pvNil && mm_actor_path_count(readRoute) == 1);
     RouteDistancePoint readPoint;
     Check(mm_actor_path_get(readRoute, 0, &readPoint));
     Check(readPoint.xyz.dyr == point.xyz.dyr && readPoint.dwr == point.dwr);
-    { DataBlock saved; Check(saved.FSetTemp(mm_actor_path_wire_size(readRoute)) && ActorData::FWritePath(readRoute, &saved)); recordBlock(saved); }
+    { DataBlock saved; Check(saved.FSetTemp(mm_actor_path_wire_size(readRoute)) && mm_actor_write_path_block(readRoute, koskCur, saved.CoreBlock())); recordBlock(saved); }
     mm_actor_path_release(readRoute);
     ReleasePpo(&route);
 
@@ -2398,7 +2406,7 @@ static void TestActorPersistence()
     SwapBytesBom(guarded + 16, ActorEvent::kbomAevadd);
     Check(std::memcmp(guarded, expected, sizeof(guarded)) == 0);
 
-    auto wire = ActorData::PeventsEncode(events);
+    auto wire = mm_actor_encode_events(events);
     Check(wire != pvNil && mm_actor_events_size(wire, 0) == 28 && mm_actor_events_size(wire, 1) == 44);
     for (int foreign = 0; foreign < 2; ++foreign)
     {
@@ -2422,8 +2430,9 @@ static void TestActorPersistence()
                 mm_actor_events_set_fixed(wire, i, &e);
             }
         }
-        Check(block.FSetTemp(mm_actor_events_wire_size(wire)) && ActorData::FWriteEvents(wire, &block, foreign ? kboOther : kboCur));
-        auto decoded = ActorData::PeventsRead(&block);
+        Check(block.FSetTemp(mm_actor_events_wire_size(wire)) && mm_actor_write_events_block(wire, koskCur, foreign, block.CoreBlock()));
+        MMActorEventTable *decoded;
+        Check(mm_actor_block_events(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &groups, &decoded) == MM_MOVIE_OK);
         Check(decoded != pvNil && mm_actor_events_count(decoded) == 3);
         ActorEvent::Costume gotCostume;
         MMActorSound gotSound;
@@ -2446,7 +2455,7 @@ static void TestActorPersistence()
     event.aet = ActorEvent::aetCost;
     int32_t shortPayload = 0;
     Check(mm_actor_events_insert(events, 0, sizeof(shortPayload), &shortPayload, &event));
-    Check(ActorData::PeventsEncode(events) == pvNil);
+    Check(mm_actor_encode_events(events) == pvNil);
     mm_actor_events_release(events);
     // Every event kind, including ignored cache identity and mixed-width Add.
     events = mm_actor_events_create(nullptr, 0, 0); Check(events);
@@ -2468,7 +2477,7 @@ static void TestActorPersistence()
         }
         Check(mm_actor_events_insert(events, kind, widths[kind], payload, &e));
     }
-    wire = ActorData::PeventsEncode(events); Check(wire);
+    wire = mm_actor_encode_events(events); Check(wire);
     for (int foreign = 0; foreign < 2; ++foreign)
     {
         if (foreign) for (LegacyLong i = 0; i < mm_actor_events_count(wire); ++i)
@@ -2478,10 +2487,12 @@ static void TestActorPersistence()
             else if (mm_actor_events_size(wire, i)) SwapBytesRglw(mm_actor_events_payload(wire, i, nullptr), mm_actor_events_size(wire, i) / 4);
             SwapBytesRglw(&e, 5); mm_actor_events_set_fixed(wire, i, &e);
         }
-        Check(block.FSetTemp(mm_actor_events_wire_size(wire)) && ActorData::FWriteEvents(wire, &block, foreign ? kboOther : kboCur)); recordBlock(block);
-        auto decoded = ActorData::PeventsRead(&block); Check(decoded && mm_actor_events_count(decoded) == ActorEvent::aetLim);
-        auto canonical = ActorData::PeventsEncode(decoded); Check(canonical);
-        DataBlock saved; Check(saved.FSetTemp(mm_actor_events_wire_size(canonical)) && ActorData::FWriteEvents(canonical, &saved)); recordBlock(saved);
+        Check(block.FSetTemp(mm_actor_events_wire_size(wire)) && mm_actor_write_events_block(wire, koskCur, foreign, block.CoreBlock())); recordBlock(block);
+        MMActorEventTable *decoded;
+        Check(mm_actor_block_events(block.CoreBlock(), nullptr, KauaiDecodeBlockHandle, &groups, &decoded) == MM_MOVIE_OK);
+        Check(mm_actor_events_count(decoded) == ActorEvent::aetLim);
+        auto canonical = mm_actor_encode_events(decoded); Check(canonical);
+        DataBlock saved; Check(saved.FSetTemp(mm_actor_events_wire_size(canonical)) && mm_actor_write_events_block(canonical, koskCur, 0, saved.CoreBlock())); recordBlock(saved);
         mm_actor_events_release(canonical); mm_actor_events_release(decoded);
     }
     mm_actor_events_release(wire); mm_actor_events_release(events);
@@ -2517,7 +2528,7 @@ static void TestActorTrackOwnership()
         sound.tag.number = 7;
         sound.tag.cache = resource->CoreCache();
         Check(mm_actor_events_insert(source.Events(), 0, sizeof(sound), &sound, &event));
-        mm_tag_dup(&sound.tag, &EngineActorTagServices()); // Reference transferred to the inserted row.
+        mm_tag_dup(&sound.tag, mm_tag_local_cache_services()); // Reference transferred to the inserted row.
         event.aet = ActorEvent::aetCost;
         ActorEvent::Costume costume = {};
         TagFromCore(&costume.tag, sound.tag);
@@ -2568,8 +2579,8 @@ static void TestActorTrackOwnership()
         Check(failed && succeeded);
 #endif
         // Clone serializes identically, using the real runtime-to-wire codec.
-        auto first = ActorData::PeventsEncode(source.Events());
-        auto second = ActorData::PeventsEncode(copy.Events());
+        auto first = mm_actor_encode_events(source.Events());
+        auto second = mm_actor_encode_events(copy.Events());
         Check(first != pvNil && second != pvNil && mm_actor_events_count(first) == mm_actor_events_count(second));
         for (LegacyLong index = 0; index < mm_actor_events_count(first); ++index)
         {
