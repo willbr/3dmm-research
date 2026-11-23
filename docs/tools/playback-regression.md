@@ -23593,3 +23593,26 @@ Text Acid candidate `20261123T084814Z-53d9abc2` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-caption-samples`.
+
+## C89 Marcus caption targets (23 November 2026)
+
+The C89 catalogue checks the document and scene before accepting a caption
+selection or edit. Rendering and hit-testing use the same target resolver.
+The resolver distinguishes a new draft from a replacement, including an
+authored box at chunk zero. The headless player checks scene switches, stale
+catalogues, and reopening a movie while an authored box is hidden.
+
+A headless API probe captured hit results, caret state and RGBA pixels
+through authored selection, a replacement draft, a scene switch and return,
+document reopening, a new draft and cancellation. All eight snapshots
+matched the previous build byte for byte.
+
+All 228 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed. The native suite includes the 13 strict C89 checks. The headless
+Marcus startup image matched the previous build byte for byte.
+
+Text Acid candidate `20261123T085647Z-5cea5870` matched baseline
+`20261123T084814Z-53d9abc2` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-caption-target`.

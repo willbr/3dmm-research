@@ -1,4 +1,5 @@
 #include "caption_catalog.h"
+#include "live_document.h"
 #include "mm/caption_render.h"
 #include "mm/private_archive.h"
 #include <limits.h>
@@ -87,13 +88,53 @@ const char *marcus_caption(const MarcusCaptionList *list, int index, MarcusCapti
     return entry->text;
 }
 
-int marcus_caption_catalog_find(const MarcusCaptionList *list, MMU32 chunk)
+int marcus_caption_catalog_current(const MarcusCaptionList *list, unsigned long document, const MarcusSceneRows *scenes,
+                                    MMI32 selected)
 {
+    const MarcusScene *rows = (const MarcusScene *)scenes->storage.buffers[0].data;
+    return list && list->document == document && selected >= 0 && (size_t)selected < scenes->count &&
+           list->scene == (MMU32)rows[selected].chunk;
+}
+
+int marcus_caption_catalog_hit(const MarcusCaptionList *list, const MMCaptionPresentation *presentation, MMI32 x, MMI32 y,
+                               const MMU32 *hidden)
+{
+    MMU32 chunk;
     int i;
+    if (!mm_caption_presentation_hit(presentation, x, y, hidden, &chunk))
+        return -1;
     for (i = 0; i < list->count; ++i)
         if (list->entries[i].chunk == chunk)
             return i;
     return -1;
+}
+
+enum { TARGET_NONE, TARGET_NEW, TARGET_AUTHORED };
+
+void marcus_caption_target_set(MarcusCaptionTarget *target, const MarcusCaptionList *list, int index,
+                               unsigned long document, const MarcusSceneRows *scenes, MMI32 selected,
+                               int prepared_draft)
+{
+    const MarcusCaptionEntry *entry = marcus_caption_catalog_entry(list, index);
+    if (!marcus_caption_catalog_current(list, document, scenes, selected) ||
+        (!entry && !(prepared_draft && index == -1)))
+    {
+        target->kind = TARGET_NONE;
+        return;
+    }
+    target->document = document;
+    target->scene = selected;
+    target->kind = entry ? TARGET_AUTHORED : TARGET_NEW;
+    target->chunk = entry ? entry->chunk : 0;
+}
+
+const MMU32 *marcus_caption_target_resolve(const MarcusCaptionTarget *target, unsigned long document, MMI32 selected,
+                                         int *editing)
+{
+    const int active = target->kind != TARGET_NONE && target->document == document && target->scene == selected;
+    if (editing)
+        *editing = active;
+    return active && target->kind == TARGET_AUTHORED ? &target->chunk : NULL;
 }
 
 const char *marcus_caption_font_name(const MarcusCaptionList *list, int index)

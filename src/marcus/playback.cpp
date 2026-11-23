@@ -10,6 +10,7 @@
 #include "caption_raster.h"
 #include "caption_runs.h"
 #include "caption_scene.h"
+#include "caption_catalog.h"
 #include "sdl_audio.h"
 #include "midi_synth.h"
 #include "font_host.h"
@@ -626,9 +627,9 @@ bool MarcusPlayback::Update(MM::Preview &preview, bool playing, double elapsed, 
     advance = update.advance != 0;
     return true;
 }
-bool MarcusPlayback::CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const
+int MarcusPlayback::CaptionAt(const MarcusCaptionList *list, int x, int y, const std::uint32_t *hiddenCaption) const
 {
-    return mm_caption_presentation_hit(&impl->captionScene.presentation, x, y, hiddenCaption, &chunk) != 0;
+    return marcus_caption_catalog_hit(list, &impl->captionScene.presentation, x, y, hiddenCaption);
 }
 
 void MarcusPlayback::ClearCaptionDraft()

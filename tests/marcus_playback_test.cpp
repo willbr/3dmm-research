@@ -478,6 +478,10 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
         CHECK(marcus_caption_at(player, list.get(), 100, 80) == 0);
         marcus_caption_preview(player, nullptr, -1);
         check(3, 255, 0);
+        marcus_caption_preview(player, list.get(), 1);
+        CHECK(marcus_open(player, path, resources, content));
+        CHECK(marcus_caption_at(player, list.get(), 100, 80) == -1);
+        check(3, 255, 0);
     }
     CHECK(marcus_seek(player, 0));
     const auto readCaptions = [&] {

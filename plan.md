@@ -1836,6 +1836,10 @@ and clamps draft scrolling to keep the active caret visible.
 The same presentation stack now drives caption hit-testing, draft
 substitution, and back-to-front drawing in C89. C89 also selects the
 credits that can scroll on each frame and tracks their scroll offsets.
+The editor uses a C89 target scoped to the document and selected scene.
+Rendering and hit-testing resolve the same hidden authored box. A new draft
+can render without hiding an authored box, and a stale catalogue cannot
+select or edit one.
 The C caption presentation owns the authored row table, visibility stack,
 draft scroll position and reusable work-view RGBA layer. It installs rows
 in authored order, chooses the final caret stop at a wrap, and draws directly

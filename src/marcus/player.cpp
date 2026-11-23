@@ -249,8 +249,7 @@ struct MarcusPlayer
     char error[1024] = {};
     MMI32 selected = -1;
     unsigned long document = 0;
-    struct CaptionPreview { unsigned long document; int scene; std::optional<std::uint32_t> chunk; };
-    std::optional<CaptionPreview> captionPreview;
+    MarcusCaptionTarget captionTarget{};
     std::shared_ptr<MarcusMovieFile> timingInput;
     std::string timingResources, timingContent;
     bool timingStarted = false, timingFailed = false;
@@ -780,10 +779,9 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
         { player->asmRenderer.reset(); return false; }
     }
     else if (!player->preview.Render(options, player->image, error)) return false;
-    const auto &caption = player->captionPreview;
-    const bool editing = caption && caption->document == player->document && caption->scene == player->selected;
-    const auto hide = editing && caption->chunk ? &*caption->chunk : nullptr;
-    if (!player->playback.Composite(player->preview, plan.movie, player->image, error, hide, editing))
+    int editing;
+    const auto *hide = marcus_caption_target_resolve(&player->captionTarget, player->document, player->selected, &editing);
+    if (!player->playback.Composite(player->preview, plan.movie, player->image, error, hide, editing != 0))
         return false;
     if (plan.scale > 1)
     {
@@ -1898,8 +1896,7 @@ extern "C"
     }
     static bool CurrentCaptions(const MarcusPlayer *player, const MarcusCaptionList *list)
     {
-        return player && list && list->document == player->document && player->selected >= 0 &&
-            std::size_t(player->selected) < player->sceneInfo.size() && list->scene == player->sceneInfo.Number(player->selected);
+        return player && marcus_caption_catalog_current(list, player->document, &player->sceneInfo, player->selected);
     }
     int marcus_caption_font_count(MarcusPlayer *player, MarcusCaptionList *list)
     {
@@ -1925,9 +1922,8 @@ extern "C"
     {
         if (!player) return;
         player->playback.ClearCaptionDraft();
-        player->captionPreview.reset();
-        if (CurrentCaptions(player, list) && index >= 0 && index < marcus_caption_count(list))
-            player->captionPreview = MarcusPlayer::CaptionPreview{player->document, player->selected, list->entries[index].chunk};
+        marcus_caption_target_set(&player->captionTarget, list, index, player->document, &player->sceneInfo,
+                                  player->selected, 0);
     }
     int marcus_caption_draft(MarcusPlayer *player, const MarcusCaptionList *list, int index,
                              const MarcusCaptionOptions *options, const char *text)
@@ -1946,10 +1942,8 @@ extern "C"
             MarcusDraftCaption(path, *list, index, *options, text, draft);
             if (!player->playback.CaptionDraft(draft, error))
                 return false;
-            MarcusPlayer::CaptionPreview preview{player->document, player->selected, {}};
-            if (index >= 0)
-                preview.chunk = list->entries[index].chunk;
-            player->captionPreview = preview;
+            marcus_caption_target_set(&player->captionTarget, list, index, player->document, &player->sceneInfo,
+                                      player->selected, 1);
             return true;
         });
     }
@@ -1967,11 +1961,8 @@ extern "C"
     int marcus_caption_at(const MarcusPlayer *player, const MarcusCaptionList *list, int x, int y)
     {
         if (!CurrentCaptions(player, list)) return -1;
-        std::uint32_t chunk;
-        const auto &caption = player->captionPreview;
-        const auto hide = caption && caption->document == player->document && caption->scene == player->selected &&
-            caption->chunk ? &*caption->chunk : nullptr;
-        return player->playback.CaptionAt(x, y, chunk, hide) ? marcus_caption_catalog_find(list, chunk) : -1;
+        const auto *hide = marcus_caption_target_resolve(&player->captionTarget, player->document, player->selected, nullptr);
+        return player->playback.CaptionAt(list, x, y, hide);
     }
     int marcus_edit_caption(MarcusPlayer *player, const MarcusCaptionList *list, int index,
                             const MarcusCaptionOptions *options, const char *text)

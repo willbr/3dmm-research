@@ -53,7 +53,7 @@ class MarcusPlayback
     void BeginTransition(int kind, MMGraphicsMovieCapture &, const MM::Preview &incoming);
     bool Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image, MM::Error &error,
                    const std::uint32_t *hiddenCaption = nullptr, bool editDraft = false);
-    bool CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const;
+    int CaptionAt(const MarcusCaptionList *, int x, int y, const std::uint32_t *hiddenCaption) const;
     bool CaptionDraft(MMPreviewOwnedCaption &, MM::Error &);
     void ClearCaptionDraft();
     const MarcusCaptionStop *CaptionPositions(int &count, int &scroll) const;

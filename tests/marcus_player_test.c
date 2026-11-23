@@ -842,6 +842,44 @@ failed:
     return ok;
 }
 
+static int check_caption_target(MarcusPlayer *player)
+{
+    MarcusScene movies[2] = {{0}};
+    MarcusSceneRows scenes = {0};
+    MarcusCaptionList list = {0};
+    MarcusCaptionEntry entry = {0};
+    MarcusCaptionTarget target = {0};
+    const MMU32 *hidden;
+    int editing;
+    movies[0].chunk = 13;
+    movies[1].chunk = 29;
+    scenes.storage.buffers[0].data = (unsigned char *)movies;
+    scenes.count = 2;
+    list.document = 5;
+    list.scene = 13;
+    list.entries = &entry;
+    list.count = 1;
+    CHECK(marcus_caption_catalog_current(&list, 5, &scenes, 0));
+    CHECK(!marcus_caption_catalog_current(&list, 5, &scenes, 2));
+    CHECK(!marcus_caption_catalog_current(&list, 5, &scenes, 1));
+    CHECK(!marcus_caption_target_resolve(&target, 5, 0, &editing) && !editing);
+    marcus_caption_target_set(&target, &list, 0, 5, &scenes, 0, 0);
+    hidden = marcus_caption_target_resolve(&target, 5, 0, &editing);
+    CHECK(hidden && *hidden == 0 && editing);
+    CHECK(!marcus_caption_target_resolve(&target, 6, 0, &editing) && !editing);
+    CHECK(!marcus_caption_target_resolve(&target, 5, 1, &editing) && !editing);
+    marcus_caption_target_set(&target, &list, -1, 5, &scenes, 0, 1);
+    CHECK(!marcus_caption_target_resolve(&target, 5, 0, &editing) && editing);
+    marcus_caption_target_set(&target, &list, -1, 5, &scenes, 0, 0);
+    CHECK(!marcus_caption_target_resolve(&target, 5, 0, &editing) && !editing);
+    marcus_caption_target_set(&target, &list, 0, 5, &scenes, 0, 1);
+    marcus_caption_target_set(&target, &list, 0, 6, &scenes, 0, 0);
+    CHECK(!marcus_caption_target_resolve(&target, 5, 0, NULL));
+    return 1;
+failed:
+    return 0;
+}
+
 typedef struct PlaybackSceneProbe
 {
     MMPreviewCue actors[3], played[5];
@@ -981,6 +1019,7 @@ int main(int argc, char **argv)
     CHECK(check_caption_scene(player));
     CHECK(check_caption_paint(player));
     CHECK(check_caption_catalog(player));
+    CHECK(check_caption_target(player));
     CHECK(check_playback_scene(player));
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&

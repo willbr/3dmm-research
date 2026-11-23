@@ -43,7 +43,31 @@ typedef MMU32 MarcusCaptionColour(const void *, MMU32);
 int marcus_caption_catalog_load(MarcusCaptionList *, struct MMPrivateArchive *, const MMTextHost *, int native_system,
                                 const void *, MarcusCaptionColour *, int *detail);
 const MarcusCaptionEntry *marcus_caption_catalog_entry(const MarcusCaptionList *, int index);
-int marcus_caption_catalog_find(const MarcusCaptionList *, MMU32 chunk);
+
+struct MarcusSceneRows;
+struct MMCaptionPresentation;
+int marcus_caption_catalog_current(const MarcusCaptionList *, unsigned long document, const struct MarcusSceneRows *,
+                                    MMI32 selected);
+int marcus_caption_catalog_hit(const MarcusCaptionList *, const struct MMCaptionPresentation *, MMI32 x, MMI32 y,
+                               const MMU32 *hidden);
+
+typedef struct MarcusCaptionTarget
+{
+    unsigned long document;
+    MMI32 scene;
+    MMU32 chunk;
+    int kind;
+} MarcusCaptionTarget;
+
+/* Select an authored box, or publish the target of a prepared draft. A new
+ * draft applies to the scene without hiding a box. Invalid selection clears
+ * the target. The target copies the row identity and can outlive the list. */
+void marcus_caption_target_set(MarcusCaptionTarget *, const MarcusCaptionList *, int index, unsigned long document,
+                               const struct MarcusSceneRows *, MMI32 selected, int prepared_draft);
+/* Return the authored box to hide and optionally report whether the target
+ * is active. Chunk zero is a valid target. */
+const MMU32 *marcus_caption_target_resolve(const MarcusCaptionTarget *, unsigned long document, MMI32 selected,
+                                         int *editing);
 
 int marcus_caption_catalog_valid_edit(const MarcusCaptionList *, int index, const MarcusCaptionOptions *,
                                       const char *text, int allow_delete);
