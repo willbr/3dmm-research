@@ -104,7 +104,7 @@ void Client::PauseType(WaitReason w)
 class TrackTestTemplate
 {
     MMTemplateState &_template;
-    explicit TrackTestTemplate(PTemplate owner) : _template(EngineTemplate::State(owner)) {}
+    explicit TrackTestTemplate(PTemplate owner) : _template(*mm_template_owner_state(owner)) {}
 
     MMActionResource *_testAction = pvNil;
     bool _failNextFetch = false;
@@ -133,7 +133,7 @@ class TrackTestTemplate
     }
     static PTemplate Create()
     {
-        auto owner = mm_template_owner_create(&EngineTemplate::Host(), 0);
+        auto owner = mm_template_owner_create(mm_kauai_template_host(), 0);
         if (!owner)
             return nullptr;
         auto fixture = new (std::nothrow) TrackTestTemplate(owner);
@@ -163,7 +163,8 @@ class TrackTestTemplate
             title.SetSzs(PszLit("Fixture template"));
             const auto name = mm_template_owner_name(owner);
             mm_string_value_copy(&name, title.Pst());
-            ok = EngineTemplate::WriteHeader(owner, file, kctgTmpl, number);
+            const auto writer = file->WriteIndex();
+            ok = mm_template_owner_write_header(owner, kctgTmpl, number, &writer) != 0;
         }
         AnimationCel cel = {chidNil, rOne};
         BMAT34 matrix;

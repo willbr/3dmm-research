@@ -335,12 +335,12 @@ class Actor : public Actor_PAR
     bool FIsPropBrws(void)
     {
         AssertThis(0);
-        return FPure(EngineTemplate::FIsProp(_Template()) || EngineTemplate::FIsTdt(_Template()));
+        return mm_template_owner_has_flag(_Template(), MM_TEMPLATE_PROP | MM_TEMPLATE_TEXT) != 0;
     }
     bool FIsTdt(void)
     {
         AssertThis(0);
-        return FPure(EngineTemplate::FIsTdt(_Template()));
+        return mm_template_owner_has_flag(_Template(), MM_TEMPLATE_TEXT) != 0;
     }
     bool FMustRender(long nfrmRenderLast);
     void GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr);

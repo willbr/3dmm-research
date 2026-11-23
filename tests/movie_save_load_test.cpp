@@ -137,7 +137,7 @@ class TestApp : public ApplicationBase
 class TrackTestTemplate
 {
     MMTemplateState &_template;
-    explicit TrackTestTemplate(PTemplate owner) : _template(EngineTemplate::State(owner)) {}
+    explicit TrackTestTemplate(PTemplate owner) : _template(*mm_template_owner_state(owner)) {}
 
     MMActionResource *_testAction = pvNil;
     bool _failNextFetch = false;
@@ -166,7 +166,7 @@ class TrackTestTemplate
     }
     static PTemplate Create()
     {
-        auto owner = mm_template_owner_create(&EngineTemplate::Host(), 0);
+        auto owner = mm_template_owner_create(mm_kauai_template_host(), 0);
         if (!owner)
             return nullptr;
         auto fixture = new (std::nothrow) TrackTestTemplate(owner);
@@ -446,7 +446,7 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,pasted,_owner.runtime.first,_owner.runtime.last,_owner.runtime.life_dirty,_owner.runtime.state.frame,_owner.runtime.state.nextEvent,
             _owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,mm_actor_events_count(_owner.track.events),
-            _owner.runtime.template_tag.sid,static_cast<LegacyLong>(_owner.runtime.template_tag.number),_owner.runtime.template_tag.cache==target,EngineTemplate::FIsTdt(_Template()),source->references->count,target->references->count};
+            _owner.runtime.template_tag.sid,static_cast<LegacyLong>(_owner.runtime.template_tag.number),_owner.runtime.template_tag.cache==target,mm_template_owner_has_flag(_Template(), MM_TEMPLATE_TEXT),source->references->count,target->references->count};
         bool ok=record(values,sizeof(values)) && record(&_owner.runtime.origin,sizeof(_owner.runtime.origin)) &&
             record(&_owner.runtime.state.routeTranslation,sizeof(_owner.runtime.state.routeTranslation)) && record(&_owner.runtime.state.subrouteTranslation,sizeof(_owner.runtime.state.subrouteTranslation));
         for (long i=0;ok && i<mm_actor_events_count(_owner.track.events);++i)
@@ -691,7 +691,7 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         const int group=mode/128;
         auto tmpl=TrackTestTemplate::From(_Template()); tmpl->FailAfter(0); tmpl->SetTestText((mode&4)!=0);
-        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = EngineTemplate::PbodyCreate(_Template()); if (!_Body()) return false;
+        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = mm_brender_template_body(_Template()); if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         const int coordinates[]={0,4,10,14,30};
         for (int i=0;i<5;++i)
@@ -777,7 +777,7 @@ class TrackTestActor : public Actor
         const int group=mode/128;
         auto tmpl=TrackTestTemplate::From(_Template());
         tmpl->FailAfter(0); tmpl->SetTestText(false);
-        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = EngineTemplate::PbodyCreate(_Template()); if (!_Body()) return false;
+        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = mm_brender_template_body(_Template()); if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<5;++i)
         {
@@ -879,7 +879,7 @@ class TrackTestActor : public Actor
         const int kind=mode/32;
         auto tmpl=TrackTestTemplate::From(_Template());
         tmpl->FailAfter(0); tmpl->SetTestText((mode&1)!=0);
-        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = EngineTemplate::PbodyCreate(_Template());
+        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = mm_brender_template_body(_Template());
         if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         auto append=[&](long type,long frame,int node,const void *payload,long bytes) {
@@ -1590,7 +1590,7 @@ class TrackTestActor : public Actor
         if (!FInit(scene, resource) || !(TrackTestTemplate::From(_Template()))->FInitAction() ||
             !ActorFrameTest::FCreateTrack(_owner.track, false))
             return false;
-        _owner.runtime.body =  EngineTemplate::PbodyCreate(_Template());
+        _owner.runtime.body =  mm_brender_template_body(_Template());
         if (_Body() == pvNil)
             return false;
         mm_actor_sounds_clear(&_owner.sounds);

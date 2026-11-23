@@ -2,7 +2,7 @@
  * actor-render-test <chk-file> <tmpl-cno> <out.pgm>
  *
  * Loads a real 3DMM actor template via the engine's loaders
- * (EngineTemplate::Read, Template::PbodyCreate, Template::FSetActnCel)
+ * (mm_brender_template_read, Template::PbodyCreate, Template::FSetActnCel)
  * and renders the rest pose by walking the Body's BACT tree directly
  * through BrZbScene -- no World, no PWorld, no playback runtime.
  *
@@ -59,7 +59,7 @@ int __cdecl main(int argc, char **argv)
     int rc = 1;
     ChunkNumber cno = 0;
     String stnName;
-    bool fError = fFalse;
+    int fError = 0;
     BRS dwr = 0;
     br_pixelmap *colour = 0;
     br_pixelmap *depth = 0;
@@ -104,7 +104,7 @@ int __cdecl main(int argc, char **argv)
     }
 
     /* Wrap in CRF with a generous cache (8 MB). The CRF resolves
-     * BaseCacheableObject fetches via PFNRPO callbacks (EngineTemplate::Read
+     * BaseCacheableObject fetches via PFNRPO callbacks (mm_brender_template_read
      * here; the model and material readers also fire transitively
      * through Template::_FInit when costume materials are loaded). */
     pcrf = ChunkyResourceFile::PcrfNew(pcfl, 8L << 20);
@@ -123,17 +123,18 @@ int __cdecl main(int argc, char **argv)
     }
 
     /* Real engine load. Same call path as src/engine/actor.cpp:
-     *   ptmpl = EngineTemplate::Fetch(tag);
+     *   ptmpl = TagManager::FetchTemplate(tag);
      * Just bypassing TagManager since we have the file directly. */
-    ptmpl = EngineTemplate::Fetch(pcrf, kctgTmpl, cno, &fError);
+    ptmpl = mm_brender_template_fetch(pcrf->CoreCache(), kctgTmpl, cno, &fError);
+    mm_template_owner_bind_font(ptmpl, &TagManager::TextFontProvider(), 0);
     if (pvNil == ptmpl)
     {
-        fprintf(stderr, "actor-render-test: EngineTemplate::Read failed (fError=%d)\n", fError);
+        fprintf(stderr, "actor-render-test: mm_brender_template_read failed (fError=%d)\n", fError);
         goto LDone;
     }
     fprintf(stderr, "Template loaded.\n");
 
-    pbody = EngineTemplate::PbodyCreate(ptmpl);
+    pbody = mm_brender_template_body(ptmpl);
     if (pvNil == pbody)
     {
         fprintf(stderr, "actor-render-test: PbodyCreate failed\n");
@@ -145,7 +146,7 @@ int __cdecl main(int argc, char **argv)
      * hand-rolled actor-pose binding -- it's what the engine actually
      * does to bind body parts to their action-data-selected models
      * and matrices, including the chidNil-accessory handling. */
-    if (!EngineTemplate::FSetActnCel(ptmpl, pbody, 0, 0, &dwr))
+    if (!mm_brender_template_set_cel(ptmpl, pbody, 0, 0, &dwr))
     {
         fprintf(stderr, "actor-render-test: FSetActnCel(0, 0) failed\n");
         goto LDone;
@@ -168,7 +169,7 @@ int __cdecl main(int argc, char **argv)
         AnimationCel rest;
         LegacyLong count;
         if (!definition || !mm_action_get_cel(definition, 0, &rest) || rest.dwr != dwr ||
-            !EngineTemplate::FGetCcelActn(ptmpl, 0, &count) || count != mm_action_cel_count(definition))
+            !mm_brender_template_cel_count(ptmpl, 0, &count) || count != mm_action_cel_count(definition))
         {
             fprintf(stderr, "actor-render-test: rest pose did not use the C action resource\n");
             goto LDone;
@@ -179,7 +180,7 @@ int __cdecl main(int argc, char **argv)
     {
         // Real shipped prop fixture: one part, with two entries in its
         // alternate costume. Exercise application, ownership and restore.
-        PCustomMaterial_CMTL costume = EngineTemplate::PcmtlFetch(ptmpl, (LegacyLong)strtol(argv[5], NULL, 0));
+        PCustomMaterial_CMTL costume = mm_brender_template_costume(ptmpl, (LegacyLong)strtol(argv[5], NULL, 0));
         if (costume == pvNil)
             goto LDone;
         const auto custom = mm_material_owner_custom(costume);

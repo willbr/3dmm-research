@@ -2516,10 +2516,11 @@ bool BrowserAction::FBuildGst(PScene pscen)
     if (pvNil == (pgst = StringTable_GST::PgstNew(0)))
         return fFalse;
 
-    cactn = EngineTemplate::Cactn(ptmpl);
+    cactn = mm_template_owner_state(ptmpl)->action_count;
     for (iactn = 0; iactn < cactn; iactn++)
     {
-        if (!EngineTemplate::FGetActnName(ptmpl, iactn, &stn))
+        const MMStringValue name = {stn.Pst(), sizeof(achar)};
+        if (!mm_brender_template_action_name(ptmpl, iactn, &name))
             goto LFail;
         if (!pgst->FAddStn(&stn))
             goto LFail;
@@ -2531,7 +2532,7 @@ bool BrowserAction::FBuildGst(PScene pscen)
     if (!FBuildApe(pscen->PactrSelected()))
         goto LFail;
 
-    if (!EngineTemplate::FIsTdt(ptmpl))
+    if (!mm_template_owner_has_flag(ptmpl, MM_TEMPLATE_TEXT))
         _pape->SetCustomView(BR_ANGLE_DEG(0.0), BR_ANGLE_DEG(-30.0), BR_ANGLE_DEG(0.0));
 
     return fTrue;
@@ -2573,7 +2574,7 @@ bool BrowserAction::FCmdChangeCel(PCommand pcmd)
     LegacyLong ccel;
     PActor pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
 
-    if (!EngineTemplate::FGetCcelActn(pactr->Ptmpl(), _pape->Anid(), &ccel))
+    if (!mm_brender_template_cel_count(pactr->Ptmpl(), _pape->Anid(), &ccel))
         return fTrue;
 
     if (1 == ccel)

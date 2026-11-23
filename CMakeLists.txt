@@ -1224,7 +1224,6 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/portfolio_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tmpl.cpp"
 )
 target_include_directories(engine-core PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/inc>

@@ -24493,3 +24493,37 @@ previous seek canvases and 59 steady playback observations per port. The
 settled dissolve canvas matched retail and V3DMM.
 
 Evidence is under `tmp/c89-text-preview-owner`.
+
+## C89 actor templates and action queries (23 November 2026)
+
+Studio and Preview use the C89 template and BRender bindings for body
+creation, action lists and cels, pose, motion sounds and costumes. The
+template owner writes the counted name and TMPL header for actor and 3D
+text templates. The C++ template module is out of the engine build.
+
+The native template construction and runtime traces matched all 306,720
+and 241,552 reference bytes. Body evaluation, actor creation and paste,
+3D text resources, and both movie traces matched byte for byte. Studio's
+authored movie and all twelve costume workflow canvases matched the
+previous build. The costume workflow save reopened successfully and
+differed in two alignment bytes after the counted TMPL name.
+
+The 227 native suite checks passed with the save/load test rerun in
+isolation after two runs shared its default output path. The 17 SDL
+checks and three x86 worker fixtures passed. All ten Preview fingerprints
+and eight native scene traces matched. Marcus relaunched headlessly with
+the same startup image. The existing `scene-load` debug assertion repeated
+with the 63,224-byte trace and fingerprint `0D666753`.
+
+Candidate `20261123T141951Z-616098e9` completed both headless port seeks on
+the copied 3D text save. The seeks matched the retained retail and V3DMM
+canvases on the identical save.
+
+Candidate `20261123T141951Z-32e1e2b1` completed eight headless port runs.
+Both ports matched 60 previous Actor Audio seek canvases and all 60
+camera indices and frame identities from retail and V3DMM. The existing
+seek canvas difference at scene 0, frame 4 reproduced. Both ports matched
+60 previous dissolve seeks and 59 steady playback observations. The settled
+dissolve canvas matched retail and V3DMM.
+
+Evidence is under `tmp/c89-template-owner`.

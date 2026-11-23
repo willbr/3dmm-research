@@ -74,7 +74,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
     _prca = prca;
     _ptmpl = ptmpl;
     mm_template_owner_retain(_ptmpl);
-    _pbody = EngineTemplate::PbodyCreate(_ptmpl); // note: also sets default costume
+    _pbody = mm_brender_template_body(_ptmpl); // note: also sets default costume
     if (pvNil == _pbody)
         return fFalse;
     if (pvNil != pcost)
@@ -86,7 +86,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
     _ibsetOnlyAcc = ivNil;
     for (ibset = 0; ibset < cbset; ibset++)
     {
-        if (EngineTemplate::FBsetIsAccessory(_ptmpl, ibset))
+        if (mm_brender_template_is_accessory(_ptmpl, ibset))
         {
             if (ivNil == _ibsetOnlyAcc)
             {
@@ -225,7 +225,7 @@ bool ActorPreviewEntity::FSetAction(long anid)
 {
     AssertThis(0);
 
-    if (!EngineTemplate::FSetActnCel(_ptmpl, _pbody, anid, 0))
+    if (!mm_brender_template_set_cel(_ptmpl, _pbody, anid, 0, nullptr))
         return fFalse;
     _anid = anid;
     _celn = 0;
@@ -259,7 +259,7 @@ bool ActorPreviewEntity::FDisplayCel(long celn)
     AssertThis(0);
 
     // Someone else will push an error if this fails
-    if (EngineTemplate::FSetActnCel(_ptmpl, _pbody, _anid, celn))
+    if (mm_brender_template_set_cel(_ptmpl, _pbody, _anid, celn, nullptr))
     {
         _celn = celn;
         _UpdateView();
@@ -288,7 +288,7 @@ void ActorPreviewEntity::_InitView(void)
     BRA xa, ya, za;
 
     _iview = 0;
-    EngineTemplate::GetRestOrien(_ptmpl, &xa, &ya, &za);
+    mm_brender_template_rest(_ptmpl, &xa, &ya, &za);
     BrMatrix34Identity(&bmat34);
     BrMatrix34PostRotateX(&bmat34, xa);
     BrMatrix34PostRotateY(&bmat34, ya);
@@ -309,7 +309,7 @@ void ActorPreviewEntity::SetCustomView(BRA xa, BRA ya, BRA za)
     BRA xaTmpl, yaTmpl, zaTmpl;
 
     _iview = -1;
-    EngineTemplate::GetRestOrien(_ptmpl, &xaTmpl, &yaTmpl, &zaTmpl);
+    mm_brender_template_rest(_ptmpl, &xaTmpl, &yaTmpl, &zaTmpl);
     BrMatrix34Identity(&bmat34);
     BrMatrix34PostRotateX(&bmat34, xaTmpl);
     BrMatrix34PostRotateY(&bmat34, yaTmpl);
@@ -333,7 +333,7 @@ void ActorPreviewEntity::ChangeView(void)
     BRA xa, ya, za;
 
     _iview = (_iview + 1) % 5;
-    EngineTemplate::GetRestOrien(_ptmpl, &xa, &ya, &za);
+    mm_brender_template_rest(_ptmpl, &xa, &ya, &za);
     BrMatrix34Identity(&bmat34);
     BrMatrix34PostRotateX(&bmat34, xa);
     BrMatrix34PostRotateY(&bmat34, ya);
@@ -477,7 +477,7 @@ bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
             Assert(pbody == _pbody, "what Body is this?");
             if (_apet.apt == aptIncCmtl)
             {
-                if (EngineTemplate::CcmidOfBset(_ptmpl, ibset) > 1)
+                if (mm_brender_template_costume_count(_ptmpl, ibset) > 1)
                     SetCursCno(_prca, kcrsCostume);
             }
             else if (_apet.apt == aptIncAccessory)
@@ -485,7 +485,7 @@ bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
                 // Change cursor if there's only one accessory
                 // body part set or if cursor is on either an accessory
                 // body part set or the parent of one.
-                if (_ibsetOnlyAcc != ivNil || EngineTemplate::FIbsetAccOfIbset(_ptmpl, ibset, &ibsetAcc))
+                if (_ibsetOnlyAcc != ivNil || mm_brender_template_accessory_set(_ptmpl, ibset, &ibsetAcc))
                 {
                     SetCursCno(_prca, kcrsHand);
                 }
@@ -537,7 +537,7 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
         break;
 
     case aptIncAccessory:
-        if ((ibsetAcc = _ibsetOnlyAcc) != ivNil || EngineTemplate::FIbsetAccOfIbset(_ptmpl, ibset, &ibsetAcc))
+        if ((ibsetAcc = _ibsetOnlyAcc) != ivNil || mm_brender_template_accessory_set(_ptmpl, ibset, &ibsetAcc))
         {
             _pglgms->Get(ibsetAcc, &gms);
             if (_FIncCmtl(&gms, ibsetAcc, fTrue))
@@ -578,7 +578,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
     }
     else // cmtl
     {
-        pcmtl = EngineTemplate::PcmtlFetch(_ptmpl, pgms->cmid);
+        pcmtl = mm_brender_template_costume(_ptmpl, pgms->cmid);
         if (pvNil == pcmtl)
             return fFalse;
         EngineBody::SetPartSetCmtl(_pbody, pcmtl);
@@ -607,9 +607,9 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
     bool fMtrl;
 
     // Default cmidNext is default cmid for this body part set
-    cmidNext = EngineTemplate::CmidOfBset(_ptmpl, ibset, 0);
+    cmidNext = mm_brender_template_costume_id(_ptmpl, ibset, 0);
 
-    ccmid = EngineTemplate::CcmidOfBset(_ptmpl, ibset);
+    ccmid = mm_brender_template_costume_count(_ptmpl, ibset);
 
     // Need to find out what cmid (if any) is currently attached to ibset.
     // If the GeneralMaterialSpec is valid, use it.  Otherwise, figure out which cmid
@@ -622,8 +622,8 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
         {
             for (icmid = 0; icmid < ccmid; icmid++)
             {
-                cmid = EngineTemplate::CmidOfBset(_ptmpl, ibset, icmid);
-                pcmtl = EngineTemplate::PcmtlFetch(_ptmpl, cmid);
+                cmid = mm_brender_template_costume_id(_ptmpl, ibset, icmid);
+                pcmtl = mm_brender_template_costume(_ptmpl, cmid);
                 if (pvNil == pcmtl)
                     return fFalse;
                 if (pcmtl == pcmtlOld)
@@ -642,14 +642,14 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
         cmid = pgms->cmid;
         for (icmid = 0; icmid < ccmid; icmid++)
         {
-            if (cmid == EngineTemplate::CmidOfBset(_ptmpl, ibset, icmid))
+            if (cmid == mm_brender_template_costume_id(_ptmpl, ibset, icmid))
             {
                 cmidNext = _CmidNext(ibset, icmid, fNextAccessory);
                 break;
             }
         }
     }
-    pcmtl = EngineTemplate::PcmtlFetch(_ptmpl, cmidNext);
+    pcmtl = mm_brender_template_costume(_ptmpl, cmidNext);
     if (pvNil == pcmtl)
         return fFalse;
     EngineBody::SetPartSetCmtl(_pbody, pcmtl);
@@ -676,21 +676,21 @@ long ActorPreviewEntity::_CmidNext(long ibset, long icmidCur, bool fNextAccessor
     long cmidNext;
     long dicmid;
 
-    cmidCur = EngineTemplate::CmidOfBset(_ptmpl, ibset, icmidCur);
-    ccmid = EngineTemplate::CcmidOfBset(_ptmpl, ibset);
+    cmidCur = mm_brender_template_costume_id(_ptmpl, ibset, icmidCur);
+    ccmid = mm_brender_template_costume_count(_ptmpl, ibset);
 
     for (dicmid = 1; dicmid < ccmid; dicmid++)
     {
         icmidNext = (icmidCur + dicmid) % ccmid;
-        cmidNext = EngineTemplate::CmidOfBset(_ptmpl, ibset, icmidNext);
+        cmidNext = mm_brender_template_costume_id(_ptmpl, ibset, icmidNext);
         if (fNextAccessory)
         {
-            if (!EngineTemplate::FSameAccCmids(_ptmpl, cmidCur, cmidNext))
+            if (!mm_brender_template_same_accessory(_ptmpl, cmidCur, cmidNext))
                 return cmidNext;
         }
         else
         {
-            if (EngineTemplate::FSameAccCmids(_ptmpl, cmidCur, cmidNext))
+            if (mm_brender_template_same_accessory(_ptmpl, cmidCur, cmidNext))
                 return cmidNext;
         }
     }
@@ -703,7 +703,7 @@ long ActorPreviewEntity::_CmidNext(long ibset, long icmidCur, bool fNextAccessor
 bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0);
-    Assert(EngineTemplate::FIsTdt(_ptmpl), "FChangeTdt is only for ThreeDTexts");
+    Assert(mm_template_owner_has_flag(_ptmpl, MM_TEMPLATE_TEXT), "FChangeTdt is only for ThreeDTexts");
     AssertNilOrPo(pstn, 0);
     AssertNilOrVarMem(ptagTdf);
 
@@ -724,7 +724,7 @@ bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
 bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
 {
     AssertThis(0);
-    Assert(EngineTemplate::FIsTdt(_ptmpl), "FSetTdtMtrl is only for ThreeDTexts");
+    Assert(mm_template_owner_has_flag(_ptmpl, MM_TEMPLATE_TEXT), "FSetTdtMtrl is only for ThreeDTexts");
     Assert(EngineBody::SetCount(_pbody) == 1, "ThreeDTexts should only have one body part set");
     AssertVarMem(ptagMtrl);
 
@@ -754,7 +754,7 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
 bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
 {
     AssertThis(0);
-    Assert(EngineTemplate::FIsTdt(_ptmpl), "FGetTdtMtrlCno is only for ThreeDTexts");
+    Assert(mm_template_owner_has_flag(_ptmpl, MM_TEMPLATE_TEXT), "FGetTdtMtrlCno is only for ThreeDTexts");
     AssertVarMem(pcno);
 
     PMaterial_MTRL pmtrl;
@@ -777,7 +777,7 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
 void ActorPreviewEntity::GetTdtInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
 {
     AssertThis(0);
-    Assert(EngineTemplate::FIsTdt(_ptmpl), "GetTdtInfo is only for ThreeDTexts");
+    Assert(mm_template_owner_has_flag(_ptmpl, MM_TEMPLATE_TEXT), "GetTdtInfo is only for ThreeDTexts");
     AssertNilOrVarMem(pstn);
     AssertNilOrVarMem(ptdts);
     AssertNilOrVarMem(ptagTdf);
@@ -824,7 +824,7 @@ void ActorPreviewEntity::AssertValid(LegacyUlong grf)
 {
     ActorPreviewEntity_PAR::AssertValid(fobjAllocated);
     AssertPo(_pbwld, 0);
-    EngineTemplate::Validate(_ptmpl);
+    mm_kauai_template_validate(_ptmpl);
     EngineBody::Validate(_pbody);
     AssertPo(_pglgms, 0);
     Assert(_pglgms->IvMac() == EngineBody::SetCount(_pbody), "_pglgms wrong size");
@@ -839,7 +839,7 @@ void ActorPreviewEntity::MarkMem(void)
     AssertThis(0);
     ActorPreviewEntity_PAR::MarkMem();
     MarkMemObj(_pbwld);
-    EngineTemplate::Mark(_ptmpl);
+    mm_kauai_template_mark(_ptmpl);
     EngineBody::Mark(_pbody);
     MarkMemObj(_pglgms);
     MarkMemObj(_prca);

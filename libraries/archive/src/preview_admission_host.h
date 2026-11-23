@@ -123,8 +123,8 @@ struct Preview::Impl::AdmissionHost
                 return *out != nullptr;
             });
         };
-        s.prop = [](void *, void *t) -> int { return EngineTemplate::FIsProp(static_cast<PTemplate>(t)); };
-        s.actions = [](void *, void *t) -> MMI32 { return EngineTemplate::Cactn(static_cast<PTemplate>(t)); };
+        s.prop = [](void *, void *t) -> int { return mm_template_owner_has_flag(static_cast<PTemplate>(t), MM_TEMPLATE_PROP); };
+        s.actions = [](void *, void *t) -> MMI32 { return mm_template_owner_state(static_cast<PTemplate>(t))->action_count; };
         s.cels = [](void *v, void *t, MMU32 action, MMI32 *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {

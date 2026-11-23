@@ -249,7 +249,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
             Bug("Bad event in frame event list");
     };
     s.material_reader = mm_brender_material_read;
-    s.template_reader = EngineTemplate::Read;
+    s.template_reader = mm_brender_template_read;
     s.purge_sounds = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->Pmcc()->FQueryPurgeSounds(); };
     s.bad_child = [](void *) { Bug("ChunkyFile returned bogus Ckid()"); };
     s.bad_sound_index = [](void *) { Bug("Should never fail"); };
@@ -1301,7 +1301,7 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
  ****************************************************/
 bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
 {
-    AssertThis(0); AssertPo(pactr, 0); Assert(EngineTemplate::FIsTdt(pactr->Ptmpl()), "actor must be a ThreeDText");
+    AssertThis(0); AssertPo(pactr, 0); Assert(mm_template_owner_has_flag(pactr->Ptmpl(), MM_TEMPLATE_TEXT), "actor must be a ThreeDText");
     AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     Assert(pactr == Pscen()->PactrSelected(), 0);
     const auto services = _ContentServices();
@@ -4264,12 +4264,12 @@ void MovieView::_ActorClicked(PActor pactr, bool fDown)
 
     ulong grftmpl = 0;
 
-    if (EngineTemplate::FIsTdt(pactr->Ptmpl()))
+    if (mm_template_owner_has_flag(pactr->Ptmpl(), MM_TEMPLATE_TEXT))
     {
         grftmpl |= ftmplTdt;
     }
 
-    if (EngineTemplate::FIsProp(pactr->Ptmpl()))
+    if (mm_template_owner_has_flag(pactr->Ptmpl(), MM_TEMPLATE_PROP))
     {
         grftmpl |= ftmplProp;
     }
@@ -4750,7 +4750,8 @@ MMActorRecordGestureServices MovieView::_RecordGestureServices()
 bool MovieView::_FRecordTemplateMatches(PActor actor)
 {
     auto tmpl = actor->Ptmpl();
-    return tmpl == _ptmplTool || (_ptmplTool && EngineTemplate::FIsTdt(_ptmplTool) && EngineTemplate::FIsTdt(tmpl));
+    return tmpl == _ptmplTool || (_ptmplTool && mm_template_owner_has_flag(_ptmplTool, MM_TEMPLATE_TEXT) &&
+                                mm_template_owner_has_flag(tmpl, MM_TEMPLATE_TEXT));
 }
 
 /***************************************************************************

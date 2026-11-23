@@ -100,7 +100,7 @@ static JVal AuthorActorInfo(PActor actor)
         }
     }
     BRA rx, ry, rz;
-    EngineTemplate::GetRestOrien(actor->Ptmpl(), &rx, &ry, &rz);
+    mm_brender_template_rest(actor->Ptmpl(), &rx, &ry, &rz);
     result.Set("rest_rotation", AuthorVector(BrScalarToFloat(BrAngleToDegree(rx)), BrScalarToFloat(BrAngleToDegree(ry)),
                                              BrScalarToFloat(BrAngleToDegree(rz))));
     return result;
@@ -140,13 +140,13 @@ static JVal Tool_ListAssets(const JVal &args)
         String name;
         if (kind == "props" || kind == "actors")
         {
-            auto asset = EngineTemplate::Fetch(&descriptor.tag);
+            auto asset = vptagm->FetchTemplate(TagToCore(descriptor.tag), &descriptor.tag);
             if (!asset)
             {
                 ReleasePpo(&list);
                 return ContentError("Cannot read a template in the catalog");
             }
-            EngineTemplate::GetName(asset, &name);
+            name.SetSt(static_cast<PPascalString>(mm_template_owner_name(asset).buffer));
             mm_template_owner_release(asset);
         }
         else if (kind == "backgrounds")

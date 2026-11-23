@@ -69,7 +69,7 @@ void mm_actor_owner_evaluate_pose(const MMActorOwner *owner, MMActorState *state
     MMActorPoseInputs inputs;
     MMTemplateOwner *tmpl = owner->runtime.template_object;
     renderer->rest(tmpl, &inputs.restX, &inputs.restY, &inputs.restZ);
-    inputs.fixedPathOrientation = (mm_template_owner_state(tmpl)->flags & MM_TEMPLATE_TEXT) != 0;
+    inputs.fixedPathOrientation = mm_template_owner_has_flag(tmpl, MM_TEMPLATE_TEXT);
     mm_actor_pose_evaluate(state, owner->track.route, owner->track.events, &inputs, position, pose, motion);
 }
 
@@ -105,7 +105,7 @@ int mm_actor_replace_template(MMActorRuntime *r, MMActorEventTable *events, cons
     MMTemplateOwner *next = s->fetch(s->context, tag);
     if (!next)
         return 0;
-    text = (mm_template_owner_state(next)->flags & MM_TEMPLATE_TEXT) != 0;
+    text = mm_template_owner_has_flag(next, MM_TEMPLATE_TEXT);
     if (text && !s->adjust_body(next, body))
     {
         mm_template_owner_release(next);

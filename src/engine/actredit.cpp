@@ -159,7 +159,7 @@ MMActorPasteServices Actor::_PasteServices()
     s.context = this;
     s.create = _CreateServices();
     s.edits = _EventEditServices();
-    s.is_text=[](void *,void *p) { return int(EngineTemplate::FIsTdt(static_cast<PTemplate>(p))); };
+    s.is_text=[](void *,void *p) { return mm_template_owner_has_flag(static_cast<PTemplate>(p), MM_TEMPLATE_TEXT); };
     s.ensure_autosave=[](void *,void *p,void **cache) {
         MMResourceCache *resource=nullptr; bool ok=static_cast<PScene>(p)->Pmvie()->FEnsureAutosave(&resource);
         *cache=resource; return int(ok);

@@ -24,8 +24,8 @@ static bool TestActorCreation(PMovie movie)
         TAG tag={ksidUseCrf,resource ? resource->CoreCache() : nullptr,kctgTmpl,asset==1?bad:number};
         if (ok && warm)
         {
-            auto tmpl=EngineTemplate::Fetch(resource, tag.ctg,tag.cno);
-            if (tmpl && asset==0) { LegacyUlong flags=0; ok=EngineTemplate::FGetGrfactn(tmpl, 0,&flags); }
+            auto tmpl=mm_brender_template_fetch(resource->CoreCache(), tag.ctg,tag.cno,nullptr);
+            if (tmpl && asset==0) { LegacyUlong flags=0; ok=mm_brender_template_action_flags(tmpl, 0,&flags); }
             mm_template_owner_release(tmpl);
         }
         const long refs=resource?resource->CactRef():0;

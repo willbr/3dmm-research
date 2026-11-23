@@ -2120,8 +2120,12 @@ link this shared adapter directly. Studio and Preview also share the C89
 template and action cache readers, body creation, costume application, cel
 evaluation, and 3D text initialization and generation. Archive-backed and
 generated actions use the same C89 owner and playback readers for cels,
-matrices, distance, flags and motion sound tags. The C89 text generator owns
-the cached action reference and replaces it after text edits. Kauai supplies
+matrices, distance, flags and motion sound tags. Studio and Preview read
+template flags, action counts, poses and costumes directly through these
+bindings. The template owner writes the counted name and TMPL header for
+actors and 3D text. The C++ template module is out of the engine build.
+The C89 text generator owns the cached action reference and replaces it
+after text edits. Kauai supplies
 chunk names, allocation, decoding and diagnostics. Studio loads the retail
 3D text action catalogue through the C89 cache binding. C owns the counted
 labels, normalizes their text encoding and resolves action IDs in stored

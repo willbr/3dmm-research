@@ -115,7 +115,7 @@ static bool TestTextGeneration()
     const char *strings[]={"","A","AiB","\xe9 A","ABBAi"}; int generated=0,attempts=0,successful=0;
     for (int text=0;ok && text<5;++text) for (int shape=0;ok && shape<tdtsLim;++shape)
     {
-        String string; string.SetSzs(const_cast<char *>(strings[text])); auto t = NewFixtureText(&string, shape, font); auto body=t?EngineTemplate::PbodyCreate(t):nullptr; ok=t && body;
+        String string; string.SetSzs(const_cast<char *>(strings[text])); auto t = NewFixtureText(&string, shape, font); auto body=t?mm_brender_template_body(t):nullptr; ok=t && body;
         if (t) mm_template_owner_bind_font(t, &provider, 1);
         String normalized;
         if (t) normalized.SetSt(static_cast<PPascalString>(mm_template_owner_name(t).buffer));
@@ -128,7 +128,7 @@ static bool TestTextGeneration()
             LegacyLong fields[]={text,shape,action,normalized.Cch(),count,static_cast<LegacyLong>(definition->flags)};
             ok=record(fields,sizeof(fields)) && TextGenerationFixtureAccess::Resource(a,2,normalized.Cch(),snapshot) && TextGenerationFixtureAccess::Record(t,snapshot) && ok;
             const int positions[]={0,count/2,count-1,-1};
-            for (auto cel:positions) { BRS distance=-77; ok=EngineTemplate::FSetActnCel(t, body,action,cel,&distance) && ok; LegacyLong values[]={cel,distance}; ok=record(values,sizeof(values)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok; }
+            for (auto cel:positions) { BRS distance=-77; ok=mm_brender_template_set_cel(t, body,action,cel,&distance) && ok; LegacyLong values[]={cel,distance}; ok=record(values,sizeof(values)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok; }
             mm_action_resource_release(a);
         }
         mm_body_owner_release(body); mm_template_owner_release(t); vpers->Clear();
@@ -142,7 +142,7 @@ static bool TestTextGeneration()
 #endif
         String string,changed; string.SetSzs(text?"i A":""); changed.SetSzs(text?"":"Bie "); context.fail=false; context.fetches=0;
         auto t = operation ? NewFixtureText(&string, tdtsNormal, font) : nullptr; PBody body=nullptr; MMActionResource *held=nullptr;
-        if (t) { mm_template_owner_bind_font(t, &provider, 1); body=EngineTemplate::PbodyCreate(t); held=static_cast<MMActionResource *>(TextGenerationFixtureAccess::Build(t,2,tdaPulse)); ok=body && held && ok; }
+        if (t) { mm_template_owner_bind_font(t, &provider, 1); body=mm_brender_template_body(t); held=static_cast<MMActionResource *>(TextGenerationFixtureAccess::Build(t,2,tdaPulse)); ok=body && held && ok; }
         context.fail=missing!=0; context.fetches=0; void *result=nullptr; bool success=false;
 #ifdef DEBUG
         vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;
@@ -159,8 +159,8 @@ static bool TestTextGeneration()
         vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
         ++attempts; if (success) ++successful;
-        if (!operation && t) { mm_template_owner_bind_font(t, &provider, 1); body=EngineTemplate::PbodyCreate(t); ok=body && ok; }
-        if (operation==1 && success) { ok=mm_brender_text_adjust_body(t, body) && EngineTemplate::FSetDefaultCost(t, body) && EngineTemplate::FSetActnCel(t, body,tdaWave,0) && ok; }
+        if (!operation && t) { mm_template_owner_bind_font(t, &provider, 1); body=mm_brender_template_body(t); ok=body && ok; }
+        if (operation==1 && success) { ok=mm_brender_text_adjust_body(t, body) && mm_brender_template_default_costume(t, body) && mm_brender_template_set_cel(t, body,tdaWave,0, nullptr) && ok; }
         String normalized;
         if (t) normalized.SetSt(static_cast<PPascalString>(mm_template_owner_name(t).buffer));
         LegacyLong values[]={text,operation,missing,kind,failure,success,context.fetches,mm_action_resource_references(held)};

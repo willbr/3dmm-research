@@ -316,26 +316,26 @@ int main(int argc, char **argv)
     {
         ok = ok && templateResources && document;
         if (ok)
-            animated = EngineTemplate::Fetch(templateResources, kctgTmpl, 0x2010);
+            animated = mm_brender_template_fetch(templateResources->CoreCache(), kctgTmpl, 0x2010, nullptr);
         ok = ok && animated;
         bool found = false;
-        for (LegacyLong action = 0; ok && action < EngineTemplate::Cactn(animated); ++action)
+        for (LegacyLong action = 0; ok && action < mm_template_owner_state(animated)->action_count; ++action)
         {
             LegacyLong cells = 0;
-            if (EngineTemplate::FGetCcelActn(animated, action, &cells) && cells >= 6)
+            if (mm_brender_template_cel_count(animated, action, &cells) && cells >= 6)
             {
                 animation = action;
                 found = true;
                 break;
             }
         }
-        auto body = animated ? EngineTemplate::PbodyCreate(animated) : pvNil;
+        auto body = animated ? mm_brender_template_body(animated) : pvNil;
         for (LegacyLong set = 0; body && set < EngineBody::SetCount(body); ++set)
-            if (!EngineTemplate::FBsetIsAccessory(animated, set) && EngineTemplate::CcmidOfBset(animated, set) > 1)
+            if (!mm_brender_template_is_accessory(animated, set) && mm_brender_template_costume_count(animated, set) > 1)
             {
                 costumeSet = set;
-                originalCostume = EngineTemplate::CmidOfBset(animated, set, 0);
-                alternateCostume = EngineTemplate::CmidOfBset(animated, set, 1);
+                originalCostume = mm_brender_template_costume_id(animated, set, 0);
+                alternateCostume = mm_brender_template_costume_id(animated, set, 1);
                 break;
             }
         mm_body_owner_release(body);

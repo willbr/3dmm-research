@@ -43,12 +43,12 @@ int main()
          file->FAdoptChild(kctgCmtl, customNumber, kctgMtrl, materialNumber, 0) &&
          file->FAdoptChild(kctgTmpl, number, kctgCmtl, customNumber, 2);
     auto cache = ok ? ChunkyResourceFile::PcrfNew(file, 0) : nullptr;
-    auto tmpl = cache ? EngineTemplate::Fetch(cache, kctgTmpl, number) : nullptr;
+    auto tmpl = cache ? mm_brender_template_fetch(cache->CoreCache(), kctgTmpl, number, nullptr) : nullptr;
     if (!ok || !tmpl) std::fputs("Cannot construct the sparse template fixture.\n", stderr);
-    ok = ok && tmpl && EngineTemplate::CcmidOfBset(tmpl, 0) == 2 && EngineTemplate::CmidOfBset(tmpl, 0, 1) == 2;
-    auto body = tmpl ? EngineTemplate::PbodyCreate(tmpl) : nullptr;
-    auto sparse = tmpl ? EngineTemplate::PcmtlFetch(tmpl, 2) : nullptr;
-    auto missing = tmpl ? EngineTemplate::PcmtlFetch(tmpl, 1) : nullptr;
+    ok = ok && tmpl && mm_brender_template_costume_count(tmpl, 0) == 2 && mm_brender_template_costume_id(tmpl, 0, 1) == 2;
+    auto body = tmpl ? mm_brender_template_body(tmpl) : nullptr;
+    auto sparse = tmpl ? mm_brender_template_costume(tmpl, 2) : nullptr;
+    auto missing = tmpl ? mm_brender_template_costume(tmpl, 1) : nullptr;
     if (!body || !sparse || missing) std::fputs("Sparse costume lookup/application failed.\n", stderr);
     ok = ok && body && sparse && !missing && mm_material_owner_custom(sparse)->set == 0;
     if (body && sparse) EngineBody::SetPartSetCmtl(body, sparse);

@@ -1898,7 +1898,7 @@ bool Studio::FCmdActorEaselOpen(PCommand pcmd)
     // Start the easel.
     // Note: easels are self-managing, so we don't need to keep the PEasel
     //
-    if (EngineTemplate::FIsTdt(pactr->Ptmpl()))
+    if (mm_template_owner_has_flag(pactr->Ptmpl(), MM_TEMPLATE_TEXT))
     {
         EaselText::PesltNew(_pcrm, _pmvie, pactr);
     }

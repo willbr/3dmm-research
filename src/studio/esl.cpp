@@ -244,7 +244,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
-    Assert(pvNil == pactr || EngineTemplate::FIsTdt(pactr->Ptmpl()), "only use EaselText for ThreeDTexts");
+    Assert(pvNil == pactr || mm_template_owner_has_flag(pactr->Ptmpl(), MM_TEMPLATE_TEXT), "only use EaselText for ThreeDTexts");
     AssertNilOrPo(pstnNew, 0);
     if (tdtsNew != tdtsNil)
         AssertIn(tdtsNew, 0, tdtsLim);
@@ -307,7 +307,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
         mm_template_owner_release(ptdt);
         if (pvNil == _pape)
             return fFalse;
-        EngineTemplate::GetName(pactr->Ptmpl(), &stn);
+        stn.SetSt(static_cast<PPascalString>(mm_template_owner_name(pactr->Ptmpl()).buffer));
     }
 
     // Set up the edit box

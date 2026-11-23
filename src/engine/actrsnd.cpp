@@ -53,11 +53,11 @@ MMActorSoundEditServices Actor::_SoundEditServices()
     s.set_sound_frame = [](void *p) { static_cast<Actor *>(p)->Pscen()->Pmvie()->Pmcc()->SetSndFrame(fTrue); };
     s.midi_error = [](void *) { PushErc(ercSocNoActrMidi); };
     s.default_sound = [](void *p, MMI32 action, MMI32 cel, int *exists, MMTag *value) {
-        TAG tag; bool found = false;
-        bool ok = EngineTemplate::FGetSndActnCel(static_cast<Actor *>(p)->_Template(), action, cel, &found, &tag);
-        *exists = found;
-        if (ok && found) *value = {tag.sid, tag.cache, tag.ctg, tag.cno};
-        return int(ok);
+        MMTag tag{};
+        const int ok = mm_brender_template_sound(static_cast<Actor *>(p)->_Template(), action, cel, exists, &tag);
+        if (ok && *exists)
+            *value = tag;
+        return ok;
     };
     return s;
 }
@@ -88,10 +88,7 @@ MMActorSoundServices Actor::_SoundServices()
     MMActorSoundServices services = {};
     services.context = this;
     services.cel_count = [](void *context, MMI32 action, MMI32 *out) {
-        LegacyLong count = *out;
-        bool ok = EngineTemplate::FGetCcelActn(static_cast<Actor *>(context)->_Template(), action, &count);
-        *out = count;
-        return int(ok);
+        return mm_brender_template_cel_count(static_cast<Actor *>(context)->_Template(), action, out);
     };
     services.resolve = [](void *context, MMTag *value, MMU32 child) {
         return int(static_cast<Actor *>(context)->_Scene()->Pmvie()->FResolveSndTag(*value, child));

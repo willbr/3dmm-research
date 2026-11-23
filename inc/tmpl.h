@@ -100,42 +100,4 @@ enum
 
 using PTemplate = MMTemplateOwner *;
 
-namespace EngineTemplate
-{
-inline const MMTemplateOwnerHost &Host() { return *mm_kauai_template_host(); }
-inline const MMActionResourceHost &ActionResourceHost() { return *mm_kauai_action_host(); }
-constexpr MMResourceBlockReader ReadActionResource = mm_brender_action_read;
-constexpr MMResourceBlockReader Read = mm_brender_template_read;
-PTemplate Fetch(PTAG);
-PTemplate Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber, bool *error = nullptr);
-PTemplate Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, bool *error = nullptr);
-bool WriteHeader(PTemplate, PChunkyFile, ChunkTagOrType, ChunkNumber *);
-void GetName(PTemplate, PString);
-PBody PbodyCreate(PTemplate);
-void GetRestOrien(PTemplate, BRA *, BRA *, BRA *);
-
-inline MMTemplateState &State(PTemplate owner) { return *mm_template_owner_state(owner); }
-inline bool FIsTdt(PTemplate owner) { return FPure(State(owner).flags & ftmplTdt); }
-inline bool FIsProp(PTemplate owner) { return FPure(State(owner).flags & ftmplProp); }
-inline LegacyLong Cactn(PTemplate owner) { return State(owner).action_count; }
-
-bool FGetActnName(PTemplate, LegacyLong, PString);
-bool FSetActnCel(PTemplate, PBody, LegacyLong action, LegacyLong cel, BRS *distance = pvNil);
-bool FGetGrfactn(PTemplate, LegacyLong action, LegacyUlong *flags);
-bool FGetCcelActn(PTemplate, LegacyLong action, LegacyLong *count);
-bool FGetSndActnCel(PTemplate, LegacyLong action, LegacyLong cel, bool *exists, PTAG);
-bool FSetDefaultCost(PTemplate, PBody);
-PCustomMaterial_CMTL PcmtlFetch(PTemplate, LegacyLong id);
-LegacyLong CcmidOfBset(PTemplate, LegacyLong set);
-LegacyLong CmidOfBset(PTemplate, LegacyLong set, LegacyLong index);
-bool FBsetIsAccessory(PTemplate, LegacyLong set);
-bool FIbsetAccOfIbset(PTemplate, LegacyLong set, LegacyLong *accessory);
-bool FSameAccCmids(PTemplate, LegacyLong first, LegacyLong second);
-
-#ifdef DEBUG
-void Validate(PTemplate);
-void Mark(PTemplate);
-#endif
-}
-
 #endif

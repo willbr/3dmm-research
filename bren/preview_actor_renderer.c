@@ -91,13 +91,13 @@ static int adjust_text_body(void *p, void *tmpl, void *body)
 static int is_prop(void *p, void *tmpl)
 {
     (void)p;
-    return (mm_template_owner_state(tmpl)->flags & MM_TEMPLATE_PROP) != 0;
+    return mm_template_owner_has_flag(tmpl, MM_TEMPLATE_PROP);
 }
 
 static int is_text(void *p, void *tmpl)
 {
     (void)p;
-    return (mm_template_owner_state(tmpl)->flags & MM_TEMPLATE_TEXT) != 0;
+    return mm_template_owner_has_flag(tmpl, MM_TEMPLATE_TEXT);
 }
 
 static void release_body(void *p, void *body)

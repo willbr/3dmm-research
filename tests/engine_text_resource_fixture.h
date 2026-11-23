@@ -8,7 +8,7 @@ static MMFontOwner *TextResourceNoFont(void *context,const MMTag *)
 { ++*static_cast<int *>(context); return nullptr; }
 struct TextResourceFixtureAccess
 {
-    static PThreeDText Create() { return mm_template_owner_create(&EngineTemplate::Host(), 1); }
+    static PThreeDText Create() { return mm_template_owner_create(mm_kauai_template_host(), 1); }
     static bool Initialize(PThreeDText t, PChunkyResourceFile cache, ChunkNumber n)
     {
         return mm_brender_text_initialize(t, cache->CoreCache(), kctgTmpl, n, nullptr) != 0;
@@ -49,7 +49,7 @@ struct TextResourceFixtureAccess
         const auto &g = *mm_template_owner_generated(t);
         const auto &d = *mm_template_owner_descriptor(t);
         const auto &font = d.font;
-        const auto &base = EngineTemplate::State(t);
+        const auto &base = *mm_template_owner_state(t);
         auto parents=base.parents,sets=base.sets;
         LegacyLong fields[]={d.shape,text.Cch(),font.sid,static_cast<LegacyLong>(font.type),static_cast<LegacyLong>(font.number),font.cache?(font.cache==cache->CoreCache()?1:2):0,
             base.set_count,base.custom_count,base.action_count,static_cast<LegacyLong>(base.flags),parents!=nullptr,sets!=nullptr,base.costumes!=nullptr,
@@ -142,7 +142,7 @@ static bool TestTextResources()
         else { copy = mm_brender_text_duplicate(t); success = copy != nullptr; }
         inject(kind,failure,false); ++attempts; successful+=success;
         bool provider=copy && TextResourceFixtureAccess::Provider(copy,&calls);
-        if (provider) { LegacyLong cels; ok=!EngineTemplate::FGetCcelActn(copy, tdaRest,&cels) && calls==1 && ok; }
+        if (provider) { LegacyLong cels; ok=!mm_brender_template_cel_count(copy, tdaRest,&cels) && calls==1 && ok; }
         LegacyLong fields[]={text,shape,operation,mask,kind,failure,success,t!=nullptr,copy!=nullptr,mm_action_resource_references(held),provider,calls,cache->CactRef()};
         ok=record(fields,sizeof(fields)) && TextResourceFixtureAccess::Record(t,snapshot,cache) && TextResourceFixtureAccess::Record(copy,snapshot,cache) && ok;
         mm_template_owner_release(copy); mm_template_owner_release(t); mm_action_resource_release(held); vpers->Clear();
@@ -171,10 +171,10 @@ static bool TestTextResources()
         if (variant==5) ok=target->FPackData(kctgTdt,child.cki.cno) && ok;
         PThreeDText t=stage==0?TextResourceFixtureAccess::Create():nullptr; PDynamicArray tags=nullptr;
         MMI32 estimate=-77; bool error=true,success=false;
-        if (stage==1) ok=target->FFind(kctgTmpl,number,&block) && EngineTemplate::Read(crf->CoreCache(),kctgTmpl,number,block.CoreBlock(),nullptr,&estimate) && ok;
+        if (stage==1) ok=target->FFind(kctgTmpl,number,&block) && mm_brender_template_read(crf->CoreCache(),kctgTmpl,number,block.CoreBlock(),nullptr,&estimate) && ok;
         inject(kind,failure,true);
         if (!stage) success=TextResourceFixtureAccess::Initialize(t, crf, number);
-        else if (stage==1) { void *out=nullptr; success=EngineTemplate::Read(crf->CoreCache(),kctgTmpl,number,block.CoreBlock(),&out,&estimate); if (success) t=static_cast<PThreeDText>(out); }
+        else if (stage==1) { void *out=nullptr; success=mm_brender_template_read(crf->CoreCache(),kctgTmpl,number,block.CoreBlock(),&out,&estimate); if (success) t=static_cast<PThreeDText>(out); }
         else { tags = TextResourceFixtureAccess::Tags(target, number, &error); success = !error; }
         inject(kind,failure,false); ++attempts; successful+=success;
         LegacyLong fields[]={variant,stage,kind,failure,success,error,estimate,t!=nullptr,tags?tags->IvMac():-1};
@@ -209,7 +209,8 @@ static bool TestTextResources()
         if (!ok) std::fprintf(stderr,"Text writing failed: %d %d %d\n",text,kind,failure);
     }
     String text; auto t = NewFixtureText(&text, 0, oldTag); text.SetSzs(PszLit("dirty"));
-    ok=t && !EngineTemplate::FGetActnName(t, 0,&text) && !text.Cch() && ok;
+    const MMStringValue actionName = {text.Pst(), sizeof(achar)};
+    ok=t && !mm_brender_template_action_name(t, 0,&actionName) && !text.Cch() && ok;
     auto names=StringTable_GST::PgstNew(4); LegacyLong ids[]={7,0,7}; const char *labels[]={"Pulse","Rest","Later duplicate"};
     for (int i=0;ok && i<3;++i) { text.SetSzs(const_cast<char *>(labels[i])); ok=names && names->FAddStn(&text,&ids[i]); }
     {
@@ -222,7 +223,7 @@ static bool TestTextResources()
              mm_brender_text_action_names_read(&stream, profile.encoding, profile.convert, nullptr);
     }
     ReleasePpo(&names);
-    for (int id=0;ok && id<16;++id) { text.SetSzs(PszLit("dirty")); bool found=EngineTemplate::FGetActnName(t, id,&text); LegacyLong fields[]={id,found,text.Cch()}; ok=record(fields,sizeof(fields)) && record(text.Psz(),text.Cch()) && ok; }
+    for (int id=0;ok && id<16;++id) { text.SetSzs(PszLit("dirty")); bool found=mm_brender_template_action_name(t, id,&actionName)!=0; LegacyLong fields[]={id,found,text.Cch()}; ok=record(fields,sizeof(fields)) && record(text.Psz(),text.Cch()) && ok; }
     mm_brender_text_action_names_clear(); mm_template_owner_release(t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
     std::fprintf(stderr,"[text resources] attempts=%d successful=%d\n",attempts,successful);
 #ifdef DEBUG

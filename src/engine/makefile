@@ -39,8 +39,7 @@ ENGINE_TARGETS =\
     $(TARGET_DIR)srec.obj\
     $(TARGET_DIR)tagl.obj\
     $(TARGET_DIR)tagman.obj\
-    $(TARGET_DIR)tbox.obj\
-    $(TARGET_DIR)tmpl.obj
+    $(TARGET_DIR)tbox.obj
 
 
 

@@ -39,7 +39,7 @@ static bool TestActorPaste(PMovie parent)
             ok=tdt && WriteFixtureText(tdt,mm_resource_cache_writer(source),&templateNumber);
             mm_template_owner_release(tdt);
             if (ok) { textTemplate=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(
-                source, kctgTmpl, templateNumber, EngineTemplate::Read, mm_template_owner_services())); ok=textTemplate!=nullptr; }
+                source, kctgTmpl, templateNumber, mm_brender_template_read, mm_template_owner_services())); ok=textTemplate!=nullptr; }
         }
         if (ok) { scene=NewObj StageTestScene(movie); ok=scene && scene->Init() && actor->FInitPlayback(scene,source); }
         if (ok)

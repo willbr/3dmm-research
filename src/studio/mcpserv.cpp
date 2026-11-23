@@ -1277,7 +1277,9 @@ static JVal MovieDetails(PScene scene)
         auto tmpl = actor->Ptmpl();
         JVal item = JVal::MkObj(), textures = JVal::MkArr();
         item.Set("id", JVal::MkInt(actor->Arid()));
-        item.Set("kind", JVal::MkStr(EngineTemplate::FIsTdt(tmpl) ? "3d_text" : EngineTemplate::FIsProp(tmpl) ? "prop" : "actor"));
+        const char *kind = mm_template_owner_has_flag(tmpl, MM_TEMPLATE_TEXT) ? "3d_text" :
+                           mm_template_owner_has_flag(tmpl, MM_TEMPLATE_PROP) ? "prop" : "actor";
+        item.Set("kind", JVal::MkStr(kind));
         item.Set("on_stage", JVal::MkBool(actor->FOnStage()));
         item.Set("action", JVal::MkInt(actor->AnidCur()));
         item.Set("cel", JVal::MkInt(actor->CelnCur()));

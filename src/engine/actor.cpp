@@ -179,10 +179,9 @@ MMActorCreateServices Actor::_CreateServices()
     s.track_allocator = CollectionAllocator();
     s.trash_unused = DebugShip(1, 0);
     s.action_flags=[](void *,void *p,MMI32 action,MMU32 *flags) {
-        LegacyUlong value=*flags; bool ok=EngineTemplate::FGetGrfactn(static_cast<PTemplate>(p), action,&value);
-        *flags=value; return int(ok);
+        return mm_brender_template_action_flags(static_cast<PTemplate>(p), action, flags);
     };
-    s.create_body=[](void *,void *p)->void * { return EngineTemplate::PbodyCreate(static_cast<PTemplate>(p)); };
+    s.create_body=[](void *,void *p)->void * { return mm_brender_template_body(static_cast<PTemplate>(p)); };
     s.bind_body = [](void *, void *body, void *scene) {
         static_cast<PScene>(scene)->Pmvie()->Pbwld()->BindBody(static_cast<PBody>(body));
     };
@@ -374,7 +373,7 @@ bool Actor::_FGetStatic(long anid, bool *pfStatic)
 
     LegacyUlong grfactn;
 
-    if (!EngineTemplate::FGetGrfactn(_Template(), anid, &grfactn))
+    if (!mm_brender_template_action_flags(_Template(), anid, &grfactn))
         return fFalse;
 
     if (ivNil == _owner.runtime.state.actionEvent)
@@ -546,9 +545,10 @@ MMActorActionEditServices Actor::_ActionEditServices()
     static_assert(factnStatic==8 && kdwrNil==-65536,"actor action policy ABI");
     MMActorActionEditServices s={}; s.context=this; s.sounds=_SoundEditServices();
     s.action_flags=[](void *p,MMI32 action,MMU32 *flags) {
-        LegacyUlong value=0; bool ok=EngineTemplate::FGetGrfactn(static_cast<Actor *>(p)->_Template(), action,&value); *flags=value; return int(ok);
+        *flags = 0;
+        return mm_brender_template_action_flags(static_cast<Actor *>(p)->_Template(), action, flags);
     };
-    s.text_template=[](void *p) { return int(EngineTemplate::FIsTdt(static_cast<Actor *>(p)->_Template())); };
+    s.text_template=[](void *p) { return mm_template_owner_has_flag(static_cast<Actor *>(p)->_Template(), MM_TEMPLATE_TEXT); };
     s.mark_life_dirty=[](void *p) { static_cast<Actor *>(p)->_owner.runtime.life_dirty=true; };
     return s;
 }
@@ -600,7 +600,7 @@ MMActorRouteEditServices Actor::_RouteEditServices()
     s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_owner.runtime.life_dirty=true; };
     s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_owner.runtime.recording.recording=enabled!=0; };
     s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Body()) EngineBody::Hide(actor->_Body()); };
-    s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Template() && actor->_Body()) EngineTemplate::FSetDefaultCost(actor->_Template(), actor->_Body()); };
+    s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Template() && actor->_Body()) mm_brender_template_default_costume(actor->_Template(), actor->_Body()); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
         case MM_ROUTE_BAD_ALIVE: Bug("Invalid fAlive value"); break;
@@ -669,7 +669,7 @@ void Actor::_GetNewOrigin(MMActorPoint *point)
         *yon = farClip;
         std::memcpy(matrix, &camera, sizeof(camera));
     };
-    mm_actor_placement(point, EngineTemplate::FIsTdt(_Template()), &services);
+    mm_actor_placement(point, mm_template_owner_has_flag(_Template(), MM_TEMPLATE_TEXT), &services);
 }
 
 /***************************************************************************
@@ -1257,7 +1257,7 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
         TAG tag; std::memcpy(&tag,value,sizeof(tag));
         return vptagm->FetchResource(&tag, mm_brender_material_read, mm_material_owner_services());
     };
-    services.fetch_custom=[](void *p,MMI32 costume)->void * { return EngineTemplate::PcmtlFetch(static_cast<Actor *>(p)->_Template(), costume); };
+    services.fetch_custom=[](void *p,MMI32 costume)->void * { return mm_brender_template_costume(static_cast<Actor *>(p)->_Template(), costume); };
     services.body_set = [](void *, void *resource) -> MMI32 {
         return mm_material_owner_custom(static_cast<MMMaterialOwner *>(resource))->set;
     };
@@ -1510,9 +1510,7 @@ void Actor::GetName(PString pstn)
     AssertPo(pstn, 0);
 
     if (!_Scene()->Pmvie()->FGetName(_owner.runtime.actor, pstn))
-    {
-        EngineTemplate::GetName(Ptmpl(), pstn);
-    }
+        pstn->SetSt(static_cast<PPascalString>(mm_template_owner_name(Ptmpl()).buffer));
 }
 
 /***************************************************************************
@@ -1595,7 +1593,7 @@ void Actor::AssertValid(LegacyUlong grfobj)
 
     Actor_PAR::AssertValid(fobjAllocated);
     EngineBody::Validate(_Body());
-    EngineTemplate::Validate(_Template());
+    mm_kauai_template_validate(_Template());
     Assert(_owner.track.events, "missing actor events");
     Assert(_owner.track.route, "missing actor path");
     Assert(_owner.sounds.count <= _owner.sounds.storage.buffers[0].capacity / sizeof(MMActorMotionSound),
@@ -1752,7 +1750,7 @@ void Actor::MarkMem(void)
         MarkPv(_owner.track.route->storage.buffers[0].data);
     }
     EngineBody::Mark(_Body());
-    EngineTemplate::Mark(_Template());
+    mm_kauai_template_mark(_Template());
     if (_owner.runtime.template_tag.sid == ksidUseCrf && _owner.runtime.template_tag.cache)
         mm_resource_cache_mark(static_cast<MMResourceCache *>(_owner.runtime.template_tag.cache));
 }

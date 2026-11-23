@@ -4876,10 +4876,10 @@ static void TestEngineServices()
     missingSourcePrompts = 0;
     // Portfolio/document probes can miss without asserting or requesting
     // media. An explicitly permitted media lookup must honor cancellation.
-    Check(manager->FetchResource(&missingTag, EngineTemplate::Read, mm_template_owner_services()) == pvNil);
-    Check(manager->FetchResource(&missingTag, EngineTemplate::Read, mm_template_owner_services()) == pvNil);
+    Check(manager->FetchResource(&missingTag, mm_brender_template_read, mm_template_owner_services()) == pvNil);
+    Check(manager->FetchResource(&missingTag, mm_brender_template_read, mm_template_owner_services()) == pvNil);
     Check(missingSourcePrompts == 0);
-    Check(manager->FetchResource(&missingTag, EngineTemplate::Read, mm_template_owner_services(), fTrue) == pvNil);
+    Check(manager->FetchResource(&missingTag, mm_brender_template_read, mm_template_owner_services(), fTrue) == pvNil);
     Check(missingSourcePrompts == 1);
     Filename retryDirectory, retryFile;
     retrySourceDirectory = &retryDirectory;
@@ -4888,7 +4888,7 @@ static void TestEngineServices()
     // Installing a local source while the prompt is open must invalidate the
     // cached HD miss. The pack has no template, so fetch still misses;
     // a second CD prompt would mean Retry never discovered the new folder.
-    Check(manager->FetchResource(&missingTag, EngineTemplate::Read, mm_template_owner_services(), fTrue) == pvNil);
+    Check(manager->FetchResource(&missingTag, mm_brender_template_read, mm_template_owner_services(), fTrue) == pvNil);
     Check(missingSourcePrompts == 1);
     TAG stored = {42, nullptr, 'TEST', 7};
     auto storedResource = static_cast<PGenericHQ>(manager->PbacoFetch(&stored, GenericHQ::FReadGhq));
@@ -4918,8 +4918,8 @@ static void TestEngineServices()
     Check(manager->FMergeGstSource(merged, kboCur, koskCur));
     ReleasePpo(&merged);
     missingSourcePrompts = 0;
-    Check(manager->FetchResource(&missingTag, EngineTemplate::Read, mm_template_owner_services()) == pvNil && missingSourcePrompts == 0);
-    Check(manager->FetchResource(&missingTag, EngineTemplate::Read, mm_template_owner_services(), fTrue) == pvNil && missingSourcePrompts == 1);
+    Check(manager->FetchResource(&missingTag, mm_brender_template_read, mm_template_owner_services()) == pvNil && missingSourcePrompts == 0);
+    Check(manager->FetchResource(&missingTag, mm_brender_template_read, mm_template_owner_services(), fTrue) == pvNil && missingSourcePrompts == 1);
     String leaf(PszLit("retry.3cn"));
     Filename denied;
     Check(!manager->FFindFile(42, &leaf, &denied, false));

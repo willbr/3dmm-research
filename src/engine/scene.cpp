@@ -1470,7 +1470,7 @@ MMSceneContentServices Scene::_ContentServices()
         auto a = static_cast<PActor>(object);
         String name;
         if (templateName)
-            EngineTemplate::GetName(a->Ptmpl(), &name);
+            name.SetSt(static_cast<PPascalString>(mm_template_owner_name(a->Ptmpl()).buffer));
         else
             a->GetName(&name);
         return static_cast<PScene>(p)->Pmvie()->FAddToRollCall(a, &name);

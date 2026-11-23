@@ -56,6 +56,7 @@ MMTemplateState *mm_template_owner_state(MMTemplateOwner *owner) { return &owner
 const MMResourceObject *mm_template_owner_binding(const MMTemplateOwner *owner) { return &owner->binding; }
 MMI32 mm_template_owner_references(const MMTemplateOwner *owner) { return owner->references.count; }
 int mm_template_owner_is_text(const MMTemplateOwner *owner) { return owner->text; }
+int mm_template_owner_has_flag(const MMTemplateOwner *owner, MMU32 mask) { return (owner->state.flags & mask) != 0; }
 MMTemplateProvider *mm_template_owner_provider(MMTemplateOwner *owner) { return &owner->provider; }
 
 static MMTemplateText *text_data(MMTemplateOwner *owner)
@@ -314,21 +315,25 @@ static int adopt_descriptor(const MMChunkEdit *edit, MMU32 type, MMU32 parent, c
     return 0;
 }
 
+int mm_template_owner_write_header(MMTemplateOwner *owner, MMU32 type, MMU32 *number, const MMArchiveWriter *writer)
+{
+    const MMStringValue name = mm_template_owner_name(owner);
+    MMChunkNameValue encoded;
+    unsigned char wire[MM_CHUNK_NAME_WIRE_BYTES];
+    return writer->payloads && mm_chunk_name_encode(&name, writer->system, wire, sizeof(wire), &encoded) &&
+           mm_template_write_header(mm_template_owner_state(owner), &encoded, type, number, writer);
+}
+
 int mm_text_write_owner(MMTemplateOwner *owner, MMU32 type, MMU32 *number, const MMArchiveWriter *writer)
 {
     const MMChunkPayloadServices *payloads = writer->payloads;
     const MMChunkEdit *edit = &writer->edit;
-    const MMStringValue name = mm_template_owner_name(owner);
-    MMChunkNameValue encoded;
-    unsigned char wire[MM_CHUNK_NAME_WIRE_BYTES];
     unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES];
     MMOwnedBlock block;
     MMBlockIO io;
     MMChunkChild child = {MM_TDT, 0, 0};
     int ok = 0;
-    if (!mm_template_owner_is_text(owner) || !payloads ||
-        !mm_chunk_name_encode(&name, writer->system, wire, sizeof(wire), &encoded) ||
-        !mm_template_write_header(mm_template_owner_state(owner), &encoded, type, number, writer) ||
+    if (!mm_template_owner_is_text(owner) || !mm_template_owner_write_header(owner, type, number, writer) ||
         mm_owned_block_init(&block, payloads->handles, payloads->files) != MM_DATA_OK)
         return 0;
     encode_descriptor(bytes, writer->big_endian, writer->system, mm_template_owner_descriptor(owner));

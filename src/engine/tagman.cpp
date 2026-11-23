@@ -54,19 +54,6 @@ const MMTemplateFontProvider &TagManager::TextFontProvider()
     return provider;
 }
 
-PTemplate EngineTemplate::Fetch(PTAG tag)
-{
-    AssertVarMem(tag);
-    return vptagm->FetchTemplate(TagToCore(*tag), tag);
-}
-
-PTemplate EngineTemplate::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number, bool *error)
-{
-    auto owner = Fetch(file->CoreCache(), type, number, error);
-    mm_template_owner_bind_font(owner, &TagManager::TextFontProvider(), 0);
-    return owner;
-}
-
 RTCLASS(TagManager)
 
 namespace

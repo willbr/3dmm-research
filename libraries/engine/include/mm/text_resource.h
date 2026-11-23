@@ -39,6 +39,8 @@ typedef struct MMTemplateOwnerHost
  * Only owners created with a text extension expose descriptor/font state. */
 MMTemplateOwner *mm_template_owner_create(const MMTemplateOwnerHost *, int text);
 MMTemplateState *mm_template_owner_state(MMTemplateOwner *);
+/* Test any bits in the authored template flags, independent of owner storage. */
+int mm_template_owner_has_flag(const MMTemplateOwner *, MMU32 mask);
 MMStringValue mm_template_owner_name(MMTemplateOwner *);
 const MMResourceObject *mm_template_owner_binding(const MMTemplateOwner *);
 const MMResourceObjectServices *mm_template_owner_services(void);
@@ -53,6 +55,8 @@ const MMTemplateFontProvider *mm_template_owner_font(MMTemplateOwner *);
  * unset, keep the installed resolver. Null providers leave the owner alone. */
 void mm_template_owner_bind_font(MMTemplateOwner *, const MMTemplateFontProvider *, int replace);
 MMTemplateProvider *mm_template_owner_provider(MMTemplateOwner *);
+/* Write the header and counted name using the archive's native encoding. */
+int mm_template_owner_write_header(MMTemplateOwner *, MMU32 type, MMU32 *number, const MMArchiveWriter *);
 enum { MM_TEXT_DESCRIPTOR_BYTES = 24 };
 enum { MM_TEXT_NAME_BYTES = 51, MM_TEXT_NAME_UTF8_BYTES = 3 * (MM_TEXT_NAME_BYTES - 1) + 1 };
 enum { MM_TEXT_NAME_OK, MM_TEXT_NAME_EMPTY, MM_TEXT_NAME_LENGTH, MM_TEXT_NAME_UTF8, MM_TEXT_NAME_CHARACTERS };
