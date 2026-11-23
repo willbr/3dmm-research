@@ -18,7 +18,7 @@ typedef struct Port
 typedef struct Host
 {
     MMSceneOwner owner;
-    int movie, background, view, actor, text, old_bitmap, new_bitmap, pixels;
+    int movie, view, actor, text, old_bitmap, new_bitmap, pixels;
     Port ports[2];
     int trace[128], traces, has_view, dirty, muted, mode, mode_changes, fail_port, port_calls, fail_seek, seek_calls,
         fail_bitmap;
@@ -243,6 +243,7 @@ static void mark(void *p, void *movie)
     CHECK(movie == &h->movie);
     ++h->mark_calls;
 }
+static MMBackgroundOwner *background;
 static MMSceneThumbnailServices init(Host *h)
 {
     MMSceneThumbnailServices s;
@@ -253,7 +254,7 @@ static MMSceneThumbnailServices init(Host *h)
     h->owner.data.lastFrame = 9;
     h->initial_mask = h->owner.runtime.disabled = 128;
     h->has_view = h->dirty = h->old_refs = 1;
-    h->owner.owned[MM_SCENE_BACKGROUND] = &h->background;
+    h->owner.background = background;
     h->owner.owned[MM_SCENE_THUMBNAIL] = &h->old_bitmap;
     h->owner.selected_actor = &h->actor;
     h->owner.selected_text = &h->text;
@@ -301,7 +302,7 @@ static void test_gates(void)
     {
         s = init(&h);
         if (i == 0)
-            h.owner.owned[MM_SCENE_BACKGROUND] = NULL;
+            h.owner.background = NULL;
         if (i == 1)
             h.has_view = 0;
         if (i == 2)
@@ -401,9 +402,13 @@ static void test_dirty(void)
 }
 int main(void)
 {
+    static const MMBackgroundOwnerHost host = {0};
+    background = mm_background_owner_create(&host);
+    CHECK(background);
     test_gates();
     test_render();
     test_dirty();
+    mm_background_owner_release(background);
     puts("Scene thumbnail policy passed");
     return 0;
 }

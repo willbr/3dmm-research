@@ -160,7 +160,7 @@ void mm_scene_update_thumbnail(const MMSceneThumbnailServices *s)
     time = s->sound_time(s->context);
     s->mute(s->context);
     view = s->view(s->context);
-    if (!owner->owned[MM_SCENE_BACKGROUND] || !view || !s->dirty(s->context))
+    if (!owner->background || !view || !s->dirty(s->context))
         goto resume;
     s->dimensions(s->context, &full.right, &full.bottom);
     source = s->new_port(s->context, &full);

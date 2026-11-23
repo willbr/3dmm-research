@@ -34,7 +34,6 @@ void mm_brender_background_light_services(MMBackgroundServices *);
 int mm_brender_background_read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
 MMBackgroundOwner *mm_brender_background_fetch(MMResourceCache *, MMU32 type, MMU32 number);
 void mm_brender_background_lights_on(MMBackgroundOwner *, const MMBRenderBackgroundWorld *);
-void mm_brender_background_lights_off(MMBackgroundOwner *);
 int mm_brender_background_select(MMBackgroundOwner *, MMU32 slot, const MMBRenderBackgroundWorld *);
 
 #ifdef __cplusplus

@@ -95,8 +95,6 @@ void mm_scene_owner_drop(MMSceneOwner *w, int slot, const MMSceneOwnerServices *
         return;
     if (slot == MM_SCENE_BACKGROUND_SOUND)
         mm_scene_sound_release(&p, &s->sound);
-    else if (slot == MM_SCENE_BACKGROUND)
-        s->release_background(s->context, p);
     else if (slot == MM_SCENE_BACKGROUND_CACHE)
         s->release_cache(s->context, p);
     else if (slot == MM_SCENE_THUMBNAIL)
@@ -104,6 +102,16 @@ void mm_scene_owner_drop(MMSceneOwner *w, int slot, const MMSceneOwnerServices *
     else
         s->release(s->context, p);
     w->owned[slot] = NULL;
+}
+static void release_background(MMSceneOwner *w)
+{
+    mm_background_owner_release(w->background);
+    w->background = NULL;
+}
+void mm_scene_owner_remove_background(MMSceneOwner *w)
+{
+    mm_background_owner_lights_off(w->background);
+    release_background(w);
 }
 void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *s)
 {
@@ -203,6 +211,7 @@ void mm_scene_owner_dispose(MMSceneOwner *w, const MMSceneOwnerServices *s)
     }
     w->selected_actor = NULL;
     w->selected_text = NULL;
+    release_background(w);
     for (slot = 0; slot < MM_SCENE_OWNERS; ++slot)
         mm_scene_owner_drop(w, slot, s);
 }
@@ -243,8 +252,7 @@ void mm_scene_owner_close(void **scene, const MMSceneOwnerServices *s)
     if (!p)
         return;
     w = s->state(s->context, p);
-    if (w->owned[MM_SCENE_BACKGROUND])
-        s->lights_off(s->context, w->owned[MM_SCENE_BACKGROUND]);
+    mm_background_owner_lights_off(w->background);
     mm_scene_owner_actors(w, 0, s);
     mm_scene_owner_hide_texts(w, s);
     s->release(s->context, p);

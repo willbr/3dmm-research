@@ -44,7 +44,6 @@ PBackground Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 bool FCacheToHD(PTAG);
 void GetName(PBackground, PString);
 void TurnOnLights(PBackground, PWorld);
-void TurnOffLights(PBackground);
 bool FSetCamera(PBackground, PWorld, long camera);
 void GetMouseMatrix(PBackground, BMAT34 *);
 void GetActorPlacePoint(PBackground, BRS *, BRS *, BRS *);

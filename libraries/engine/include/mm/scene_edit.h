@@ -32,9 +32,8 @@ extern "C"
     {
         void *context;
         MMSceneSoundEditServices sound;
-        void (*background_name)(void *), (*scene_change)(void *), (*loaded)(void *);
+        void (*scene_change)(void *), (*loaded)(void *);
         int (*can_notify)(void *);
-        MMI32 (*current_camera)(void *);
         void *(*new_undo)(void *, int kind);
         MMScenePauseUndo *(*pause_state)(void *, void *undo);
         MMSceneBackgroundUndo *(*background_state)(void *, void *undo);

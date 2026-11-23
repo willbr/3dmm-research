@@ -190,6 +190,15 @@ static int play_background(const MMTag *tag, const MMSceneEventServices *s)
     MMTag value = *tag;
     return mm_scene_play_event(0, MM_SCENE_SET_BACKGROUND, &value, s->owner->runtime.disabled, s);
 }
+static void name_background(MMSceneOwner *owner)
+{
+    const MMStringValue name = mm_background_owner_name(owner->background);
+    MMU32 count;
+    if (!name.buffer || name.unit != owner->data.name.unit)
+        return;
+    count = name.unit == 1 ? *(const unsigned char *)name.buffer : *(const unsigned short *)name.buffer;
+    mm_movie_title_set(&owner->data.name, (const unsigned char *)name.buffer + name.unit, count);
+}
 int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServices *s)
 {
     const MMSceneEventServices *e = &s->sound.events;
@@ -199,7 +208,7 @@ int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServ
     MMI32 i, bytes;
     const void *payload;
     MMTag value;
-    if (e->owner->owned[MM_SCENE_BACKGROUND])
+    if (e->owner->background)
     {
         for (i = 0; (MMU32)i < starts->rows.count; ++i)
         {
@@ -212,8 +221,7 @@ int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServ
             output_tag(old, &value, 0, s);
             if (!mm_scene_track_put(starts, i, sizeof(*tag), tag))
                 return 0;
-            e->owners.lights_off(e->owners.context, e->owner->owned[MM_SCENE_BACKGROUND]);
-            mm_scene_owner_drop(e->owner, MM_SCENE_BACKGROUND, &e->owners);
+            mm_scene_owner_remove_background(e->owner);
             dirty(s);
             if (!play_background(tag, e))
             {
@@ -221,7 +229,7 @@ int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServ
                 play_background(old, e);
                 return 0;
             }
-            s->background_name(s->context);
+            name_background(e->owner);
             goto success;
         }
         s->diagnostic(s->context, MM_SCENE_EDIT_NO_BACKGROUND_EVENT);
@@ -240,7 +248,7 @@ int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServ
         mm_group_delete(&starts->rows, 0);
         return 0;
     }
-    s->background_name(s->context);
+    name_background(e->owner);
     dirty(s);
 success:
     while (frames->rows.count)
@@ -336,12 +344,12 @@ int mm_scene_background_undo_edit(MMTag *tag, const MMSceneEditServices *s)
     MMTag old;
     MMI32 camera;
     void *u;
-    if (!s->sound.events.owner->owned[MM_SCENE_BACKGROUND])
+    if (!s->sound.events.owner->background)
     {
         s->diagnostic(s->context, MM_SCENE_EDIT_FIRST_BACKGROUND);
         return 0;
     }
-    camera = s->current_camera(s->context);
+    camera = mm_background_owner_camera(s->sound.events.owner->background)->current;
     local.publish_tag = NULL;
     if (!mm_scene_background_edit(tag, &old, &local))
         return 0;
@@ -392,9 +400,9 @@ int mm_scene_background_undo(MMSceneBackgroundUndo *p, const MMSceneEditUndoServ
     edit = s->scene_edit(s->context);
     if (p->background)
     {
-        if (!edit.sound.events.owner->owned[MM_SCENE_BACKGROUND])
+        if (!edit.sound.events.owner->background)
             return undo_failed(s);
-        camera = edit.current_camera(edit.context);
+        camera = mm_background_owner_camera(edit.sound.events.owner->background)->current;
         if (!mm_scene_background_edit(&p->tag, &old, &edit) || !mm_scene_camera_edit(p->camera, &previous, &edit))
             return undo_failed(s);
         p->tag = old;

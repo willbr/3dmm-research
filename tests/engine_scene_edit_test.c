@@ -1,9 +1,5 @@
 #include "mm/scene_edit.h"
 #include "scene_sound_fixture.h"
-typedef struct Back
-{
-    int refs, id, camera;
-} Back;
 typedef struct Undo
 {
     MMScenePauseUndo pause;
@@ -17,14 +13,15 @@ typedef struct Edit
     MMSceneEditUndoServices us;
     MMSceneOwner owner;
     MMSceneTrack *frames, *starts;
-    Back backgrounds[3];
+    MMBackgroundOwner *backgrounds[3];
+    MMBackgroundOwnerHost background_host;
+    MMBackgroundServices light_services;
     MMTag published, undo_tag;
     Undo *active;
     MMScenePauseUndo cleared_pause;
     MMSceneBackgroundUndo cleared_back;
     int dirty, insert_fail, fetches, fetch_fail, fetch_fail_all;
-    int camera_calls, camera_fail, camera_fail_all, names, changes, loaded, available, diag[2], event_diag, lights,
-        releases, closes;
+    int camera_calls, camera_fail, camera_fail_all, changes, loaded, available, diag[2], event_diag, lights, closes;
     int undo_live, new_fail, commit_fail, commits, clears, not_undoable, switched, seeks, switch_fail, seek_fail,
         flushes, pause_type;
     int publications, first, publish_check, temp_refs, temp_closed, child_fail, cache_fail, cache_calls;
@@ -63,39 +60,40 @@ static void dirty(void *p)
     ++e->dirty;
     note(e, 21);
 }
-static void release_back(void *p, void *back)
+static void lights_off(void *p, MMBackgroundResource *background, MMI32 index)
 {
     Edit *e = (Edit *)p;
-    Back *b = (Back *)back;
-    CHECK(b->refs > 0);
-    --b->refs;
-    ++e->releases;
-    note(e, 24);
-}
-static void lights_off(void *p, void *back)
-{
-    Edit *e = (Edit *)p;
-    CHECK(back == e->owner.owned[MM_SCENE_BACKGROUND]);
+    CHECK(background == mm_background_owner_resource(e->owner.background) && index == 0);
     ++e->lights;
     note(e, 25);
 }
-static void *fetch_back(void *p, MMTag *tag)
+static void remove_light(void *p, MMBackgroundResource *background, MMI32 index)
+{
+    (void)p;
+    (void)background;
+    (void)index;
+}
+static void free_light_memory(void *p, void **buffer)
+{
+    (void)p;
+    CHECK(!*buffer);
+}
+static MMBackgroundOwner *fetch_back(void *p, MMTag *tag)
 {
     Edit *e = (Edit *)p;
-    Back *b;
+    MMBackgroundOwner *background;
     CHECK(tag->number < 3);
     ++e->fetches;
     note(e, 26);
     if (e->fetch_fail_all || e->fetches == e->fetch_fail)
         return NULL;
-    b = &e->backgrounds[tag->number];
-    ++b->refs;
-    return b;
+    background = e->backgrounds[tag->number];
+    mm_background_owner_retain(background);
+    return background;
 }
-static int set_camera(void *p, void *back, MMI32 camera)
+static int set_camera(void *p, MMBackgroundOwner *background, MMI32 camera)
 {
     Edit *e = (Edit *)p;
-    Back *b = (Back *)back;
     if (e->camera_output_check)
     {
         CHECK(e->published_camera == e->expected_camera_output);
@@ -105,7 +103,8 @@ static int set_camera(void *p, void *back, MMI32 camera)
     note(e, 27);
     if (e->camera_fail_all || e->camera_calls == e->camera_fail)
         return 0;
-    b->camera = camera;
+    mm_background_owner_camera(background)->current = camera;
+    mm_background_owner_resource(background)->enabled = 1;
     return 1;
 }
 static int transition(void *p)
@@ -140,13 +139,6 @@ static void camera_output(void *p, MMI32 camera)
     e->published_camera = camera;
     note(e, 29);
 }
-static void name_background(void *p)
-{
-    Edit *e = (Edit *)p;
-    CHECK(e->owner.owned[MM_SCENE_BACKGROUND]);
-    ++e->names;
-    note(e, 31);
-}
 static void scene_change(void *p)
 {
     Edit *e = (Edit *)p;
@@ -162,12 +154,6 @@ static void loaded(void *p)
     Edit *e = (Edit *)p;
     ++e->loaded;
     note(e, 33);
-}
-static MMI32 current_camera(void *p)
-{
-    Edit *e = (Edit *)p;
-    CHECK(e->owner.owned[MM_SCENE_BACKGROUND]);
-    return ((Back *)e->owner.owned[MM_SCENE_BACKGROUND])->camera;
 }
 static void close_sound_tag(void *p, MMSceneSoundTag *r)
 {
@@ -324,11 +310,9 @@ static void init_edit(Edit *e)
     s->sound.events.context = e;
     s->sound.events.owner = &e->owner;
     s->sound.dirty = dirty;
-    s->background_name = name_background;
     s->scene_change = scene_change;
     s->can_notify = available;
     s->loaded = loaded;
-    s->current_camera = current_camera;
     s->new_undo = new_undo;
     s->pause_state = pause_state;
     s->background_state = background_state;
@@ -351,15 +335,26 @@ static void init_edit(Edit *e)
     v->diagnostic = event_issue;
     o = &v->owners;
     o->context = e;
-    o->release = release_back;
-    o->release_background = release_back;
-    o->lights_off = lights_off;
     o->sound.context = e;
     o->sound.close = close_sound_tag;
     e->owner.data.currentFrame = e->owner.data.firstFrame = e->owner.data.lastFrame = 1;
     e->available = 1;
+    e->light_services.context = e;
+    e->light_services.disable_light = lights_off;
+    e->light_services.remove_light = remove_light;
+    e->light_services.free_memory = free_light_memory;
+    e->background_host.teardown = &e->light_services;
+    e->background_host.name_unit = 1;
     for (i = 0; i < 3; ++i)
-        e->backgrounds[i].id = i;
+    {
+        const char letter = (char)('A' + i);
+        MMStringValue name;
+        e->backgrounds[i] = mm_background_owner_create(&e->background_host);
+        CHECK(e->backgrounds[i]);
+        mm_background_owner_resource(e->backgrounds[i])->light_count = 1;
+        name = mm_background_owner_name(e->backgrounds[i]);
+        mm_string_value_set(&name, &letter, 1);
+    }
     e->us.context = e;
     e->us.switch_scene = switch_scene;
     e->us.seek_frame = seek;
@@ -380,8 +375,9 @@ static void existing_background(Edit *e, int n)
 {
     MMTag value = tag(n);
     CHECK(insert_into(e->starts, 0, 0, MM_SCENE_SET_BACKGROUND, sizeof(value), &value));
-    e->backgrounds[n].refs = 1;
-    e->owner.owned[MM_SCENE_BACKGROUND] = &e->backgrounds[n];
+    e->owner.background = e->backgrounds[n];
+    mm_background_owner_retain(e->owner.background);
+    mm_background_owner_resource(e->owner.background)->enabled = 1;
     e->owner.background_tag = value;
 }
 static void add_camera(Edit *e, int frame, int camera)
@@ -400,8 +396,7 @@ static void clean_edit(Edit *e)
     int i;
     clear(e);
     CHECK(!e->undo_live && !e->temp_refs);
-    if (e->owner.owned[MM_SCENE_BACKGROUND])
-        release_back(e, e->owner.owned[MM_SCENE_BACKGROUND]);
+    mm_scene_owner_remove_background(&e->owner);
     while (e->frames->rows.count)
         CHECK(mm_scene_owner_erase_frame(&e->owner, e->frames->rows.count - 1, &e->s.sound.events.owners));
     mm_scene_track_dispose(e->frames);
@@ -409,7 +404,10 @@ static void clean_edit(Edit *e)
     if (e->owner.owned[MM_SCENE_BACKGROUND_SOUND])
         drop(&e->packets, (MMSceneSound *)e->owner.owned[MM_SCENE_BACKGROUND_SOUND]);
     for (i = 0; i < 3; ++i)
-        CHECK(!e->backgrounds[i].refs);
+    {
+        CHECK(mm_background_owner_references(e->backgrounds[i]) == 1);
+        mm_background_owner_release(e->backgrounds[i]);
+    }
     clean(&e->packets);
 }
 static void test_pause(void)
@@ -447,7 +445,7 @@ static void test_camera(void)
     existing_background(&e, 0);
     CHECK(mm_scene_camera_edit(0, &old, &e.s) && old == 0 && !e.dirty && !e.frames->rows.count);
     CHECK(mm_scene_camera_edit(1, &old, &e.s) && old == 0 && e.owner.runtime.next_event == 1 &&
-          e.backgrounds[0].camera == 1);
+          mm_background_owner_camera(e.backgrounds[0])->current == 1);
     e.camera_output_check = 1;
     e.expected_camera_output = 1;
     CHECK(mm_scene_camera_edit(2, &old, &e.s) && old == 1 && e.frames->rows.count == 1 && e.published_camera == 1);
@@ -505,7 +503,8 @@ static void test_background(void)
     raw_free(&e.packets, sound);
     e.owner.runtime.next_event = 1;
     CHECK(mm_scene_background_edit(&value, &old, &e.s) && old.sid == -1 && e.first && e.loaded == 1 &&
-          e.names == 1 && e.changes == 1 && !e.frames->rows.count && !e.owner.runtime.next_event);
+          e.changes == 1 && !e.frames->rows.count && !e.owner.runtime.next_event);
+    CHECK(e.owner.data.name.count == 1 && !strcmp(mm_movie_title_text(&e.owner.data.name), "B"));
     CHECK(e.closes == 3 && e.packets.refs[1] == 1 && e.packets.refs[3] == 1 &&
           e.owner.owned[MM_SCENE_BACKGROUND_SOUND] == cached);
     clean_edit(&e);
@@ -516,13 +515,14 @@ static void test_background(void)
     clean_edit(&e);
     init_edit(&e);
     e.camera_fail = 1;
-    CHECK(!mm_scene_background_edit(&value, &old, &e.s) && !e.owner.owned[MM_SCENE_BACKGROUND] && !e.starts->rows.count &&
-          e.releases == 1);
+    CHECK(!mm_scene_background_edit(&value, &old, &e.s) && !e.owner.background && !e.starts->rows.count &&
+          mm_background_owner_references(e.backgrounds[1]) == 1);
     clean_edit(&e);
     for (j = 0; j < 3; ++j)
     {
         init_edit(&e);
         existing_background(&e, 0);
+        CHECK(mm_movie_title_set(&e.owner.data.name, "Custom", 6));
         add_camera(&e, 1, 2);
         e.owner.runtime.next_event = 1;
         e.publish_check = 1;
@@ -531,15 +531,16 @@ static void test_background(void)
         if (j == 2)
             e.fetch_fail_all = 1;
         CHECK(mm_scene_background_edit(&value, &old, &e.s) == (j == 0));
-        CHECK(old.number == 0 && e.publications == 1 && !e.first);
+        CHECK(old.number == 0 && e.publications == 1 && !e.first && e.lights == 1);
+        CHECK(e.dirty == 1);
         if (j == 0)
-            CHECK(!e.frames->rows.count && e.names == 1 && e.dirty == 1);
+            CHECK(!e.frames->rows.count && !strcmp(mm_movie_title_text(&e.owner.data.name), "B"));
         else
-            CHECK(e.frames->rows.count == 1 && !e.names && e.dirty == 1);
+            CHECK(e.frames->rows.count == 1 && !strcmp(mm_movie_title_text(&e.owner.data.name), "Custom"));
         if (j == 2)
-            CHECK(!e.owner.owned[MM_SCENE_BACKGROUND]);
+            CHECK(!e.owner.background);
         else
-            CHECK(e.owner.owned[MM_SCENE_BACKGROUND] == &e.backgrounds[j == 0 ? 1 : 0]);
+            CHECK(e.owner.background == e.backgrounds[j == 0 ? 1 : 0]);
         memcpy(&stored, mm_scene_track_payload(e.starts, 0, NULL), sizeof(stored));
         CHECK(stored.number == (j == 0 ? 1U : 0U));
         clean_edit(&e);
@@ -553,8 +554,8 @@ static void test_background(void)
     CHECK(!mm_scene_background_edit(&value, &old, &e.s) && !e.starts->rows.count && !e.dirty);
     clean_edit(&e);
     init_edit(&e);
-    e.backgrounds[0].refs = 1;
-    e.owner.owned[MM_SCENE_BACKGROUND] = &e.backgrounds[0];
+    e.owner.background = e.backgrounds[0];
+    mm_background_owner_retain(e.owner.background);
     CHECK(!mm_scene_background_edit(&value, &old, &e.s) && e.diag[0]);
     clean_edit(&e);
     init_edit(&e);
@@ -593,7 +594,8 @@ static void test_public(void)
     init_edit(&e);
     existing_background(&e, 0);
     e.new_fail = 1;
-    CHECK(!mm_scene_camera_undo_edit(1, &e.s) && e.backgrounds[0].camera == 1 && e.temp_closed == 1);
+    CHECK(!mm_scene_camera_undo_edit(1, &e.s) && mm_background_owner_camera(e.backgrounds[0])->current == 1 &&
+          e.temp_closed == 1);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
@@ -612,7 +614,7 @@ static void test_public(void)
     init_edit(&e);
     existing_background(&e, 0);
     e.new_fail = 1;
-    CHECK(!mm_scene_background_undo_edit(&value, &e.s) && e.owner.owned[MM_SCENE_BACKGROUND] == &e.backgrounds[0] &&
+    CHECK(!mm_scene_background_undo_edit(&value, &e.s) && e.owner.background == e.backgrounds[0] &&
           value.number == 1);
     clean_edit(&e);
     init_edit(&e);
@@ -659,14 +661,14 @@ static void test_undo(void)
     }
     init_edit(&e);
     existing_background(&e, 0);
-    e.backgrounds[0].camera = 2;
+    mm_background_owner_camera(e.backgrounds[0])->current = 2;
     u = (Undo *)new_undo(&e, 1);
     e.active = u;
     u->back.background = 1;
     u->back.tag = tag(1);
     u->back.camera = 3;
     CHECK(mm_scene_background_undo(&u->back, &e.us) && u->back.tag.number == 0 && u->back.camera == 2 &&
-          !e.seeks && e.backgrounds[1].camera == 3);
+          !e.seeks && mm_background_owner_camera(e.backgrounds[1])->current == 3);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
@@ -678,7 +680,7 @@ static void test_undo(void)
     e.camera_fail = 2;
     CHECK(!mm_scene_background_undo(&u->back, &e.us) && !e.active && !e.undo_live &&
           e.cleared_back.tag.number == 1 && e.cleared_back.camera == 3 &&
-          e.owner.owned[MM_SCENE_BACKGROUND] == &e.backgrounds[1]);
+          e.owner.background == e.backgrounds[1]);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
@@ -686,7 +688,7 @@ static void test_undo(void)
     e.active = u;
     u->back.camera = 2;
     CHECK(mm_scene_background_undo(&u->back, &e.us) && e.seeks == 1 && u->back.camera == 0 &&
-          e.backgrounds[0].camera == 2);
+          mm_background_owner_camera(e.backgrounds[0])->current == 2);
     clean_edit(&e);
 }
 typedef struct CameraFixture

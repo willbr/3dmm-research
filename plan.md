@@ -1841,6 +1841,11 @@ saved file, and orders source merge, dependency caching, and title
 publication. An unsuccessful open destroys the partial document before
 ending the wait cursor. The native host supplies container paths, typed
 files and objects, and display and audio effects.
+The C89 scene owner holds its live background reference directly. Scene
+replacement and close use the background owner's light teardown, and undo
+captures the camera from that owner. Background edits assign the scene title
+from the resource's counted name. Studio supplies resource lookup and the
+world camera and display effects.
 Studio dispatches the C89 startup and render commands directly. C89 also
 owns its alarm scheduling, deferred render after a user pause, and stop
 cleanup, including the distinct behavior after an alarm retry fails. The

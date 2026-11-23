@@ -121,6 +121,7 @@ extern "C"
     MMI32 mm_background_owner_references(const MMBackgroundOwner *);
     void mm_background_owner_retain(MMBackgroundOwner *);
     void mm_background_owner_release(MMBackgroundOwner *);
+    void mm_background_owner_lights_off(MMBackgroundOwner *);
     /* Exact 8/28/56-byte records. Wire pointer slots and padding are ignored.
      * Header/sound failure leaves output unchanged. Light input is already bounded. */
     int mm_background_header_read(const MMReadStream *, MMBackgroundHeader *);

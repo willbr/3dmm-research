@@ -24324,3 +24324,33 @@ were removed. Each port matched all 240 authored frames in seek and playback
 order against the previous build, retail and V3DMM.
 
 Evidence is under `tmp/c89-frame-sound-runtime`.
+
+## C89 scene background ownership (23 November 2026)
+
+Studio's scene owner holds the live C89 background reference. The scene
+dispatcher releases a failed background admission, and replacement and
+close use the light services bound to the background. Background edits
+copy the resource's counted name into the scene title and read the current
+camera directly when creating and applying undo. Studio supplies tag lookup
+and world camera effects. The C fixtures use real background owners and
+check teardown order, reference counts, and title preservation when a
+replacement fails.
+
+The 227 native suite checks, 15 SDL checks and three x86 worker fixtures
+passed. The native suite includes the strict C89 syntax check. All ten
+Preview fingerprints matched, including 188 background cameras. All eight
+native scene traces matched byte for byte. The existing `scene-load` debug
+assertion again reported the 63,224-byte trace with fingerprint `0D666753`.
+
+Studio's headless authoring workflow created, saved and reopened the same
+27,056-byte movie. The SDL movie-content and actor-create snapshots matched
+across 91,484 and 12,320 bytes. Marcus relaunched headlessly with an
+identical startup image.
+
+Actor Audio candidate `20261123T132246Z-b704d97c` matched all 60 previous
+seek canvases and scene states in each port. Both ports matched all 60
+retail and V3DMM camera indices across two scenes and matched frame order
+in seek and playback. Both ports matched 59 of 60 retail and V3DMM seek
+canvases, with the same difference at scene 0, frame 4.
+
+Evidence is under `tmp/c89-scene-background-owner`.

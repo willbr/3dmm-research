@@ -377,7 +377,7 @@ class Scene : public Scene_PAR
     bool FSetBkgd(PTAG ptag);                   // Sets the background for this scene, and undo
     PBackground Pbkgd(void)
     {
-        return static_cast<PBackground>(_owner.owned[MM_SCENE_BACKGROUND]);
+        return _owner.background;
     }                                               // Gets the background for this scene.
     bool FChangeCamCore(long icam, long *picamOld); // Changes camera viewpoint at current frame.
     bool FChangeCam(long icam);                     // Changes camera viewpoint at current frame, and undo

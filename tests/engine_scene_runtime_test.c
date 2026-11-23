@@ -61,10 +61,11 @@ static void *duplicate_sound(void *p, void *payload)
     ++f->duplicates;
     return NULL;
 }
-static int set_camera(void *p, void *background, MMI32 camera)
+static const MMBackgroundOwnerHost background_host = {0};
+static int set_camera(void *p, MMBackgroundOwner *background, MMI32 camera)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(background == &f->camera);
+    CHECK(background == f->owner.background);
     ++f->camera_calls;
     f->camera = camera;
     return !f->fail_camera;
@@ -182,11 +183,13 @@ static void init(Fixture *f)
     MMSceneRuntimeServices *s;
     if (f->frames)
         mm_scene_track_dispose(f->frames);
+    mm_scene_owner_remove_background(&f->owner);
     memset(f, 0, sizeof(*f));
     init_scene_members(&f->owner, &f->members);
     f->frames = &f->owner.tracks[MM_SCENE_FRAMES];
     CHECK(mm_scene_track_init(f->frames, NULL, 0));
-    f->owner.owned[MM_SCENE_BACKGROUND] = &f->camera;
+    f->owner.background = mm_background_owner_create(&background_host);
+    CHECK(f->owner.background);
     f->owner.data.firstFrame = f->owner.data.currentFrame = 1;
     f->owner.data.lastFrame = 10;
     for (i = 0; i < 3; ++i)
@@ -337,6 +340,7 @@ static void seeks(void)
     CHECK(mm_scene_goto(2147483647, &f.services));
     CHECK(f.owner.data.lastFrame == 2147483647);
     mm_scene_track_dispose(f.frames);
+    mm_scene_owner_remove_background(&f.owner);
 }
 static void ranges(void)
 {
@@ -369,6 +373,7 @@ static void ranges(void)
     CHECK(mm_scene_track_get(f.frames, 2, &row) && row.frame == 1 && row.kind == MM_SCENE_PAUSE);
     CHECK(!f.notices[MM_SCENE_DIRTY]);
     mm_scene_track_dispose(f.frames);
+    mm_scene_owner_remove_background(&f.owner);
 }
 static void prerenders(void)
 {
@@ -424,6 +429,7 @@ static void prerenders(void)
     mm_scene_end_prerender(&f.services);
     CHECK(f.ends == 1);
     mm_scene_track_dispose(f.frames);
+    mm_scene_owner_remove_background(&f.owner);
 }
 int main(void)
 {

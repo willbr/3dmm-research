@@ -249,6 +249,12 @@ void mm_background_owner_release(MMBackgroundOwner *owner)
         mm_resource_object_release(owner, mm_background_owner_services());
 }
 
+void mm_background_owner_lights_off(MMBackgroundOwner *owner)
+{
+    if (owner && owner->host->teardown)
+        mm_background_lights_off(&owner->resource, owner->host->teardown);
+}
+
 void mm_background_resource_init(MMBackgroundResource *b)
 {
     memset(b, 0, sizeof(*b));

@@ -45,7 +45,7 @@ class MovieContentSceneAccess : public Scene
             return false;
         }
         auto member = &MovieContentSceneAccess::_owner;
-        (scene->*member).owned[MM_SCENE_BACKGROUND] = background;
+        (scene->*member).background = background;
         return true;
     }
 };

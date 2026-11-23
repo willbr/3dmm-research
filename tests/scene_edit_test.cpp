@@ -255,7 +255,7 @@ static void CheckIndexedBackground(PChunkyFile source, ChunkNumber sourceNumber)
     BRS x, y, z;
     EngineBackground::GetCameraPos(background, &x, &y, &z);
     CHECK(x == BR_SCALAR(3) && y == 0 && z == 0);
-    EngineBackground::TurnOffLights(background);
+    mm_background_owner_lights_off(background);
     mm_background_owner_release(background);
     ReleasePpo(&world);
 

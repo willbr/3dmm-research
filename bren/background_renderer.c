@@ -142,11 +142,6 @@ void mm_brender_background_lights_on(MMBackgroundOwner *owner, const MMBRenderBa
     mm_background_lights_on(mm_background_owner_resource(owner), &services);
 }
 
-void mm_brender_background_lights_off(MMBackgroundOwner *owner)
-{
-    mm_background_lights_off(mm_background_owner_resource(owner), mm_kauai_background_host()->owner.teardown);
-}
-
 static int select_images(void *context, MMU32 rgb, MMU32 depth)
 {
     const BackgroundWorld *host = context;

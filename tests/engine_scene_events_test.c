@@ -52,6 +52,9 @@ typedef struct Fixture
     SceneMemberMemory members;
     MMSceneEventServices s;
     MMSceneTrack *frames, *starts;
+    MMBackgroundOwner *background;
+    MMBackgroundOwnerHost background_host;
+    MMStorageAllocator background_allocator;
     Object objects[4];
     Payload packet;
     int ops[128], used, issues[5], live, dup_fail, fetch_fail, camera_fail;
@@ -70,12 +73,29 @@ static void expect(Fixture *f, const int *ops, size_t count)
     CHECK(!memcmp(f->ops, ops, count * sizeof(*ops)));
     f->used = 0;
 }
-static void release(void *p, void *object)
+static void *resize_background(void *p, void *object, MMU32 old_bytes, MMU32 bytes, int priority)
+{
+    (void)p;
+    (void)old_bytes;
+    (void)priority;
+    return realloc(object, bytes);
+}
+static void release(void *p, void *object, MMU32 bytes)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(object == &f->objects[3]);
+    (void)bytes;
+    CHECK(object == f->background);
     ++f->releases;
     log_op(f, RELEASE);
+    free(object);
+    f->background = NULL;
+}
+static MMBackgroundOwner *new_background(Fixture *f)
+{
+    CHECK(!f->background);
+    f->background = mm_background_owner_create(&f->background_host);
+    CHECK(f->background);
+    return f->background;
 }
 static void free_sound(void *p, void *packet)
 {
@@ -106,18 +126,18 @@ static void play(void *p, void *packet)
     ++f->sounds;
     log_op(f, PLAY);
 }
-static void *fetch(void *p, MMTag *tag)
+static MMBackgroundOwner *fetch(void *p, MMTag *tag)
 {
     Fixture *f = (Fixture *)p;
     log_op(f, FETCH);
     CHECK(tag->sid == 3 && tag->cache == f && tag->type == 7 && tag->number == 9);
     tag->number = 17;
-    return f->fetch_fail ? NULL : &f->objects[3];
+    return f->fetch_fail ? NULL : new_background(f);
 }
-static int camera(void *p, void *background, MMI32 camera)
+static int camera(void *p, MMBackgroundOwner *background, MMI32 camera)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(background == &f->objects[3]);
+    CHECK(background == f->background);
     f->camera = camera;
     log_op(f, CAMERA);
     return !f->camera_fail;
@@ -181,6 +201,10 @@ static void init(Fixture *f)
     int i;
     MMSceneEventServices *s;
     memset(f, 0, sizeof(*f));
+    f->background_allocator.context = f;
+    f->background_allocator.resize = resize_background;
+    f->background_allocator.release = release;
+    f->background_host.allocator = &f->background_allocator;
     init_scene_members(&f->owner, &f->members);
     f->owner.data.currentFrame = 3;
     f->transition = -1;
@@ -198,8 +222,6 @@ static void init(Fixture *f)
     s->context = f;
     s->owner = &f->owner;
     s->owners.context = f;
-    s->owners.release = release;
-    s->owners.release_background = release;
     s->owners.sound.context = f;
     s->owners.sound.free = free_sound;
     s->duplicate_sound = duplicate;
@@ -240,10 +262,11 @@ static int dispatch(Fixture *f, int kind, unsigned mask)
 }
 static void cleanup(Fixture *f)
 {
+    mm_scene_owner_remove_background(&f->owner);
     mm_scene_owner_drop(&f->owner, MM_SCENE_BACKGROUND_SOUND, &f->s.owners);
     mm_scene_track_dispose(f->starts);
     mm_scene_track_dispose(f->frames);
-    CHECK(!f->live);
+    CHECK(!f->live && !f->background);
 }
 static void sounds(void)
 {
@@ -285,24 +308,26 @@ static void backgrounds(void)
     f.fetch_fail = 1;
     CHECK(!dispatch(&f, MM_SCENE_SET_BACKGROUND, 65535));
     expect(&f, no_fetch, sizeof(no_fetch) / sizeof(*no_fetch));
-    CHECK(!f.owner.owned[MM_SCENE_BACKGROUND] && f.owner.background_tag.number == 41 && f.transition == -1);
+    CHECK(!f.owner.background && f.owner.background_tag.number == 41 && f.transition == -1);
     f.fetch_fail = 0;
     f.camera_fail = 1;
     CHECK(!dispatch(&f, MM_SCENE_SET_BACKGROUND, 0));
     expect(&f, no_camera, sizeof(no_camera) / sizeof(*no_camera));
-    CHECK(f.releases == 1 && !f.owner.owned[MM_SCENE_BACKGROUND] && f.owner.background_tag.number == 41 &&
+    CHECK(f.releases == 1 && !f.owner.background && f.owner.background_tag.number == 41 &&
           f.transition == -1);
     f.camera_fail = 0;
     CHECK(dispatch(&f, MM_SCENE_SET_BACKGROUND, 65535));
     expect(&f, loaded, sizeof(loaded) / sizeof(*loaded));
-    CHECK(f.owner.owned[MM_SCENE_BACKGROUND] == &f.objects[3] &&
+    CHECK(f.owner.background == f.background &&
           f.owner.background_tag.number == 17 && f.owner.background_tag.cache == &f &&
           f.owner.background_tag.sid == 3 && f.transition == 0 && f.camera == 0);
+    cleanup(&f);
     init(&f);
     f.transition = 3;
     CHECK(dispatch(&f, MM_SCENE_SET_BACKGROUND, 0));
     expect(&f, retained, sizeof(retained) / sizeof(*retained));
     CHECK(f.transition == 3);
+    cleanup(&f);
 }
 static void objects(void)
 {
@@ -349,7 +374,7 @@ static void pauses_and_cameras(void)
     CHECK(dispatch(&f, MM_SCENE_CHANGE_CAMERA, 64));
     expect(&f, absent, 1);
     CHECK(f.issues[MM_SCENE_EVENT_NO_BACKGROUND] == 1);
-    f.owner.owned[MM_SCENE_BACKGROUND] = &f.objects[3];
+    f.owner.background = new_background(&f);
     f.packet.camera = 2;
     CHECK(dispatch(&f, MM_SCENE_CHANGE_CAMERA, 0));
     expect(&f, changed, 1);
@@ -361,6 +386,7 @@ static void pauses_and_cameras(void)
     CHECK(f.issues[MM_SCENE_EVENT_UNKNOWN] == 1);
     f.used = 0;
     CHECK(mm_scene_unplay_event(99, &f.s) && !f.used);
+    cleanup(&f);
 }
 static void rewind_events(void)
 {
@@ -401,7 +427,7 @@ static void rewind_events(void)
         CHECK(mm_scene_track_put(f.frames, i, sizeof(camera_number), &camera_number));
     }
     f.owner.runtime.next_event = 3;
-    f.owner.owned[MM_SCENE_BACKGROUND] = &f.objects[3];
+    f.owner.background = new_background(&f);
     f.owner.data.currentFrame = 3;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
@@ -420,7 +446,7 @@ static void rewind_events(void)
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
     CHECK(!f.used);
-    f.owner.owned[MM_SCENE_BACKGROUND] = NULL;
+    mm_scene_owner_remove_background(&f.owner);
     f.owner.runtime.next_event = 0;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
@@ -470,7 +496,7 @@ static void background_query(void)
     out.cache = &f.objects[3];
     out.type = 12;
     out.number = 34;
-    f.owner.owned[MM_SCENE_BACKGROUND] = &f.objects[0];
+    f.owner.background = new_background(&f);
     CHECK(!mm_scene_background_tag(&out, &f.s));
     CHECK(!f.used && out.sid == 99 && out.cache == &f.objects[3] && out.type == 12 && out.number == 34);
     add_start_object(&f, MM_SCENE_ADD_ACTOR, &f.objects[0]);

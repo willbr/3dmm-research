@@ -593,20 +593,20 @@ static int scene_cache_camera(void *p, const MMTag *tag)
     return ((Test *)p)->fail != FAIL_CACHE;
 }
 static void scene_close_camera(void *p, MMTag *tag) { (void)tag; ++((Test *)p)->cameraCloses; }
-static int set_scene_camera(void *p, void *background, MMI32 camera)
+static const MMBackgroundOwnerHost background_host = {0};
+static int set_scene_camera(void *p, MMBackgroundOwner *background, MMI32 camera)
 {
     Test *t = p;
-    (void)background;
+    mm_background_owner_camera(background)->current = camera;
     t->camera = camera;
     return 1;
 }
-static void *fetch_background(void *p, MMTag *tag)
+static MMBackgroundOwner *fetch_background(void *p, MMTag *tag)
 {
     Test *t = p;
     event(t, BACKGROUND);
-    return t->fail == FAIL_BACKGROUND && tag->number == 5 ? NULL : t;
+    return t->fail == FAIL_BACKGROUND && tag->number == 5 ? NULL : mm_background_owner_create(&background_host);
 }
-static MMI32 current_camera(void *p) { return ((Test *)p)->camera; }
 static int scene_transition(void *p) { return ((Test *)p)->scene_owner.data.transition; }
 static int cannot_notify(void *p) { (void)p; return 0; }
 static void ignore_change(void *p) { (void)p; }
@@ -678,7 +678,6 @@ static MMSceneOwnerServices scene_owners(Test *t)
     MMSceneOwnerServices s = {0};
     s.context = s.sound.context = t;
     s.release = release_resource;
-    s.release_background = release_resource;
     s.sound.close = scene_sound_close;
     s.sound.free = scene_sound_free;
     return s;
@@ -696,7 +695,6 @@ static MMSceneEditServices bind_scene_edit(void *p)
     s.context = s.sound.context = s.sound.events.context = t;
     s.sound.events.owner = &t->scene_owner;
     s.sound.events.owners = scene_owners(t);
-    s.sound.events.owners.lights_off = release_resource;
     s.sound.events.set_camera = set_scene_camera;
     s.sound.events.fetch_background = fetch_background;
     s.sound.events.transition = scene_transition;
@@ -722,8 +720,6 @@ static MMSceneEditServices bind_scene_edit(void *p)
     s.camera_tag = scene_camera_tag;
     s.cache_tag = scene_cache_camera;
     s.close_tag = scene_close_camera;
-    s.current_camera = current_camera;
-    s.background_name = ignore_change;
     s.scene_change = ignore_change;
     s.can_notify = cannot_notify;
     return s;
@@ -1297,9 +1293,9 @@ static int seed_scene(Test *t)
 {
     if (!mm_scene_owner_init(&t->scene_owner, t, 1, NULL))
         return 0;
-    t->scene_owner.owned[MM_SCENE_BACKGROUND] = t;
+    t->scene_owner.background = mm_background_owner_create(&background_host);
     t->scene_owner.data.transition = 1;
-    return 1;
+    return t->scene_owner.background != NULL;
 }
 static void dispose_scene(Test *t)
 {
@@ -1848,7 +1844,7 @@ static int backgrounds(void)
     {
         init(&t);
         CHECK(seed_background(&t));
-        t.camera = 2;
+        mm_background_owner_camera(t.scene_owner.background)->current = t.camera = 2;
         t.fail = fault == 1 ? FAIL_BACKGROUND : fault == 2 ? FAIL_NEW_UNDO : fault == 3 ? FAIL_COMMIT : 0;
         CHECK(mm_movie_add_background(&tag, &t.s, &scenes) == !fault);
         CHECK(!t.newScene && !t.removeScene && !t.played && t.dirty == !fault && t.undo.refs == !fault);

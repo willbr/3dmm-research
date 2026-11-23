@@ -46,13 +46,14 @@ static void adopt(int slot, void *object, const MMSceneEventServices *s)
 }
 static void require_background(const MMSceneEventServices *s)
 {
-    if (!s->owner->owned[MM_SCENE_BACKGROUND])
+    if (!s->owner->background)
         s->diagnostic(s->context, MM_SCENE_EVENT_NO_BACKGROUND);
 }
 int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
                               const MMSceneEventServices *s)
 {
     void *object, *copy, *c = s->context;
+    MMBackgroundOwner *background;
     MMTag tag;
     MMI32 value, delay;
     int text, list;
@@ -73,17 +74,19 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
         break;
     case MM_SCENE_SET_BACKGROUND:
         memcpy(&tag, payload, sizeof(tag));
-        object = s->fetch_background(c, &tag);
-        if (!object)
+        background = s->fetch_background(c, &tag);
+        if (!background)
             return 0;
-        if (!s->set_camera(c, object, 0))
+        if (!s->set_camera(c, background, 0))
         {
-            s->owners.release_background(s->owners.context, object);
+            mm_background_owner_release(background);
             return 0;
         }
         if (s->transition(c) == MM_SCENE_EVENT_NIL_TRANSITION)
             s->set_transition(c, MM_SCENE_EVENT_CUT_TRANSITION);
-        adopt(MM_SCENE_BACKGROUND, object, s);
+        if (s->owner->background)
+            s->diagnostic(c, MM_SCENE_EVENT_OWNER_OCCUPIED);
+        s->owner->background = background;
         s->owner->background_tag = tag;
         break;
     case MM_SCENE_ADD_ACTOR:
@@ -115,7 +118,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
         if (disabled & MM_SCENE_EFFECT_CAMERAS)
             return 1;
         memcpy(&value, payload, sizeof(value));
-        if (!s->set_camera(c, s->owner->owned[MM_SCENE_BACKGROUND], value))
+        if (!s->set_camera(c, s->owner->background, value))
             return 0;
         break;
     default:

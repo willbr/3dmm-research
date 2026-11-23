@@ -29,8 +29,8 @@ extern "C"
         MMSceneOwnerServices owners;
         void *(*duplicate_sound)(void *, void *payload);
         void (*play_sound)(void *, void *payload);
-        void *(*fetch_background)(void *, MMTag *);
-        int (*set_camera)(void *, void *background, MMI32 camera);
+        MMBackgroundOwner *(*fetch_background)(void *, MMTag *);
+        int (*set_camera)(void *, MMBackgroundOwner *, MMI32 camera);
         int (*transition)(void *);
         void (*set_transition)(void *, int);
         void (*bind_actor)(void *, void *actor);

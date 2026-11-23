@@ -676,15 +676,15 @@ int main()
             }
             ReleasePpo(&colors);
         }
-        EngineBackground::TurnOffLights(background);
+        mm_background_owner_lights_off(background);
         EngineBackground::TurnOnLights(background, movie->Pbwld());
         EngineBackground::SetFLeaveLitesOn(background, true);
         Value(EngineBackground::FLeaveLitesOn(background));
-        EngineBackground::TurnOffLights(background);
+        mm_background_owner_lights_off(background);
         EngineBackground::SetFLeaveLitesOn(background, false);
         Value(EngineBackground::FLeaveLitesOn(background));
-        EngineBackground::TurnOffLights(background);
-        EngineBackground::TurnOffLights(background);
+        mm_background_owner_lights_off(background);
+        mm_background_owner_lights_off(background);
         EngineBackground::TurnOnLights(background, movie->Pbwld());
         EngineBackground::TurnOnLights(background, movie->Pbwld());
         for (long camera : {0, 1, 2, 1, 0})

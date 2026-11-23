@@ -23,6 +23,9 @@ typedef struct Fixture
 {
     MMSceneOwner owner;
     MMSceneOwnerServices s;
+    MMBackgroundOwnerHost background_host;
+    MMStorageAllocator background_allocator;
+    MMBackgroundServices light_services;
     Object scene, slots[MM_SCENE_OWNERS], children[5];
     FrameSound frame[2];
     Sound background;
@@ -110,10 +113,31 @@ static void visibility(void *p, void *actor, int show)
 {
     event((Fixture *)p, (show ? 700 : 600) + ((Object *)actor)->id);
 }
-static void lights(void *p, void *background)
+static void release_background(void *p, void *owner, MMU32 bytes)
 {
-    (void)background;
+    Fixture *f = p;
+    (void)bytes;
+    assert(owner == f->owner.background);
+    event(f, 205);
+    --f->live;
+    free(owner);
+}
+static void lights(void *p, MMBackgroundResource *background, MMI32 index)
+{
+    Fixture *f = p;
+    assert(background == mm_background_owner_resource(f->owner.background) && index == 0);
     event((Fixture *)p, 550);
+}
+static void remove_light(void *p, MMBackgroundResource *background, MMI32 index)
+{
+    (void)p;
+    (void)background;
+    (void)index;
+}
+static void free_light_memory(void *p, void **buffer)
+{
+    (void)p;
+    assert(!*buffer);
 }
 static int lifetime(void *p, void *text, MMI32 *first)
 {
@@ -169,6 +193,15 @@ static void init(Fixture *f)
     MMSceneOwnerServices *s;
     int i;
     memset(f, 0, sizeof(*f));
+    f->background_allocator.context = f;
+    f->background_allocator.resize = resize_track;
+    f->background_allocator.release = release_background;
+    f->background_host.allocator = &f->background_allocator;
+    f->background_host.teardown = &f->light_services;
+    f->light_services.context = f;
+    f->light_services.disable_light = lights;
+    f->light_services.remove_light = remove_light;
+    f->light_services.free_memory = free_light_memory;
     for (i = 0; i < MM_SCENE_OWNERS; ++i)
         f->slots[i].slot = i;
     for (i = 0; i < 5; ++i)
@@ -184,8 +217,6 @@ static void init(Fixture *f)
     s->loaded = loaded;
     s->release = release;
     s->actor_visibility = visibility;
-    s->lights_off = lights;
-    s->release_background = s->release;
     s->release_thumbnail = s->release;
     s->release_cache = s->release;
     s->text_lifetime = lifetime;
@@ -232,12 +263,13 @@ static void populate(Fixture *f)
     f->background.tags[1].child = 1;
     f->background.tags[1].tag.cache = &f->background;
     f->owner.owned[MM_SCENE_BACKGROUND_SOUND] = &f->background;
-    for (i = MM_SCENE_BACKGROUND; i <= MM_SCENE_THUMBNAIL; ++i)
-    {
-        f->slots[i].refs = 1;
-        ++f->live;
-        f->owner.owned[i] = &f->slots[i];
-    }
+    f->owner.background = mm_background_owner_create(&f->background_host);
+    assert(f->owner.background);
+    mm_background_owner_resource(f->owner.background)->enabled = 1;
+    mm_background_owner_resource(f->owner.background)->light_count = 1;
+    f->slots[MM_SCENE_THUMBNAIL].refs = 1;
+    f->live += 2;
+    f->owner.owned[MM_SCENE_THUMBNAIL] = &f->slots[MM_SCENE_THUMBNAIL];
     /* Two spare children model other externally owned objects, not list owners. */
     f->children[3].refs = f->children[4].refs = 0;
     f->live -= 2;
@@ -253,6 +285,7 @@ static void factories(void)
     f.fail = 1;
     assert(!mm_scene_owner_new(&f, &f.s));
     assert(!f.live && !f.loaded);
+    assert(!f.owner.background);
     for (i = 0; i < MM_SCENE_OWNERS; ++i)
         assert(!f.owner.owned[i]);
     init(&f);
@@ -279,7 +312,7 @@ static void disposal(void)
     Fixture f;
     int i;
     const int expected[] = {100, 101, 102, 211, 400, 401, 420, 421, 210,
-                            200 + MM_SCENE_BACKGROUND, 200 + MM_SCENE_THUMBNAIL, 451, 460};
+                            205, 200 + MM_SCENE_THUMBNAIL, 451, 460};
     init(&f);
     populate(&f);
     mm_scene_owner_dispose(&f.owner, &f.s);

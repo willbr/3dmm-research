@@ -599,16 +599,18 @@ typedef struct Undo
     MMSceneOwner owner;
     int background, notify, removed, unknown, fail_background;
 } Undo;
-static void *fetch_background(void *p, MMTag *tag)
+static const MMBackgroundOwnerHost background_host = {0};
+static MMBackgroundOwner *fetch_background(void *p, MMTag *tag)
 {
     Undo *u = p;
     (void)tag;
     ++u->background;
-    return u->fail_background ? NULL : u;
+    return u->fail_background ? NULL : mm_background_owner_create(&background_host);
 }
-static int set_camera(void *p, void *background, MMI32 camera)
+static int set_camera(void *p, MMBackgroundOwner *background, MMI32 camera)
 {
-    return p == background && camera == 0;
+    (void)p;
+    return background && camera == 0;
 }
 static int transition(void *p)
 {
@@ -629,12 +631,10 @@ static MMSceneEditServices bind_scene_edit(void *p)
     s.context = s.sound.context = s.sound.events.context = s.sound.events.owners.context = u;
     s.sound.events.owner = &u->owner;
     s.sound.events.owners.release = ignore_background;
-    s.sound.events.owners.release_background = ignore_background;
     s.sound.events.fetch_background = fetch_background;
     s.sound.events.set_camera = set_camera;
     s.sound.events.transition = transition;
     s.sound.dirty = ignore_change;
-    s.background_name = ignore_change;
     s.scene_change = ignore_change;
     s.can_notify = cannot_notify;
     return s;

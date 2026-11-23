@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_OWNER_H
 #define MM_ENGINE_SCENE_OWNER_H
+#include "background_resource.h"
 #include "movie_frame.h"
 #include "scene_sound.h"
 #include "scene_track.h"
@@ -18,7 +19,6 @@ extern "C"
     };
     enum
     {
-        MM_SCENE_BACKGROUND,
         MM_SCENE_THUMBNAIL,
         MM_SCENE_BACKGROUND_SOUND,
         MM_SCENE_BACKGROUND_CACHE,
@@ -57,6 +57,7 @@ extern "C"
         void *movie; /* Borrowed; no reference cycle. */
         MMSceneState data;
         MMSceneRuntime runtime;
+        MMBackgroundOwner *background; /* Owns one live reference. */
         void *owned[MM_SCENE_OWNERS];
         MMTag background_tag; /* Borrowed tag of the last successfully applied background. */
         void *selected_actor, *selected_text; /* Borrowed primary selections. */
@@ -78,10 +79,9 @@ extern "C"
         int (*can_notify)(void *);
         void (*loaded)(void *, void *scene);
         void (*release)(void *, void *object);
-        void (*release_background)(void *, void *background);
         void (*release_thumbnail)(void *, void *bitmap);
         void (*release_cache)(void *, void *cache);
-        void (*actor_visibility)(void *, void *actor, int show), (*lights_off)(void *, void *background);
+        void (*actor_visibility)(void *, void *actor, int show);
         int (*text_lifetime)(void *, void *text, MMI32 *first);
         int (*text_seek)(void *, void *text, MMI32 frame);
         void (*diagnostic)(void *, int issue);
@@ -94,6 +94,8 @@ extern "C"
      * with the owner and start empty. Initialization accepts 1- or 2-byte title
      * units and starts at frame one with pause effects disabled. */
     int mm_scene_owner_init(MMSceneOwner *, void *movie, unsigned text_unit, const MMStorageAllocator *);
+    /* Disable the old lighting and release the live background before replacing it. */
+    void mm_scene_owner_remove_background(MMSceneOwner *);
     void mm_scene_owner_drop(MMSceneOwner *, int slot, const MMSceneOwnerServices *);
     void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *);
     void mm_scene_owner_dispose(MMSceneOwner *, const MMSceneOwnerServices *);

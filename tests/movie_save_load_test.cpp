@@ -298,7 +298,7 @@ class StageTestScene : public Scene
     }
     bool Init()
     {
-        auto background=mm_background_owner_create(&EngineBackground::Host()); _owner.owned[MM_SCENE_BACKGROUND]=background;
+        auto background=mm_background_owner_create(&EngineBackground::Host()); _owner.background=background;
         _owner.data.firstFrame=1; _owner.data.lastFrame=20; _owner.data.currentFrame=3;
         return background && InitializeStageBackground(background);
     }

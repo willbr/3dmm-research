@@ -218,8 +218,6 @@ MMSceneOwnerServices Scene::_OwnerServices()
         else
             actor->Hide();
     };
-    s.lights_off = [](void *, void *p) { EngineBackground::TurnOffLights(static_cast<PBackground>(p)); };
-    s.release_background = [](void *, void *p) { mm_background_owner_release(static_cast<PBackground>(p)); };
     s.release_thumbnail = [](void *, void *p) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(p)); };
     s.release_cache = [](void *, void *p) { mm_resource_cache_release(static_cast<MMResourceCache *>(p)); };
     s.text_lifetime = [](void *, void *p, MMI32 *first) -> int {
@@ -706,15 +704,15 @@ MMSceneEventServices Scene::_EventServices()
         auto services = ScenePacketServices(static_cast<PScene>(p)->Pmvie());
         mm_scene_sound_play(static_cast<MMSceneSound *>(payload), 0, &services);
     };
-    s.fetch_background = [](void *, MMTag *value) -> void * {
+    s.fetch_background = [](void *, MMTag *value) -> PBackground {
         TAG tag;
         TagFromCore(&tag, *value);
         auto background = EngineBackground::Fetch(&tag);
         *value = {tag.sid, tag.cache, tag.ctg, tag.cno};
         return background;
     };
-    s.set_camera = [](void *p, void *background, MMI32 camera) -> int {
-        return EngineBackground::FSetCamera(static_cast<PBackground>(background), static_cast<PScene>(p)->Pmvie()->Pbwld(), camera);
+    s.set_camera = [](void *p, PBackground background, MMI32 camera) -> int {
+        return EngineBackground::FSetCamera(background, static_cast<PScene>(p)->Pmvie()->Pbwld(), camera);
     };
     s.transition = [](void *p) -> int { return static_cast<PScene>(p)->Pmvie()->Trans(); };
     s.set_transition = [](void *p, int value) { static_cast<PScene>(p)->Pmvie()->SetTrans(static_cast<TRANS>(value)); };
@@ -1763,16 +1761,9 @@ MMSceneEditServices Scene::_EditServices()
     MMSceneEditServices s = {};
     s.context = this;
     s.sound = _SoundEditServices();
-    s.background_name = [](void *p) {
-        auto scene = static_cast<PScene>(p);
-        String name;
-        EngineBackground::GetName(scene->Pbkgd(), &name);
-        scene->SetNameCore(&name);
-    };
     s.scene_change = [](void *p) { static_cast<PScene>(p)->Pmvie()->Pmcc()->SceneChange(); };
     s.can_notify = [](void *) -> int { return vpcex != nullptr; };
     s.loaded = [](void *) { vpcex->EnqueueCid(cidSceneLoaded); };
-    s.current_camera = [](void *p) -> MMI32 { return EngineBackground::Icam(static_cast<PScene>(p)->Pbkgd()); };
     s.new_undo = [](void *, int kind) -> void * {
         return kind == MM_SCENE_UNDO_PAUSE ? static_cast<void *>(SceneUndoPause::PsunpNew())
                                                  : static_cast<void *>(SceneUndoBackground::PsunkNew());

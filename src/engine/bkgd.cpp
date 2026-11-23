@@ -160,12 +160,6 @@ void EngineBackground::TurnOnLights(PBackground background, PWorld world)
     mm_brender_background_lights_on(background, &services);
 }
 
-void EngineBackground::TurnOffLights(PBackground background)
-{
-    BACKGROUND_VALIDATE(background);
-    mm_brender_background_lights_off(background);
-}
-
 bool EngineBackground::FSetCamera(PBackground background, PWorld world, long camera)
 {
     BACKGROUND_VALIDATE(background);
