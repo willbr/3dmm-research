@@ -58,6 +58,6 @@ class MarcusPlayback
     void ClearCaptionDraft();
     const MarcusCaptionStop *CaptionPositions(int &count, int &scroll) const;
     bool CaptionCaret(int offset);
-    bool CaptionFontSample(const std::string &family, MM::PreviewImage &image);
+    bool CaptionFontSample(const char *family, MarcusImage &image);
 };
 #endif

@@ -251,3 +251,50 @@ int marcus_caption_raster_get(MarcusCaptionRasterCache *cache, const MarcusCapti
     *out = entry->raster;
     return MARCUS_CAPTION_RASTER_OK;
 }
+
+int marcus_caption_sample(MarcusCaptionSample *sample, const char *family, void *p, MarcusCaptionSampleRead *read,
+                          MarcusImage *out)
+{
+    static const char text[] = "Aa Bb 123";
+    MMCaptionStyle style = {{NULL, 0}, 20, 0, 0, 0, 0};
+    MarcusCaptionSampleMask mask = {0};
+    MarcusImage image = {0};
+    size_t bytes;
+    int x, y;
+    style.font.name = family;
+    style.font.length = strlen(family);
+    if (!read(p, &style, text, sizeof(text) - 1, &mask) || !mask.coverage ||
+        mask.width <= 0 || mask.height <= 0 || mask.width > 1024 || mask.height > 128 ||
+        mask.pitch < mask.width || (size_t)mask.pitch > mask.bytes / (size_t)mask.height)
+        return MARCUS_CAPTION_RASTER_SOURCE;
+    image.pitch = mask.width * 4;
+    bytes = (size_t)image.pitch * mask.height;
+    if (bytes > sample->capacity)
+    {
+        unsigned char *grown = realloc(sample->rgba, bytes);
+        if (!grown)
+            return MARCUS_CAPTION_RASTER_MEMORY;
+        sample->rgba = grown;
+        sample->capacity = bytes;
+    }
+    memset(sample->rgba, 255, bytes);
+    for (y = 0; y < mask.height; ++y)
+    {
+        unsigned char *alpha = sample->rgba + (size_t)y * image.pitch + 3;
+        const unsigned char *coverage = mask.coverage + (size_t)y * mask.pitch;
+        for (x = 0; x < mask.width; ++x)
+            alpha[x * 4] = coverage[x];
+    }
+    image.width = mask.width;
+    image.height = mask.height;
+    image.rgba = sample->rgba;
+    *out = image;
+    return MARCUS_CAPTION_RASTER_OK;
+}
+
+void marcus_caption_sample_clear(MarcusCaptionSample *sample)
+{
+    free(sample->rgba);
+    sample->rgba = NULL;
+    sample->capacity = 0;
+}

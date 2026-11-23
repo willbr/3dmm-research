@@ -521,6 +521,41 @@ failed:
     return ok;
 }
 
+static int caption_sample_mask(void *p, const MMCaptionStyle *style, const char *text, size_t length,
+                               MarcusCaptionSampleMask *out)
+{
+    static const unsigned char coverage[] = {1, 127, 0, 201, 255, 0};
+    if (style->pixels != 20 || style->flags || style->font.length != 4 || memcmp(style->font.name, "Test", 4) ||
+        length != 9 || memcmp(text, "Aa Bb 123", 9))
+        return 0;
+    out->coverage = coverage;
+    out->bytes = *(const size_t *)p;
+    out->width = out->height = 2;
+    out->pitch = 3;
+    return 1;
+}
+
+static int check_caption_sample(MarcusPlayer *player)
+{
+    static const unsigned char rgba[] = {255, 255, 255, 1, 255, 255, 255, 127,
+                                         255, 255, 255, 201, 255, 255, 255, 255};
+    MarcusCaptionSample sample = {0};
+    MarcusImage image = {0};
+    const unsigned char *pixels;
+    size_t bytes = 6;
+    int ok = 0;
+    CHECK(marcus_caption_sample(&sample, "Test", &bytes, caption_sample_mask, &image) == MARCUS_CAPTION_RASTER_OK);
+    CHECK(image.width == 2 && image.height == 2 && image.pitch == 8 && !memcmp(image.rgba, rgba, sizeof(rgba)));
+    pixels = image.rgba;
+    --bytes;
+    CHECK(marcus_caption_sample(&sample, "Test", &bytes, caption_sample_mask, &image) == MARCUS_CAPTION_RASTER_SOURCE);
+    CHECK(sample.rgba == pixels && image.rgba == pixels && !memcmp(image.rgba, rgba, sizeof(rgba)));
+    ok = 1;
+failed:
+    marcus_caption_sample_clear(&sample);
+    return ok;
+}
+
 typedef struct CaptionFaceProbe
 {
     int bundled, installed, system, released;
@@ -941,6 +976,7 @@ int main(int argc, char **argv)
     CHECK(check_sound_sheet(player));
     CHECK(check_caption_runs(player));
     CHECK(check_caption_rasters(player));
+    CHECK(check_caption_sample(player));
     CHECK(check_caption_faces(player));
     CHECK(check_caption_scene(player));
     CHECK(check_caption_paint(player));

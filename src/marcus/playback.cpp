@@ -167,6 +167,7 @@ struct MarcusPlayback::Impl
     MarcusCaptionFaces faces{};
     std::shared_ptr<KauaiFonts::FontCatalog> fonts;
     MarcusCaptionRasterCache captionRasters{};
+    MarcusCaptionSample captionSample{};
     std::unique_ptr<MarcusPlaybackAudio, decltype(&marcus_playback_audio_destroy)> audio{
         nullptr, marcus_playback_audio_destroy};
     MMPolledPlayback clock = {};
@@ -182,6 +183,7 @@ struct MarcusPlayback::Impl
     {
         marcus_caption_faces_clear(&faces);
         marcus_caption_raster_clear(&captionRasters);
+        marcus_caption_sample_clear(&captionSample);
         marcus_caption_scene_dispose(&captionScene);
         marcus_playback_scene_clear(&scene);
         mm_graphics_movie_frames_dispose(&movieFrames);
@@ -653,22 +655,33 @@ bool MarcusPlayback::CaptionCaret(int offset)
     return marcus_caption_scene_caret(&impl->captionScene, offset) != 0;
 }
 
-bool MarcusPlayback::CaptionFontSample(const std::string &family, PreviewImage &image)
+bool MarcusPlayback::CaptionFontSample(const char *family, MarcusImage &image)
 {
-    const MMCaptionStyle style{{family.data(), family.size()}, 20, 0, 0, 0, 0};
-    auto face = impl->Face(style);
-    KauaiFonts::Mask mask;
-    if (!face || !face->Rasterize({"Aa Bb 123", 9}, mask) || mask.width <= 0 || mask.height <= 0 ||
-        mask.width > 1024 || mask.height > 128 || mask.pitch < mask.width ||
-        mask.coverage.size() < std::size_t(mask.pitch) * mask.height)
-        return false;
-    image.width = mask.width;
-    image.height = mask.height;
-    image.rgba.assign(std::size_t(mask.width) * mask.height * 4, 255);
-    for (int y = 0; y < mask.height; ++y)
-        for (int x = 0; x < mask.width; ++x)
-            image.rgba[(std::size_t(y) * mask.width + x) * 4 + 3] = mask.coverage[std::size_t(y) * mask.pitch + x];
-    return true;
+    struct SampleHost
+    {
+        Impl &playback;
+        KauaiFonts::Mask mask;
+        std::exception_ptr failure;
+    } host{*impl, {}, {}};
+    const int status = marcus_caption_sample(&impl->captionSample, family, &host,
+        [](void *p, const MMCaptionStyle *style, const char *text, std::size_t length, MarcusCaptionSampleMask *out) -> int {
+            auto &host = *static_cast<SampleHost *>(p);
+            try
+            {
+                auto *face = host.playback.Face(*style);
+                auto &mask = host.mask;
+                if (!face || !face->Rasterize({text, length}, mask))
+                    return false;
+                *out = {mask.coverage.data(), mask.coverage.size(), mask.width, mask.height, mask.pitch};
+                return true;
+            }
+            catch (...) { host.failure = std::current_exception(); return false; }
+        }, &image);
+    if (host.failure)
+        std::rethrow_exception(host.failure);
+    if (status == MARCUS_CAPTION_RASTER_MEMORY)
+        throw std::bad_alloc();
+    return status == MARCUS_CAPTION_RASTER_OK;
 }
 
 bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image,

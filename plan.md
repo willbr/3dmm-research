@@ -1655,7 +1655,8 @@ provider has no larger strike.
 The C89 caption face cache keeps faces scoped to the active font catalog. It
 checks bundled families first and falls back to installed fonts and System
 when the family is unavailable. The font host opens and rasterizes the
-selected face.
+selected face. The C89 editor sample validates the returned mask, converts
+its coverage to RGBA and retains the pixels for the caption font menu.
 The C89 caption scene owns the authored row table, source text and formatting,
 and the edit draft. Timing analysis borrows decoded text and uses the same
 layout without copying the scene's caption data. The scene owner lays out

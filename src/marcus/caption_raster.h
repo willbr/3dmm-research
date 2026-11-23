@@ -24,6 +24,27 @@ void marcus_caption_raster_clear(MarcusCaptionRasterCache *);
 int marcus_caption_raster_get(MarcusCaptionRasterCache *, const MarcusCaptionRun *, int scale,
                               size_t budget, const MarcusCaptionFonts *, MarcusCaptionRaster *);
 
+typedef struct MarcusCaptionSample
+{
+    unsigned char *rgba;
+    size_t capacity;
+} MarcusCaptionSample;
+
+typedef struct MarcusCaptionSampleMask
+{
+    const unsigned char *coverage;
+    size_t bytes;
+    int width, height, pitch;
+} MarcusCaptionSampleMask;
+
+typedef int MarcusCaptionSampleRead(void *, const MMCaptionStyle *, const char *, size_t, MarcusCaptionSampleMask *);
+
+/* Start with a zeroed sample. The reader lends separate mask storage through
+ * the call. Success lends RGBA pixels until the next successful sample or
+ * clear. Failure preserves the sample and output view. */
+int marcus_caption_sample(MarcusCaptionSample *, const char *family, void *, MarcusCaptionSampleRead *, MarcusImage *);
+void marcus_caption_sample_clear(MarcusCaptionSample *);
+
 #ifdef __cplusplus
 }
 #endif

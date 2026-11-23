@@ -23570,3 +23570,26 @@ Text Acid candidate `20261123T084033Z-e00a3879` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-caption-save`.
+
+## C89 Marcus caption font samples (23 November 2026)
+
+C89 supplies the sample text and size, validates the borrowed glyph mask
+and owns the packed RGBA pixels. The font host opens and rasterizes the
+face. Invalid masks preserve the preceding sample. The headless fixture
+checks padded mask rows, alpha values and rejected short buffers.
+
+The font catalogue and packed pixels matched the previous build byte for
+byte on both the installed-font and bundled-font fixtures. Each catalogue
+listed 101 families and produced 100 samples. The bundled movie exercised
+one font sample that differed from the installed-only fixture. A C-only
+x86 probe rejected a mask whose pitch times height exceeds 32 bits.
+
+All 228 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed. The native suite includes the 13 strict C89 checks. The headless
+Marcus startup image matched the previous build byte for byte.
+
+Text Acid candidate `20261123T084814Z-53d9abc2` matched baseline
+`20261123T084033Z-e00a3879` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-caption-samples`.

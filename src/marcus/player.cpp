@@ -168,7 +168,6 @@ struct MarcusPlayer
     MM::PreviewImage costumeImage;
     MM::PreviewBounds actionPreviewBounds;
     std::tuple<unsigned long, int, std::int32_t, int, int> actionPreviewKey{};
-    MM::PreviewImage captionFontSample;
     MarcusPlayback playback;
     MarcusScenes sceneInfo, baseSceneInfo;
     struct AssetCatalog : MarcusAssetCatalog
@@ -1919,14 +1918,7 @@ extern "C"
             const auto *name = marcus_caption_font_name(list, index);
             if (!CurrentCaptions(player, list) || !name)
                 return false;
-            auto &sample = player->captionFontSample;
-            if (!player->playback.CaptionFontSample(name, sample))
-                return false;
-            image->width = sample.width;
-            image->height = sample.height;
-            image->pitch = sample.width * 4;
-            image->rgba = sample.rgba.data();
-            return true;
+            return player->playback.CaptionFontSample(name, *image);
         });
     }
     void marcus_caption_preview(MarcusPlayer *player, const MarcusCaptionList *list, int index)
