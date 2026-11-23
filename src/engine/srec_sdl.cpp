@@ -1,6 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_recording.h"
-#include <new>
 #include "soc.h"
 ASSERTNAME
 RTCLASS(SoundRecorder)
@@ -20,19 +19,9 @@ bool SoundRecorder::_FInit(long rate, long channels, long bytes, ulong maxMs)
     _fRecording = _fPlaying = _fHaveSound = false;
     if (rate <= 0 || rate > 192000 || channels < 1 || channels > 2 || (bytes != 1 && bytes != 2) || !maxMs)
         return false;
-    try
+    if (!mm_sdl_recorder_open(&_recorder, rate, channels, bytes * 8, maxMs))
     {
-        _recorder = new KauaiAudio::Recorder;
-        if (!_recorder->Open(static_cast<unsigned>(rate), static_cast<unsigned>(channels),
-                             static_cast<unsigned>(bytes * 8), maxMs))
-        {
-            PushErc(ercSocNoWaveIn);
-            return false;
-        }
-    }
-    catch (const std::bad_alloc &)
-    {
-        PushErc(ercOomNew);
+        PushErc(ercSocNoWaveIn);
         return false;
     }
     if (vpsndm)
@@ -44,7 +33,7 @@ bool SoundRecorder::_FInit(long rate, long channels, long bytes, ulong maxMs)
 }
 SoundRecorder::~SoundRecorder()
 {
-    delete _recorder;
+    mm_sdl_recorder_destroy(_recorder);
     if (_fSoundManagerSuspended && vpsndm)
         vpsndm->Suspend(false);
 }
@@ -53,10 +42,10 @@ void SoundRecorder::_UpdateStatus()
     if (!_recorder)
         return;
     const bool wasPlaying = _fPlaying;
-    _recorder->SuspendPreview(vpsndm && (!vpsndm->FActive() || vpsndm->FSuspended()));
-    _fRecording = _recorder->Recording();
-    _fPlaying = _recorder->Playing();
-    _fHaveSound = _recorder->HaveSound();
+    mm_sdl_recorder_suspend_preview(_recorder, vpsndm && (!vpsndm->FActive() || vpsndm->FSuspended()));
+    _fRecording = mm_sdl_recorder_recording(_recorder) != 0;
+    _fPlaying = mm_sdl_recorder_playing(_recorder) != 0;
+    _fHaveSound = mm_sdl_recorder_wave(_recorder, nullptr) != nullptr;
     if (wasPlaying && !_fPlaying && !_fSoundManagerSuspended && vpsndm)
     {
         vpsndm->Suspend(true);
@@ -68,13 +57,13 @@ bool SoundRecorder::FStart()
     _UpdateStatus();
     if (_fPlaying && !FStop())
         return false;
-    const bool success = _recorder && _recorder->Start();
+    const bool success = mm_sdl_recorder_start(_recorder) != 0;
     _UpdateStatus();
     return success;
 }
 bool SoundRecorder::FStop()
 {
-    const bool success = _recorder && _recorder->Stop();
+    const bool success = _recorder && mm_sdl_recorder_stop(_recorder);
     _UpdateStatus();
     return success;
 }
@@ -90,8 +79,8 @@ bool SoundRecorder::FPlay()
         vpsndm->Suspend(false);
         _fSoundManagerSuspended = false;
     }
-    _recorder->SuspendPreview(vpsndm && (!vpsndm->FActive() || vpsndm->FSuspended()));
-    if (!_recorder->Play(vpsndm ? static_cast<float>(vpsndm->VlmCur()) / kvlmFull : 1))
+    mm_sdl_recorder_suspend_preview(_recorder, vpsndm && (!vpsndm->FActive() || vpsndm->FSuspended()));
+    if (!mm_sdl_recorder_play(_recorder, vpsndm ? static_cast<float>(vpsndm->VlmCur()) / kvlmFull : 1))
     {
         if (!_fSoundManagerSuspended && vpsndm)
         {
@@ -124,8 +113,9 @@ bool SoundRecorder::FSave(PFilename filename)
         PushErc(ercSocWaveSaveFailure);
         return false;
     }
-    const auto &wave = _recorder->Wave();
-    const bool saved = file->FWriteRgb(const_cast<std::uint8_t *>(wave.data()), static_cast<long>((wave.size)()), 0);
+    MMU32 bytes;
+    const auto wave = mm_sdl_recorder_wave(_recorder, &bytes);
+    const bool saved = file->FWriteRgb(const_cast<unsigned char *>(wave), bytes, 0);
     ReleasePpo(&file);
     if (!saved)
         PushErc(ercSocWaveSaveFailure);

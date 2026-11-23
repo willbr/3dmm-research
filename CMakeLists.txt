@@ -30,10 +30,12 @@ target_link_libraries(kauai-wave-codec PUBLIC mm-engine-c89)
 target_include_directories(kauai-wave-codec PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
 add_executable(wave-codec-test EXCLUDE_FROM_ALL tests/wave_codec_test.cpp)
 target_link_libraries(wave-codec-test PRIVATE kauai-wave-codec)
-add_library(kauai-recording-data STATIC kauai/src/recording_data.cpp)
+add_library(kauai-recording-data STATIC kauai/src/recording_data.c)
+set_target_properties(kauai-recording-data PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(kauai-recording-data PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
-target_link_libraries(kauai-recording-data PUBLIC kauai-wave-codec)
-add_executable(recording-data-test EXCLUDE_FROM_ALL tests/recording_data_test.cpp)
+target_link_libraries(kauai-recording-data PUBLIC mm-engine-c89)
+add_executable(recording-data-test EXCLUDE_FROM_ALL tests/recording_data_test.c)
+set_target_properties(recording-data-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 target_link_libraries(recording-data-test PRIVATE kauai-recording-data)
 add_library(kauai-audio-mixer STATIC kauai/src/audio_mixer.c kauai/src/audio_sample.c)
 set_target_properties(kauai-audio-mixer PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
@@ -234,14 +236,19 @@ if(STUDIO_SDL3 OR BUILD_MARCUS)
   set_target_properties(kauai-sdl-wave PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
   target_include_directories(kauai-sdl-wave PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
   target_link_libraries(kauai-sdl-wave PUBLIC kauai-audio-mixer PRIVATE kauai-compressed-wave-decoder SDL3::SDL3-static)
-  add_library(kauai-sdl-audio STATIC kauai/src/sdl_audio.cpp kauai/src/sdl_recording.cpp)
+  add_library(kauai-sdl-recording STATIC kauai/src/sdl_recording.c)
+  set_target_properties(kauai-sdl-recording PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+  target_include_directories(kauai-sdl-recording PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-sdl-recording PUBLIC mm-engine-c89
+    PRIVATE kauai-recording-data kauai-sdl-wave kauai-sdl-output SDL3::SDL3-static)
+  add_library(kauai-sdl-audio STATIC kauai/src/sdl_audio.cpp)
   target_include_directories(kauai-sdl-audio PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
-  target_link_libraries(kauai-sdl-audio PUBLIC kauai-sdl-wave kauai-sdl-output kauai-wave-codec kauai-recording-data
-    PRIVATE SDL3::SDL3-static)
+  target_link_libraries(kauai-sdl-audio PUBLIC kauai-sdl-wave kauai-sdl-output kauai-wave-codec kauai-sdl-recording)
 endif()
 if(STUDIO_SDL3)
-  add_executable(recording-sdl-test EXCLUDE_FROM_ALL tests/recording_sdl_test.cpp)
-  target_link_libraries(recording-sdl-test PRIVATE kauai-sdl-audio)
+  add_executable(recording-sdl-test EXCLUDE_FROM_ALL tests/recording_sdl_test.c)
+  set_target_properties(recording-sdl-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+  target_link_libraries(recording-sdl-test PRIVATE kauai-sdl-recording kauai-sdl-wave SDL3::SDL3-static)
   add_executable(movie-recording-test EXCLUDE_FROM_ALL tests/movie_recording_test.cpp)
   target_link_libraries(movie-recording-test PRIVATE engine)
   add_executable(audio-sdl-test EXCLUDE_FROM_ALL tests/audio_sdl_test.cpp)
@@ -1203,6 +1210,16 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -I "${PROJECT_SOURCE_DIR}/kauai/src"
       -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/midi_worker.c")
+  add_test(NAME kauai-recording-data-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -I "${PROJECT_SOURCE_DIR}/kauai/src"
+      -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/recording_data.c" "${PROJECT_SOURCE_DIR}/tests/recording_data_test.c")
+  if(TARGET kauai-sdl-recording)
+    add_test(NAME kauai-sdl-recording-c89-syntax
+      COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+        -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -I "${PROJECT_SOURCE_DIR}/kauai/src"
+        -isystem "${PROJECT_SOURCE_DIR}/vendor/SDL3/include" -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/sdl_recording.c")
+  endif()
   add_test(NAME kauai-audio-mixer-c89-syntax
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
@@ -1828,7 +1845,7 @@ if(WIN32 AND SOC_X86 AND AudioMan_FOUND)
     $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
   add_dependencies(core-checks wave-audioman-compat-test)
   add_executable(recording-audioman-compat-test EXCLUDE_FROM_ALL tests/recording_audioman_compat_test.cpp kauai/src/stub.cpp)
-  target_link_libraries(recording-audioman-compat-test PRIVATE kauai-recording-data 3DMMForever::AudioMan winmm msacm32 ole32)
+  target_link_libraries(recording-audioman-compat-test PRIVATE kauai-recording-data kauai-wave-codec 3DMMForever::AudioMan winmm msacm32 ole32)
   target_link_options(recording-audioman-compat-test PRIVATE
     $<$<AND:$<LINK_LANG_AND_ID:CXX,MSVC>,$<CONFIG:DEBUG>>:/NODEFAULTLIB:libcmt.lib>)
   add_dependencies(core-checks recording-audioman-compat-test)

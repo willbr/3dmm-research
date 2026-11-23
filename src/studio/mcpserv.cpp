@@ -1490,12 +1490,16 @@ static JVal Tool_GetState(const JVal &args)
     o.Set("sdl_audio_decoded", JVal::MkInt(static_cast<long long>(audio.decoded)));
     o.Set("sdl_audio_started", JVal::MkInt(static_cast<long long>(audio.started)));
     o.Set("sdl_audio_completed", JVal::MkInt(static_cast<long long>(audio.completed)));
-    const auto recording = KauaiAudio::RecorderStats();
-    o.Set("sdl_recording_opened", JVal::MkInt(static_cast<long long>(recording.opened)));
-    o.Set("sdl_recording_started", JVal::MkInt(static_cast<long long>(recording.started)));
-    o.Set("sdl_recording_completed", JVal::MkInt(static_cast<long long>(recording.completed)));
-    o.Set("sdl_recording_previewed", JVal::MkInt(static_cast<long long>(recording.previewed)));
-    o.Set("sdl_recording_frames", JVal::MkInt(static_cast<long long>(recording.capturedFrames)));
+    MMSdlRecordingStats recording;
+    mm_sdl_recorder_stats(&recording);
+    const auto count = [](MMAudioCounter value) {
+        return JVal::MkInt(static_cast<long long>((std::uint64_t(value.high) << 32) | value.low));
+    };
+    o.Set("sdl_recording_opened", count(recording.opened));
+    o.Set("sdl_recording_started", count(recording.started));
+    o.Set("sdl_recording_completed", count(recording.completed));
+    o.Set("sdl_recording_previewed", count(recording.previewed));
+    o.Set("sdl_recording_frames", count(recording.captured_frames));
     KauaiSDL::PresentationStatus presentation;
     if (KauaiSDL::Main().Presentation(presentation))
     {

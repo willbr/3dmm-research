@@ -2326,6 +2326,8 @@ Marcus playback loads archive sound bytes into a C89 owner. Its cache
 adopts MIDI event rows directly and keeps decoded WAVE samples alive through
 their last voice. The playback audio layer creates SoundFont voices in C.
 Waveform durations and peaks read the same owned archive payload.
+Studio and Marcus share a C89 SDL recorder for bounded microphone capture,
+AudioMan-compatible PCM bias and trim, WAVE publication, and preview.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

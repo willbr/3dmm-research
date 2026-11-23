@@ -39,10 +39,13 @@ int main()
                         pcm.push_back(word >> 8);
                     }
                 }
-                KauaiAudio::RecordingBuffer capture;
-                std::vector<std::uint8_t> actual, source;
-                CHECK(capture.Init(11025, 1, bits, 3000));
-                CHECK(capture.Append(pcm.data(), pcm.size()) == pcm.size() && capture.Wave(actual));
+                MMRecordingBuffer capture = {};
+                MMWaveBuffer actual;
+                MMU32 encodedBytes;
+                std::vector<std::uint8_t> source;
+                CHECK(mm_recording_init(&capture, 11025, 1, bits, 3000) && mm_wave_buffer_init(&actual, nullptr));
+                CHECK(mm_recording_append(&capture, pcm.data(), pcm.size()) == pcm.size() &&
+                      mm_recording_wave(&capture, &actual, &encodedBytes) && encodedBytes >= 44);
                 pcm.resize(pcm.size() - 8 * (bits / 8));
                 CHECK(KauaiAudio::PcmWave(pcm, 11025, 1, bits, source));
                 LPSOUND sound = nullptr, bias = nullptr, trim = nullptr;
@@ -54,9 +57,10 @@ int main()
                 std::vector<std::uint8_t> expected(frames * (bits / 8));
                 DWORD got = frames;
                 CHECK(SUCCEEDED(trim->GetSampleData(expected.data(), 0, &got, nullptr)) && got == frames);
-                const unsigned actualBytes = actual[40] | (unsigned(actual[41]) << 8) | (unsigned(actual[42]) << 16) |
-                                             (unsigned(actual[43]) << 24);
-                if (expected.size() != actualBytes || std::memcmp(expected.data(), actual.data() + 44, actualBytes))
+                const auto wave = actual.data;
+                const unsigned actualBytes = wave[40] | (unsigned(wave[41]) << 8) | (unsigned(wave[42]) << 16) |
+                                             (unsigned(wave[43]) << 24);
+                if (expected.size() != actualBytes || std::memcmp(expected.data(), wave + 44, actualBytes))
                 {
                     std::fprintf(stderr, "bits %u count %u pattern %u: native bytes %zu, portable %u\n", bits, count,
                                  pattern, expected.size(), actualBytes);
@@ -66,6 +70,8 @@ int main()
                 trim->Release();
                 bias->Release();
                 sound->Release();
+                mm_wave_buffer_dispose(&actual);
+                mm_recording_dispose(&capture);
             }
     std::puts("Recording processing: 50 mono PCM8/16 captures match the original 1995 AudioMan bias/trim filters byte "
               "for byte.");

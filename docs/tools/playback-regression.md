@@ -25322,3 +25322,37 @@ reached the previously recorded later PCM16 peak of 7,609.
 
 Evidence is under `tmp/c89-owned-movie-audio`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 SDL sound recording (23 November 2026)
+
+Studio and Marcus use the same C89 SDL capture owner. C owns the bounded
+PCM buffer, finalizes the WAVE take, and supplies the preview through the
+shared SDL output mixer. The capture callback appends without allocating.
+Applications borrow the finalized WAVE bytes while writing them to disk.
+
+The PCM fixture covers bounded capture, repeated finalization, failed
+reinitialization, short takes, silence, stereo interleaving, and a bias sum
+that exceeds signed 32-bit range. The SDL fixture links as a C executable
+and exercises PCM8 and LE16 in mono and stereo, explicit stop, automatic
+completion, failed reopen, repeated takes, and callback-driven preview.
+The x86 AudioMan fixture compared 50 mono PCM8 and LE16 takes against the
+original bias and trim filters. All 50 matched byte for byte. The Studio
+recording fixture also passed its sound-manager suspension, WAVE save,
+MSND import, and destruction-while-recording checks. The SDL capture
+fixtures used the dummy device.
+
+The standalone SDL recorder and Studio integration fixtures each passed
+15 consecutive runs. The 228 selected native, 28 standalone engine C89,
+and 20 native strict syntax checks passed. Classic Studio rebuilt, the
+external consumer passed, and the native and SDL save traces, headless
+Marcus startup canvas, and VMM workflow outputs matched their baselines.
+
+Fresh suite `20261123T190029Z-9810095e` completed eight captures. Replay suite
+`20261123T190137Z-1be4383f` completed four. Both verified input hashes. Both
+ports matched all 60 Actor Audio frame positions and camera indices and 59
+seek canvases against retained retail and V3DMM. The first 100 ms of each
+sampled audio span matched its preceding port capture sample for sample.
+The embedded MIDI fixture matched the 100 ms WAVE cue and first 400 ms of MIDI.
+
+Evidence is under `tmp/c89-recording`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

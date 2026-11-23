@@ -15,10 +15,7 @@
 #define SREC_H
 
 #ifdef KAUAI_SDL3
-namespace KauaiAudio
-{
-class Recorder;
-}
+struct MMSdlRecorder;
 #else
 #include "audioman.h"
 
@@ -107,7 +104,7 @@ class SoundRecorder : public SoundRecorder_PAR
     bool _fPlaying;
     bool _fHaveSound;   // have you recorded a sound yet?
 #ifdef KAUAI_SDL3
-    KauaiAudio::Recorder *_recorder = nullptr;
+    MMSdlRecorder *_recorder = nullptr;
     bool _fSoundManagerSuspended = false;
 #else
     bool _fBufferAdded; // have added record buffer

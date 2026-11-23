@@ -10,7 +10,7 @@
 
 struct MarcusSoundRecording
 {
-    std::unique_ptr<KauaiAudio::Recorder> recorder;
+    std::unique_ptr<MMSdlRecorder, decltype(&mm_sdl_recorder_destroy)> recorder{nullptr, mm_sdl_recorder_destroy};
     std::shared_ptr<MarcusMovieFile> file;
     std::string path, error;
 };
@@ -21,15 +21,17 @@ int Finish(MarcusSoundRecording *r)
 {
     if (!r) return 0;
     if (!r->recorder) return !r->path.empty();
-    if (!r->recorder->Stop())
+    if (!mm_sdl_recorder_stop(r->recorder.get()))
     { r->recorder.reset(); return Fail(r, "Microphone recording failed. Check your input device and try again."); }
-    if (!r->recorder->HaveSound())
+    MMU32 bytes;
+    const auto wave = mm_sdl_recorder_wave(r->recorder.get(), &bytes);
+    if (!wave)
     { r->recorder.reset(); return Fail(r, "No audio was captured. Record for longer and check your microphone."); }
     try
     {
         auto file = MarcusCreateEventFile(); file->path = file->directory / "Recording.wav";
-        const auto path = file->path.u8string(); const auto &wave = r->recorder->Wave();
-        if (!SDL_SaveFile(path.c_str(), wave.data(), wave.size()))
+        const auto path = file->path.u8string();
+        if (!SDL_SaveFile(path.c_str(), wave, bytes))
         { r->recorder.reset(); return Fail(r, SDL_GetError()); }
         r->recorder.reset(); r->file = std::move(file); r->path = path; r->error.clear(); return 1;
     }
@@ -45,8 +47,11 @@ int sound_recording_start(MarcusSoundRecording *r, unsigned long maxMs)
     if (!r || r->recorder || !maxMs || maxMs > 180000) return Fail(r, "Choose a recording length between 1 ms and 3 minutes.");
     try
     {
-        SDL_ClearError(); auto next = std::make_unique<KauaiAudio::Recorder>();
-        if (!next->Open(48000, 1, 16, static_cast<std::uint32_t>(maxMs)) || !next->Start())
+        SDL_ClearError();
+        MMSdlRecorder *opened = nullptr;
+        mm_sdl_recorder_open(&opened, 48000, 1, 16, static_cast<MMU32>(maxMs));
+        decltype(r->recorder) next(opened, mm_sdl_recorder_destroy);
+        if (!mm_sdl_recorder_start(next.get()))
             return Fail(r, *SDL_GetError() ? SDL_GetError() : "Cannot start the default microphone. Check your input device and microphone access.");
         r->recorder = std::move(next); r->file.reset(); r->path.clear(); r->error.clear(); return 1;
     }
@@ -56,7 +61,7 @@ int sound_recording_poll(MarcusSoundRecording *r)
 {
     if (!r) return -1;
     if (!r->recorder) return r->error.empty() ? 0 : -1;
-    try { if (r->recorder->Recording()) return 1; return Finish(r) ? 0 : -1; }
+    try { if (mm_sdl_recorder_recording(r->recorder.get())) return 1; return Finish(r) ? 0 : -1; }
     catch (const std::exception &e) { r->recorder.reset(); Fail(r, e.what()); return -1; }
 }
 int sound_recording_stop(MarcusSoundRecording *r) { return Finish(r); }
