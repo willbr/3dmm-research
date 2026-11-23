@@ -270,6 +270,8 @@ MMResourceCache *mm_native_archive_source_cache(const MMNativeArchiveSource *sou
     wire.index = source->index;
     wire.backing = source->file;
     services = *profile;
+    if (!services.handles)
+        services.handles = mm_chunk_handle_services();
     services.block_files = mm_native_archive_file_blocks();
     return mm_resource_cache_create(&wire, budget, &services, owner, storage);
 }

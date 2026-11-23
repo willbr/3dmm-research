@@ -331,11 +331,19 @@ static int WireSourceCase(bool native)
         mm_archive_reader_close(reader);
 
         auto typed = NewTypedSourceCache(&source, 1024);
-        CHECK(typed && typed->wire_index == source.index && typed->wire_file == source.file);
+        CHECK(typed && typed->wire_index == source.index && typed->wire_file == source.file &&
+              typed->services.handles == mm_chunk_handle_services());
         cache = ChunkyResourceFile::PcrfNewIndex(source.index, source.file, *mm_native_archive_file_blocks(),
                                                 nativePath, 1024);
         mm_native_archive_source_clear(&source);
         CHECK(ReadResourceName(typed, type, root, &name) && name.FEqual(&authored));
+        auto legacy = static_cast<PGenericHQ>(mm_resource_cache_fetch_owned_chunk(
+            typed, type, glyph, GenericHQ::FReadGhq, BaseCacheableObject::ObjectServices()));
+        CHECK(legacy && CbOfHq(legacy->hq) == static_cast<LegacyLong>(stored.size()));
+        const auto match = !std::memcmp(PvLockHq(legacy->hq), stored.data(), stored.size());
+        UnlockHq(legacy->hq);
+        CHECK(match);
+        ReleasePpo(&legacy);
         mm_resource_cache_release(typed);
     }
     else

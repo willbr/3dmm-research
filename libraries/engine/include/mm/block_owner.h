@@ -50,9 +50,9 @@ extern "C"
      * zero-length file blocks retain their existing file. Failure leaves out intact. */
     int mm_owned_block_materialize(MMOwnedBlock *, int packed_ok, MMBlockFile *out);
     int mm_owned_block_take_handle(MMOwnedBlock *, int packed_ok, void **out, int *shrink_failed);
-    typedef int (*MMBlockTransform)(void *context, void **handle);
     /* Encoding/decoding commit returned handles and release prior files in C.
-     * Transform success consumes/replaces its handle; failure preserves it. */
+     * Transform success consumes/replaces its handle; failure preserves it.
+     * A null unpack transform uses the handle provider's default decoder. */
     int mm_owned_block_code(MMOwnedBlock *, int pack, void *context, MMBlockTransform,
                                   int *shrink_failed);
     /* Decode in place, then borrow the owner and I/O descriptor for exact reads.

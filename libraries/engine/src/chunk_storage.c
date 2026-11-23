@@ -1,6 +1,7 @@
 /* Chunk storage policy converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_storage.h"
+#include "mm/handle_memory.h"
 #include "mm/codec.h"
 #include <stdlib.h>
 
@@ -337,6 +338,11 @@ int mm_chunk_patch_payload(const MMArchiveWriter *writer, void *archive, MMU32 t
     return status;
 }
 
+static int can_decode(const MMChunkPayloadServices *s)
+{
+    return s->decode || (s->handles && s->handles->decode);
+}
+
 static int visit_payload(const MMChunkPayloadServices *s, void *archive, MMU32 type, MMU32 number,
                           int decode_payload, MMReadReceiver receive, void *context, int *result)
 {
@@ -344,7 +350,7 @@ static int visit_payload(const MMChunkPayloadServices *s, void *archive, MMU32 t
     MMBlockIO io;
     MMReadStream stream;
     int opened, status = MM_CHUNK_BAD_FILE;
-    if (!s || !s->locate || (decode_payload && !s->decode) || !archive || !receive || !result ||
+    if (!s || !s->locate || (decode_payload && !can_decode(s)) || !archive || !receive || !result ||
         mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
         return MM_CHUNK_BAD_FILE;
     opened = mm_chunk_payload_bind_block(s, archive, type, number, &block);
@@ -396,7 +402,7 @@ int mm_chunk_read_stored(const MMChunkPayloadServices *s, void *archive, MMU32 t
 
 int mm_chunk_payload_cache_init(MMChunkPayloadCache *cache, const MMChunkPayloadServices *s)
 {
-    if (!cache || !s || !s->locate || !s->decode ||
+    if (!cache || !s || !s->locate || !can_decode(s) ||
         mm_owned_block_init(&cache->block, s->handles, s->files) != MM_DATA_OK)
         return MM_CHUNK_PAYLOAD_INVALID;
     cache->services = s;
@@ -486,6 +492,70 @@ int mm_chunk_packed_decode(const void *input, MMU32 bytes, void *output, MMU32 c
     MMPackedDecoder decoder = {NULL, find_codec, decode};
     decoder.context = &decoder;
     return mm_packed_decode(&decoder, input, bytes, output, capacity, written);
+}
+
+typedef union ChunkHandlePrefix
+{
+    MMHandleState state;
+    void *pointer;
+    double scalar;
+} ChunkHandlePrefix;
+
+static const MMHandleLayout handle_layout = {sizeof(ChunkHandlePrefix), MM_STORAGE_LIMIT, 0, 0, 0};
+
+static int allocate_handle(void *context, MMU32 bytes, void **out)
+{
+    (void)context;
+    return mm_handle_allocate(&handle_layout, NULL, out, bytes, 0, 0);
+}
+
+static void release_handle(void *context, void *handle)
+{
+    (void)context;
+    mm_handle_free(&handle_layout, NULL, &handle);
+}
+
+static MMU32 handle_size(void *context, void *handle)
+{
+    (void)context;
+    return mm_handle_size(&handle_layout, NULL, handle);
+}
+
+static void *lock_handle(void *context, void *handle)
+{
+    (void)context;
+    return mm_handle_lock(&handle_layout, NULL, handle);
+}
+
+static void unlock_handle(void *context, void *handle)
+{
+    (void)context;
+    mm_handle_unlock(&handle_layout, NULL, handle);
+}
+
+static int resize_handle(void *context, void **handle, MMU32 bytes)
+{
+    (void)context;
+    return mm_handle_resize(&handle_layout, NULL, handle, bytes, 0, 0);
+}
+
+static int decode_handle_bytes(void *context, const void *input, MMU32 bytes, void *out, MMU32 capacity, MMI32 *written)
+{
+    (void)context;
+    return mm_chunk_packed_decode(input, bytes, out, capacity, written) == MM_DATA_OK;
+}
+
+static int decode_handle(void *context, void **owned)
+{
+    (void)context;
+    return mm_handle_code(mm_chunk_handle_services(), owned, NULL, decode_handle_bytes, NULL) == MM_DATA_OK;
+}
+
+const MMHandleServices *mm_chunk_handle_services(void)
+{
+    static const MMHandleServices handles = {NULL, allocate_handle, release_handle, handle_size,
+                                             lock_handle, unlock_handle, resize_handle, decode_handle};
+    return &handles;
 }
 
 int mm_chunk_stored_slice(const MMReadStream *stream, const MMChunkHeader *header, const MMChunkEntry *entry,

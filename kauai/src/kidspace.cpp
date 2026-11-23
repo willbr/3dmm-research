@@ -64,7 +64,7 @@ template <class Record>
 static bool ReadKidspaceRecord(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number, Record &record)
 {
     int read;
-    return mm_resource_cache_visit_payload(cache, type, number, KauaiDecodeBlockHandle, nullptr,
+    return mm_resource_cache_visit_payload(cache, type, number, nullptr, nullptr,
         [](void *out, const MMReadStream *stream) -> int {
             return stream->length == sizeof(Record) && mm_read_exact(stream, 0, out, sizeof(Record));
         }, &record, &read) == MM_CHUNK_OK && read;
@@ -2711,7 +2711,7 @@ bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, MMR
         byte window;
     } video = {&stn, 0};
     int read;
-    if (mm_resource_cache_visit_payload(cache, ctg, cno, KauaiDecodeBlockHandle, nullptr,
+    if (mm_resource_cache_visit_payload(cache, ctg, cno, nullptr, nullptr,
         [](void *out, const MMReadStream *stream) -> int {
             auto video = static_cast<VideoRecord *>(out);
             byte wire[kcbMaxDataStn + 1];

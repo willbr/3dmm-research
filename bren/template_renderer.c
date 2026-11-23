@@ -33,15 +33,12 @@ static int read_action_names(void *context, const MMReadStream *stream)
 int mm_brender_text_action_names_load(MMResourceCache *cache, MMU32 number, int encoding, MMStringConvert convert,
                                      void *context)
 {
-    MMTextResourceServices services = {0};
     MMTextNamesRead request;
     int read;
     request.encoding = encoding;
     request.convert = convert;
     request.context = context;
-    mm_kauai_text_read_services(&services);
-    return mm_resource_cache_visit_payload(cache, 0x47535420UL, number, services.payloads->decode,
-                                           services.payloads->decode_context, read_action_names, &request,
+    return mm_resource_cache_visit_payload(cache, 0x47535420UL, number, NULL, NULL, read_action_names, &request,
                                            &read) == MM_CHUNK_OK && read;
 }
 

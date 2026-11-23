@@ -195,6 +195,7 @@ static void services(Host *h, MMBlockFileServices *f, MMHandleServices *m, MMSto
     m->lock = handle_lock;
     m->unlock = handle_unlock;
     m->resize = handle_resize;
+    m->decode = NULL;
     a->context = h;
     a->resize = buffer_resize;
     a->release = buffer_release;

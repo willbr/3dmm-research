@@ -23,7 +23,7 @@ struct DepthWriteContext
 const MMDepthOwnerHost &DepthHost()
 {
     static const MMDepthOwnerHost host = {
-        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), nullptr, KauaiDecodeBlockHandle,
+        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), nullptr, nullptr,
         [](void *) { Warn("Couldn't load ZBMP"); },
 #ifdef DEBUG
         [](MMDepthOwner *owner) {

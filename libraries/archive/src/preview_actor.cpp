@@ -272,7 +272,7 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
 {
     Host host = {this};
     const auto services = host.Services();
-    return host.Result(mm_brender_preview_actor_replace_events(&core, source, KauaiDecodeBlockHandle, &services));
+    return host.Result(mm_brender_preview_actor_replace_events(&core, source, nullptr, &services));
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {

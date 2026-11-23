@@ -35,7 +35,7 @@ const MMBRenderBackgroundHost *mm_kauai_background_host(void)
          nullptr
 #endif
         },
-        KauaiDecodeBlockHandle, cacheBytes,
+        nullptr, cacheBytes,
         [](void **object, MMI32 *bytes) {
             TrashVar(object);
             TrashVar(bytes);

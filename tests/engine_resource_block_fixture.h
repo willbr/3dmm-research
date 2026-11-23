@@ -65,7 +65,7 @@ static void resource_block_init(ResourceTestBlock *block, void *context,
 {
     static const MMHandleServices handles = {
         NULL, resource_handle_allocate, resource_handle_release, resource_handle_size,
-        resource_handle_lock, resource_handle_unlock, resource_handle_resize
+        resource_handle_lock, resource_handle_unlock, resource_handle_resize, NULL
     };
     block->files.context = context;
     block->files.retain = resource_file_reference;

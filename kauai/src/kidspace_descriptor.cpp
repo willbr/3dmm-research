@@ -21,7 +21,7 @@ void MarkKidspaceDescriptor(MMKidspaceOwner *owner)
 static int ReadKidspaceDescriptor(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
     static const MMKidspaceOwnerHost host = {
-        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), KauaiDecodeBlockHandle, nullptr,
+        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), nullptr, nullptr,
 #ifdef DEBUG
         MarkKidspaceDescriptor
 #else

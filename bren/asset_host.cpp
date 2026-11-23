@@ -34,7 +34,7 @@ const MMActionResourceHost *mm_kauai_action_host(void)
 {
     static const auto tables = Group::CollectionAllocator();
     static const MMActionResourceHost host = {
-        KauaiResourceObjectAllocator(), &tables, KauaiDecodeBlockHandle,
+        KauaiResourceObjectAllocator(), &tables, nullptr,
 #ifdef DEBUG
         [](void *memory) { if (memory) MarkPv(memory); },
         [](void *) { Assert(false, "bad ActionChunkOnFile"); },
@@ -50,7 +50,7 @@ void mm_kauai_template_read_services(MMTemplateCreateServices *s)
 {
     s->host_big_endian = native_big_endian();
     s->debug_checks = DebugShip(1, 0);
-    s->decode = KauaiDecodeBlockHandle;
+    s->decode = nullptr;
     s->table_allocator = Group::CollectionAllocator();
     s->object_size = [](void *, int text) -> MMI32 {
         // Preserve cache charges for the former native object layouts.
@@ -159,7 +159,7 @@ void mm_kauai_template_mark(MMTemplateOwner *owner)
 const MMFontOwnerHost *mm_kauai_font_host(void)
 {
     static const MMFontOwnerHost host = {
-        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), KauaiDecodeBlockHandle,
+        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), nullptr,
 #ifdef DEBUG
         [](void *memory) { MarkPv(memory); },
 #else
@@ -186,7 +186,6 @@ const MMModelOwnerHost *mm_kauai_model_host(void)
         MMModelServices s = {};
         mm_brender_asset_model_bind(&s);
         s.system = koskCur;
-        s.decode = KauaiDecodeBlockHandle;
         s.allocator = KauaiCopyAllocator();
         s.invalidate = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
         s.diagnostic = [](void *, int code) {
@@ -342,7 +341,6 @@ const MMMaterialOwnerHost *mm_kauai_material_host(void)
                 break;
             }
         };
-        s.decode = KauaiDecodeBlockHandle;
         s.allocate = [](void *, MMI32 bytes, void **out) -> int { return FAllocPv(out, bytes, fmemClear, mprNormal); };
         s.free_memory = [](void *, void **p) { FreePpv(p); };
         return s;

@@ -15,7 +15,6 @@ const MMSoundResourceHost *mm_kauai_movie_sound_host(void)
         s.host_big_endian = *reinterpret_cast<const unsigned char *>(&one) == 0;
         s.system = koskCur;
         s.invalidate_output = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
-        s.decode = KauaiDecodeBlockHandle;
         s.graph = [](void *, void *file, MMMovieSessionGraph *out) {
             *out = mm_movie_owner_graph(static_cast<PChunkyFile>(file)->ReadOwner());
         };

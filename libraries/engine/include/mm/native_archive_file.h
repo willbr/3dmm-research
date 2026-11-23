@@ -44,6 +44,7 @@ int mm_native_archive_source_open(MMNativeArchiveSource *, const MMNativePathCha
                                   int expanded, MMU32 max_name_bytes);
 void mm_native_archive_source_clear(MMNativeArchiveSource *);
 int mm_native_archive_source_reader(const MMNativeArchiveSource *, const MMArchiveReaderOptions *, MMArchiveReader **);
+/* A profile without handle services uses the C archive handle provider. */
 MMResourceCache *mm_native_archive_source_cache(const MMNativeArchiveSource *, MMI32 budget,
                                                  const MMResourceServices *,
                                                  const MMStorageAllocator *owner, const MMStorageAllocator *storage);

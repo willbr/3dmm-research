@@ -279,13 +279,16 @@ static int descriptor(const MMTextResourceSource *source, MMU32 type, MMU32 numb
 {
     const MMChunkPayloadServices *payloads = s->payloads;
     const MMChunkAccess chunks = source->cache ? mm_resource_cache_chunks(source->cache) : source->chunks;
+    const int use_cache_provider = source->cache && !payloads->decode;
+    const MMHandleServices *handles = use_cache_provider ? source->cache->services.handles : payloads->handles;
+    const MMBlockFileServices *files = use_cache_provider ? source->cache->services.block_files : payloads->files;
     MMOwnedBlock block;
     MMBlockIO io;
     MMU32 child;
     unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES];
     int found, ok;
     if (mm_chunk_link_number(&chunks, type, number, 0, MM_TDT, &child) != MM_CHUNK_OK ||
-        mm_owned_block_init(&block, payloads->handles, payloads->files) != MM_DATA_OK)
+        mm_owned_block_init(&block, handles, files) != MM_DATA_OK)
         return 0;
     found = source->cache ? mm_resource_cache_read_block(source->cache, MM_TDT, child, &block) == MM_CHUNK_OK :
                            mm_chunk_payload_bind_block(payloads, source->archive, MM_TDT, child, &block) ==

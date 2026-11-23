@@ -24,7 +24,8 @@ int ResizeHandle(void *, void **handle, MMU32 bytes) { return FResizePhq(handle,
 }
 const MMHandleServices *KauaiHandleServices()
 {
-    static const MMHandleServices services = {nullptr, AllocateHandle, ReleaseHandle, HandleSize, LockHandle, UnlockHandle, ResizeHandle};
+    static const MMHandleServices services = {nullptr, AllocateHandle, ReleaseHandle, HandleSize, LockHandle,
+                                             UnlockHandle, ResizeHandle, KauaiDecodeBlockHandle};
     return &services;
 }
 namespace {

@@ -195,7 +195,6 @@ MMResourceCache *NewTypedCache(const MMResourceSource &source, const MMResourceS
 MMResourceServices NativeSourceCacheServices()
 {
     auto services = TypedCacheServices({});
-    services.handles = KauaiHandleServices();
     services.copy = ResourceCopyProfile(false);
     return services;
 }
@@ -298,8 +297,8 @@ MMResourceCache *OpenWorkingResourceCache(Filename *name, bool create, MMI32 bud
 MMResourceCache *OpenForestResourceCache(MMResourceCache *source, MMU32 type, MMU32 number)
 {
     const auto files = KauaiNamedArchiveServices();
-    const auto archive = mm_private_archive_open_resource_forest(source, type, number, KauaiDecodeBlockHandle,
-                                                                 nullptr, files->io, files->blocks, files->profile);
+    const auto archive = mm_private_archive_open_resource_forest(source, type, number, nullptr, nullptr,
+                                                                 files->io, files->blocks, files->profile);
     const auto cache = NewTypedPrivateCache(archive, 0);
     mm_private_archive_close(archive);
     return cache;
@@ -341,7 +340,9 @@ MMResourceCache *OpenSourceResourceCache(Filename *name, MMI32 budget, bool medi
             return OpenNativeArchiveSource(static_cast<SourcePath *>(p)->filename, out);
         }
     };
-    const auto services = NativeSourceCacheServices();
+    auto services = NativeSourceCacheServices();
+    // Studio source tags can serve legacy readers and registered codecs.
+    services.handles = KauaiHandleServices();
     const bool removable = !media && (name->Grfvk() & (fvkCD | fvkFloppy | fvkRemovable));
     return mm_native_archive_open_cache(&host, media, removable, budget, &services,
                                         KauaiResourceObjectAllocator(), KauaiCopyAllocator());
@@ -700,8 +701,25 @@ int GenericHQ::FReadGhq(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, vo
 
     HQ handle = nullptr;
     int shrinkFailed = 0;
-    if (mm_owned_block_code(block, 0, nullptr, KauaiDecodeBlockHandle, nullptr) != MM_DATA_OK ||
-        mm_owned_block_take_handle(block, 0, &handle, &shrinkFailed) != MM_DATA_OK || !handle)
+    if (mm_owned_block_code(block, 0, nullptr, nullptr, nullptr) == MM_DATA_OK)
+    {
+        if (block->handles == KauaiHandleServices())
+            mm_owned_block_take_handle(block, 0, &handle, &shrinkFailed);
+        else
+        {
+            MMBlockIO io;
+            if (mm_owned_block_io(block, &io) == MM_DATA_OK &&
+                FAllocHq(&handle, io.view.length, fmemNil, mprNormal))
+            {
+                void *data = PvLockHq(handle);
+                const int status = mm_block_read(&io, 0, data, io.view.length, 0);
+                UnlockHq(handle);
+                if (status != MM_DATA_OK)
+                    FreePhq(&handle);
+            }
+        }
+    }
+    if (!handle)
     {
         TrashVar(bytes);
         TrashVar(out);

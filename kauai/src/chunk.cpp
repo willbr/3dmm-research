@@ -1165,7 +1165,7 @@ const MMChunkPayloadServices *KauaiChunkPayloadServices()
             return static_cast<PChunkyFile>(archive)->FFindBlockFile(type, number, file, packed);
         },
         nullptr,
-        KauaiDecodeBlockHandle,
+        nullptr,
     };
     return &services;
 }

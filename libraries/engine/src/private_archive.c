@@ -3,7 +3,6 @@
 #include "mm/chunk_copy.h"
 #include "mm/chunk_forest.h"
 #include "mm/file_owner.h"
-#include "mm/handle_memory.h"
 #include "mm/reference.h"
 #include "mm/text_resource.h"
 #include "mm/string_wire.h"
@@ -21,67 +20,6 @@ struct MMPrivateArchive
     int writable, editor_ready;
     MMChunkLink link;
 };
-
-typedef union HandlePrefix
-{
-    MMHandleState state;
-    void *pointer;
-    double scalar;
-} HandlePrefix;
-
-static const MMHandleLayout handle_layout = {sizeof(HandlePrefix), MM_STORAGE_LIMIT, 0, 0, 0};
-
-static int allocate_handle(void *context, MMU32 bytes, void **out)
-{
-    (void)context;
-    return mm_handle_allocate(&handle_layout, NULL, out, bytes, 0, 0);
-}
-
-static void release_handle(void *context, void *handle)
-{
-    (void)context;
-    mm_handle_free(&handle_layout, NULL, &handle);
-}
-
-static MMU32 handle_size(void *context, void *handle)
-{
-    (void)context;
-    return mm_handle_size(&handle_layout, NULL, handle);
-}
-
-static void *lock_handle(void *context, void *handle)
-{
-    (void)context;
-    return mm_handle_lock(&handle_layout, NULL, handle);
-}
-
-static void unlock_handle(void *context, void *handle)
-{
-    (void)context;
-    mm_handle_unlock(&handle_layout, NULL, handle);
-}
-
-static int resize_handle(void *context, void **handle, MMU32 bytes)
-{
-    (void)context;
-    return mm_handle_resize(&handle_layout, NULL, handle, bytes, 0, 0);
-}
-
-static const MMHandleServices handles = {NULL, allocate_handle, release_handle, handle_size,
-                                         lock_handle, unlock_handle, resize_handle};
-
-static int decode_bytes(void *context, const void *input, MMU32 bytes, void *output,
-                        MMU32 capacity, MMI32 *written)
-{
-    (void)context;
-    return mm_chunk_packed_decode(input, bytes, output, capacity, written) == MM_DATA_OK;
-}
-
-static int decode_handle(void *context, void **handle)
-{
-    (void)context;
-    return mm_handle_code(&handles, handle, NULL, decode_bytes, NULL) == MM_DATA_OK;
-}
 
 MMChunkOwnerRead *mm_private_archive_reader(MMPrivateArchive *archive)
 {
@@ -240,7 +178,7 @@ static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *
                                           const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
 {
     MMPrivateArchive *archive;
-    MMChunkPayloadServices payloads = {&handles, NULL, NULL, NULL, decode_handle};
+    MMChunkPayloadServices payloads = {0};
     if (!file || !io || !io->release)
         return NULL;
     if (!profile || (profile->unit != 1 && profile->unit != 2) || !profile->convert || !io->read_stream || !blocks)
@@ -255,6 +193,7 @@ static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *
         return NULL;
     }
     archive->profile = *profile;
+    payloads.handles = mm_chunk_handle_services();
     payloads.files = blocks;
     archive->backing = mm_chunk_archive_new(profile->expanded, NULL, io, &payloads, max_title_bytes(archive));
     if (!archive->backing)

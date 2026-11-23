@@ -46,7 +46,7 @@ int Cursor::FReadCurs(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void
 #endif
     MMBlockIO io;
     MMReadStream stream;
-    if (mm_owned_block_code(block, 0, nullptr, KauaiDecodeBlockHandle, nullptr) != MM_DATA_OK ||
+    if (mm_owned_block_code(block, 0, nullptr, nullptr, nullptr) != MM_DATA_OK ||
         mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK)
         return fFalse;
 #ifdef KAUAI_SDL3

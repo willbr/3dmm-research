@@ -28,7 +28,7 @@ PStringTable_GST StudioResources::ReadStringTable(MMResourceCache *cache, ChunkN
 {
     struct Table { PStringTable_GST table; short order; } result = {nullptr, kboCur};
     int read;
-    mm_resource_cache_visit_payload(cache, 'GST ', number, KauaiDecodeBlockHandle, nullptr,
+    mm_resource_cache_visit_payload(cache, 'GST ', number, nullptr, nullptr,
         [](void *out, const MMReadStream *stream) -> int {
             auto result = static_cast<Table *>(out);
             result->table = StringTable_GST::PgstReadStream(*stream, &result->order, nullptr);
@@ -41,7 +41,7 @@ PDynamicArray StudioResources::ReadPalette(MMResourceCache *cache, ChunkNumber n
 {
     PDynamicArray palette = nullptr;
     int read;
-    mm_resource_cache_visit_payload(cache, 'GLCR', number, KauaiDecodeBlockHandle, nullptr,
+    mm_resource_cache_visit_payload(cache, 'GLCR', number, nullptr, nullptr,
         [](void *out, const MMReadStream *stream) -> int {
             auto &palette = *static_cast<PDynamicArray *>(out);
             palette = DynamicArray::PglReadStream(*stream, nullptr, nullptr);

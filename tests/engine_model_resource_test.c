@@ -147,7 +147,7 @@ static int decode(void *p, void **handle)
 static void model_block(MMOwnedBlock *block, Fixture *f, int packed)
 {
     static const MMHandleServices handles = {
-        NULL, handle_allocate, handle_release, handle_size, handle_lock, handle_unlock, handle_resize
+        NULL, handle_allocate, handle_release, handle_size, handle_lock, handle_unlock, handle_resize, NULL
     };
     static const MMBlockFileServices files = {NULL, retain_file, release_file, temp_file, read_bytes, write_bytes};
     MMBlockFile file;

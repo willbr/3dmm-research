@@ -6,7 +6,7 @@
 static inline const MMScriptHost &ScriptHost()
 {
     static const MMScriptHost host = {
-        nullptr, KauaiDecodeBlockHandle, KauaiResourceObjectAllocator(), KauaiCopyAllocator(), koskCur, sizeof(achar),
+        nullptr, nullptr, KauaiResourceObjectAllocator(), KauaiCopyAllocator(), koskCur, sizeof(achar),
         [](void *, const void *input, size_t bytes, int encoding, void *out, size_t capacity) -> size_t {
             return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(out), capacity);
         },

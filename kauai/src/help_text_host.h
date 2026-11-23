@@ -167,7 +167,7 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
                 } header = {out, bytes};
                 int read;
                 return mm_resource_cache_visit_payload(static_cast<MMResourceCache *>(f), t, n,
-                    KauaiDecodeBlockHandle, nullptr, [](void *context, const MMReadStream *stream) -> int {
+                    nullptr, nullptr, [](void *context, const MMReadStream *stream) -> int {
                         auto header = static_cast<Header *>(context);
                         *header->bytes = stream->length;
                         return (stream->length != 28 && stream->length != 36) ||

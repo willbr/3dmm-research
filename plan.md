@@ -2349,6 +2349,10 @@ including the writer for legacy counted names.
 The shared C resource cache creates typed siblings and decodes names directly
 into the counted values used by template, background, and sound readers.
 Legacy allocation and diagnostics remain host services.
+Stored preview caches and native private archives use the shared C heap
+handles and KCDC/KCD2 decoder. Resource readers use the decoder paired with
+the handle owner. Studio's legacy source tags retain the registered codec
+manager through the Kauai handle provider.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining
 body, template, resource and object dependencies by the operation that still

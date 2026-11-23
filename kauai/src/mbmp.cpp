@@ -36,7 +36,7 @@ const MMMaskedOwnerHost &MaskedHost()
                  Bug("Wrong sized block");
              }
          },
-         KauaiDecodeBlockHandle,
+         nullptr,
          [](void *, void *filename, unsigned char transparent, MMMaskedSource *out) -> int {
              byte *pixels = nullptr;
              LegacyLong width, height;

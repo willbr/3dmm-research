@@ -223,9 +223,8 @@ static int read_shade(void *context, const MMReadStream *stream)
 
 int mm_brender_material_shade_chunk(MMResourceCache *cache, MMU32 type, MMU32 number)
 {
-    const MMChunkPayloadServices *payloads = mm_kauai_texture_host()->services->payloads;
     int read;
-    return mm_resource_cache_visit_payload(cache, type, number, payloads->decode, payloads->decode_context,
+    return mm_resource_cache_visit_payload(cache, type, number, NULL, NULL,
                                            read_shade, NULL, &read) == MM_CHUNK_OK && read;
 }
 

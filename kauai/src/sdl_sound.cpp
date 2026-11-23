@@ -29,7 +29,6 @@ class SDLWave : public SDLWave_PAR
         constexpr auto cacheBytes = sizeof(SDLWave) - sizeof(MMAudioSample *) + sizeof(std::shared_ptr<void>);
         MMSoundPayloadServices s = {};
         s.object_bytes = cacheBytes;
-        s.decode_block = KauaiDecodeBlockHandle;
         s.create = [](void *) -> void * { return NewObj SDLWave; };
         s.release = [](void *, void *object) { static_cast<SDLWave *>(object)->Release(); };
         s.decode = [](void *, void *object, const void *encoded, MMU32 bytes) -> int {

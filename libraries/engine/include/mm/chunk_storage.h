@@ -180,6 +180,8 @@ extern "C"
     MMU32 mm_chunk_packed_decoded_length(const unsigned char header[8]);
     /* Decode the common KCDC/KCD2 envelope or query its decoded size. */
     int mm_chunk_packed_decode(const void *, MMU32 bytes, void *output, MMU32 capacity, MMI32 *written);
+    /* C heap handle owner with the built-in KCDC and KCD2 decoder. */
+    const MMHandleServices *mm_chunk_handle_services(void);
     /* Open a stored extent as a borrowed slice or an owned decoded buffer.
      * Zero exact_size allows any decoded length. max_packed_bytes bounds both
      * the stored and decoded sizes of packed chunks. Keep the output at a

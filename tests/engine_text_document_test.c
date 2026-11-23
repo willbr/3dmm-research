@@ -189,7 +189,7 @@ static void *lock_handle(void *v, void *p)
     return NULL;
 }
 static const MMHandleServices handles = {
-    NULL, allocate_handle, unexpected_handle, size_handle, lock_handle, unexpected_handle, resize_handle
+    NULL, allocate_handle, unexpected_handle, size_handle, lock_handle, unexpected_handle, resize_handle, NULL
 };
 static MMI32 length(void *v, void *p)
 {

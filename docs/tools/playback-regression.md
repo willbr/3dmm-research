@@ -25534,3 +25534,36 @@ cue, and the first 400 ms of embedded MIDI matched the retained port samples.
 
 Evidence is under `tmp/c89-resource-cache`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 packed resource handle ownership (23 November 2026)
+
+The shared block owner uses the decoder paired with its handle provider
+when the caller leaves the decoder unspecified. Stored preview caches and
+native private archives use a C heap provider with the built-in KCDC and
+KCD2 decoder. Studio's legacy source tags keep their registered Kauai
+codecs through the HQ provider. A GenericHQ request copies a payload from
+the C provider into an HQ before publishing the legacy object.
+
+The standalone block fixture exercises both built-in decoders. It verifies
+explicit decoder priority and checks that a malformed envelope leaves the
+packed file reference intact. Successful decoding releases that reference
+and yields the expected bytes. The native cache fixture reads a packed
+stored resource through the GenericHQ facade and checks the resulting bytes.
+
+SDL and classic Studio rebuilt. The 228 selected native tests, 35 standalone
+engine checks, and 23 strict C89 checks passed. Clean links resolved MSVC
+incremental-link failures in several native Debug executables. The frozen
+cache trace, native and SDL save traces, eight VMM outputs, ten preview
+fingerprints, x86 source traces, and headless Marcus startup canvas matched
+their baselines. The external core, archive, and preview consumers passed.
+
+Fresh suite `20261123T201600Z-6d6fa1f3` completed eight captures and replay
+suite `20261123T201723Z-305ccba1` completed four. Both verified their input
+hashes. Studio and Marcus matched all 60 Actor Audio frame positions and
+camera indices and 59 of 60 seek canvases against retained retail and V3DMM.
+Both matched all 60 seek canvases and scene states against the prior port
+build. The first 100 ms of all four Actor Audio spans, the embedded WAVE
+cue, and the first 400 ms of embedded MIDI matched the retained port samples.
+
+Evidence is under `tmp/c89-packed-resources`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

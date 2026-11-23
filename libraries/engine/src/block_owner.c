@@ -208,7 +208,14 @@ int mm_owned_block_code(MMOwnedBlock *b, int pack, void *context, MMBlockTransfo
     MMBlockDecoder codec;
     int result;
     void *prior_file;
-    if (mm_owned_block_check(b) != OK || !code)
+    if (mm_owned_block_check(b) != OK)
+        return BAD;
+    if (!pack && !code)
+    {
+        code = b->handles->decode;
+        context = b->handles->context;
+    }
+    if (!code)
         return BAD;
     call.owner = b;
     call.context = context;

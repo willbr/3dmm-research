@@ -1,5 +1,6 @@
 #include "mm/archive_reader.h"
 #include "mm/block_owner.h"
+#include "mm/codec.h"
 #include "mm/movie_session.h"
 #include "mm/scene_data.h"
 #include "mm/text.h"
@@ -152,6 +153,7 @@ static void services(Host *h, MMHandleServices *handles, MMBlockFileServices *fi
     handles->lock = lock;
     handles->unlock = unlock;
     handles->resize = resize;
+    handles->decode = NULL;
     files->context = h;
     files->retain = retain_file;
     files->release = release_file;
@@ -898,11 +900,62 @@ static void movie_admission(void)
     CHECK(!host.files);
 }
 
+static int reject_decode(void *context, void **owned)
+{
+    (void)context;
+    (void)owned;
+    return 0;
+}
+
+static void builtin_decoding(void)
+{
+    static const char tags[2][4] = {{'K', 'C', 'D', 'C'}, {'K', 'C', 'D', '2'}};
+    static const MMI32 formats[2] = {MM_CODEC_KCDC, MM_CODEC_KCD2};
+    const MMHandleServices *builtin = mm_chunk_handle_services();
+    Host host = {0};
+    MMHandleServices unused;
+    MMBlockFileServices files;
+    MMOwnedBlock block;
+    MMBlockFile extent;
+    MMBlockIO io;
+    MMReadStream stream;
+    unsigned char plain[256], decoded[256], packet[264] = {0};
+    MMI32 encoded;
+    int i;
+    services(&host, &unused, &files);
+    CHECK(mm_owned_block_init(&block, builtin, &files) == MM_DATA_OK);
+    memset(plain, 'Q', sizeof(plain));
+    packet[6] = 1;
+    for (i = 0; i < 2; ++i)
+    {
+        memcpy(packet, tags[i], 4);
+        CHECK(mm_codec_encode(formats[i], plain, sizeof(plain), packet + 8, sizeof(packet) - 8,
+                              &encoded, NULL) == MM_DATA_OK);
+        extent.file = create_temp(&host);
+        extent.offset = 0;
+        extent.length = (MMU32)encoded + 8;
+        CHECK(write_file(&host, extent.file, 0, packet, extent.length));
+        CHECK(mm_owned_block_set_file(&block, &extent, 1) == MM_DATA_OK);
+        release_file(&host, extent.file);
+        CHECK(mm_owned_block_code(&block, 0, NULL, reject_decode, NULL) == MM_DATA_CODEC &&
+              block.view.packed && block.file == extent.file && host.files == 1);
+        CHECK(write_file(&host, extent.file, 0, "?", 1));
+        CHECK(mm_owned_block_code(&block, 0, NULL, NULL, NULL) == MM_DATA_CODEC &&
+              block.view.packed && block.file == extent.file && host.files == 1);
+        CHECK(write_file(&host, extent.file, 0, packet, 1));
+        CHECK(mm_owned_block_decoded_stream(&block, NULL, NULL, &io, &stream) == MM_DATA_OK &&
+              !block.file && !host.files && !block.view.packed && stream.length == sizeof(decoded));
+        CHECK(mm_read_exact(&stream, 0, decoded, sizeof(decoded)) && !memcmp(decoded, plain, sizeof(plain)));
+        CHECK(mm_owned_block_clear(&block) == MM_DATA_OK);
+    }
+}
+
 int main(void)
 {
     golden();
     failures();
     coding();
+    builtin_decoding();
     payloads();
     payload_cache();
     archive_directory();

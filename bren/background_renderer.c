@@ -206,5 +206,5 @@ int mm_brender_background_select(MMBackgroundOwner *owner, MMU32 slot, const MMB
     services.diagnostic = mm_kauai_background_camera_diagnostic;
     mm_brender_background_lights_on(owner, world);
     return mm_background_select_cached(mm_background_owner_camera(owner), binding->cache, binding->number, slot,
-                                       mm_kauai_background_host()->decode, &services);
+                                       NULL, &services);
 }

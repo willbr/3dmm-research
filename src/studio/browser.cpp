@@ -1555,7 +1555,7 @@ bool BrowserContentList::_FAddGokdToThd(MMResourceCache *cache, long sid, const 
     AssertThis(0);
     AssertVarMem(cache);
     MMBrowserThumbnail entry;
-    if (!mm_browser_thumbnail_read(cache, child.cki.ctg, child.cki.cno, KauaiDecodeBlockHandle, &entry))
+    if (!mm_browser_thumbnail_read(cache, child.cki.ctg, child.cki.cno, nullptr, &entry))
         return fFalse;
 
     ThumbnailDescriptor thd{};
@@ -2934,7 +2934,7 @@ bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithu
                 [](void *context, MMU32 type, MMU32 number, MMU32) -> int {
                     const auto source = static_cast<Source *>(context);
                     MMBrowserThumbnail entry;
-                    if (!mm_browser_thumbnail_read(source->cache, type, number, KauaiDecodeBlockHandle, &entry))
+                    if (!mm_browser_thumbnail_read(source->cache, type, number, nullptr, &entry))
                         return fFalse;
                     if (!entry.has_graphic)
                     {

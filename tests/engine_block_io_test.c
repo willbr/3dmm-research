@@ -98,6 +98,7 @@ static MMHandleServices services(Host *h)
     result.lock = lock;
     result.unlock = unlock;
     result.resize = resize_handle;
+    result.decode = NULL;
     return result;
 }
 static int read_file(void *context, MMU32 offset, void *output, size_t n)

@@ -7,6 +7,7 @@
 extern "C"
 {
 #endif
+    typedef int (*MMBlockTransform)(void *context, void **handle);
     /* Opaque host handles. allocate/resize use NORMAL priority. Failed allocation
      * returns NULL; failed resize preserves the old handle and size. A successful
      * lock returns a stable pointer, including for a zero-byte handle. No re-entry. */
@@ -19,6 +20,8 @@ extern "C"
         void *(*lock)(void *, void *);
         void (*unlock)(void *, void *);
         int (*resize)(void *, void **, MMU32);
+        /* Optional default decoder for handles from this provider. */
+        MMBlockTransform decode;
     } MMHandleServices;
     /* Borrowed view. File callbacks take absolute physical offsets. Ordinary byte
      * reads/writes and memory copies must not overlap. File copies retain forward
