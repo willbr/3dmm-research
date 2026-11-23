@@ -7,7 +7,8 @@
 MarcusArchive MarcusOpenArchive(const std::filesystem::path &path, int mode)
 {
     const auto profile = KauaiPrivateArchiveProfile();
-    return MarcusArchive(marcus_archive_open(path.u8string().c_str(), mode, &profile), mm_private_archive_close);
+    return MarcusArchive(mm_native_private_archive_open_utf8(path.u8string().c_str(), mode, &profile),
+                         mm_private_archive_close);
 }
 
 int MarcusLoadAssetCatalog(MarcusAssetCatalog &catalog, MarcusAssetKind kind, const char *directory)

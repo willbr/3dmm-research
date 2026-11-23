@@ -122,6 +122,10 @@ void *mm_native_file_open(const char *path, const MMNativeOpenOptions *o)
     { close(fd); return NULL; }
     return file_handle(fd);
 }
+void *mm_native_file_open_utf8(const char *path, const MMNativeOpenOptions *o)
+{
+    return path && *path ? mm_native_file_open(path, o) : NULL;
+}
 void mm_native_file_close(void *h) { if (h) close(descriptor(h)); }
 int mm_native_file_flush(void *h)
 { int result; do { result = fsync(descriptor(h)); } while (result < 0 && errno == EINTR); return result == 0; }

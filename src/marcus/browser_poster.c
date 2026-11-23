@@ -15,7 +15,7 @@ static int text_encoding(int big_endian)
 #endif
 }
 
-static int open_archive(MarcusArchiveInput *archive, const char *path)
+static int open_archive(MMNativeArchiveInput *archive, const char *path)
 {
     const unsigned short order = 1;
     MMArchiveReaderOptions options = {0};
@@ -26,7 +26,7 @@ static int open_archive(MarcusArchiveInput *archive, const char *path)
     options.max_packed_bytes = 16UL * 1024UL * 1024UL;
     options.max_string_bytes = 1024UL * 1024UL;
     options.encoding = text_encoding(*(const unsigned char *)&order == 0);
-    return marcus_archive_input_open(archive, path, &options, expanded);
+    return mm_native_archive_input_open_utf8(archive, path, expanded, MM_CHUNK_NAME_WIRE_BYTES, &options);
 }
 
 static MMI32 convert_title(void *p, const void *input, MMU32 bytes, int encoding, void *output, MMU32 capacity)
@@ -110,7 +110,7 @@ void marcus_browser_poster(const char *movie, const char *resources, const MMTex
                           unsigned char *(*image)(void *, MMU32, MMU32))
 {
     enum { frames_per_second = 6 };
-    MarcusArchiveInput document = {0}, colours = {0};
+    MMNativeArchiveInput document = {0}, colours = {0};
     MMChunkAccess chunks;
     MMChunkEntry root, scene;
     MMChunkChild child, first_scene = {0};
@@ -178,6 +178,6 @@ void marcus_browser_poster(const char *movie, const char *resources, const MMTex
         mm_scene_thumbnail_poster(thumbnail, &preview);
     }
 done:
-    marcus_archive_input_close(&colours);
-    marcus_archive_input_close(&document);
+    mm_native_archive_input_close(&colours);
+    mm_native_archive_input_close(&document);
 }

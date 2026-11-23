@@ -42,149 +42,6 @@ int marcus_archive_stage_working_file(int kind, const char *stamp, int copy_sour
     return 0;
 }
 
-typedef struct ArchiveFile
-{
-    SDL_IOStream *stream;
-    size_t references;
-} ArchiveFile;
-
-static void retain(void *context, void *file)
-{
-    (void)context;
-    ++((ArchiveFile *)file)->references;
-}
-
-static void release(void *p)
-{
-    ArchiveFile *file = p;
-    if (--file->references == 0)
-    {
-        SDL_CloseIO(file->stream);
-        SDL_free(file);
-    }
-}
-
-static void release_block(void *context, void *file)
-{
-    (void)context;
-    release(file);
-}
-
-static void *create_temp(void *context)
-{
-    (void)context;
-    return NULL;
-}
-
-static int read_at(void *p, MMU32 offset, void *data, size_t bytes)
-{
-    SDL_IOStream *stream = ((ArchiveFile *)p)->stream;
-    return !bytes || (SDL_SeekIO(stream, offset, SDL_IO_SEEK_SET) == offset &&
-                      SDL_ReadIO(stream, data, bytes) == bytes);
-}
-
-static int write_at(void *p, MMU32 offset, const void *data, size_t bytes)
-{
-    SDL_IOStream *stream = ((ArchiveFile *)p)->stream;
-    return !bytes || (SDL_SeekIO(stream, offset, SDL_IO_SEEK_SET) == offset &&
-                      SDL_WriteIO(stream, data, bytes) == bytes &&
-                      (offset != 0 || SDL_FlushIO(stream)));
-}
-
-static MMU32 size(void *p)
-{
-    const Sint64 bytes = SDL_GetIOSize(((ArchiveFile *)p)->stream);
-    return bytes >= 0 && bytes <= 0x7fffffffL ? (MMU32)bytes : 0xffffffffUL;
-}
-
-static int extend(void *file, MMU32 bytes)
-{
-    const MMU32 end = size(file);
-    const unsigned char zero = 0;
-    return bytes == end || (bytes > end && write_at(file, bytes - 1, &zero, 1));
-}
-
-static MMReadStream read_stream(void *file)
-{
-    MMReadStream stream = {NULL, 0, read_at};
-    const MMU32 bytes = size(file);
-    stream.context = file;
-    if (bytes <= 0x7fffffffUL)
-        stream.length = bytes;
-    return stream;
-}
-
-static int read_block(void *context, void *file, MMU32 offset, void *data, size_t bytes)
-{
-    (void)context;
-    return read_at(file, offset, data, bytes);
-}
-
-static int write_block(void *context, void *file, MMU32 offset, const void *data, size_t bytes)
-{
-    (void)context;
-    return write_at(file, offset, data, bytes);
-}
-
-static ArchiveFile *open_file(const char *path, const char *mode)
-{
-    ArchiveFile *file = SDL_malloc(sizeof(*file));
-    if (!file)
-        return NULL;
-    file->stream = SDL_IOFromFile(path, mode);
-    if (!file->stream)
-    {
-        SDL_free(file);
-        return NULL;
-    }
-    file->references = 1;
-    return file;
-}
-
-MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *profile)
-{
-    static const MMChunkOwnerFileIO owner_io = {NULL, create_temp, read_stream, size, extend, NULL,
-                                                write_at, release, NULL, NULL, NULL, NULL, NULL};
-    static const MMBlockFileServices blocks = {NULL, retain, release_block, create_temp, read_block, write_block};
-    const char *open_mode = mode == MM_PRIVATE_ARCHIVE_READ ? "rb" : mode == MM_PRIVATE_ARCHIVE_EDIT ? "r+b" : "w+b";
-    ArchiveFile *file = open_file(path, open_mode);
-    return file ? mm_private_archive_open(file, mode, &owner_io, &blocks, profile) : NULL;
-}
-
-int marcus_archive_input_open(MarcusArchiveInput *input, const char *path, const MMArchiveReaderOptions *options,
-                               int expanded)
-{
-    const unsigned short order = 1;
-    MMChunkPolicy policy = {0};
-    MarcusArchiveInput next = {0};
-    MMReadStream stream;
-    int status;
-    if (!path || !*path || !(next.file = open_file(path, "rb")))
-        return MM_ARCHIVE_INVALID_PAYLOAD;
-    stream = read_stream(next.file);
-    policy.expanded_runtime = expanded;
-    policy.native_big_endian = *(const unsigned char *)&order == 0;
-    policy.max_name_bytes = MM_CHUNK_NAME_WIRE_BYTES;
-    status = mm_archive_reader_open_stream(&stream, &policy, options, &next.reader);
-    if (status != MM_ARCHIVE_READ_OK)
-    {
-        marcus_archive_input_close(&next);
-        return status;
-    }
-    marcus_archive_input_close(input);
-    *input = next;
-    return MM_ARCHIVE_READ_OK;
-}
-
-void marcus_archive_input_close(MarcusArchiveInput *input)
-{
-    mm_archive_reader_close(input->reader);
-    if (input->file)
-        release(input->file);
-    input->file = NULL;
-    input->reader = NULL;
-}
-
 static MMArchiveReaderOptions archive_options(const MMPrivateArchiveProfile *profile)
 {
     MMArchiveReaderOptions options = {0};
@@ -196,10 +53,10 @@ static MMArchiveReaderOptions archive_options(const MMPrivateArchiveProfile *pro
     return options;
 }
 
-int marcus_archive_input_open_profile(MarcusArchiveInput *input, const char *path, const MMPrivateArchiveProfile *profile)
+int marcus_archive_input_open_profile(MMNativeArchiveInput *input, const char *path, const MMPrivateArchiveProfile *profile)
 {
     const MMArchiveReaderOptions options = archive_options(profile);
-    return marcus_archive_input_open(input, path, &options, profile->expanded);
+    return mm_native_archive_input_open_utf8(input, path, profile->expanded, MM_CHUNK_NAME_WIRE_BYTES, &options);
 }
 
 typedef struct ArchiveName
@@ -519,14 +376,14 @@ MarcusArchiveClipboard *marcus_archive_copy_object(const char *movie, const char
     }
     mm_storage_init(&clipboard->sources, NULL);
     clipboard->frame = frame;
-    archives.source = marcus_archive_open(movie, MM_PRIVATE_ARCHIVE_READ, profile);
+    archives.source = mm_native_private_archive_open_utf8(movie, MM_PRIVATE_ARCHIVE_READ, profile);
     if (!archives.source)
         error->message = "Cannot open this file as a chunky archive.";
     else
         error->message = read_clipboard_sources(clipboard, archives.source, profile, text);
     if (!error->message)
     {
-        archives.destination = marcus_archive_open(candidate, MM_PRIVATE_ARCHIVE_CREATE, profile);
+        archives.destination = mm_native_private_archive_open_utf8(candidate, MM_PRIVATE_ARCHIVE_CREATE, profile);
         error->message = archives.destination ?
             copy_clipboard_track(clipboard, &archives, scene, object, creator, &error->actor) :
             "Cannot create the object clipboard.";
@@ -624,8 +481,8 @@ int marcus_archive_paste_object(const MarcusArchiveClipboard *clipboard, const c
     ActorArchives archives;
     int pasted = 0;
     memset(error, 0, sizeof(*error));
-    archives.source = marcus_archive_open(track, MM_PRIVATE_ARCHIVE_READ, profile);
-    archives.destination = marcus_archive_open(candidate, MM_PRIVATE_ARCHIVE_EDIT, profile);
+    archives.source = mm_native_private_archive_open_utf8(track, MM_PRIVATE_ARCHIVE_READ, profile);
+    archives.destination = mm_native_private_archive_open_utf8(candidate, MM_PRIVATE_ARCHIVE_EDIT, profile);
     if (!archives.source || !archives.destination)
         error->message = "Cannot open the movie or object working copy.";
     else
@@ -827,7 +684,7 @@ static int insert_props(const MMMovieArchiveEditor *editor, MMPrivateArchive *fi
     int result = MARCUS_MATERIALIZE_OK;
     if (!props->count)
         return result;
-    library = marcus_archive_open(templates, MM_PRIVATE_ARCHIVE_READ, profile);
+    library = mm_native_private_archive_open_utf8(templates, MM_PRIVATE_ARCHIVE_READ, profile);
     if (!library)
         return MARCUS_MATERIALIZE_LIBRARY;
     for (i = 0; i < props->count; ++i)
@@ -884,8 +741,8 @@ int marcus_archive_materialize(const char *path, int empty_movie, const char *te
                                const MarcusArchiveMovieEdits *edits, const MarcusArchiveDrafts *drafts,
                                const MMPrivateArchiveProfile *profile, MMU32 creator, MarcusArchiveMovieResult *out)
 {
-    MMPrivateArchive *file = marcus_archive_open(path, empty_movie ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_EDIT,
-                                                 profile);
+    MMPrivateArchive *file = mm_native_private_archive_open_utf8(path,
+        empty_movie ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_EDIT, profile);
     int result = MARCUS_MATERIALIZE_OPEN;
     memset(out, 0, sizeof(*out));
     if (file)
@@ -910,8 +767,8 @@ int marcus_archive_animate(const char *path, const char *track, const MMPrivateA
                            const MarcusArchiveDrafts *drafts,
                            MMU32 creator, MarcusArchiveAnimationResult *out)
 {
-    MMPrivateArchive *candidate = marcus_archive_open(path, MM_PRIVATE_ARCHIVE_EDIT, profile);
-    MMPrivateArchive *source = marcus_archive_open(track, MM_PRIVATE_ARCHIVE_READ, profile);
+    MMPrivateArchive *candidate = mm_native_private_archive_open_utf8(path, MM_PRIVATE_ARCHIVE_EDIT, profile);
+    MMPrivateArchive *source = mm_native_private_archive_open_utf8(track, MM_PRIVATE_ARCHIVE_READ, profile);
     MMActorArchiveAnimation request = *animation;
     ActorAppearance appearance = {0};
     int result = MARCUS_ARCHIVE_ANIMATION_OPEN;

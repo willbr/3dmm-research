@@ -46,6 +46,9 @@ typedef struct MMNativePathInfo { int directory, hidden, system, read_only, link
  * per-OS creation/sharing/symlink/root/temporary-directory policies. */
 void mm_native_open_options_init(MMNativeOpenOptions *);
 void *mm_native_file_open(const MMNativePathChar *, const MMNativeOpenOptions *);
+/* Windows opens a strict UTF-8 path through the wide API. POSIX opens the
+ * original path bytes. The caller chooses the same access and creation flags. */
+void *mm_native_file_open_utf8(const char *, const MMNativeOpenOptions *);
 void mm_native_file_close(void *);
 int mm_native_file_flush(void *);
 int mm_native_file_seek(void *, MMU32);

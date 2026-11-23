@@ -85,12 +85,17 @@ MMResourceCache *mm_native_archive_open_cache(const MMNativeArchiveInputHost *, 
  * Host callbacks run synchronously and must not unwind. */
 int mm_native_archive_input_open(MMNativeArchiveInput *, int mode, const MMArchiveReaderOptions *,
                                  const MMNativeArchiveInputHost *);
+/* Open a stored archive by UTF-8 path. Return a raw MMArchiveReadResult.
+ * Failure leaves the existing input intact. */
+int mm_native_archive_input_open_utf8(MMNativeArchiveInput *, const char *, int expanded, MMU32 max_name_bytes,
+                                      const MMArchiveReaderOptions *);
 void mm_native_archive_input_close(MMNativeArchiveInput *);
 MMMovieSessionGraph mm_native_archive_input_graph(const MMNativeArchiveInput *);
 
 /* Open a read-only, editable or fresh private archive using the same file provider. */
 MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *, int mode,
                                                  const MMPrivateArchiveProfile *);
+MMPrivateArchive *mm_native_private_archive_open_utf8(const char *, int mode, const MMPrivateArchiveProfile *);
 
 #ifdef __cplusplus
 }

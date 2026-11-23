@@ -444,7 +444,7 @@ static int check_index(void *file, const char *path, MMU32 type, int movie, Seek
     MMChunkAccess access;
     MMChunkEntry entry;
     MMReadStream payload;
-    MMU32 position;
+    MMU32 position, count;
     unsigned char magic[4], prefix[4];
     int ok;
 
@@ -486,6 +486,7 @@ static int check_index(void *file, const char *path, MMU32 type, int movie, Seek
          source.live_calls == 4 && !source.prefer_working && source.stored_calls == 3;
 
     access = mm_archive_reader_access(reader);
+    count = access.count;
     ok = ok && mm_archive_reader_catalog(reader, NULL, NULL, NULL) == MM_ARCHIVE_CATALOG_OK &&
          mm_chunk_type_at(&access, type, 0, &entry, &position) == MM_CHUNK_OK &&
          mm_archive_reader_read_stored(reader, &entry, prefix, sizeof(prefix)) &&
@@ -493,9 +494,17 @@ static int check_index(void *file, const char *path, MMU32 type, int movie, Seek
          mm_read_exact(&payload, 0, prefix, sizeof(prefix)) &&
          mm_read_exact(&stream, 0, prefix, sizeof(prefix)) &&
          memcmp(magic, prefix, sizeof(magic)) == 0;
+    ok = ok && mm_native_archive_input_open_utf8(&input, "", 0, MM_CHUNK_NAME_WIRE_BYTES, &options) ==
+                   MM_ARCHIVE_INVALID_PAYLOAD && input.reader == reader &&
+         mm_native_archive_input_open_utf8(&input, path, 0, MM_CHUNK_NAME_WIRE_BYTES, &options) == MM_ARCHIVE_READ_OK;
+    if (ok)
+    {
+        access = mm_archive_reader_access(input.reader);
+        ok = access.count == count && mm_archive_reader_read_stored(input.reader, &entry, prefix, sizeof(prefix));
+    }
     if (ok)
         printf("%lu indexed chunks, first requested type at chunk 0x%08lx (%lu stored bytes)\n",
-               (unsigned long)access.count, (unsigned long)entry.number, (unsigned long)entry.bytes);
+               (unsigned long)count, (unsigned long)entry.number, (unsigned long)entry.bytes);
     mm_native_archive_input_close(&input);
     return ok;
 }

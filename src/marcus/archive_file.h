@@ -1,13 +1,10 @@
 #ifndef MARCUS_ARCHIVE_FILE_H
 #define MARCUS_ARCHIVE_FILE_H
-#include "mm/archive_reader.h"
 #include "mm/movie_publish.h"
-#include "mm/private_archive.h"
+#include "mm/native_archive_file.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *);
 
 enum { MARCUS_WORKING_MOVIE, MARCUS_WORKING_BOARD, MARCUS_WORKING_TIMING };
 typedef struct MarcusWorkingFiles
@@ -22,18 +19,9 @@ typedef struct MarcusWorkingFiles
  * The stamp is a decimal clock value supplied by the filesystem host. */
 int marcus_archive_stage_working_file(int kind, const char *stamp, int copy_source, const MarcusWorkingFiles *);
 
-typedef struct MarcusArchiveInput
-{
-    void *file;
-    MMArchiveReader *reader;
-} MarcusArchiveInput;
-
 struct MMTextHost;
 /* Start with a zeroed input. Failure preserves the current input. */
-int marcus_archive_input_open(MarcusArchiveInput *, const char *path, const MMArchiveReaderOptions *,
-                               int expanded);
-void marcus_archive_input_close(MarcusArchiveInput *);
-int marcus_archive_input_open_profile(MarcusArchiveInput *, const char *path, const MMPrivateArchiveProfile *);
+int marcus_archive_input_open_profile(MMNativeArchiveInput *, const char *path, const MMPrivateArchiveProfile *);
 /* Read a counted archive name into a bounded UTF-8 buffer. Return the bytes
  * written. Sound assets retain their historical byte truncation. */
 size_t marcus_archive_name_utf8(MMArchiveReader *, MMU32 position, const MMPrivateArchiveProfile *,

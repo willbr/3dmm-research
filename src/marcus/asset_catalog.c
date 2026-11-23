@@ -101,12 +101,12 @@ int marcus_asset_catalog_load(MarcusAssetCatalog *catalog, MarcusAssetKind kind,
                               const MMPrivateArchiveProfile *profile, const MMTextHost *text)
 {
     MarcusAssetCatalog next = {0};
-    MarcusArchiveInput input = {0};
+    MMNativeArchiveInput input = {0};
     int status = marcus_archive_input_open_profile(&input, path, profile);
     if (status != MM_ARCHIVE_READ_OK)
         return status;
     status = read_assets(&next, kind, input.reader, profile, text);
-    marcus_archive_input_close(&input);
+    mm_native_archive_input_close(&input);
     if (status == MM_ARCHIVE_READ_OK && !(next.directory = SDL_strdup(directory)))
         status = MM_ARCHIVE_MEMORY;
     if (status == MM_ARCHIVE_READ_OK)

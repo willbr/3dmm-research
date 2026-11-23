@@ -152,14 +152,14 @@ const char *marcus_sound_edit_write(const char *candidate, const MMPrivateArchiv
                                     const MarcusSoundEditPlan *plan, const MarcusSoundImport *audio,
                                     const char *library_path, MMU32 library_chunk)
 {
-    MMPrivateArchive *file = marcus_archive_open(candidate, MM_PRIVATE_ARCHIVE_EDIT, profile);
+    MMPrivateArchive *file = mm_native_private_archive_open_utf8(candidate, MM_PRIVATE_ARCHIVE_EDIT, profile);
     const char *error = NULL;
     MMU32 added = 0;
     if (!file)
         return "Cannot open the sound working copy.";
     if (library_path)
     {
-        MMPrivateArchive *library = marcus_archive_open(library_path, MM_PRIVATE_ARCHIVE_READ, profile);
+        MMPrivateArchive *library = mm_native_private_archive_open_utf8(library_path, MM_PRIVATE_ARCHIVE_READ, profile);
         if (!library || !mm_private_archive_copy(library, file, MM_SOUND_TYPE, library_chunk, 0, &added))
             error = "Cannot copy the selected built-in sound.";
         mm_private_archive_close(library);
@@ -177,7 +177,7 @@ const char *marcus_sound_edit_write(const char *candidate, const MMPrivateArchiv
 const char *marcus_sound_preview_write(const char *candidate, const MMPrivateArchiveProfile *profile,
                                        const MarcusSoundImport *audio, int style)
 {
-    MMPrivateArchive *file = marcus_archive_open(candidate, MM_PRIVATE_ARCHIVE_CREATE, profile);
+    MMPrivateArchive *file = mm_native_private_archive_open_utf8(candidate, MM_PRIVATE_ARCHIVE_CREATE, profile);
     const char *error;
     MMU32 sound = 0;
     if (!file)

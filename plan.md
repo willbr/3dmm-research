@@ -2339,6 +2339,10 @@ the inspector and preview. Marcus and the archive API share the chunk-name
 decoder. Kauai supplies the native code page and file lookup for its legacy
 paths. The archive API publishes UTF-8 strings and native chunk-name code
 units from the C reader.
+Marcus also uses the shared native archive file and index owners for browser
+reads, editing, clipboard transfers, and saves. Its UTF-8 paths enter through
+the native wide file API on Windows. Studio's archive readers and private
+drafts use the same C file services.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining
 body, template, resource and object dependencies by the operation that still

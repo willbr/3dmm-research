@@ -25427,3 +25427,45 @@ replay reached the previously recorded later PCM16 peak of 7,609.
 
 Evidence is under `tmp/c89-archive-text`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 native archive files (23 November 2026)
+
+Marcus uses the same C89 file and index owners as the archive readers and
+private drafts used by Studio. The shared owner serializes file position
+and retains the native file while blocks still reference it. It publishes a
+new stored reader only after opening both the file and index, and closes
+them in dependency order. Marcus uses this owner in its media and movie
+browsers, editing and clipboard operations, and movie saves.
+
+On Windows, Marcus opens UTF-8 paths through the wide file API. Readers
+share with other readers and writable opens are exclusive. Malformed UTF-8
+fails before the file is opened. The native POSIX entry point passes the
+path bytes to the same file backend and uses its cooperative locking.
+
+The standalone ANSI and wide file fixtures create a supplementary-character
+filename, check sharing and exact reads, and reject malformed Windows UTF-8.
+The native chunky fixture verifies that a failed replacement preserves the
+open reader and that a successful UTF-8 reopen reads the same chunks.
+
+SDL and classic Studio rebuilt. All 228 selected native tests, 31 standalone
+engine checks, and 21 strict C89 checks passed on Windows. A clean relink
+restored the preview helper's Windows imports after an incremental link
+omitted them. Frame and timing helper checks passed after relinking. The
+headless Marcus startup canvas, native save and scene traces, four SDL
+save traces, ten preview fingerprints, eight VMM outputs, and x86 tag and
+source traces matched their baselines. The external core consumer passed.
+
+Fresh suite `20261123T193721Z-e4228cc1` completed eight captures and replay
+suite `20261123T193902Z-1f6cf3bc` completed four. Input hashes verified. Both
+ports matched the previous port build on all 60 seek canvases and scene
+states. Both matched all 60 Actor Audio frame positions and camera indices
+and 59 of 60 seek canvases against retained retail and V3DMM.
+
+The first 100 ms of all four Actor Audio spans and the embedded WAVE cue
+matched the previous port captures sample for sample. One Marcus fresh
+capture differed in the final two stereo frames of the 400 ms MIDI window.
+The replay and both new Marcus captures in suite `20261123T194245Z-3e30a00e`
+matched the full window. All SDL captures matched it.
+
+Evidence is under `tmp/c89-native-archive`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

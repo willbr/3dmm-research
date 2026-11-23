@@ -178,7 +178,7 @@ const MMBlockFileServices *mm_native_archive_file_blocks(void)
     return &blocks;
 }
 
-static MMNativeArchiveFile *open_file(const MMNativePathChar *path, int mode)
+static MMNativeArchiveFile *open_file(const void *path, int utf8, int mode)
 {
     MMNativeOpenOptions options;
     MMNativeArchiveFile *file;
@@ -192,9 +192,10 @@ static MMNativeArchiveFile *open_file(const MMNativePathChar *path, int mode)
     {
         mm_native_open_options_init(&options);
         options.write = mode != MM_PRIVATE_ARCHIVE_READ;
+        options.deny_read = utf8 && options.write;
         if (mode == MM_PRIVATE_ARCHIVE_CREATE)
             options.creation = MM_NATIVE_CREATE_ALWAYS;
-        file->handle = mm_native_file_open(path, &options);
+        file->handle = utf8 ? mm_native_file_open_utf8(path, &options) : mm_native_file_open(path, &options);
         if (file->handle)
         {
             file->references = 1;
@@ -208,7 +209,7 @@ static MMNativeArchiveFile *open_file(const MMNativePathChar *path, int mode)
 
 MMNativeArchiveFile *mm_native_archive_file_open(const MMNativePathChar *path)
 {
-    return open_file(path, MM_PRIVATE_ARCHIVE_READ);
+    return open_file(path, 0, MM_PRIVATE_ARCHIVE_READ);
 }
 
 void mm_native_archive_source_clear(MMNativeArchiveSource *source)
@@ -220,19 +221,16 @@ void mm_native_archive_source_clear(MMNativeArchiveSource *source)
     memset(source, 0, sizeof(*source));
 }
 
-int mm_native_archive_source_open(MMNativeArchiveSource *source, const MMNativePathChar *path,
-                                  int expanded, MMU32 max_name_bytes)
+static int open_source(MMNativeArchiveSource *source, MMNativeArchiveFile *file, int expanded, MMU32 max_name_bytes)
 {
     const unsigned short order = 1;
     MMChunkPolicy policy = {0};
     MMNativeArchiveSource opened = {0};
     int status = MM_ARCHIVE_INVALID_PAYLOAD;
-    if (!source)
-        return status;
     policy.expanded_runtime = expanded;
     policy.native_big_endian = *(const unsigned char *)&order == 0;
     policy.max_name_bytes = max_name_bytes;
-    opened.file = mm_native_archive_file_open(path);
+    opened.file = file;
     if (mm_native_archive_file_stream(opened.file, &opened.stream))
         status = mm_archive_read_index(&opened.stream, &policy, &opened.index);
     if (status == MM_ARCHIVE_READ_OK)
@@ -243,6 +241,13 @@ int mm_native_archive_source_open(MMNativeArchiveSource *source, const MMNativeP
     else
         mm_native_archive_source_clear(&opened);
     return status;
+}
+
+int mm_native_archive_source_open(MMNativeArchiveSource *source, const MMNativePathChar *path,
+                                  int expanded, MMU32 max_name_bytes)
+{
+    return source ? open_source(source, mm_native_archive_file_open(path), expanded, max_name_bytes) :
+                    MM_ARCHIVE_INVALID_PAYLOAD;
 }
 
 int mm_native_archive_source_reader(const MMNativeArchiveSource *source, const MMArchiveReaderOptions *options,
@@ -307,6 +312,13 @@ void mm_native_archive_input_close(MMNativeArchiveInput *input)
     memset(input, 0, sizeof(*input));
 }
 
+static void publish_input(MMNativeArchiveInput *input, MMNativeArchiveInput *next, int mode)
+{
+    next->mode = mode;
+    mm_native_archive_input_close(input);
+    *input = *next;
+}
+
 int mm_native_archive_input_open(MMNativeArchiveInput *input, int mode, const MMArchiveReaderOptions *options,
                                  const MMNativeArchiveInputHost *host)
 {
@@ -328,9 +340,7 @@ int mm_native_archive_input_open(MMNativeArchiveInput *input, int mode, const MM
     }
     if (status == MM_ARCHIVE_READ_OK)
     {
-        next.mode = mode;
-        mm_native_archive_input_close(input);
-        *input = next;
+        publish_input(input, &next, mode);
         return MM_NATIVE_ARCHIVE_INPUT_OK;
     }
     mm_native_archive_input_close(&next);
@@ -339,19 +349,46 @@ int mm_native_archive_input_open(MMNativeArchiveInput *input, int mode, const MM
     return selected ? MM_NATIVE_ARCHIVE_INPUT_LIVE_INDEX : MM_NATIVE_ARCHIVE_INPUT_OPEN;
 }
 
+int mm_native_archive_input_open_utf8(MMNativeArchiveInput *input, const char *path, int expanded, MMU32 max_name_bytes,
+                                      const MMArchiveReaderOptions *options)
+{
+    MMNativeArchiveInput next = {0};
+    int status;
+    if (!input || !options)
+        return MM_ARCHIVE_INVALID_PAYLOAD;
+    status = open_source(&next.stored, open_file(path, 1, MM_PRIVATE_ARCHIVE_READ), expanded, max_name_bytes);
+    if (status == MM_ARCHIVE_READ_OK)
+        status = mm_native_archive_source_reader(&next.stored, options, &next.reader);
+    if (status == MM_ARCHIVE_READ_OK)
+        publish_input(input, &next, MM_NATIVE_ARCHIVE_STORED);
+    else
+        mm_native_archive_input_close(&next);
+    return status;
+}
+
 MMMovieSessionGraph mm_native_archive_input_graph(const MMNativeArchiveInput *input)
 {
     return input->live ? mm_movie_owner_graph(input->live_reader) : mm_archive_reader_graph(input->reader);
 }
 
-MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *path, int mode,
-                                                const MMPrivateArchiveProfile *profile)
+static MMPrivateArchive *open_private(const void *path, int utf8, int mode, const MMPrivateArchiveProfile *profile)
 {
     static const MMChunkOwnerFileIO owner = {NULL, create_extra, read_stream, size, resize, NULL,
                                              write_at, release, NULL, NULL, NULL, NULL, NULL};
     MMNativeArchiveFile *file;
     if (mode != MM_PRIVATE_ARCHIVE_CREATE && mode != MM_PRIVATE_ARCHIVE_EDIT && mode != MM_PRIVATE_ARCHIVE_READ)
         return NULL;
-    file = open_file(path, mode);
+    file = open_file(path, utf8, mode);
     return mm_private_archive_open(file, mode, &owner, mm_native_archive_file_blocks(), profile);
+}
+
+MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *path, int mode,
+                                                const MMPrivateArchiveProfile *profile)
+{
+    return open_private(path, 0, mode, profile);
+}
+
+MMPrivateArchive *mm_native_private_archive_open_utf8(const char *path, int mode, const MMPrivateArchiveProfile *profile)
+{
+    return open_private(path, 1, mode, profile);
 }

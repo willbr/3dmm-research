@@ -82,13 +82,13 @@ int marcus_sound_catalog_load(MarcusSoundCatalog *catalog, const char *directory
                               const MMPrivateArchiveProfile *profile, const MMTextHost *text)
 {
     MarcusSoundCatalog next = {0};
-    MarcusArchiveInput archive = {0};
+    MMNativeArchiveInput archive = {0};
     int status;
     status = marcus_archive_input_open_profile(&archive, path, profile);
     if (status != MM_ARCHIVE_READ_OK)
         return status == MM_ARCHIVE_MEMORY ? MARCUS_SOUND_CATALOG_MEMORY : MARCUS_SOUND_CATALOG_OPEN;
     status = read_assets(&next, archive.reader, profile, text);
-    marcus_archive_input_close(&archive);
+    mm_native_archive_input_close(&archive);
     if (status == MARCUS_SOUND_CATALOG_OK && !(next.directory = SDL_strdup(directory)))
         status = MARCUS_SOUND_CATALOG_MEMORY;
     if (status == MARCUS_SOUND_CATALOG_OK)

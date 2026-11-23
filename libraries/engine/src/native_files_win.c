@@ -21,14 +21,42 @@ static void entry(const WIN32_FIND_DATA *data, MMNativePathChar *name, MMNativeP
 }
 void mm_native_open_options_init(MMNativeOpenOptions *o)
 { o->write = o->deny_read = 0; o->deny_write = 1; o->creation = MM_NATIVE_OPEN_EXISTING; }
-void *mm_native_file_open(const MMNativePathChar *path, const MMNativeOpenOptions *o)
+static void *open_file(const void *path, const MMNativeOpenOptions *o, int wide)
 {
     DWORD access = GENERIC_READ | (o->write ? GENERIC_WRITE : 0);
     DWORD sharing = (o->deny_read ? 0 : FILE_SHARE_READ) | (o->deny_write ? 0 : FILE_SHARE_WRITE);
     DWORD creation = o->creation == MM_NATIVE_OPEN_EXISTING ? OPEN_EXISTING :
                      o->creation == MM_NATIVE_CREATE_ALWAYS ? CREATE_ALWAYS : CREATE_NEW;
-    HANDLE handle = CreateFile(native(path),access,sharing,NULL,creation,FILE_ATTRIBUTE_NORMAL,NULL);
+    HANDLE handle = wide ? CreateFileW(path, access, sharing, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL) :
+                           CreateFileA(path, access, sharing, NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
     return handle == INVALID_HANDLE_VALUE ? NULL : handle;
+}
+void *mm_native_file_open(const MMNativePathChar *path, const MMNativeOpenOptions *o)
+{
+    return open_file(path, o, sizeof(*path) == sizeof(WCHAR));
+}
+void *mm_native_file_open_utf8(const char *path, const MMNativeOpenOptions *o)
+{
+    int count;
+    WCHAR *wide;
+    void *file = NULL;
+    DWORD previous;
+    BOOL changed;
+    if (!path || !*path)
+        return NULL;
+    count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, NULL, 0);
+    if (!count || !(wide = malloc((size_t)count * sizeof(*wide))))
+        return NULL;
+    if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, wide, count) == count)
+    {
+        changed = SetThreadErrorMode(GetThreadErrorMode() | SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX,
+                                     &previous);
+        file = open_file(wide, o, 1);
+        if (changed)
+            SetThreadErrorMode(previous, NULL);
+    }
+    free(wide);
+    return file;
 }
 void mm_native_file_close(void *handle) { if (handle) CloseHandle(handle); }
 int mm_native_file_flush(void *handle) { return FlushFileBuffers(handle) != 0; }

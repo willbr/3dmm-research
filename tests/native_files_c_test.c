@@ -27,6 +27,32 @@ static unsigned process_id(void)
     return (unsigned)getpid();
 #endif
 }
+static void check_utf8_file(void)
+{
+    const char path[] = "archive-\xf0\x9f\x8e\xac.3mm";
+    MMNativeOpenOptions options;
+    void *file;
+    char bytes[4];
+    mm_native_open_options_init(&options);
+    options.write = options.deny_read = 1;
+    options.creation = MM_NATIVE_CREATE_EXCLUSIVE;
+    file = mm_native_file_open_utf8(path, &options);
+    CHECK(file && mm_native_file_write(file, "CHN2", sizeof(bytes)));
+    mm_native_open_options_init(&options);
+    CHECK(!mm_native_file_open_utf8(path, &options));
+    mm_native_file_close(file);
+    file = mm_native_file_open_utf8(path, &options);
+    CHECK(file && mm_native_file_read(file, bytes, sizeof(bytes)) && !memcmp(bytes, "CHN2", sizeof(bytes)));
+    mm_native_file_close(file);
+#ifdef _WIN32
+    CHECK(_wremove(L"archive-\xd83c\xdfac.3mm") == 0);
+    options.write = 1;
+    options.creation = MM_NATIVE_CREATE_EXCLUSIVE;
+    CHECK(!mm_native_file_open_utf8("bad-\xf0\x9f", &options));
+#else
+    CHECK(remove(path) == 0);
+#endif
+}
 int main(void)
 {
     MMNativePathChar temp[2048], root[2048], file[2048], moved[2048], nested[2048], output[2048], saved[2048], entry[1024];
@@ -67,6 +93,7 @@ int main(void)
 #endif
     CHECK(mm_native_current_directory(saved,2048));
     CHECK(mm_native_change_directory(root,&error)&&!error&&mm_native_current_directory(output,2048)&&mm_native_paths_equal(output,root));
+    check_utf8_file();
     CHECK(mm_native_change_directory(saved,&error)&&!error);
     n=mm_native_executable_path(output,2048);CHECK(n);sentinel='X';CHECK(!mm_native_executable_path(&sentinel,0)&&sentinel=='X');
     CHECK(!mm_native_executable_path(output,n)&&!output[0]);CHECK(mm_native_executable_path(output,n+1)==n);
