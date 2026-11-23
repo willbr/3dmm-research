@@ -3,6 +3,7 @@
 #define MOVIE_SAVE_FIXTURE_H
 #include "mm/private_archive.h"
 #include "movie_archive_fixture.h"
+#include "movie_state_fixture.h"
 class MovieSaveProbe
 {
   public:
@@ -10,7 +11,7 @@ class MovieSaveProbe
     {
         movie->_container = document;
     }
-    static MovieData *Data(PMovie movie)
+    static MMMovieState *Data(PMovie movie)
     {
         return &movie->_data;
     }
@@ -20,7 +21,7 @@ class MovieSaveProbe
         Filename path;
         bool named = movie->FGetFni(&path);
         auto data = Data(movie);
-        const auto resources = data->Resources();
+        const auto resources = static_cast<MMResourceCache *>(data->resources);
         const auto backing = resources ? mm_resource_cache_reader(resources)->storage->owner->files.main_file : nullptr;
         LegacyLong row[] = {operation,
                             result,
@@ -194,8 +195,9 @@ static bool TestPrivateMovieSave(PMovie parent)
     ReleasePpo(&movie);
     if (ok)
     {
-        MovieData loaded;
-        ok = loaded.FLoad(&path) && loaded.sceneCount == 0;
+        MovieStateFixture loaded;
+        const auto services = EngineMovieHost::OwnerServices();
+        ok = mm_movie_load(&loaded, &path, cnoNil, &services) && loaded.sceneCount == 0;
     }
     if (havePath && path.TExists() != tNo)
         path.FDelete();

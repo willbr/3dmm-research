@@ -25,6 +25,7 @@ extern "C"
     } MMRollCallReader;
     typedef struct MMRollCallBinding
     {
+        /* NULL uses the supplied resources as an MMResourceCache. */
         MMResourceCache *(*cache)(void *resources);
         MMBlockTransform decode;
         MMRollCallReader reader;
@@ -34,9 +35,11 @@ extern "C"
     struct MMMovieSessionGraph;
     typedef struct MMMovieSessionBinding
     {
+        /* NULL opens the session from the resource cache's live graph. */
         void (*graph)(void *resources, struct MMMovieSessionGraph *);
         void (*open_failed)(void *resources, int status);
     } MMMovieSessionBinding;
+    void mm_movie_bound_graph(void *resources, struct MMMovieSessionGraph *, const MMMovieSessionBinding *);
     typedef struct MMMovieState
     {
         void *resources;
@@ -54,6 +57,7 @@ extern "C"
         void *(*create_resources)(void *);
         void *(*open_resources)(void *, void *path);
         MMMovieSessionBinding session;
+        /* NULL releases or writes the MMResourceCache directly. */
         void (*release_resources)(void *);
         MMArchiveWriter (*archive)(void *resources);
         MMRollCallBinding rollcall;
@@ -73,7 +77,8 @@ extern "C"
      * The missing-roll-call and unlink-failed diagnostics are optional.
      * Callbacks cannot mutate/re-enter this state. No rollback after save publication:
      * successful roll-call replacement remains visible if naming/saving later fails. */
-    void mm_movie_state_init(MMMovieState *);
+    /* A two-byte native title uses unit 2. The default is one byte. */
+    void mm_movie_state_init(MMMovieState *, unsigned title_unit);
     int mm_movie_init_actors(MMMovieState *, const MMMovieOwnerServices *);
     void mm_movie_clear_actors(MMMovieState *, const MMMovieOwnerServices *);
     void mm_movie_release_resources(MMMovieState *, const MMMovieOwnerServices *);

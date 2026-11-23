@@ -1,6 +1,7 @@
 /* Headless Movie composition and imported roll-call/actor-ID probe. */
 #ifndef MOVIE_COMPOSE_FIXTURE_H
 #define MOVIE_COMPOSE_FIXTURE_H
+#include "movie_state_fixture.h"
 class MovieComposeSceneAccess : public Scene
 {
   public:
@@ -135,7 +136,8 @@ static bool TestMovieCompose()
             std::vector<LegacyLong> trace;
             MovieSaveProbe::Record(movie, trace, operation, true);
             auto data = MovieSaveProbe::Data(movie);
-            auto external = MovieSaveProbe::Data(other)->Resources();
+            const auto cache = static_cast<MMResourceCache *>(data->resources);
+            const auto external = MovieSaveProbe::Data(other)->resources;
             LegacyLong fields[] = {mode,
                                    operation,
                                    LegacyLong(insertion),
@@ -143,7 +145,7 @@ static bool TestMovieCompose()
                                    LegacyLong(client->textTools),
                                    LegacyLong(client->sceneNuked),
                                    LegacyLong(client->rollcalls),
-                                   data->Resources() ? data->Resources()->references->count : 0,
+                                   cache ? cache->references->count : 0,
                                    composite.movie_count ? LegacyLong(composite.scene_count) : -1,
                                    composite.movie_count ? LegacyLong(composite.movie_count) : -1};
             if (!record(fields, sizeof(fields)) || !record(trace.data(), (trace.size)() * sizeof(trace[0])))
@@ -154,7 +156,7 @@ static bool TestMovieCompose()
                 if (!mm_composite_movie(&composite, i, &row))
                     return false;
                 auto resources = static_cast<MMResourceCache *>(row.resources);
-                LegacyLong values[] = {LegacyLong(i), resources == data->Resources() ? 0 : resources == external ? 1 : 2,
+                LegacyLong values[] = {LegacyLong(i), resources == cache ? 0 : resources == external ? 1 : 2,
                                        LegacyLong(row.number), row.actor_limit, resources->references->count};
                 if (!record(values, sizeof(values)))
                     return false;
@@ -170,15 +172,15 @@ static bool TestMovieCompose()
                 if (!record(values, sizeof(values)))
                     return false;
             }
-            if (data->Resources())
+            if (cache)
             {
-                const MovieArchiveFixture archive(data->Resources());
+                const MovieArchiveFixture archive(cache);
                 for (long i = 0; i < movie->Cscen(); ++i)
                 {
                     ChunkNumber scene;
                     TRANS transition;
                     if (!archive.Link(kctgMvie, data->movieNumber, i, kctgScen, &scene) ||
-                        !Scene::FTransOnFile(data->Resources(), scene, &transition))
+                        !Scene::FTransOnFile(cache, scene, &transition))
                         return false;
                     LegacyLong values[] = {LegacyLong(i), LegacyLong(scene), LegacyLong(transition)};
                     if (!record(values, sizeof(values)))
@@ -230,8 +232,9 @@ static bool TestMovieCompose()
         auto client = NewObj MovieComposeClient();
         auto movie = client ? Movie::PmvieNew(false, client) : nullptr;
         MMResourceCache *resources = nullptr;
-        MovieData table;
-        ok = movie && table.FInitActors() && movie->FEnsureAutosave(&resources);
+        MovieStateFixture table;
+        const auto services = EngineMovieHost::OwnerServices();
+        ok = movie && mm_movie_init_actors(&table, &services) && movie->FEnsureAutosave(&resources);
         const MovieArchiveFixture archive(resources);
         ChunkNumber root = 0, scenes[2] = {}, actors[2] = {}, gst;
         if (ok)

@@ -8,6 +8,7 @@
 #include <string>
 #include "soc_core.h"
 #include "scene_archive_fixture.h"
+#include "movie_state_fixture.h"
 #include "actor_track_fixture.h"
 #include "rich_text_data.h"
 ASSERTNAME
@@ -528,7 +529,7 @@ int main(int argc, char **argv)
         String name;
         name.SetSzs(PszLit("3D Movie Maker/3DMOVIE"));
         LegacyLong sid = 2;
-        ok = ok && sources && sources->FAddStn(&name, &sid) && MovieData::FCreateRoot(file, &root) &&
+        ok = ok && sources && sources->FAddStn(&name, &sid) && CreateMovieFixtureRoot(file, &root) &&
              file->FAdoptChild(kctgMvie, root, kctgScen, sceneNumber, 0) &&
              file->FAdoptChild(kctgMvie, root, kctgScen, emptyScene, 1) &&
              file->FAddChild(kctgMvie, root, 0, roll->CbOnFile(), kctgGst, &child, &block) && roll->FWrite(&block) &&

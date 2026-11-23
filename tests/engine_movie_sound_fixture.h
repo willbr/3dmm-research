@@ -1,5 +1,6 @@
 #ifndef ENGINE_MOVIE_SOUND_FIXTURE_H
 #define ENGINE_MOVIE_SOUND_FIXTURE_H
+#include "movie_state_fixture.h"
 #ifdef MM_TEST_NATIVE_AUDIOMAN
 #include "audioman.h"
 #include "sndampri.h"
@@ -31,7 +32,7 @@ static bool TestClassicWaveCache(std::vector<byte> &wave)
 class MovieSoundFixtureAccess : public Movie
 {
   public:
-    static MovieData *Data(PMovie movie) { auto member=&MovieSoundFixtureAccess::_data; return &(movie->*member); }
+    static MMMovieState *Data(PMovie movie) { auto member=&MovieSoundFixtureAccess::_data; return &(movie->*member); }
 };
 static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long style, PString name)
 {
@@ -53,7 +54,7 @@ static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long sty
     ChildChunkID child = 0;
     if (ok && havePath)
     {
-        auto resources = MovieSoundFixtureAccess::Data(source)->Resources();
+        auto resources = static_cast<MMResourceCache *>(MovieSoundFixtureAccess::Data(source)->resources);
         ok = source->FCopySndFileToMvie(input, style, &imported, name) &&
              movie->FCopyMsndFromCrf(resources, imported, &copied);
         if (ok)
@@ -74,11 +75,12 @@ static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long sty
     ReleasePpo(&source);
     if (ok && havePath)
     {
-        MovieData loaded;
-        ok = loaded.FLoad(&path) && loaded.sceneCount == 1;
+        MovieStateFixture loaded;
+        const auto services = EngineMovieHost::OwnerServices();
+        ok = mm_movie_load(&loaded, &path, cnoNil, &services) && loaded.sceneCount == 1;
         if (ok)
         {
-            auto resources = loaded.Resources();
+            auto resources = static_cast<MMResourceCache *>(loaded.resources);
             const auto chunks = mm_resource_cache_chunks(resources);
             MMU32 scene, number;
             ok = mm_chunk_link_number(&chunks, kctgMvie, loaded.movieNumber, 0, kctgScen, &scene) == MM_CHUNK_OK &&

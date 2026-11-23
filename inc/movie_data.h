@@ -29,34 +29,4 @@ struct RollCallActorEntryOnFile
 };
 static_assert(sizeof(RollCallActorEntryOnFile) == 28, "RollCallActorEntryOnFile wire format drift");
 
-// State shared by document/view and headless persistence hosts. The actor
-// table owns opened TAG references; resources is an owned reference as well.
-struct MovieData : MMMovieState
-{
-    MovieData() { mm_movie_state_init(this); mm_movie_title_init(&title, sizeof(achar)); }
-    void GetTitle(PString) const;
-    void SetTitle(PString);
-    MMResourceCache *Resources() const { return static_cast<MMResourceCache *>(resources); }
-    ~MovieData();
-    MovieData(const MovieData &) = delete;
-    MovieData &operator=(const MovieData &) = delete;
-    void ClearActors();
-    bool FInitActors();
-    bool FInitEmpty();
-    bool FLoad(PFilename filename, ChunkNumber number = cnoNil);
-    // Saves the chunk graph, including opaque scene/asset children. Runtime
-    // scene encoding and garbage collection remain the caller's responsibility.
-    bool FSave(PFilename filename);
-
-    static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
-    static bool FVerifyVersion(MMChunkOwnerRead *, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
-    static bool FLoadRollCall(MMResourceCache *resources, ChunkNumber number, MMRollCallTable *actors,
-                              MMI32 *limit = nullptr);
-    static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written);
-  private:
-    friend class Movie;
-    static MMMovieSessionBinding _SessionBinding();
-    static MMRollCallBinding _RollCallBinding();
-    static MMMovieOwnerServices _OwnerServices(void *);
-};
 #endif

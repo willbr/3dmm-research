@@ -5,11 +5,11 @@
 #include "mm/movie_root.h"
 #include "mm/movie_session.h"
 #include <string.h>
-void mm_movie_state_init(MMMovieState *m)
+void mm_movie_state_init(MMMovieState *m, unsigned title_unit)
 {
     memset(m, 0, sizeof(*m));
     m->movieNumber = 0xffffffffUL;
-    mm_movie_title_init(&m->title, 1);
+    mm_movie_title_init(&m->title, title_unit == 2 ? 2 : 1);
 }
 static void close_rows(MMRollCallTable *table, const MMTagServices *tags)
 {
@@ -44,7 +44,10 @@ void mm_movie_release_resources(MMMovieState *m, const MMMovieOwnerServices *s)
     m->session = NULL;
     if (m->resources)
     {
-        s->release_resources(m->resources);
+        if (s->release_resources)
+            s->release_resources(m->resources);
+        else
+            mm_resource_cache_release(m->resources);
         m->resources = NULL;
     }
 }
@@ -53,32 +56,44 @@ void mm_movie_state_dispose(MMMovieState *m, const MMMovieOwnerServices *s)
     mm_movie_clear_actors(m, s);
     mm_movie_release_resources(m, s);
 }
-static void replace(MMMovieState *m, MMMovieState *fresh, const MMMovieOwnerServices *s)
+static void replace(MMMovieState *m, const MMMovieState *fresh, const MMMovieOwnerServices *s)
 {
     mm_movie_state_dispose(m, s);
     *m = *fresh;
-    mm_movie_state_init(fresh);
 }
+void mm_movie_bound_graph(void *resources, MMMovieSessionGraph *out, const MMMovieSessionBinding *binding)
+{
+    if (binding->graph)
+        binding->graph(resources, out);
+    else
+        *out = mm_movie_cache_graph(resources);
+}
+
 static int open_session(void *resources, MMU32 *number, MMMovieSession **out, const MMMovieSessionBinding *s)
 {
     MMMovieSessionGraph graph;
     int status;
-    s->graph(resources, &graph);
+    mm_movie_bound_graph(resources, &graph, s);
     status = mm_movie_session_open_graph(&graph, NULL, number, out);
     if (status != MM_MOVIE_OK && s->open_failed)
         s->open_failed(resources, status);
     return status == MM_MOVIE_OK;
 }
+
+static MMArchiveWriter movie_archive(void *resources, const MMMovieOwnerServices *s)
+{
+    return s->archive ? s->archive(resources) : mm_resource_cache_writer(resources);
+}
+
 int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     MMMovieState fresh;
     MMArchiveWriter archive;
-    mm_movie_state_init(&fresh);
-    mm_movie_title_init(&fresh.title, m->title.unit);
+    mm_movie_state_init(&fresh, m->title.unit);
     fresh.resources = s->create_resources(s->context);
     if (!fresh.resources || !mm_movie_init_actors(&fresh, s))
         goto fail;
-    archive = s->archive(fresh.resources);
+    archive = movie_archive(fresh.resources, s);
     if (!mm_movie_create_root(&archive, &fresh.movieNumber))
         goto fail;
     replace(m, &fresh, s);
@@ -91,8 +106,7 @@ int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerS
 {
     MMMovieState loaded;
     MMU32 scene_number;
-    mm_movie_state_init(&loaded);
-    mm_movie_title_init(&loaded.title, m->title.unit);
+    mm_movie_state_init(&loaded, m->title.unit);
     loaded.resources = s->open_resources(s->context, path);
     if (!loaded.resources)
         return 0;
@@ -137,7 +151,7 @@ int mm_movie_save(MMMovieState *m, const MMMovieOwnerServices *s)
     int had;
     if (!m->resources || !m->actors.stride)
         return 0;
-    archive = s->archive(m->resources);
+    archive = movie_archive(m->resources, s);
     chunks = mm_chunk_edit_access(&archive.edit);
     had = mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, m->movieNumber, previous.slot, previous.type,
                                &previous.number) == MM_CHUNK_OK;
@@ -235,7 +249,8 @@ int mm_movie_load_rollcall(MMResourceCache *cache, MMU32 movie, void *resources,
 int mm_movie_load_bound_rollcall(void *resources, MMU32 movie, MMRollCallTable *actors, MMI32 *limit,
                                 const MMRollCallBinding *binding)
 {
-    const int status = mm_movie_load_rollcall(binding->cache(resources), movie, resources, actors, limit,
+    MMResourceCache *cache = binding->cache ? binding->cache(resources) : resources;
+    const int status = mm_movie_load_rollcall(cache, movie, resources, actors, limit,
                                              binding->decode, &binding->reader);
     if (status == MM_CHUNK_NOT_FOUND && binding->missing)
         binding->missing(binding->reader.context);

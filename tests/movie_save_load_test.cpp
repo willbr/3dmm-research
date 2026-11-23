@@ -21,6 +21,7 @@
 #include <vector>
 #include "soc.h"
 #include "scene_archive_fixture.h"
+#include "movie_state_fixture.h"
 #include "handle_services.h"
 #include "engine_action_tables_fixture.h"
 #include "actor_frame_fixture.h"
@@ -2680,11 +2681,13 @@ int __cdecl main(int argc, char **argv)
 
     LOG("editing the saved scene through the core persistence API");
     {
-        MovieData stored;
-        if (!stored.FLoad(&fniMovie))
+        MovieStateFixture stored;
+        const auto services = MovieStateFixture::FileServices(&fniMovie);
+        if (!mm_movie_load(&stored, &fniMovie, cnoNil, &services))
             BAIL("core movie load failed");
-        const MovieArchiveFixture archive(stored.Resources());
-        if (stored.Resources()->services.objects.state)
+        const auto cache = static_cast<MMResourceCache *>(stored.resources);
+        const MovieArchiveFixture archive(cache);
+        if (cache->services.objects.state)
             BAIL("core movie opened through the native archive wrapper");
         ChunkNumber scene;
         if (!archive.Link(kctgMvie, stored.movieNumber, 0, kctgScen, &scene))
@@ -2695,7 +2698,7 @@ int __cdecl main(int argc, char **argv)
         if (!mm_scene_read(&metadata, scene, &io))
             BAIL("core scene read failed");
         metadata.transition = transFadeToBlack;
-        if (!mm_scene_write(&metadata, scene, &io) || !stored.FSave(&fniMovie))
+        if (!mm_scene_write(&metadata, scene, &io) || !mm_movie_save(&stored, &services))
             BAIL("core scene edit/save failed");
     }
 

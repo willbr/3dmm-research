@@ -18,6 +18,7 @@
 #include <miniz.h>
 #include "soc_core.h"
 #include "scene_archive_fixture.h"
+#include "movie_state_fixture.h"
 #include "actor_track_fixture.h"
 #include <SDL3/SDL.h>
 #include <limits>
@@ -456,7 +457,7 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
     auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
     CHECK(file);
     ChunkNumber root, sceneNumber;
-    CHECK(MovieData::FCreateRoot(file, &root));
+    CHECK(CreateMovieFixtureRoot(file, &root));
     auto scene = SceneArchiveFixture::State();
     scene.firstFrame = 0; scene.lastFrame = 3; scene.transition = transCut;
     CHECK(SceneArchiveFixture::Create(file, &sceneNumber, scene) && file->FAdoptChild(kctgMvie, root, kctgScen, sceneNumber, 0));
@@ -671,7 +672,7 @@ void InvalidMovieHeaders(const char *path, const char *resources, const char *co
         CHECK(file);
         ChunkNumber root;
         DataBlock block;
-        CHECK(MovieData::FCreateRoot(file, &root) && file->FFind(kctgMvie, root, &block));
+        CHECK(CreateMovieFixtureRoot(file, &root) && file->FFind(kctgMvie, root, &block));
         MovieFilePrefix prefix;
         CHECK(block.FReadRgb(&prefix, sizeof(prefix), 0));
         if (variant == 0)
@@ -699,7 +700,7 @@ void Fixture(const char *path)
     auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
     CHECK(file);
     ChunkNumber root;
-    CHECK(MovieData::FCreateRoot(file, &root));
+    CHECK(CreateMovieFixtureRoot(file, &root));
     auto wave = Sound(file, false), midi = Sound(file, true);
     auto title = Caption(file, false), credits = Caption(file, true), edge = Caption(file, false, true);
     for (int index = 0; index < 5; ++index)
@@ -788,7 +789,7 @@ void CarryIntegration(const char *path, const char *resources, const char *conte
     auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
     CHECK(file);
     ChunkNumber root;
-    CHECK(MovieData::FCreateRoot(file, &root));
+    CHECK(CreateMovieFixtureRoot(file, &root));
     const auto longSound = Sound(file, false, 96000), otherSound = Sound(file, false);
     const int first[] = {-2, 100, -10, 0}, last[] = {0, 105, -5, 5};
     for (int index = 0; index < 4; ++index)
@@ -991,7 +992,7 @@ void PlaybackCadence(const char *path, const char *resources, const char *conten
     auto file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable);
     CHECK(file);
     ChunkNumber root, number;
-    CHECK(MovieData::FCreateRoot(file, &root));
+    CHECK(CreateMovieFixtureRoot(file, &root));
     auto scene = SceneArchiveFixture::State();
     scene.firstFrame = 0; scene.lastFrame = 1000; scene.transition = transCut;
     CHECK(SceneArchiveFixture::Create(file, &number, scene) && file->FAdoptChild(kctgMvie, root, kctgScen, number, 0));

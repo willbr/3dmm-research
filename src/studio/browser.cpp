@@ -72,6 +72,7 @@
 
 #include "soc.h"
 #include "resource_archive_host.h"
+#include "engine_movie_host.h"
 #include "studio.h"
 #include "handle_services.h"
 #include "mm/browser_thumbnail.h"
@@ -2137,8 +2138,15 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
         // Import <user> sounds from a movie
         // Verify version numbers before accepting this file
         cache = OpenWorkingResourceCache(&fni, false);
-        if (!cache || !MovieData::FVerifyVersion(mm_resource_cache_reader(cache)))
+        if (!cache)
             goto LEnd;
+        const auto graph = mm_movie_cache_graph(cache);
+        const int version = mm_movie_graph_root(&graph, nullptr, nullptr, nullptr);
+        if (version != MM_MOVIE_OK)
+        {
+            EngineMovieHost::ReportOpenFailure(nullptr, version);
+            goto LEnd;
+        }
 
         const auto chunks = mm_resource_cache_chunks(cache);
         MMU32 first;

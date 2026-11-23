@@ -359,7 +359,7 @@ static void ownership(void)
     memset(&h, 0, sizeof(h));
     h.root_number = 7;
     s = owners(&h);
-    mm_movie_state_init(&m);
+    mm_movie_state_init(&m, 1);
     CHECK(m.movieNumber == 0xffffffffUL && !m.resources && !m.actors.stride);
     CHECK(!mm_movie_save(&m, &s) && !h.used);
     CHECK(mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crb") && m.actors.stride && !h.buffers);
@@ -922,7 +922,7 @@ static void runtime_init(RuntimeCase *t)
     t->world.released = 'W';
     t->sounds.released = 'Q';
     t->palette.released = 'L';
-    mm_movie_state_init(&t->movie);
+    mm_movie_state_init(&t->movie, 1);
     mm_movie_save_init(&t->saved);
     mm_movie_scenes_init(&t->scenes);
     mm_playback_state_init(&t->playback);

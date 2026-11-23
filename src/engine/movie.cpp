@@ -31,6 +31,7 @@ Actors, Text boxes, etc.
 #include "soc.h"
 #include "resource_archive_host.h"
 #include "engine_movie_graph.h"
+#include "engine_movie_host.h"
 #include "movie_archive_host.h"
 #include "mm/chunk_copy.h"
 #include "studio_preferences.h"
@@ -207,7 +208,8 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
     s.document_dirty = [](void *p, int dirty) { static_cast<SaveHost *>(p)->movie->_fDirty = dirty != 0; };
     s.write_scene = [](void *p, void *scene, MMU32 *number) -> int {
-        return static_cast<PScene>(scene)->FWrite(static_cast<SaveHost *>(p)->movie->_data.Resources(), number);
+        const auto &data = static_cast<SaveHost *>(p)->movie->_data;
+        return static_cast<PScene>(scene)->FWrite(static_cast<MMResourceCache *>(data.resources), number);
     };
     s.archive_issue = MovieArchiveIssue;
     s.tags = &TagManager::CoreServices();
@@ -264,6 +266,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
  ****************************************************/
 Movie::Movie(void) : _clok(khidMvieClock)
 {
+    mm_movie_state_init(&_data, sizeof(achar));
     mm_movie_scenes_init(&_scenes);
     mm_movie_save_init(&_save);
     mm_playback_state_init(&_playback);
@@ -281,7 +284,7 @@ struct Movie::RuntimeHost
     Filename working;
 
     explicit RuntimeHost(PMovie movie)
-        : saveHost(movie), save(movie->_SaveServices(&saveHost)), owner(MovieData::_OwnerServices(nullptr)),
+        : saveHost(movie), save(movie->_SaveServices(&saveHost)), owner(EngineMovieHost::OwnerServices()),
           scenes(movie->_SceneServices())
     {
     }
@@ -450,7 +453,7 @@ void Movie::MarkMem(void)
 
     Movie_PAR::MarkMem();
 
-    mm_resource_cache_mark(_data.Resources());
+    mm_resource_cache_mark(static_cast<MMResourceCache *>(_data.resources));
 
     MarkMemObj(static_cast<PFileObject>(_save.file));
 
@@ -483,7 +486,7 @@ void Movie::AssertValid(LegacyUlong grf)
 {
     Movie_PAR::AssertValid(fobjAllocated);
 
-    AssertNilOrVarMem(_data.Resources());
+    AssertNilOrVarMem(static_cast<MMResourceCache *>(_data.resources));
     Assert(_data.actors.stride == sizeof(MMRollCallActor) + 4 &&
                _data.actors.count <= _data.actors.storage.buffers[1].capacity / _data.actors.stride,
            "bad movie roll call");
@@ -853,7 +856,7 @@ MMMovieSceneServices Movie::_SceneServices()
         }
 #endif
     };
-    s.session = MovieData::_SessionBinding();
+    s.session.open_failed = EngineMovieHost::ReportOpenFailure;
     s.read = [](void *p, void *resources, MMU32 number, const MMMovieSession *session) -> void * {
         return Scene::PscenRead(static_cast<PMovie>(p), static_cast<MMResourceCache *>(resources), number, session);
     };
@@ -871,7 +874,8 @@ MMMovieSceneServices Movie::_SceneServices()
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
     s.edit = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)).edit; };
     s.write = [](void *p, void *scene, MMU32 *number) -> int {
-        return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
+        const auto &data = static_cast<PMovie>(p)->_data;
+        return static_cast<PScene>(scene)->FWrite(static_cast<MMResourceCache *>(data.resources), number);
     };
     s.archive_issue = MovieArchiveIssue;
     s.save = [](void *p) { KauaiSaveChunkOwner(MovieArchiveReader(p)->storage, kctgSoc, nullptr); };
@@ -906,7 +910,7 @@ bool Movie::FSwitchScen(long iscen)
 {
     AssertThis(0);
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
-    Assert(iscen == ivNil || _data.Resources(), "Invalid save file");
+    Assert(iscen == ivNil || _data.resources, "Invalid save file");
     auto services = _SceneServices();
     return mm_movie_scene_switch(iscen, &services) != 0;
 }
@@ -957,7 +961,10 @@ MMMovieSoundServices Movie::SoundServices()
         sizeof(ChildChunkID)==sizeof(MMU32),"Movie sound record ABI");
     MMMovieSoundServices s{}; s.context=this;
     s.read=[](void *p,MMMovieSoundState *state) {
-        auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_scenes.index;
+        const auto movie = static_cast<PMovie>(p);
+        state->cache = movie->_data.resources;
+        state->movie = movie->_data.movieNumber;
+        state->scene = movie->_scenes.index;
     };
     s.tags = &TagManager::CoreServices();
     s.edit = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)).edit; };
@@ -1091,7 +1098,7 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
  ****************************************************/
 bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
 {
-    AssertThis(0); AssertVarMem(pfilSrc); AssertVarMem(pcno); AssertNilOrPo(pstn,0); Assert(_data.Resources()!=nullptr,"Bad working file.");
+    AssertThis(0); AssertVarMem(pfilSrc); AssertVarMem(pcno); AssertNilOrPo(pstn,0); Assert(_data.resources,"Bad working file.");
     const auto services=SoundServices(); MMU32 number; std::memcpy(&number,pcno,sizeof(number));
     bool ok=mm_movie_sound_import(pfilSrc,sty,&number,pstn,&services)!=0; std::memcpy(pcno,&number,sizeof(number)); return ok;
 }
@@ -1136,7 +1143,7 @@ bool Movie::FRemScenCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
-    Assert(_data.Resources(), "Bad working file.");
+    Assert(_data.resources, "Bad working file.");
     auto services = _SceneServices();
     return mm_movie_scene_remove(iscen, &services) != 0;
 }
@@ -1371,7 +1378,7 @@ bool Movie::_FMakeCrfValid(void)
 bool Movie::FAutoSave(PFilename pfni, bool fCleanRollCall)
 {
     AssertThis(0);
-    AssertNilOrVarMem(_data.Resources());
+    AssertNilOrVarMem(static_cast<MMResourceCache *>(_data.resources));
     AssertNilOrPo(pfni, ffniFile);
     SaveHost host(this);
     auto services = _SaveServices(&host);
@@ -1455,10 +1462,11 @@ bool Movie::FGetFniSave(Filename *pfni)
     AssertThis(0);
     AssertVarMem(pfni);
 
-    String title; _data.GetTitle(&title);
+    String title;
+    GetName(&title);
     const bool selected = Pmcc()->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle,
                               (achar *)(_FNeedsContainer() ? PszLit("vmm") : ksz3mm), &title);
-    _data.SetTitle(&title);
+    AssertDo(mm_movie_title_set(&_data.title, title.Prgch(), title.Cch()), "bad movie title");
     return selected;
 }
 
@@ -2531,7 +2539,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.archive = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)); };
     s.archive_context = [](void *p) -> void * { return MovieArchiveReader(p); };
     s.titles = KauaiChunkOwnerTitleIO();
-    s.rollcall = MovieData::_RollCallBinding();
+    s.rollcall = EngineMovieHost::RollCallBinding();
     s.retain_scene = [](void *object) { static_cast<PScene>(object)->AddRef(); };
     s.release_scene = [](void *object) { static_cast<PScene>(object)->Release(); };
     s.retain_cache = [](void *object) { mm_resource_cache_retain(static_cast<MMResourceCache *>(object)); };
@@ -2849,7 +2857,8 @@ void Movie::GetName(PString pstnTitle)
     AssertThis(0);
     AssertPo(pstnTitle, 0);
 
-    _data.GetTitle(pstnTitle);
+    const auto &title = _data.title;
+    pstnTitle->SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(&title))), title.count);
 }
 
 /******************************************************************************

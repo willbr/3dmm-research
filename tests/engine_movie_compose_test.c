@@ -710,7 +710,7 @@ static void init(Test *t)
     MMStorageAllocator actor_allocator = {NULL, resize_actors, free_actors};
     int i;
     memset(t, 0, sizeof(*t));
-    mm_movie_state_init(&t->data);
+    mm_movie_state_init(&t->data, 1);
     t->failAt = 1;
     for (i = 0; i < 3; ++i)
     {

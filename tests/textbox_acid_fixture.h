@@ -2,6 +2,7 @@
 #pragma once
 
 #include "scene_archive_fixture.h"
+#include "movie_state_fixture.h"
 
 namespace TextAcid
 {
@@ -112,7 +113,7 @@ bool Write(PChunkyFile file)
           "does not install a substitute font.",
           12, 232, 532, 300, "Arial", 12}}};
     ChunkNumber root;
-    if (!MovieData::FCreateRoot(file, &root))
+    if (!CreateMovieFixtureRoot(file, &root))
         return false;
     for (unsigned page = 0; page < (pages.size)(); ++page)
     {

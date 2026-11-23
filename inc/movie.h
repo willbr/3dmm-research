@@ -583,7 +583,7 @@ class Movie : public Movie_PAR
     void _FinishPlaybackTest();
 #endif
     std::shared_ptr<MovieContainer::Document> _container; // Outlives the working archive.
-    MovieData _data;              // Archive state and roll-call ownership, independent of views.
+    MMMovieState _data; // Archive state and roll-call ownership, independent of views.
 
     MMMovieSaveState _save; // Save flags and saved-file reference owned by C.
     Filename _containerName;
@@ -602,6 +602,8 @@ class Movie : public Movie_PAR
 
   private:
     Movie(void);
+    Movie(const Movie &) = delete;
+    Movie &operator=(const Movie &) = delete;
     struct AlarmHost;
     static MMAlarmPlaybackServices _AlarmServices(AlarmHost *);
     bool _FCloseCurrentScene(void);               // Closes and releases current scene, if any

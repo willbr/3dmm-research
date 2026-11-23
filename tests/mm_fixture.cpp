@@ -2,6 +2,7 @@
    Licensed under the MIT License. */
 #include "soc_core.h"
 #include "scene_archive_fixture.h"
+#include "movie_state_fixture.h"
 #include <cstdio>
 #include <cstdlib>
 ASSERTNAME
@@ -41,7 +42,7 @@ int main(int argc, char **argv)
         Check(file->FPutPv(const_cast<byte *>(payload), sizeof(payload), 'ZZZZ', 42));
     }
     ChunkNumber created;
-    Check(MovieData::FCreateRoot(file, &created));
+    Check(CreateMovieFixtureRoot(file, &created));
     file->Move(kctgMvie, created, kctgMvie, root);
     auto scene = SceneArchiveFixture::State();
     scene.lastFrame = variant == 2 ? 13 : 12;

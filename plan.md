@@ -350,8 +350,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   owns the source GST block through serialization and child adoption in C89.
   Local/media directory search order also uses C89. Physical filename/drive calls,
   native locale services, UI prompts, engine objects and final callers remain.
-- MovieData's working archive cache, actor table, movie number, actor-ID limit,
-  title and scene count live in an owning C state. Studio opens and creates the
+- Studio embeds the C89 movie state for its working archive cache, actor table,
+  movie number, actor-ID limit, title and scene count. Studio opens and creates the
   working cache directly. Autosave, document-local tags, scene and actor
   loading, and scene composition and undo borrow or retain that same C89 cache.
   Empty initialization, transactional load/replace, save ordering and roll-call
@@ -359,8 +359,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   roll-call links through the shared archive writer. It loads roll calls from
   the owning resource cache. Studio opens sessions for movie
   loads and scene switches from the live graph in C89. Studio's version check
-  and Preview's session opening share the C89 graph root reader. Native file
-  bindings and caller facades remain.
+  and Preview's session opening share the C89 graph root reader. The C owner
+  resolves and releases its live cache directly, and movie loading and scene
+  composition use the same graph binding. The C++ movie data translation unit
+  is out of the build. Native bindings supply filesystem access, text
+  conversion, allocation and diagnostics.
   Runtime and wire roll-call names/extras, editing buffers, GST
   loading/translation and serialization use owning C storage. The runtime
   actor table lives directly in the C movie state.

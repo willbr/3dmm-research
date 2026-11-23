@@ -74,7 +74,7 @@ struct MovieAccess : Movie
 {
     static MMResourceCache *Cache(PMovie p)
     {
-        return (p->*&MovieAccess::_data).Resources();
+        return static_cast<MMResourceCache *>((p->*&MovieAccess::_data).resources);
     }
 };
 struct Access : Scene

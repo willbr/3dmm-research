@@ -7,6 +7,7 @@
 #include "handle_services.h"
 #include "actor_track_fixture.h"
 #include "movie_archive_fixture.h"
+#include "movie_state_fixture.h"
 #include "movie_archive_host.h"
 #include "engine_movie_graph.h"
 #include "mm/chunk_copy.h"
@@ -1817,16 +1818,17 @@ static void TestMoviePersistence()
         snapshot = std::fopen(path, "wb");
         Check(snapshot);
     }
-    const auto record = [&](MovieData &movie) {
+    const auto record = [&](const MMMovieState &movie) {
         if (!snapshot) return;
+        const auto cache = static_cast<MMResourceCache *>(movie.resources);
         uint32_t row[] = {movie.movieNumber, static_cast<uint32_t>(movie.actorIdLimit),
                           static_cast<uint32_t>(movie.sceneCount), movie.actors.count,
-                          static_cast<uint32_t>(movie.Resources()->references->count), static_cast<uint32_t>(movie.title.count)};
+                          static_cast<uint32_t>(cache->references->count), static_cast<uint32_t>(movie.title.count)};
         Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
         Check(std::fwrite(mm_movie_title_text(&movie.title), sizeof(achar), movie.title.count, snapshot) == static_cast<size_t>(movie.title.count));
         ChunkNumber child;
         DataBlock block;
-        const MovieArchiveFixture archive(movie.Resources());
+        const MovieArchiveFixture archive(cache);
         if (archive.Link(kctgMvie, movie.movieNumber, 0, kctgGst, &child))
         {
             Check(archive.Find(kctgGst, child, &block));
@@ -1838,13 +1840,17 @@ static void TestMoviePersistence()
     };
     Filename destination;
     Check(destination.FGetTemp());
+    const auto services = MovieStateFixture::FileServices(&destination);
+    const auto &rollCall = services.rollcall;
     {
-        MovieData movie;
-        Check(movie.FInitEmpty());
+        MovieStateFixture movie;
+        Check(mm_movie_init_empty(&movie, &services));
         record(movie);
-        const MovieArchiveFixture archive(movie.Resources());
-        Check(!movie.Resources()->services.objects.state);
-        String movieTitle(PszLit("Headless movie")); movie.SetTitle(&movieTitle);
+        const auto cache = static_cast<MMResourceCache *>(movie.resources);
+        const MovieArchiveFixture archive(cache);
+        Check(!cache->services.objects.state);
+        String movieTitle(PszLit("Headless movie"));
+        Check(mm_movie_title_set(&movie.title, movieTitle.Prgch(), movieTitle.Cch()));
         // Preserve an actual graph: a scene references an embedded actor
         // template; persistence treats their payloads as opaque, never UI.
         byte payload[] = {1, 3, 5, 7, 9};
@@ -1859,70 +1865,78 @@ static void TestMoviePersistence()
         Check(archive.Adopt(kctgScen, scene, kctgTmpl, actorTemplate, 0));
         Check(archive.Adopt(kctgMvie, movie.movieNumber, kctgScen, scene, 0));
         TAG tag = {ksidUseCrf, nullptr, kctgTmpl, actorTemplate};
-        Check(TagManager::FOpenTag(&tag, movie.Resources()));
+        Check(TagManager::FOpenTag(&tag, cache));
         MMRollCallActor actor = {{42, 1, ksidUseCrf, 5, tag.ctg, tag.cno}, tag.cache};
         String name;
         name.SetSzs(PszLit("Actor"));
         Check(mm_rollcall_table_add(&movie.actors, name.Prgch(), name.Cch(), &actor));
-        Check(movie.FSave(&destination));
+        Check(mm_movie_save(&movie, &services));
         record(movie);
-        Check(movie.FSave(&destination)); // Replacing the roll call retains graph children.
+        Check(mm_movie_save(&movie, &services)); // Replacing the roll call retains graph children.
         record(movie);
-        MovieData alias;
-        Check(alias.FLoad(&destination) && mm_resource_cache_reader(alias.Resources()) == archive.reader);
+        MovieStateFixture alias;
+        Check(mm_movie_load(&alias, &destination, cnoNil, &services));
+        Check(mm_resource_cache_reader(static_cast<MMResourceCache *>(alias.resources)) == archive.reader);
     }
     {
-        MovieData loaded;
-        Check(loaded.FLoad(&destination));
+        MovieStateFixture loaded;
+        Check(mm_movie_load(&loaded, &destination, cnoNil, &services));
         record(loaded);
         Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.actors.count == 1);
         ChunkNumber explicitRoot = loaded.movieNumber;
-        Check(!loaded.Resources()->services.objects.state);
-        const MovieArchiveFixture archive(loaded.Resources());
+        const auto cache = static_cast<MMResourceCache *>(loaded.resources);
+        Check(!cache->services.objects.state);
+        const MovieArchiveFixture archive(cache);
         const auto graph = mm_movie_owner_graph(archive.reader);
         Check(mm_movie_graph_root(&graph, nullptr, &explicitRoot, nullptr) == MM_MOVIE_OK);
         MMRollCallActor actor;
         Check(mm_rollcall_table_extra(&loaded.actors, 0, &actor));
         Check(actor.data.actor_id == 42 && actor.data.reference_count == 1 && actor.data.browser_flags == 5);
-        Check(actor.cache == loaded.Resources());
+        Check(actor.cache == cache);
         DataBlock block;
         Check(archive.Find(kctgTmpl, actor.data.template_number, &block));
         byte bytes[5];
         Check(block.FReadRgb(bytes, sizeof(bytes), 0));
         Check(bytes[0] == 1 && bytes[4] == 9);
-        String movieTitle(PszLit("Saved after load")); loaded.SetTitle(&movieTitle);
-        Check(loaded.FSave(&destination)); // Save back to the currently open file.
+        String movieTitle(PszLit("Saved after load"));
+        Check(mm_movie_title_set(&loaded.title, movieTitle.Prgch(), movieTitle.Cch()));
+        Check(mm_movie_save(&loaded, &services)); // Save back to the currently open file.
         record(loaded);
-        Check(loaded.FLoad(&destination, explicitRoot));
-        Check(mm_resource_cache_reader(loaded.Resources()) == archive.reader);
+        Check(mm_movie_load(&loaded, &destination, explicitRoot, &services));
+        Check(mm_resource_cache_reader(static_cast<MMResourceCache *>(loaded.resources)) == archive.reader);
         record(loaded);
         // A failed load leaves already-open state intact.
-        const auto resources = loaded.Resources();
-        Check(!loaded.FLoad(&destination, explicitRoot + 10000));
-        Check(loaded.Resources() == resources);
+        const auto resources = loaded.resources;
+        Check(!mm_movie_load(&loaded, &destination, explicitRoot + 10000, &services));
+        Check(loaded.resources == resources);
         record(loaded);
         Check(loaded.actors.count == 1 && loaded.actorIdLimit == 43);
     }
     {
-        MovieData reopened; // All prior archive handles have been released.
-        Check(reopened.FLoad(&destination));
+        MovieStateFixture reopened; // All prior archive handles have been released.
+        Check(mm_movie_load(&reopened, &destination, cnoNil, &services));
         record(reopened);
-        String movieTitle; reopened.GetTitle(&movieTitle); Check(movieTitle.FEqualSz(PszLit("Saved after load")));
+        String movieTitle;
+        MovieStateFixture::CopyTitle(reopened, movieTitle);
+        Check(movieTitle.FEqualSz(PszLit("Saved after load")));
         Check(reopened.sceneCount == 1 && reopened.actors.count == 1);
     }
     {
         Filename copy;
         Check(copy.FGetTemp());
+        const auto copyServices = MovieStateFixture::FileServices(&copy);
         {
-            MovieData movie, original, saved;
-            Check(movie.FLoad(&destination));
-            const auto owner = mm_resource_cache_reader(movie.Resources());
+            MovieStateFixture movie, original, saved;
+            Check(mm_movie_load(&movie, &destination, cnoNil, &services));
+            const auto owner = mm_resource_cache_reader(static_cast<MMResourceCache *>(movie.resources));
             String title(PszLit("Saved to a new path"));
-            movie.SetTitle(&title);
-            Check(movie.FSave(&copy));
-            Check(saved.FLoad(&copy) && mm_resource_cache_reader(saved.Resources()) == owner);
-            Check(original.FLoad(&destination) && mm_resource_cache_reader(original.Resources()) != owner);
-            original.GetTitle(&title);
+            Check(mm_movie_title_set(&movie.title, title.Prgch(), title.Cch()));
+            Check(mm_movie_save(&movie, &copyServices));
+            Check(mm_movie_load(&saved, &copy, cnoNil, &services));
+            Check(mm_resource_cache_reader(static_cast<MMResourceCache *>(saved.resources)) == owner);
+            Check(mm_movie_load(&original, &destination, cnoNil, &services));
+            Check(mm_resource_cache_reader(static_cast<MMResourceCache *>(original.resources)) != owner);
+            MovieStateFixture::CopyTitle(original, title);
             Check(title.FEqualSz(PszLit("Saved after load")));
         }
         Check(copy.FDelete());
@@ -1932,7 +1946,7 @@ static void TestMoviePersistence()
         PChunkyFile malformed = ChunkyFile::PcflCreateTemp();
         Check(malformed != pvNil);
         ChunkNumber number, table;
-        Check(MovieData::FCreateRoot(malformed, &number));
+        Check(CreateMovieFixtureRoot(malformed, &number));
         PStringTable_GST wrong = StringTable_GST::PgstNew(4);
         DataBlock block;
         Check(wrong != pvNil);
@@ -1942,9 +1956,9 @@ static void TestMoviePersistence()
         ReleasePpo(&wrong);
         PChunkyResourceFile resource = ChunkyResourceFile::PcrfNew(malformed, 0);
         Check(resource != pvNil);
-        MovieData output;
-        Check(output.FInitActors());
-        Check(!MovieData::FLoadRollCall(resource->CoreCache(), number, &output.actors));
+        MovieStateFixture output;
+        Check(mm_movie_init_actors(&output, &services));
+        Check(!mm_movie_load_bound_rollcall(resource->CoreCache(), number, &output.actors, nullptr, &rollCall));
         Check(output.actors.count == 0);
         ReleasePpo(&resource);
         ReleasePpo(&malformed);
@@ -1955,8 +1969,10 @@ static void TestMoviePersistence()
 
 static void TestRollCallStorageBaseline()
 {
-    MovieData data;
-    Check(data.FInitActors());
+    const auto services = EngineMovieHost::OwnerServices();
+    const auto &rollCall = services.rollcall;
+    MovieStateFixture data;
+    Check(mm_movie_init_actors(&data, &services));
     auto table = &data.actors;
     MMRollCallActor a = {};
     a.data.source_id = 1; a.data.template_type = kctgTmpl; a.data.template_number = 77;
@@ -1978,17 +1994,18 @@ static void TestRollCallStorageBaseline()
     Check(mm_rollcall_table_add(table, name.Prgch(), name.Cch(), &a));
     name.SetNil(); Check(mm_rollcall_table_add(table, name.Prgch(), name.Cch(), &a));
     auto file = ChunkyFile::PcflCreateTemp(); ChunkNumber root, number;
-    Check(file && MovieData::FCreateRoot(file, &root));
-    Check(MovieData::FWriteRollCall(file, root, table, &number));
+    Check(file && CreateMovieFixtureRoot(file, &root));
+    const auto writer = file->WriteIndex();
+    Check(mm_movie_write_rollcall(&writer, root, table, &number));
     FILE *snapshot = nullptr;
     if (const char *path = std::getenv("MM_ROLLCALL_STORAGE_SNAPSHOT")) { snapshot = std::fopen(path, "wb"); Check(snapshot); }
     DataBlock block; Check(file->FFind(kctgGst, number, &block));
     byte bytes[2048]; auto length = block.Cb(); Check(length <= sizeof(bytes) && block.FReadRgb(bytes, length, 0));
     if (snapshot) Check(std::fwrite(bytes, 1, length, snapshot) == static_cast<size_t>(length));
     auto resources = ChunkyResourceFile::PcrfNew(file, 0);
-    MovieData loaded;
+    MovieStateFixture loaded;
     MMI32 limit = 9;
-    Check(resources && loaded.FInitActors() && MovieData::FLoadRollCall(resources->CoreCache(), root, &loaded.actors, &limit));
+    Check(resources && mm_movie_init_actors(&loaded, &services) && mm_movie_load_bound_rollcall(resources->CoreCache(), root, &loaded.actors, &limit, &rollCall));
     for (MMU32 i = 0; i < loaded.actors.count; ++i)
     {
         const void *characters;
@@ -2004,7 +2021,7 @@ static void TestRollCallStorageBaseline()
             Check(std::fwrite(characters, sizeof(achar), count, snapshot) == count);
         }
     }
-    loaded.ClearActors();
+    mm_movie_clear_actors(&loaded, &services);
     ReleasePpo(&resources); ReleasePpo(&file);
     if (snapshot) Check(std::fclose(snapshot) == 0);
 }
@@ -2012,7 +2029,7 @@ static void TestRollCallStorageBaseline()
 static void TestMovieRootBaseline()
 {
     auto file = ChunkyFile::PcflCreateTemp(); ChunkNumber root;
-    Check(file && MovieData::FCreateRoot(file, &root));
+    Check(file && CreateMovieFixtureRoot(file, &root));
     DataBlock block; Check(file->FFind(kctgMvie, root, &block));
     MovieFilePrefix prefix; Check(block.FReadRgb(&prefix, sizeof(prefix), 0));
     FILE *snapshot = nullptr;
@@ -2020,7 +2037,8 @@ static void TestMovieRootBaseline()
     if (snapshot) Check(std::fwrite(&prefix, sizeof(prefix), 1, snapshot) == 1);
     const auto record = [&](ChunkNumber requested, bool optional) {
         MMMovieHeader header = {-77, -77, -77, -77};
-        bool ok = MovieData::FVerifyVersion(file->ReadOwner(), optional ? nullptr : &requested, &header);
+        const auto graph = mm_movie_owner_graph(file->ReadOwner());
+        const bool ok = mm_movie_graph_root(&graph, nullptr, optional ? nullptr : &requested, &header) == MM_MOVIE_OK;
         uint32_t row[] = {ok, requested, static_cast<uint32_t>(header.system), static_cast<uint32_t>(header.current_version),
                           static_cast<uint32_t>(header.backward_version), static_cast<uint32_t>(header.big_endian)};
         if (snapshot) Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
@@ -2037,17 +2055,20 @@ static void TestMovieRootBaseline()
 
 static void TestMovieWireFormats()
 {
+    const auto services = EngineMovieHost::OwnerServices();
+    const auto &rollCall = services.rollcall;
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
     Check(file != pvNil);
     ChunkNumber root;
-    Check(MovieData::FCreateRoot(file, &root));
+    Check(CreateMovieFixtureRoot(file, &root));
     DataBlock block;
     Check(file->FFind(kctgMvie, root, &block));
     MovieFilePrefix prefix;
     Check(block.FReadRgb(&prefix, sizeof(prefix), 0));
     SwapBytesBom(&prefix, kbomMfp);
     Check(block.FWriteRgb(&prefix, sizeof(prefix), 0));
-    Check(MovieData::FVerifyVersion(file->ReadOwner(), &root));
+    const auto graph = mm_movie_owner_graph(file->ReadOwner());
+    Check(mm_movie_graph_root(&graph, nullptr, &root, nullptr) == MM_MOVIE_OK);
 
     PChunkyResourceFile resources = ChunkyResourceFile::PcrfNew(file, 0);
     Check(resources != pvNil);
@@ -2068,16 +2089,16 @@ static void TestMovieWireFormats()
     Check(file->FAdd(wire->CbOnFile(), kctgGst, &number, &block));
     Check(wire->FWrite(&block, kboOther));
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
-    MovieData decoded;
+    MovieStateFixture decoded;
     MMI32 limit = 0;
     LegacyLong refs = resources->CactRef();
-    Check(decoded.FInitActors() && MovieData::FLoadRollCall(resources->CoreCache(), root, &decoded.actors, &limit));
+    Check(mm_movie_init_actors(&decoded, &services) && mm_movie_load_bound_rollcall(resources->CoreCache(), root, &decoded.actors, &limit, &rollCall));
     Check(limit == 28 && resources->CactRef() == refs + 1);
     MMRollCallActor actor;
     Check(mm_rollcall_table_extra(&decoded.actors, 0, &actor));
     Check(actor.data.actor_id == 27 && actor.data.reference_count == 2 && actor.data.browser_flags == 3);
     Check(actor.data.template_number == 123 && actor.cache == resources->CoreCache());
-    decoded.ClearActors();
+    mm_movie_clear_actors(&decoded, &services);
     Check(resources->CactRef() == refs);
 
     // Historical scene merges can produce signed actor IDs below zero. They
@@ -2097,11 +2118,11 @@ static void TestMovieWireFormats()
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
     file->DeleteChild(kctgMvie, root, kctgGst, old.cki.cno, 0);
     limit = 0;
-    Check(decoded.FInitActors() && MovieData::FLoadRollCall(resources->CoreCache(), root, &decoded.actors, &limit));
+    Check(mm_movie_init_actors(&decoded, &services) && mm_movie_load_bound_rollcall(resources->CoreCache(), root, &decoded.actors, &limit, &rollCall));
     Check(limit == 28 && decoded.actors.count == 2);
     Check(mm_rollcall_table_extra(&decoded.actors, 1, &actor));
     Check(actor.data.actor_id == -749027345 && actor.cache == resources->CoreCache());
-    decoded.ClearActors();
+    mm_movie_clear_actors(&decoded, &services);
     Check(resources->CactRef() == refs);
 
     // An invalid sentinel row fails after the embedded TAGs were opened.
@@ -2116,8 +2137,8 @@ static void TestMovieWireFormats()
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
     file->DeleteChild(kctgMvie, root, kctgGst, old.cki.cno, 0);
     limit = 8;
-    Check(decoded.FInitActors());
-    Check(!MovieData::FLoadRollCall(resources->CoreCache(), root, &decoded.actors, &limit));
+    Check(mm_movie_init_actors(&decoded, &services));
+    Check(!mm_movie_load_bound_rollcall(resources->CoreCache(), root, &decoded.actors, &limit, &rollCall));
     Check(decoded.actors.count == 0 && limit == 8 && resources->CactRef() == refs);
     ReleasePpo(&wire);
     ReleasePpo(&resources);
