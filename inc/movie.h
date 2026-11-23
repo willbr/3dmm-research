@@ -605,14 +605,12 @@ class Movie : public Movie_PAR
     struct AlarmHost;
     static MMAlarmPlaybackServices _AlarmServices(AlarmHost *);
     bool _FCloseCurrentScene(void);               // Closes and releases current scene, if any
-    bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
-    bool _FUseTempFile(void);                     // Switches to using a temp file.
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
     MMMovieSceneServices _SceneServices(const MMMovieSaveServices *);
     MMMovieRollCallServices _RollCallServices();
     MMMovieUndoServices _UndoServices();
     MMMovieEditServices _EditServices();
-    MMMovieContentServices _ContentServices();
+    MMMovieContentServices _ContentServices(const MMMovieSaveServices * = nullptr);
     MMMovieComposeServices _ComposeServices(const MMMovieSceneServices &);
     struct SaveHost
     {
@@ -757,7 +755,7 @@ class Movie : public Movie_PAR
     // Auto save stuff
     //
     bool FAutoSave(PFilename pfni = pvNil, bool fCleanRollCall = fFalse); // Save movie in temp file
-    MMMovieSoundServices SoundServices();
+    MMMovieSoundServices SoundServices(const MMMovieSaveServices * = nullptr);
     bool FSaveTagSnd(TAG *ptag);
     bool FCopySndFileToMvie(PFileObject pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
     bool FEnsureAutosave(MMResourceCache **pcrf = pvNil);

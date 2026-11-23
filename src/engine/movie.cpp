@@ -929,28 +929,20 @@ static void MovieSoundIssue(void *, int fault)
     }
 }
 
-MMMovieSoundServices Movie::SoundServices()
+MMMovieSoundServices Movie::SoundServices(const MMMovieSaveServices *save)
 {
     static_assert(kctgMvie==MM_SOUND_MOVIE && kctgScen==MM_SOUND_SCENE &&
         kctgMsnd==MM_SOUND_CHUNK && kctgSoc==MM_SOUND_CREATOR && kchidSnd==MM_SOUND_PAYLOAD_SLOT && ksidUseCrf==0,
         "Movie sound ABI");
     static_assert(sizeof(TAG)==sizeof(MMTag) && sizeof(ChunkNumber)==sizeof(MMU32) &&
         sizeof(ChildChunkID)==sizeof(MMU32),"Movie sound record ABI");
-    MMMovieSoundServices s{}; s.context=this;
-    s.read=[](void *p,MMMovieSoundState *state) {
-        const auto movie = static_cast<PMovie>(p);
-        state->cache = movie->_data.resources;
-        state->movie = movie->_data.movieNumber;
-        state->scene = movie->_scenes.index;
-    };
+    MMMovieSoundServices s{};
+    s.context = this;
+    s.data = &_data;
+    s.scenes = &_scenes;
+    s.working_save = save;
     s.tags = &TagManager::CoreServices();
-    s.edit = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)).edit; };
-    s.ensure_autosave=[](void *p) { return int(static_cast<PMovie>(p)->FEnsureAutosave()); };
-    s.use_temp=[](void *p) { return int(static_cast<PMovie>(p)->_FUseTempFile()); };
     s.invalidate_number = [](MMU32 *number) { (void)number; TrashVar(number); };
-    s.save_cache = [](void *p, MMU32 creator) -> int {
-        return KauaiSaveChunkOwner(MovieArchiveReader(p)->storage, creator, nullptr);
-    };
     s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
     s.copy_midi = [](void *p, void *destination, MMU32 *out, void *name) -> int {
         const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(destination));
@@ -1076,8 +1068,14 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertThis(0); AssertVarMem(pfilSrc); AssertVarMem(pcno); AssertNilOrPo(pstn,0); Assert(_data.resources,"Bad working file.");
-    const auto services=SoundServices(); MMU32 number; std::memcpy(&number,pcno,sizeof(number));
-    bool ok=mm_movie_sound_import(pfilSrc,sty,&number,pstn,&services)!=0; std::memcpy(pcno,&number,sizeof(number)); return ok;
+    SaveHost host(this);
+    const auto save = _SaveServices(&host);
+    const auto services = SoundServices(&save);
+    MMU32 number;
+    std::memcpy(&number, pcno, sizeof(number));
+    const bool ok = mm_movie_sound_import(pfilSrc, sty, &number, pstn, &services) != 0;
+    std::memcpy(pcno, &number, sizeof(number));
+    return ok;
 }
 
 /****************************************************
@@ -1097,7 +1095,9 @@ bool Movie::FCopyMsndFromCrf(MMResourceCache *source, ChunkNumber cnoSrc, ChunkN
     AssertBaseThis(0);
     AssertVarMem(source);
     AssertVarMem(pcnoDest);
-    const auto services = SoundServices();
+    SaveHost host(this);
+    const auto save = _SaveServices(&host);
+    const auto services = SoundServices(&save);
     MMU32 number;
     std::memcpy(&number, pcnoDest, sizeof(number));
     bool ok = mm_movie_sound_copy(source, cnoSrc, &number, &services) != 0;
@@ -1159,13 +1159,11 @@ bool Movie::FRemScen(long iscen)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-MMMovieContentServices Movie::_ContentServices()
+MMMovieContentServices Movie::_ContentServices(const MMMovieSaveServices *save)
 {
     MMMovieContentServices s = {};
     s.edit = _EditServices();
-    s.ensure = [](void *p, MMResourceCache **out) -> int { return static_cast<PMovie>(p)->FEnsureAutosave(out); };
-    s.make_valid = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
-    s.use_temp = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
+    s.working_save = save;
     s.text_host = mm_kauai_template_host();
     mm_brender_text_generation_services(&s.text_generation);
     s.tags = &TagManager::CoreServices();
@@ -1196,7 +1194,9 @@ MMMovieContentServices Movie::_ContentServices()
 bool Movie::FInsertMtrl(PMaterial_MTRL pmtrl, PTAG ptag)
 {
     AssertThis(0); AssertPo(pmtrl, 0); AssertVarMem(ptag);
-    const auto services = _ContentServices();
+    SaveHost host(this);
+    const auto save = _SaveServices(&host);
+    const auto services = _ContentServices(&save);
     MMTag tag = {}; int written;
     bool ok = mm_movie_insert_material(pmtrl, &tag, &written, &services) != 0;
     if (written) TagFromCore(ptag, tag); else TrashVar(ptag);
@@ -1241,7 +1241,9 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
 {
     AssertThis(0); AssertPo(pstn, 0); Assert(pstn->Cch() > 0, "can't insert 0-length ThreeDText");
     AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
-    const auto services = _ContentServices();
+    SaveHost host(this);
+    const auto save = _SaveServices(&host);
+    const auto services = _ContentServices(&save);
     const MMStringValue name = {pstn->Pst(), sizeof(achar)};
     const auto font = TagToCore(*ptagTdf);
     return mm_movie_insert_text(&name, tdts, &font, &services) != 0;
@@ -1266,7 +1268,9 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
     AssertThis(0); AssertPo(pactr, 0); Assert(mm_template_owner_has_flag(pactr->Ptmpl(), MM_TEMPLATE_TEXT), "actor must be a ThreeDText");
     AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     Assert(pactr == Pscen()->PactrSelected(), 0);
-    const auto services = _ContentServices();
+    SaveHost host(this);
+    const auto save = _SaveServices(&host);
+    const auto services = _ContentServices(&save);
     const MMStringValue name = {pstn->Pst(), sizeof(achar)};
     const auto font = ptagTdf ? TagToCore(*ptagTdf) : MMTag{};
     return mm_movie_change_text(pactr, &name, tdts, ptagTdf ? &font : nullptr, &services) != 0;
@@ -1288,44 +1292,6 @@ bool Movie::_FCloseCurrentScene(void)
     AssertThis(0);
     SceneHost host(this);
     return mm_movie_scene_close(&host.scenes) != 0;
-}
-
-/****************************************************
- *
- * Makes sure that the current file in use is a temp file.
- *
- * Parameters:
- *	None.
- *
- * Returns:
- *  fTrue if success, fFalse if couldn't switch
- *
- ****************************************************/
-bool Movie::_FUseTempFile(void)
-{
-    AssertThis(0);
-    SaveHost host(this);
-    auto services = _SaveServices(&host);
-    return mm_movie_save_temporary(&services) != 0;
-}
-
-/****************************************************
- *
- * Makes sure that there is a file to work with.
- *
- * Parameters:
- *	None.
- *
- * Returns:
- *  fTrue if success, fFalse if couldn't switch
- *
- ****************************************************/
-bool Movie::_FMakeCrfValid(void)
-{
-    AssertThis(0);
-    SaveHost host(this);
-    auto services = _SaveServices(&host);
-    return mm_movie_save_resources(&services) != 0;
 }
 
 /****************************************************

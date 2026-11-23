@@ -20,6 +20,9 @@ typedef struct MMMovieSoundState
 typedef struct MMMovieSoundServices
 {
     void *context;
+    const struct MMMovieState *data;
+    const struct MMMovieScenes *scenes;
+    const struct MMMovieSaveServices *working_save;
     void (*read)(void *,MMMovieSoundState *);
     const MMTagServices *tags;
     MMChunkEdit (*edit)(void *cache);
@@ -37,9 +40,12 @@ typedef struct MMMovieSoundServices
 /* Locate the first unused sound slot. Other chunk types can use the same
  * slot. Returns a chunk status and publishes the slot only on success. */
 int mm_movie_sound_free_slot(const MMChunkAccess *, MMU32 parent_type, MMU32 parent, MMU32 *slot);
-/* All operations borrow live movie/cache/file state. Only ensure_autosave and
- * use_temp may replace the movie's working state; other callbacks cannot reenter
- * or change it independently. File graph operations and tag operations may edit
+/* All operations borrow live movie/cache/file state. Live state uses data and
+ * scenes, and a null edit callback uses the cache's archive writer. Hosts with
+ * alternate state use read; copy/import use the working save or the alternate
+ * preparation and save callbacks. Preparation may replace the movie's working
+ * state. Other callbacks cannot reenter or change it independently.
+ * File graph operations and tag operations may edit
  * their documented data. Counts include every child type; free slots search only
  * sound links. Missing current scene makes next_scene return zero (legacy false).
  * Child enumeration failure in is_child returns false. In adopt it diagnoses

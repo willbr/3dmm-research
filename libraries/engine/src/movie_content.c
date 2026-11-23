@@ -1,6 +1,13 @@
 /* Movie content transactions converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_content.h"
+#include "mm/movie_save.h"
+
+static void publish_resources(void *output, void *resources)
+{
+    *(MMResourceCache **)output = resources;
+}
+
 int mm_movie_insert_material(MMMaterialOwner *material, MMTag *output, int *written,
                                    const MMMovieContentServices *s)
 {
@@ -8,7 +15,8 @@ int mm_movie_insert_material(MMMaterialOwner *material, MMTag *output, int *writ
     MMArchiveWriter archive;
     MMU32 number;
     *written = 0;
-    if (!s->ensure(s->edit.context, &resources))
+    if (!(s->working_save ? mm_movie_save_ensure(&resources, publish_resources, s->working_save)
+                          : s->ensure(s->edit.context, &resources)))
         return 0;
     archive = mm_resource_cache_writer(resources);
     if (!mm_material_owner_write(material, &archive, MM_MATERIAL_CHUNK, &number))
@@ -33,10 +41,10 @@ static int author(const MMStringValue *name, MMI32 shape, const MMTag *font, MMT
     text = mm_text_create(s->text_host, name, shape, font, NULL, &s->text_generation);
     if (!text)
         return 0;
-    if (s->make_valid(s->edit.context))
+    if (s->working_save ? mm_movie_save_resources(s->working_save) : s->make_valid(s->edit.context))
     {
         resources = s->edit.data->resources;
-        if (s->use_temp(s->edit.context))
+        if (s->working_save ? mm_movie_save_temporary(s->working_save) : s->use_temp(s->edit.context))
         {
             writer = mm_resource_cache_writer(resources);
             ok = mm_text_write_owner(text, MM_TMPL, &number, &writer);

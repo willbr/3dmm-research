@@ -12,6 +12,7 @@ extern "C"
     typedef struct MMMovieContentServices
     {
         MMMovieEditServices edit;
+        const struct MMMovieSaveServices *working_save;
         int (*ensure)(void *, MMResourceCache **resources);
         int (*make_valid)(void *), (*use_temp)(void *);
         const MMTemplateOwnerHost *text_host;
@@ -35,8 +36,9 @@ extern "C"
      * Authored local tags retain the active document cache. Material output is
      * defined once writing succeeds. Before that it is untouched and written=0
      * (native hosts may poison output).
-     * Text creation captures the working cache before use_temp, preserving the native
-     * transaction order. Failed writes/edits keep their authored chunk prefixes, but
+     * Material and text use the working save or the alternate preparation
+     * callbacks. Both capture the working cache before making it temporary.
+     * Failed writes/edits keep their authored chunk prefixes, but
      * release temporary templates, tags and actor snapshots on every exit.
      * Text change requires actor to be selected. Only ASCII spaces count as blank;
      * blank deletion does not inspect the font input.

@@ -24805,3 +24805,34 @@ observations and the settled canvas in retail and V3DMM.
 
 Evidence is under `tmp/c89-scene-working-save`. The playback suite is in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 sound and authored asset working saves (23 November 2026)
+
+Studio sound copy and import use the C89 working-save services to prepare the
+archive and save the adopted sound. Sound links and tags use the live C89
+movie and scene state. Material and 3D text authoring use the same archive
+preparation and preserve the working cache captured before the temporary save.
+
+All twelve standalone C checks passed, including strict C89 syntax. The x64
+and x86 sound and content checks and the external C89 engine consumer passed.
+The headless native suite passed all 227 selected checks.
+The native movie save/load fixture matched all eleven baseline traces, including
+15,580 bytes for sound and 91,484 bytes for material and 3D text authoring.
+The scene traces, ten asset preview fingerprints, and headless Marcus startup
+image matched their baselines. The existing `scene-load` assertion followed
+the same 63,224-byte trace with fingerprint `0D666753`.
+
+SDL Studio passed 28 targeted checks. Its movie save, content and actor traces
+and authored 27,056-byte `.3mm` matched their baselines. The VMM workflow
+passed all eight checks. Its ordinary `.3mm`, five `.vmm` files, and two canvas
+captures matched byte for byte.
+
+Actor Audio and Dissolve suite `20261123T155918Z-a32f4d7d` completed eight
+fresh captures with verified input hashes. Each port matched the prior seek
+canvases and scene states. Actor Audio matched all 60 frame positions and
+camera indices in retail and V3DMM. Studio matched all 240 retained actor
+snapshots to six significant digits in position. Dissolve matched 59 steady
+observations in each port and the settled canvas in retail and V3DMM.
+
+Evidence is under `tmp/c89-media-working-save`. The playback suite is in
+`tmp/c89-working-archive/capture/playback.sqlite`.
