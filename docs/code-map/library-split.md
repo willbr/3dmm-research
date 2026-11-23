@@ -6846,18 +6846,22 @@ expanded-index variants compile with `/Zs`.
 
 `chunk_context.c` owns container registry links through explicit independent C
 contexts and caller-owned link records. No allocation or callbacks enter list
-insertion/removal. Links borrow owner tokens, insert newest first and detach
-without retaining owners. Attached link/context addresses must remain stable;
-detach is idempotent and duplicate attachment is rejected. Hosts remove links
-after associated-resource disposal and before freeing owner storage.
+insertion/removal. Links borrow owner tokens, live C archive state, and reference
+counts. They insert newest first and detach without retaining owners. Attached
+link and context addresses must remain stable. Detach is idempotent and duplicate
+attachment is rejected. Hosts remove links before freeing the owner.
 
 `ChunkyFile` now derives directly from BASE and uses C link state, replacing its
 BaseLinkedList storage and native registry head. Its temporary native facade
 supplies a default process context; the C API supports independent contexts.
-`PcflFirst`/`PcflNext` keep their borrowed traversal contract. Existing C marked/
-zero-reference cleanup policy traverses those links. Persistent owner state is
-converted above. Native class allocation, file/name primitives and other object
-adapters remain to be converted.
+`PcflFirst`/`PcflNext` keep their borrowed traversal contract. The C registry
+reads the live link state for file lookup, mark clearing, and zero-reference
+cleanup. Lookup skips invalid main files and can report collisions with temporary
+spill files. Cleanup saves the next link before calling the host destructor.
+Working and legacy archives use the same lookup against their own contexts.
+The shared resource-cache open resolves the file name once, then uses that file
+record to check both contexts in working-first order. Native class allocation,
+validation, and destruction remain host services.
 
 `mm_chunk_construct_forest` owns destination construction. Copied imports
 create a temporary file and reserve the 128-byte prefix. Borrowed imports retain

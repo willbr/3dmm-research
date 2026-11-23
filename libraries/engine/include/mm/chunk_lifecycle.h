@@ -38,16 +38,6 @@ extern "C"
     /* Returns -1 for invalid count, 0 to retain, 1 to destroy. Failure leaves output
      * unchanged; a marked zero-count container remains in the host registry. */
     int mm_chunk_release(MMI32 references, int marked, MMI32 *remaining);
-    typedef struct MMChunkRegistry
-    {
-        void *(*next)(void *);
-        int (*marked)(void *);
-        MMI32 (*references)(void *);
-        void (*clear_mark)(void *);
-        void (*destroy)(void *);
-    } MMChunkRegistry;
-    int mm_chunk_clear_marks(void *first, const MMChunkRegistry *);
-    int mm_chunk_close_unmarked(void *first, const MMChunkRegistry *);
     typedef struct MMChunkReopenState
     {
         void *main_file, *extra_file, *index;

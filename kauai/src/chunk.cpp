@@ -340,7 +340,7 @@ ChunkyFile::ChunkyFile(MMChunkArchive *archive)
     };
 #endif
     // add it to the linked list
-    mm_chunk_link_init(&_link, this);
+    mm_chunk_link_init(&_link, this, &_owner, &_references);
     AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
     AssertBaseThis(0);
 }
@@ -462,18 +462,12 @@ PChunkyFile ChunkyFile::PcflCreateTemp(Filename *pfni)
 PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
-    return _PcflFromFile(FileObject::PfilFromFni(pfni));
+    return static_cast<PChunkyFile>(mm_chunk_context_find(&_context, FileObject::PfilFromFni(pfni), DiagnoseExtraFile));
 }
 
-PChunkyFile ChunkyFile::_PcflFromFile(PFileObject file)
+void ChunkyFile::DiagnoseExtraFile(void *)
 {
-    const MMChunkLookup services = {
-        [](void *c) -> void * { return static_cast<PChunkyFile>(c)->PcflNext(); },
-        [](void *c) -> void * { return static_cast<PChunkyFile>(c)->_MainFile(); },
-        [](void *c) -> void * { return static_cast<PChunkyFile>(c)->_ExtraFile(); },
-        [](void *c) -> int { return static_cast<PChunkyFile>(c)->_owner.files.invalid_main; },
-        [](void *) { Bug("who is using this Filename?"); }};
-    return static_cast<PChunkyFile>(mm_chunk_find_container(PcflFirst(), file, &services));
+    Bug("who is using this Filename?");
 }
 /***************************************************************************
     Embedded chunk descriptor on file. Chunks and their subtrees can
@@ -652,19 +646,17 @@ PChunkyFile ChunkyFile::PcflReadForest(ChunkTagOrType ctg, ChunkNumber cno, bool
 /***************************************************************************
     Static method: clear the marks for chunky files.
 ***************************************************************************/
-MMChunkRegistry ChunkyFile::_RegistryServices()
+namespace
 {
-    return {
-        [](void *c) -> void * { auto self = static_cast<PChunkyFile>(c); AssertPo(self, 0); return self->PcflNext(); },
-        [](void *c) -> int { return static_cast<PChunkyFile>(c)->_owner.marked; },
-        [](void *c) -> MMI32 { return static_cast<PChunkyFile>(c)->_references.count; },
-        [](void *c) { auto self = static_cast<PChunkyFile>(c); AssertPo(self, 0); self->_owner.marked = false; },
-        [](void *c) { delete static_cast<PChunkyFile>(c); }};
+#ifdef DEBUG
+void ValidateRegisteredContainer(void *owner) { AssertPo(static_cast<PChunkyFile>(owner), 0); }
+#else
+constexpr void (*ValidateRegisteredContainer)(void *) = nullptr;
+#endif
 }
 void ChunkyFile::ClearMarks(void)
 {
-    const auto registry = _RegistryServices();
-    AssertDo(mm_chunk_clear_marks(PcflFirst(), &registry) == MM_CHUNK_OK, "invalid container registry");
+    mm_chunk_context_clear_marks(&_context, ValidateRegisteredContainer);
 }
 /***************************************************************************
     Static method: close any chunky files that are unmarked and have 0
@@ -672,8 +664,8 @@ void ChunkyFile::ClearMarks(void)
 ***************************************************************************/
 void ChunkyFile::CloseUnmarked(void)
 {
-    const auto registry = _RegistryServices();
-    AssertDo(mm_chunk_close_unmarked(PcflFirst(), &registry) == MM_CHUNK_OK, "invalid container registry" );
+    mm_chunk_context_close_unmarked(&_context, ValidateRegisteredContainer,
+                                    [](void *owner) { delete static_cast<PChunkyFile>(owner); });
 }
 
 /***************************************************************************

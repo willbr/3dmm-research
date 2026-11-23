@@ -311,7 +311,7 @@ MMResourceCache *OpenSharedTypedCache(Filename *name, bool preferWorking, bool &
     const auto legacy = TypedCacheServices(LegacyCacheServices());
     const MMSharedArchiveCacheServices services = {
         KauaiNamedArchiveServices(), &working, &legacy,
-        [](void *name) -> void * { return ChunkyFile::PcflFromFni(static_cast<PFilename>(name)); },
+        ChunkyFile::CoreRegistry(), ChunkyFile::DiagnoseExtraFile,
         [](void *archive) -> int { return static_cast<PChunkyFile>(archive)->FSetGrfcfl(fcflNil); },
         KauaiResourceObjectAllocator(), KauaiCopyAllocator()};
     int live;

@@ -106,21 +106,6 @@ fail:
     issue(services, error);
     return NULL;
 }
-void *mm_chunk_find_container(void *first, void *file, const MMChunkLookup *services)
-{
-    if (!file || !services || !services->next || !services->main_file || !services->extra_file ||
-        !services->invalid_main)
-        return NULL;
-    while (first)
-    {
-        if (services->extra_file(first) == file && services->extra_collision)
-            services->extra_collision(first);
-        if (services->main_file(first) == file && !services->invalid_main(first))
-            return first;
-        first = services->next(first);
-    }
-    return NULL;
-}
 int mm_chunk_dispose(MMChunkReopenState *state, MMChunkRuntime *runtime,
                            const MMChunkDisposal *services)
 {

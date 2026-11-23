@@ -38,31 +38,6 @@ int mm_chunk_release(MMI32 references, int marked, MMI32 *remaining)
     *remaining = references - 1;
     return !*remaining && !marked;
 }
-int mm_chunk_clear_marks(void *first, const MMChunkRegistry *registry)
-{
-    if (!registry || !registry->next || !registry->clear_mark)
-        return MM_CHUNK_BAD_FILE;
-    while (first)
-    {
-        registry->clear_mark(first);
-        first = registry->next(first);
-    }
-    return MM_CHUNK_OK;
-}
-int mm_chunk_close_unmarked(void *first, const MMChunkRegistry *registry)
-{
-    void *next;
-    if (!registry || !registry->next || !registry->marked || !registry->references || !registry->destroy)
-        return MM_CHUNK_BAD_FILE;
-    while (first)
-    {
-        next = registry->next(first);
-        if (!registry->marked(first) && !registry->references(first))
-            registry->destroy(first);
-        first = next;
-    }
-    return MM_CHUNK_OK;
-}
 int mm_chunk_reopen(MMChunkReopenState *state, MMChunkRuntime *runtime,
                           const MMChunkReopenServices *services)
 {

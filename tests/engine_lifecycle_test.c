@@ -1,4 +1,5 @@
-#include "mm/chunk_lifecycle.h"
+#include "mm/chunk_context.h"
+#include "mm/chunk_owner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -91,89 +92,55 @@ static void options(void)
                             CHECK(o.wanted == mapping[requested & 3] && o.mask == mapping[mask & 3]);
                     }
 }
-typedef struct Registry Registry;
 typedef struct Link
 {
-    struct Link *next, *previous;
-    Registry *owner;
-    int mark, refs, dead, id;
+    MMChunkLink link;
+    MMChunkOwner owner;
+    MMReference references;
+    int *destroyed;
+    int dead, validations;
 } Link;
-struct Registry
+static void validate_link(void *p)
 {
-    Link *first;
-    int destroyed;
-};
-static void *next(void *p)
-{
-    Link *n = (Link *)p;
+    Link *n = p;
     CHECK(!n->dead);
-    return n->next;
-}
-static int marked(void *p)
-{
-    Link *n = (Link *)p;
-    CHECK(!n->dead);
-    return n->mark;
-}
-static MMI32 references(void *p)
-{
-    Link *n = (Link *)p;
-    CHECK(!n->dead);
-    return n->refs;
-}
-static void clear(void *p)
-{
-    Link *n = (Link *)p;
-    CHECK(!n->dead);
-    n->mark = 0;
+    ++n->validations;
 }
 static void destroy(void *p)
 {
-    Link *n = (Link *)p;
-    CHECK(!n->dead && !n->refs && !n->mark);
-    if (n->previous)
-        n->previous->next = n->next;
-    else
-        n->owner->first = n->next;
-    if (n->next)
-        n->next->previous = n->previous;
+    Link *n = p;
+    CHECK(!n->dead && !n->references.count && !n->owner.marked);
+    CHECK(mm_chunk_context_detach(&n->link) == MM_CHUNK_OK);
     n->dead = 1;
-    n->next = (Link *)1;
-    ++n->owner->destroyed;
+    n->link.next = (MMChunkLink *)1;
+    ++*n->destroyed;
 }
 static void registry(void)
 {
     Link nodes[4];
-    Registry r;
-    MMChunkRegistry services;
+    MMChunkContext registry = {0};
     MMI32 remaining;
-    int i;
+    int i, destroyed = 0;
     memset(nodes, 0, sizeof(nodes));
-    memset(&r, 0, sizeof(r));
-    r.first = nodes;
-    services.next = next;
-    services.marked = marked;
-    services.references = references;
-    services.clear_mark = clear;
-    services.destroy = destroy;
-    for (i = 0; i < 4; ++i)
+    for (i = 3; i >= 0; --i)
     {
-        nodes[i].owner = &r;
-        nodes[i].id = i;
-        if (i)
-            nodes[i].previous = nodes + i - 1;
-        if (i < 3)
-            nodes[i].next = nodes + i + 1;
+        nodes[i].destroyed = &destroyed;
+        mm_chunk_link_init(&nodes[i].link, nodes + i, &nodes[i].owner, &nodes[i].references);
+        CHECK(mm_chunk_context_attach(&registry, &nodes[i].link) == MM_CHUNK_OK);
     }
-    nodes[1].mark = 1;
-    nodes[2].refs = 1;
-    CHECK(mm_chunk_close_unmarked(r.first, &services) == MM_CHUNK_OK && r.destroyed == 2 &&
-          r.first == nodes + 1);
-    CHECK(mm_chunk_clear_marks(r.first, &services) == MM_CHUNK_OK && !nodes[1].mark);
-    CHECK(mm_chunk_close_unmarked(r.first, &services) == MM_CHUNK_OK && r.destroyed == 3 &&
-          r.first == nodes + 2);
-    nodes[2].refs = 0;
-    CHECK(mm_chunk_close_unmarked(r.first, &services) == MM_CHUNK_OK && r.destroyed == 4 && !r.first);
+    nodes[1].owner.marked = 1;
+    nodes[2].references.count = 1;
+    mm_chunk_context_close_unmarked(&registry, validate_link, destroy);
+    CHECK(destroyed == 2 && mm_chunk_context_first(&registry) == nodes + 1);
+    for (i = 0; i < 4; ++i)
+        CHECK(nodes[i].validations == 1);
+    mm_chunk_context_clear_marks(&registry, validate_link);
+    CHECK(!nodes[1].owner.marked && nodes[1].validations == 3 && nodes[2].validations == 3);
+    mm_chunk_context_close_unmarked(&registry, validate_link, destroy);
+    CHECK(destroyed == 3 && mm_chunk_context_first(&registry) == nodes + 2);
+    nodes[2].references.count = 0;
+    mm_chunk_context_close_unmarked(&registry, NULL, destroy);
+    CHECK(destroyed == 4 && !registry.first);
     remaining = 99;
     CHECK(mm_chunk_release(0, 0, &remaining) == -1 && remaining == 99);
     CHECK(mm_chunk_release(-1, 1, &remaining) == -1 && remaining == 99);

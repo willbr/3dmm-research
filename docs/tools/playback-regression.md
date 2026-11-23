@@ -25751,3 +25751,38 @@ previously observed one-count difference in the later Actor Audio peak.
 
 Evidence is under `tmp/c89-archive-publication`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## Shared C89 archive registry lookup and cleanup (23 November 2026)
+
+Working and legacy archives now register their live C owner state and
+reference count with the same C lookup and cleanup code. The resource cache
+resolves one named file and checks the working registry before the legacy
+registry. Lookup skips invalid main files and preserves the legacy diagnostic
+for extra-file collisions. C clears marks and removes zero-reference owners
+through the existing host destructor.
+
+The standalone fixtures exercise file replacement while registered,
+extra-file collision order, deletion during traversal, and working-archive
+precedence. The cache fixture verifies that selecting a legacy owner uses one
+filename comparison. All 41 standalone engine checks and 23 strict C89 checks
+passed. The changed C modules also compiled with strict C89 flags for Linux x64.
+The 120-byte registry, 597-byte construction, and 56-byte lifecycle traces
+matched their pre-change versions in both x64 and x86 Debug. The frozen
+resource-cache trace and headless Marcus startup canvas were byte-identical.
+All twelve file-owner and file-operation traces matched for x64 and x86 Debug
+and SDL Release. All 228 selected native tests passed. The 27 native scene,
+save, and edit traces and ten preview fingerprints matched their baselines.
+Classic and SDL Studio rebuilt. SDL authoring and save/reopen passed. Four
+SDL save traces and eight VMM outputs matched their baselines. The external
+core, archive, and preview consumers passed.
+
+Fresh suite `20261123T212729Z-cf94edea` completed eight captures and replay
+suite `20261123T212831Z-540a3529` completed four with verified input hashes.
+Both ports matched all 60 Actor Audio frame positions and camera indices and
+59 of 60 seek canvases against retained retail and V3DMM. Both matched all 60
+seek canvases and scene states against the prior port build. The first 100 ms
+of all four Actor Audio spans, the embedded WAVE cue, and the first 400 ms of
+embedded MIDI matched the retained port samples in fresh playback and replay.
+
+Evidence is under `tmp/c89-container-lookup`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

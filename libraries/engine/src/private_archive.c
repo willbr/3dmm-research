@@ -179,6 +179,7 @@ static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *
                                           const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
 {
     MMPrivateArchive *archive;
+    MMChunkOwner *owner;
     MMChunkPayloadServices payloads = {0};
     if (!file || !io || !io->release)
         return NULL;
@@ -204,8 +205,9 @@ static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *
         return NULL;
     }
     mm_reference_init(&archive->references);
-    mm_chunk_link_init(&archive->link, archive);
-    mm_private_archive_reader(archive)->storage->owner->files.main_file = file;
+    owner = mm_private_archive_reader(archive)->storage->owner;
+    mm_chunk_link_init(&archive->link, archive, owner, &archive->references);
+    owner->files.main_file = file;
     return archive;
 }
 
@@ -349,16 +351,7 @@ MMPrivateArchive *mm_private_archive_open_resource_forest(MMResourceCache *sourc
 
 MMPrivateArchive *mm_private_archive_find(const MMChunkContext *registry, void *file)
 {
-    MMPrivateArchive *archive;
-    if (!file)
-        return NULL;
-    for (archive = mm_chunk_context_first(registry); archive; archive = mm_chunk_context_next(&archive->link))
-    {
-        const MMChunkReopenState *files = &mm_private_archive_reader(archive)->storage->owner->files;
-        if (!files->invalid_main && files->main_file == file)
-            return archive;
-    }
-    return NULL;
+    return mm_chunk_context_find(registry, file, NULL);
 }
 
 MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *registry, void *file, int mode,
@@ -434,7 +427,8 @@ MMResourceCache *mm_shared_archive_cache_open(const MMSharedArchiveCacheServices
 {
     const MMNamedArchiveServices *files = s->files;
     const MMRegisteredFile *file = mm_file_ops_find(files->file_ops, name);
-    MMPrivateArchive *archive = file ? mm_private_archive_find(files->registry, file->object) : NULL;
+    void *backing = file ? file->object : NULL;
+    MMPrivateArchive *archive = mm_private_archive_find(files->registry, backing);
     MMResourceCache *cache = NULL;
     MMResourceSource source = {0};
     *selected = 1;
@@ -442,7 +436,7 @@ MMResourceCache *mm_shared_archive_cache_open(const MMSharedArchiveCacheServices
         mm_private_archive_retain(archive);
     else
     {
-        source.live = s->find_legacy(name);
+        source.live = mm_chunk_context_find(s->legacy_registry, backing, s->extra_collision);
         if (source.live)
         {
             if (s->prepare_legacy(source.live))

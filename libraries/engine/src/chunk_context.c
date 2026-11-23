@@ -1,15 +1,18 @@
 /* Container links converted from Kauai BaseLinkedList.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_context.h"
+#include "mm/chunk_owner.h"
 #include <string.h>
 void mm_chunk_context_init(MMChunkContext *context)
 {
     context->first = NULL;
 }
-void mm_chunk_link_init(MMChunkLink *link, void *owner)
+void mm_chunk_link_init(MMChunkLink *link, void *owner, MMChunkOwner *state, const MMReference *references)
 {
     memset(link, 0, sizeof(*link));
     link->owner = owner;
+    link->state = state;
+    link->references = references;
 }
 int mm_chunk_context_valid(const MMChunkLink *link)
 {
@@ -22,7 +25,7 @@ int mm_chunk_context_valid(const MMChunkLink *link)
 }
 int mm_chunk_context_attach(MMChunkContext *context, MMChunkLink *link)
 {
-    if (!context || !mm_chunk_context_valid(link) || link->context ||
+    if (!context || !mm_chunk_context_valid(link) || !link->state || !link->references || link->context ||
         (context->first && context->first->previous != &context->first))
         return MM_CHUNK_BAD_FILE;
     link->next = context->first;
@@ -54,4 +57,44 @@ void *mm_chunk_context_first(const MMChunkContext *context)
 void *mm_chunk_context_next(const MMChunkLink *link)
 {
     return link && link->next ? link->next->owner : NULL;
+}
+void *mm_chunk_context_find(const MMChunkContext *context, void *file, void (*extra_collision)(void *))
+{
+    const MMChunkLink *link;
+    if (!context || !file)
+        return NULL;
+    for (link = context->first; link; link = link->next)
+    {
+        const MMChunkReopenState *files = &link->state->files;
+        if (extra_collision && files->extra_file == file)
+            extra_collision(link->owner);
+        if (files->main_file == file && !files->invalid_main)
+            return link->owner;
+    }
+    return NULL;
+}
+void mm_chunk_context_clear_marks(const MMChunkContext *context, void (*validate)(void *))
+{
+    const MMChunkLink *link;
+    for (link = context->first; link; link = link->next)
+    {
+        if (validate)
+            validate(link->owner);
+        link->state->marked = 0;
+        if (validate)
+            validate(link->owner);
+    }
+}
+void mm_chunk_context_close_unmarked(const MMChunkContext *context, void (*validate)(void *),
+                                     void (*destroy)(void *))
+{
+    const MMChunkLink *link, *next;
+    for (link = context->first; link; link = next)
+    {
+        if (validate)
+            validate(link->owner);
+        next = link->next;
+        if (!link->state->marked && !link->references->count)
+            destroy(link->owner);
+    }
 }

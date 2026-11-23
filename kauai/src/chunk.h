@@ -131,9 +131,6 @@ class ChunkyFile : public ChunkyFile_PAR
 
     static MMChunkConstruction _ConstructionServices(Filename *);
     static PChunkyFile _PcflNew();
-    static PChunkyFile _PcflFromFile(PFileObject);
-
-    static MMChunkRegistry _RegistryServices();
     void _SetChunkFlag(ChunkTagOrType, ChunkNumber, MMU32, bool);
     bool _FReadIndex(void);
     MMChunkAccess _ChunkAccess();
@@ -168,6 +165,8 @@ class ChunkyFile : public ChunkyFile_PAR
     static PChunkyFile PcflCreate(Filename *pfni, LegacyUlong grfcfl);
     static PChunkyFile PcflCreateTemp(Filename *pfni = pvNil);
     static PChunkyFile PcflFromFni(Filename *pfni);
+    static const MMChunkContext *CoreRegistry() { return &_context; }
+    static void DiagnoseExtraFile(void *);
 
     static void ClearMarks(void);
     static void CloseUnmarked(void);

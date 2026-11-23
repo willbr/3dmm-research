@@ -1,5 +1,5 @@
-#include "mm/chunk_container.h"
 #include "mm/chunk_context.h"
+#include "mm/chunk_owner.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -351,55 +351,37 @@ static void construct(void)
     drop(&h, o);
     balanced(&h);
 }
-typedef struct Link
-{
-    struct Link *next;
-    void *main_file, *extra_file;
-    int invalid, collisions;
-} Link;
-static void *next_link(void *p)
-{
-    return ((Link *)p)->next;
-}
-static void *main_file(void *p)
-{
-    return ((Link *)p)->main_file;
-}
-static void *extra_file(void *p)
-{
-    return ((Link *)p)->extra_file;
-}
-static int invalid(void *p)
-{
-    return ((Link *)p)->invalid;
-}
 static void collision(void *p)
 {
-    ++((Link *)p)->collisions;
+    ++*(int *)p;
 }
 static void lookup(void)
 {
-    Link links[3];
-    int a, b, c;
-    MMChunkLookup s;
-    memset(links, 0, sizeof(links));
-    s.next = next_link;
-    s.main_file = main_file;
-    s.extra_file = extra_file;
-    s.invalid_main = invalid;
-    s.extra_collision = collision;
-    links[0].next = links + 1;
-    links[0].main_file = &a;
-    links[0].invalid = 1;
-    links[1].next = links + 2;
-    links[1].main_file = &b;
-    links[1].extra_file = &a;
-    links[2].main_file = &a;
-    CHECK(mm_chunk_find_container(links, &a, &s) == links + 2 && links[1].collisions == 1);
-    CHECK(mm_chunk_find_container(links, &b, &s) == links + 1 && links[1].collisions == 1);
-    CHECK(!mm_chunk_find_container(links, &c, &s) && !mm_chunk_find_container(links, NULL, &s));
-    s.extra_collision = NULL;
-    CHECK(mm_chunk_find_container(links, &a, &s) == links + 2);
+    MMChunkContext registry = {0};
+    MMChunkLink links[3];
+    MMChunkOwner owners[3] = {0};
+    MMReference references[3] = {0};
+    int collisions[3] = {0};
+    int a, b, c, i;
+    for (i = 2; i >= 0; --i)
+    {
+        mm_chunk_link_init(links + i, collisions + i, owners + i, references + i);
+        CHECK(mm_chunk_context_attach(&registry, links + i) == MM_CHUNK_OK);
+    }
+    owners[0].files.main_file = &a;
+    owners[0].files.invalid_main = 1;
+    owners[1].files.main_file = &b;
+    owners[1].files.extra_file = &a;
+    owners[2].files.main_file = &a;
+    CHECK(mm_chunk_context_find(&registry, &a, collision) == collisions + 2 && collisions[1] == 1);
+    CHECK(mm_chunk_context_find(&registry, &b, collision) == collisions + 1 && collisions[1] == 1);
+    CHECK(!mm_chunk_context_find(&registry, &c, collision) && !mm_chunk_context_find(&registry, NULL, collision));
+    CHECK(mm_chunk_context_find(&registry, &a, NULL) == collisions + 2);
+    owners[2].files.main_file = &c;
+    CHECK(!mm_chunk_context_find(&registry, &a, collision) && collisions[1] == 2);
+    CHECK(mm_chunk_context_find(&registry, &c, collision) == collisions + 2);
+    for (i = 0; i < 3; ++i)
+        CHECK(mm_chunk_context_detach(links + i) == MM_CHUNK_OK);
 }
 static void dispose_cases(void)
 {
@@ -465,13 +447,15 @@ static void context_cases(void)
 {
     MMChunkContext a, b;
     MMChunkLink links[4];
+    MMChunkOwner owners[4] = {0};
+    MMReference references[4] = {0};
     MMChunkLink **saved;
     int values[4], i;
     mm_chunk_context_init(&a);
     mm_chunk_context_init(&b);
     CHECK(!mm_chunk_context_first(&a) && !mm_chunk_context_first(NULL));
     for (i = 0; i < 4; ++i)
-        mm_chunk_link_init(links + i, values + i);
+        mm_chunk_link_init(links + i, values + i, owners + i, references + i);
     for (i = 0; i < 3; ++i)
         CHECK(mm_chunk_context_attach(&a, links + i) == MM_CHUNK_OK);
     CHECK(mm_chunk_context_first(&a) == values + 2 && mm_chunk_context_next(links + 2) == values + 1);

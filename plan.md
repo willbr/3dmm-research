@@ -2350,6 +2350,9 @@ records for lookup, name replacement, and shutdown. Studio's working archive
 binding uses the registry directly to open files, stage saves in the target
 directory, and publish them by rename or swap. Kauai supplies the Filename
 values, tracked object allocation, and diagnostics.
+Studio's live resource-cache lookup resolves the backing file once and checks
+both archive registries in C. Those registries also read the C archive state
+directly for mark clearing and zero-reference cleanup.
 The Windows code-page, case mapping, and collation providers now build as C89.
 Archive readers and private editors get the shared C archive text profile,
 including the writer for legacy counted names.

@@ -837,12 +837,12 @@ typedef struct NamedFiles
     MMFileOwner owner;
     MMReference references;
     MMRegisteredFile registration;
-    int opens, legacy_lookups, legacy_prepares, has_legacy, fail_open;
+    int opens, name_matches, legacy_prepares, fail_open;
 } NamedFiles;
 
 static int equal_named_files(void *context, void *a, void *b)
 {
-    (void)context;
+    ++((NamedFiles *)context)->name_matches;
     return a == b;
 }
 
@@ -862,13 +862,6 @@ static MMFileOwnerHost named_file_host(void *context)
     return host;
 }
 
-static void *find_legacy_archive(void *name)
-{
-    NamedFiles *files = name;
-    ++files->legacy_lookups;
-    return files->has_legacy ? files : NULL;
-}
-
 static int refuse_legacy_archive(void *archive)
 {
     ++((NamedFiles *)archive)->legacy_prepares;
@@ -881,6 +874,10 @@ static void private_archive_cases(void)
     StorageHost host = {0};
     MMBlockFileServices blocks = {NULL, retain_block, release_block, create_extra, read_block, write_block};
     MMChunkContext registry = {0};
+    MMChunkContext legacy_registry = {0};
+    MMChunkLink legacy_link;
+    MMChunkOwner legacy_owner = {0};
+    MMReference legacy_ref = {0};
     MMResourceCache cache = {0};
     MMChunkTitleIO titles = {0};
     MMMovieTitle title;
@@ -888,7 +885,7 @@ static void private_archive_cases(void)
     MMFileRegistry file_registry;
     MMFileOpsHost file_ops = {0};
     MMNamedArchiveServices files = {0};
-    MMSharedArchiveCacheServices shared = {NULL, NULL, NULL, find_legacy_archive, refuse_legacy_archive, NULL, NULL};
+    MMSharedArchiveCacheServices shared = {NULL, NULL, NULL, NULL, NULL, refuse_legacy_archive, NULL, NULL};
     NamedFiles name = {0};
     MMPrivateArchive *archive, *alias;
     MMResourceCache *shared_cache;
@@ -913,14 +910,18 @@ static void private_archive_cases(void)
     files.profile = &profile;
     files.file_ops = &file_ops;
     shared.files = &files;
+    shared.legacy_registry = &legacy_registry;
     name.file = &host.main;
     mm_file_registry_init(&file_registry, NULL, NULL, NULL);
     mm_registered_file_init(&name.registration, name.file, &name, &name.owner, &name.references, &name,
                             named_file_host);
     mm_file_registry_attach(&file_registry, &name.registration);
     file_ops.registry = &file_registry;
+    file_ops.context = &name;
     file_ops.equal_names = equal_named_files;
     file_ops.retain = retain_block;
+    mm_chunk_link_init(&legacy_link, &name, &legacy_owner, &legacy_ref);
+    legacy_owner.files.main_file = name.file;
     archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks,
                                                   &profile);
     CHECK(archive != NULL && mm_private_archive_find(&registry, &host.main) == archive);
@@ -953,11 +954,13 @@ static void private_archive_cases(void)
     mm_private_archive_close(archive);
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
 
-    CHECK(!mm_shared_archive_cache_open(&shared, &name, 0, 0, &live, &borrowed) && !live && !borrowed && !name.opens);
-    name.has_legacy = 1;
+    name.name_matches = 0;
+    CHECK(!mm_shared_archive_cache_open(&shared, &name, 0, 0, &live, &borrowed) && !live && !borrowed && !name.opens &&
+          name.name_matches == 1);
+    CHECK(mm_chunk_context_attach(&legacy_registry, &legacy_link) == MM_CHUNK_OK);
     CHECK(!mm_shared_archive_cache_open(&shared, &name, 1, 0, &live, &borrowed) && live && !borrowed && !name.opens &&
-          name.legacy_prepares == 1);
-    name.has_legacy = 0;
+          name.legacy_prepares == 1 && name.name_matches == 2);
+    CHECK(mm_chunk_context_detach(&legacy_link) == MM_CHUNK_OK);
     name.fail_open = 1;
     name.owner.flags = MM_FILE_DENY_READ;
     CHECK(!mm_shared_archive_cache_open(&shared, &name, 0, 0, &live, &borrowed) && live && !borrowed &&
@@ -969,10 +972,11 @@ static void private_archive_cases(void)
     archive = mm_private_archive_open_named(&files, &name, 0);
     CHECK(archive && borrowed == mm_private_archive_reader(archive) && name.opens == 2);
     mm_resource_cache_release(shared_cache);
-    name.has_legacy = 1;
+    CHECK(mm_chunk_context_attach(&legacy_registry, &legacy_link) == MM_CHUNK_OK);
     shared_cache = mm_shared_archive_cache_open(&shared, &name, 0, 0, &live, &borrowed);
     CHECK(shared_cache && live && borrowed == mm_private_archive_reader(archive) && name.opens == 2 &&
-          name.legacy_lookups == 4 && name.legacy_prepares == 1);
+          name.legacy_prepares == 1);
+    CHECK(mm_chunk_context_detach(&legacy_link) == MM_CHUNK_OK);
     mm_resource_cache_release(shared_cache);
     CHECK(archive && mm_private_archive_reader(archive)->storage->owner->add_to_extra);
     cache.file = archive;

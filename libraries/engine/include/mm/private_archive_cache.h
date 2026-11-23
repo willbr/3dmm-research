@@ -29,7 +29,8 @@ typedef struct MMSharedArchiveCacheServices
 {
     const MMNamedArchiveServices *files;
     const MMResourceServices *working, *legacy;
-    void *(*find_legacy)(void *name);
+    const MMChunkContext *legacy_registry;
+    void (*extra_collision)(void *owner);
     int (*prepare_legacy)(void *owner);
     const MMStorageAllocator *owner_allocator, *storage_allocator;
 } MMSharedArchiveCacheServices;

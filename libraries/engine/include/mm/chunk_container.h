@@ -65,17 +65,6 @@ extern "C"
      * is borrowed. Calls are synchronous and cannot re-enter this construction. */
     void *mm_chunk_construct_forest(const MMForestConstruction *, void *source, MMU32 offset,
                                           MMU32 bytes, int copy);
-    typedef struct MMChunkLookup
-    {
-        void *(*next)(void *);
-        void *(*main_file)(void *);
-        void *(*extra_file)(void *);
-        int (*invalid_main)(void *);
-        void (*extra_collision)(void *);
-    } MMChunkLookup;
-    /* Borrowed registry/file tokens; invalid-main wrappers are skipped. A matching
-     * extra file emits the optional diagnostic and continues the legacy search. */
-    void *mm_chunk_find_container(void *first, void *file, const MMChunkLookup *);
     typedef struct MMChunkDisposal
     {
         void *context;
