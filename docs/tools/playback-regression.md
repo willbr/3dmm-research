@@ -25190,3 +25190,35 @@ capture sample for sample in both preparations.
 
 Evidence is under `tmp/c89-midi-stream`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 WinMM fallback scheduler (23 November 2026)
+
+The WinMM short-message fallback uses the C89 event cursor, deadlines, and
+borrowed-buffer queue. Its Windows adapter supplies the device operations
+and waits for a wake event or deadline. The worker joins through the shared
+native thread owner. Completion still drops the device mutex before calling
+the mixer, and a stop returns the buffers queued at the start of the drain.
+
+The standalone audio fixture exercises a first-pass offset, repeats, 32-bit
+clock wrap, the late-event correction, a wake racing a timer expiration,
+queue allocation failure, and a replacement queued by a completion callback
+during stop. The real Windows host returned the original pointers and
+pointer-width tags on x86 and x64 and passed activation, FIFO, repeat, seek
+offset, stop, and MIDIHDR ABI checks. The Win95 stream provider was compiled.
+The device run exercised the scheduled provider selected by modern Windows.
+
+The 228 selected native, 27 standalone C89, and 17 strict syntax checks
+passed. Classic Studio rebuilt and the external consumer passed. The SDL
+checks, headless Marcus startup canvas, native save and scene traces, and
+VMM workflow outputs matched their baselines.
+
+Fresh suite `20261123T182357Z-b0a39f07` completed eight captures. Replay suite
+`20261123T182501Z-1e80830d` completed four. All input hashes were verified.
+Both ports matched all 60 Actor Audio frame positions and camera indices
+and 59 of 60 seek canvases against retained retail and V3DMM runs. Both
+retained a PCM16 peak of 4,081 for Actor Audio. The 100 ms WAVE cue and first
+400 ms of embedded MIDI matched the retained port captures sample for sample.
+The SDL replay reached the previously recorded later PCM16 peak of 7,609.
+
+Evidence is under `tmp/c89-midi-schedule`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

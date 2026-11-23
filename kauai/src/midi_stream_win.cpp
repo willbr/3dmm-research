@@ -2,12 +2,11 @@
 #include "midi_stream_host.h"
 #include "frame.h"
 #include "midi_stream_win.h"
+#include <cstdlib>
 ASSERTNAME
 RTCLASS(MidiStreamInterface)
 RTCLASS(WindowsMidiStream)
 RTCLASS(OurMidiStream)
-const long kdtsMinSlip = kdtsSecond / 30;
-const long klwInfinite = klwMax;
 const long kcbMaxWmsBuffer = 0x0000FFFF / size(MEV) * size(MEV);
 KauaiMidi::StreamHost *KauaiMidi::CreateStreamHost(Completion completion, std::uintptr_t user)
 {
@@ -797,24 +796,21 @@ OurMidiStream::OurMidiStream(PFNMIDI pfn, std::uintptr_t luUser) : MidiStreamInt
 ***************************************************************************/
 OurMidiStream::~OurMidiStream(void)
 {
-    if (hNil != _hth)
+    if (_thread)
     {
-        // tell the thread to end and wait for it to finish
-        _fDone = fTrue;
+        _mutx.Enter();
+        _done = true;
         SetEvent(_hevt);
-        WaitForSingleObject(_hth, INFINITE);
+        _mutx.Leave();
+        if (mm_native_thread_join(_thread))
+            std::abort();
     }
-
-    _mutx.Enter();
-
-    if (hNil != _hevt)
+    if (_hevt != hNil)
         CloseHandle(_hevt);
 
     Assert(_hms == hNil, "Still have an HMS");
-    Assert(_pglmsb->IvMac() == 0, "Still have some buffers");
-    ReleasePpo(&_pglmsb);
-
-    _mutx.Leave();
+    Assert(!_schedule.buffers.count, "Still have some buffers");
+    mm_midi_schedule_dispose(&_schedule);
 }
 
 /***************************************************************************
@@ -839,27 +835,30 @@ POurMidiStream OurMidiStream::PomsNew(PFNMIDI pfn, std::uintptr_t luUser)
 bool OurMidiStream::_FInit(void)
 {
     AssertBaseThis(0);
-    ulong luThread;
-
-    if (pvNil == (_pglmsb = DynamicArray::PglNew(size(MSB))))
-        return fFalse;
-    _pglmsb->SetMinGrow(1);
-
-    if (hNil == (_hevt = CreateEvent(pvNil, fFalse, fFalse, pvNil)))
-        return fFalse;
-
-    // create the thread in a suspended state
-    if (hNil == (_hth = CreateThread(pvNil, 1024, OurMidiStream::_ThreadProc, this, CREATE_SUSPENDED, &luThread)))
-    {
-        return fFalse;
-    }
-
-    SetThreadPriority(_hth, THREAD_PRIORITY_TIME_CRITICAL);
-
-    // start the thread
-    ResumeThread(_hth);
-
-    return fTrue;
+    const auto allocator = Group::CollectionAllocator();
+    MMMidiScheduleServices services = {};
+    services.context = this;
+    services.clock = [](void *) -> MMU32 { return TsCurrentSystem(); };
+    services.message = [](void *p, MMU32 word) { midiOutShortMsg(static_cast<OurMidiStream *>(p)->_hms, word); };
+    services.reset = [](void *p) {
+        auto stream = static_cast<OurMidiStream *>(p);
+        if (stream->_hms != hNil)
+            stream->_Reset();
+    };
+    services.enter = [](void *p) { static_cast<OurMidiStream *>(p)->_mutx.Enter(); };
+    services.leave = [](void *p) { static_cast<OurMidiStream *>(p)->_mutx.Leave(); };
+    services.wake = [](void *p) { SetEvent(static_cast<OurMidiStream *>(p)->_hevt); };
+    services.complete = [](void *p, void *buffer, size_t tag) {
+        auto stream = static_cast<OurMidiStream *>(p);
+        stream->_pfnCall(stream->_luUser, buffer, tag);
+    };
+    if (!mm_midi_schedule_init(&_schedule, &allocator, &services, DebugShip(1, 0)))
+        return false;
+    _hevt = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+    if (_hevt == hNil)
+        return false;
+    _thread = mm_native_thread_start(_ThreadProc, this, nullptr);
+    return _thread != nullptr;
 }
 
 #ifdef DEBUG
@@ -871,9 +870,9 @@ void OurMidiStream::AssertValid(ulong grf)
     OurMidiStream_PAR::AssertValid(0);
 
     _mutx.Enter();
-    Assert(hNil != _hth, "nil thread");
+    Assert(_thread != nullptr, "nil thread");
     Assert(hNil != _hevt, "nil event");
-    AssertPo(_pglmsb, 0);
+    Assert(_schedule.buffers.storage == &_schedule.storage, "uninitialized schedule");
     _mutx.Leave();
 }
 
@@ -886,7 +885,7 @@ void OurMidiStream::MarkMem(void)
     OurMidiStream_PAR::MarkMem();
 
     _mutx.Enter();
-    MarkMemObj(_pglmsb);
+    MarkPv(_schedule.storage.buffers[0].data);
     _mutx.Leave();
 }
 #endif // DEBUG
@@ -903,7 +902,7 @@ bool OurMidiStream::_FOpen(void)
     if (hNil != _hms)
         goto LDone;
 
-    _fChanged = _fStop = fFalse;
+    mm_midi_schedule_activate(&_schedule);
     if (MMSYSERR_NOERROR != midiOutOpen(&_hms, MIDI_MAPPER, 0, 0, CALLBACK_NULL))
     {
         _hms = hNil;
@@ -938,7 +937,7 @@ bool OurMidiStream::_FClose(void)
         return fTrue;
     }
 
-    if (_pglmsb->IvMac() > 0)
+    if (_schedule.buffers.count)
     {
         Bug("closing a stream that still has buffers!");
         _mutx.Leave();
@@ -968,38 +967,13 @@ bool OurMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactP
     AssertPvCb(pvData, cb);
     AssertIn(ibStart, 0, cb);
     Assert(cb % size(MEV) == 0, "bad cb");
-    Assert(ibStart % size(MEV) == 0, "bad cb");
-
-    MSB msb;
+    Assert(ibStart % size(MEV) == 0, "bad offset");
 
     _mutx.Enter();
-
-    if (hNil == _hms)
-        goto LFail;
-
-    msb.pvData = pvData;
-    msb.cb = cb;
-    msb.ibStart = ibStart;
-    msb.cactPlay = cactPlay;
-    msb.lUserDataa = lUserDataa;
-
-    if (!_pglmsb->FAdd(&msb))
-    {
-    LFail:
-        _mutx.Leave();
-        return fFalse;
-    }
-
-    if (1 == _pglmsb->IvMac())
-    {
-        // Start the buffer
-        SetEvent(_hevt);
-        _fChanged = fTrue;
-    }
-
+    const bool queued = _hms != hNil && mm_midi_schedule_queue(
+        &_schedule, static_cast<MEV *>(pvData), cb, ibStart, cactPlay, lUserDataa);
     _mutx.Leave();
-
-    return fTrue;
+    return queued;
 }
 
 /***************************************************************************
@@ -1009,157 +983,32 @@ bool OurMidiStream::FQueueBuffer(void *pvData, long cb, long ibStart, long cactP
 void OurMidiStream::StopPlaying(void)
 {
     AssertThis(0);
-
     _mutx.Enter();
-
-    if (hNil != _hms)
-    {
-        _fStop = fTrue;
-        SetEvent(_hevt);
-        _fChanged = fTrue;
-    }
-
+    if (_hms != hNil)
+        mm_midi_schedule_stop(&_schedule);
     _mutx.Leave();
 }
 
 /***************************************************************************
-    AT: Static method. Thread function for the midi stream object.
+    AT: Wait for a device event or a deadline and run the C MIDI scheduler.
 ***************************************************************************/
-ulong __stdcall OurMidiStream::_ThreadProc(void *pv)
+void OurMidiStream::_ThreadProc(void *pv) noexcept
 {
-    POurMidiStream poms = (POurMidiStream)pv;
-
-    AssertPo(poms, 0);
-
-    return poms->_LuThread();
-}
-
-/***************************************************************************
-    AT: The midi stream playback thread.
-***************************************************************************/
-ulong OurMidiStream::_LuThread(void)
-{
-    AssertThis(0);
-    MSB msb;
-    bool fChanged; // whether the event went off
-    ulong tsCur;
-    const long klwInfinite = klwMax;
-    long dtsWait = klwInfinite;
-
+    auto stream = static_cast<OurMidiStream *>(pv);
+    MMU32 wait = MM_MIDI_SCHEDULE_IDLE;
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
     for (;;)
     {
-        fChanged =
-            dtsWait > 0 && WAIT_TIMEOUT != WaitForSingleObject(_hevt, dtsWait == klwInfinite ? INFINITE : dtsWait);
-
-        if (_fDone)
-            return 0;
-
-        _mutx.Enter();
-        if (_fChanged && !fChanged)
+        const auto result = wait ? WaitForSingleObject(stream->_hevt, wait) : WAIT_TIMEOUT;
+        if (result != WAIT_OBJECT_0 && result != WAIT_TIMEOUT)
+            std::abort();
+        stream->_mutx.Enter();
+        if (stream->_done)
         {
-            // the event went off before we got the mutx.
-            dtsWait = klwInfinite;
-            goto LLoop;
+            stream->_mutx.Leave();
+            return;
         }
-
-        _fChanged = fFalse;
-        if (!fChanged)
-        {
-            // play the event
-            if (_pmev < _pmevLim)
-            {
-                if (MEVT_SHORTMSG == (_pmev->eventWord >> 24))
-                    midiOutShortMsg(_hms, _pmev->eventWord & 0x00FFFFFF);
-
-                _pmev++;
-                if (_pmev >= _pmevLim)
-                    dtsWait = 0;
-                else
-                {
-                    ulong tsNew = TsCurrentSystem();
-
-                    tsCur += _pmev->deltaTicks;
-                    dtsWait = tsCur - tsNew;
-                    if (dtsWait < -kdtsMinSlip)
-                    {
-                        tsCur = tsNew;
-                        dtsWait = 0;
-                    }
-                }
-                goto LLoop;
-            }
-
-            // ran out of events in the current buffer - see if we should
-            // repeat it
-            _pglmsb->Get(0, &msb);
-            if (msb.cactPlay == 1)
-            {
-                _imsbCur = 1;
-                _ReleaseBuffers();
-            }
-            else
-            {
-                // repeat the current buffer
-                if (msb.cactPlay > 0)
-                    msb.cactPlay--;
-                msb.ibStart = 0;
-                _pglmsb->Put(0, &msb);
-            }
-        }
-        else if (_fStop)
-        {
-            // release all buffers
-            _fStop = fFalse;
-            _imsbCur = _pglmsb->IvMac();
-            _ReleaseBuffers();
-        }
-
-        if (0 == _pglmsb->IvMac())
-        {
-            // no buffers to play
-            dtsWait = klwInfinite;
-        }
-        else
-        {
-            // start playing the new buffers
-            _pglmsb->Get(0, &msb);
-            _pmev = (PMEV)PvAddBv(msb.pvData, msb.ibStart);
-            _pmevLim = (PMEV)PvAddBv(msb.pvData, msb.cb);
-            if (_pmev >= _pmevLim)
-                dtsWait = 0;
-            else
-            {
-                dtsWait = _pmev->deltaTicks;
-                tsCur = TsCurrentSystem() + dtsWait;
-            }
-        }
-    LLoop:
-        _mutx.Leave();
-    }
-}
-
-/***************************************************************************
-    Release all buffers up to _imsbCur. Assumes that we have the mutx
-    checked out exactly once.
-***************************************************************************/
-void OurMidiStream::_ReleaseBuffers(void)
-{
-    MSB msb;
-
-    if (_imsbCur >= _pglmsb->IvMac() && hNil != _hms)
-        _Reset();
-
-    while (_imsbCur > 0)
-    {
-        _pglmsb->Get(0, &msb);
-        _pglmsb->Delete(0);
-        _imsbCur--;
-
-        _mutx.Leave();
-
-        // call the notify proc
-        (*_pfnCall)(_luUser, msb.pvData, msb.lUserDataa);
-
-        _mutx.Enter();
+        wait = mm_midi_schedule_step(&stream->_schedule, result == WAIT_OBJECT_0);
+        stream->_mutx.Leave();
     }
 }

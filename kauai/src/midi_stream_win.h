@@ -3,8 +3,9 @@
 #define KAUAI_MIDI_STREAM_WIN_H
 // Private native declarations; the Windows SDK must be included first.
 #include "midi_stream_host.h"
+#include "mm/midi_schedule.h"
+#include "mm/native_runtime.h"
 using MEV = KauaiMidi::StreamEvent;
-typedef MEV *PMEV;
 using MH = MIDIHDR;
 typedef MH *PMH;
 typedef MIDIHDR *PMHO;
@@ -172,29 +173,11 @@ class OurMidiStream : public OurMidiStream_PAR
     MARKMEM
 
   protected:
-    struct MSB
-    {
-        void *pvData;
-        long cb;
-        long ibStart;
-        long cactPlay;
-
-        std::uintptr_t lUserDataa;
-    };
-
     Mutex _mutx;
-    HN _hevt; // event to notify the thread that the stream data has changed
-    HN _hth;  // thread to play the stream data
-
-    bool _fChanged : 1; // the event has been signalled
-    bool _fStop : 1;    // tells the aux thread to stop all buffers
-    bool _fDone : 1;    // tells the aux thread to return
-
-    long _imsbCur;
-    PDynamicArray _pglmsb;
-    PMEV _pmev;
-    PMEV _pmevLim;
-    ulong _tsCur;
+    HN _hevt = hNil;
+    MMNativeThread *_thread = nullptr;
+    MMMidiSchedule _schedule = {};
+    bool _done = false;
 
     OurMidiStream(PFNMIDI pfn, std::uintptr_t luUser);
     bool _FInit(void);
@@ -202,9 +185,7 @@ class OurMidiStream : public OurMidiStream_PAR
     virtual bool _FOpen(void);
     virtual bool _FClose(void);
 
-    static ulong __stdcall _ThreadProc(void *pv);
-    ulong _LuThread(void);
-    void _ReleaseBuffers(void);
+    static void _ThreadProc(void *pv) noexcept;
 
   public:
     static POurMidiStream PomsNew(PFNMIDI pfn, std::uintptr_t luUser);

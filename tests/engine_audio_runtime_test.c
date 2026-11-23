@@ -1,6 +1,7 @@
 #include "mm/audio_mixer.h"
 #include "mm/audioman.h"
 #include "mm/midi_render.h"
+#include "mm/midi_schedule.h"
 #include "mm/sound_queue.h"
 #include "mm/sound_manager.h"
 #include "mm/midi_mix.h"
@@ -1211,6 +1212,120 @@ static void stream(void)
     f.fail = 2;
     assert(!mm_midi_stream_build(&s, &duration) && f.batches == 2);
 }
+typedef struct ScheduleFixture
+{
+    MMMidiSchedule schedule;
+    MMMidiStreamEvent *replacement;
+    MMU32 now, messages[5];
+    size_t tags[5];
+    void *returned[5];
+    int locked, wakes, resets, sent, done, fail;
+} ScheduleFixture;
+static MMU32 schedule_clock(void *p)
+{
+    ScheduleFixture *f = p;
+    assert(f->locked);
+    return f->now;
+}
+static void schedule_message(void *p, MMU32 word)
+{
+    ScheduleFixture *f = p;
+    assert(f->locked && f->sent < 5);
+    f->messages[f->sent++] = word;
+}
+static void schedule_reset(void *p)
+{
+    ScheduleFixture *f = p;
+    assert(f->locked);
+    ++f->resets;
+}
+static void schedule_enter(void *p)
+{
+    ScheduleFixture *f = p;
+    assert(!f->locked);
+    f->locked = 1;
+}
+static void schedule_leave(void *p)
+{
+    ScheduleFixture *f = p;
+    assert(f->locked);
+    f->locked = 0;
+}
+static void schedule_wake(void *p)
+{
+    ScheduleFixture *f = p;
+    assert(f->locked);
+    ++f->wakes;
+}
+static void schedule_complete(void *p, void *buffer, size_t tag)
+{
+    ScheduleFixture *f = p;
+    assert(!f->locked && f->done < 5);
+    f->tags[f->done] = tag;
+    f->returned[f->done++] = buffer;
+    if (f->replacement)
+    {
+        schedule_enter(f);
+        assert(mm_midi_schedule_queue(&f->schedule, f->replacement, sizeof(*f->replacement), 0, 1, 35));
+        f->replacement = NULL;
+        schedule_leave(f);
+    }
+}
+static void native_midi_schedule(void)
+{
+    ScheduleFixture f;
+    MMMidiScheduleServices services = {NULL, schedule_clock, schedule_message, schedule_reset,
+                                      schedule_enter, schedule_leave, schedule_wake, schedule_complete};
+    MMStorageAllocator allocator = {NULL, test_storage_resize, test_storage_free};
+    MMMidiStreamEvent first[] = {{0, 0, 0xc0}, {20, 0, 0x403c90}, {40, 0, 0x02000000UL}};
+    MMMidiStreamEvent second[] = {{4, 0, 0x3c80}};
+    size_t first_tag = (size_t)-5;
+    memset(&f, 0, sizeof(f));
+    services.context = &f;
+    allocator.context = &f.fail;
+    assert(mm_midi_schedule_init(&f.schedule, &allocator, &services, 1));
+    schedule_enter(&f);
+    mm_midi_schedule_activate(&f.schedule);
+    f.fail = 1;
+    assert(!mm_midi_schedule_queue(&f.schedule, first, sizeof(first), 12, 2, first_tag) && !f.wakes);
+    f.fail = 0;
+    assert(!mm_midi_schedule_queue(&f.schedule, first, sizeof(first), 1, 2, first_tag));
+    assert(mm_midi_schedule_queue(&f.schedule, first, sizeof(first), 12, 2, first_tag));
+    assert(mm_midi_schedule_queue(&f.schedule, second, sizeof(second), 0, 1, 27));
+    assert(f.wakes == 1 && mm_midi_schedule_step(&f.schedule, 0) == MM_MIDI_SCHEDULE_IDLE);
+    f.now = 0xfffffff0UL;
+    assert(mm_midi_schedule_step(&f.schedule, 1) == 20);
+    f.now = 4;
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 40 && f.messages[0] == 0x403c90);
+    f.now = 44;
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 0 && f.sent == 1);
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 0 && !f.done);
+    f.now = 100;
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 0 && f.messages[1] == 0xc0);
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 40 && f.messages[2] == 0x403c90);
+    f.now = 140;
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 0 && f.sent == 3);
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 4 && f.done == 1 && !f.resets);
+    f.now = 144;
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 0 && f.messages[3] == 0x3c80);
+    assert(mm_midi_schedule_step(&f.schedule, 0) == MM_MIDI_SCHEDULE_IDLE && f.done == 2 && f.resets == 1);
+    assert(f.returned[0] == first && f.returned[1] == second && f.tags[0] == first_tag && f.tags[1] == 27);
+
+    assert(mm_midi_schedule_queue(&f.schedule, first, sizeof(first), 0, 0, 31));
+    assert(mm_midi_schedule_queue(&f.schedule, second, sizeof(second), 0, 1, 32));
+    mm_midi_schedule_stop(&f.schedule);
+    f.replacement = second;
+    assert(mm_midi_schedule_step(&f.schedule, 0) == MM_MIDI_SCHEDULE_IDLE && f.done == 2);
+    assert(mm_midi_schedule_step(&f.schedule, 1) == 4 && f.done == 4 && f.resets == 2);
+    assert(f.returned[2] == first && f.returned[3] == second && f.tags[2] == 31 && f.tags[3] == 32);
+    f.now += 4;
+    assert(mm_midi_schedule_step(&f.schedule, 0) == 0 && f.messages[4] == 0x3c80);
+    assert(mm_midi_schedule_step(&f.schedule, 0) == MM_MIDI_SCHEDULE_IDLE && f.done == 5 && f.resets == 3);
+    assert(f.returned[4] == second && f.tags[4] == 35);
+    assert(!f.schedule.buffers.count && f.sent == 5);
+    schedule_leave(&f);
+    mm_midi_schedule_dispose(&f.schedule);
+}
 int main(void)
 {
     arithmetic();
@@ -1224,6 +1339,7 @@ int main(void)
     audioman_device();
     dispatch();
     stream();
+    native_midi_schedule();
     puts("C89 audio runtime: clocks, PCM mixing, MIDI scheduling, queue policy and fault cleanup passed.");
     return 0;
 }

@@ -2313,6 +2313,9 @@ Cached Studio MIDI streams and seek prefixes also use C89 storage. The
 shared loader reads the track through the block owner. The mixer pins each
 submitted buffer until its device returns it and clears partial prefixes
 when a seek fails.
+The WinMM short-message fallback uses a C89 scheduler for event deadlines,
+repeats, and FIFO buffer returns. Its native adapter supplies the clock,
+device messages, and wake event.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
