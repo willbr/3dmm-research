@@ -58,11 +58,10 @@ SoundManager::SoundManager(void)
 ***************************************************************************/
 SoundManager::~SoundManager(void)
 {
-    if (_pglsndmpe)
+    if (_devices.rows.storage)
     {
         auto s = _Services();
-        mm_sound_endpoints_release(&s, 0);
-        ReleasePpo(&_pglsndmpe);
+        mm_sound_endpoints_dispose(&s, 0);
     }
 }
 
@@ -73,7 +72,7 @@ SoundManager::~SoundManager(void)
 void SoundManager::AssertValid(LegacyUlong grf)
 {
     SoundManager_PAR::AssertValid(0);
-    AssertPo(_pglsndmpe, 0);
+    Assert(_devices.rows.storage == &_devices.storage, "sound devices uninitialized");
 }
 
 /***************************************************************************
@@ -82,16 +81,10 @@ void SoundManager::AssertValid(LegacyUlong grf)
 void SoundManager::MarkMem(void)
 {
     AssertValid(0);
-    LegacyLong isndmpe;
-    SNDMPE sndmpe;
-
     SoundManager_PAR::MarkMem();
-    MarkMemObj(_pglsndmpe);
-    for (isndmpe = 0; isndmpe < _pglsndmpe->IvMac(); isndmpe++)
-    {
-        _pglsndmpe->Get(isndmpe, &sndmpe);
-        MarkMemObj(sndmpe.psndv);
-    }
+    MarkPv(_devices.storage.buffers[0].data);
+    for (MMU32 i = 0; i < _devices.rows.count; ++i)
+        MarkMemObj(static_cast<PSoundDevice>(mm_sound_endpoint_at(&_devices, i)->object));
 }
 #endif // DEBUG
 
@@ -119,36 +112,14 @@ bool SoundManager::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsndmpe = DynamicArray::PglNew(size(SNDMPE))))
+    const auto allocator = Group::CollectionAllocator();
+    if (!mm_sound_endpoints_init(&_devices, &allocator, sizeof(MMSoundEndpoint), DebugShip(1, 0)))
         return fFalse;
 
-    _pglsndmpe->SetMinGrow(1);
     _control.active = fTrue;
 
     AssertThis(0);
     return fTrue;
-}
-
-/***************************************************************************
-    Find the device that sounds of the given ctg are to be played on.
-***************************************************************************/
-bool SoundManager::_FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, LegacyLong *pisndmpe)
-{
-    auto s = _Services();
-    MMSoundEndpoint e;
-    MMI32 i;
-    if (!mm_sound_manager_find(&s, ctg, &e, &i))
-    {
-        TrashVar(psndmpe);
-        if (pisndmpe)
-            *pisndmpe = i;
-        return false;
-    }
-    if (psndmpe)
-        *psndmpe = {e.tag, static_cast<PSoundDevice>(e.object)};
-    if (pisndmpe)
-        *pisndmpe = i;
-    return true;
 }
 
 /***************************************************************************
@@ -166,12 +137,10 @@ bool SoundManager::FAddDevice(ChunkTagOrType ctg, PSoundDevice psndv)
 PSoundDevice SoundManager::PsndvFromCtg(ChunkTagOrType ctg)
 {
     AssertThis(0);
-    SNDMPE sndmpe;
-
-    if (!_FFindCtg(ctg, &sndmpe))
-        return pvNil;
-
-    return sndmpe.psndv;
+    const auto services = _Services();
+    MMSoundEndpoint endpoint;
+    return mm_sound_manager_find(&services, ctg, &endpoint, nullptr) ? static_cast<PSoundDevice>(endpoint.object)
+                                                                     : nullptr;
 }
 
 /***************************************************************************
@@ -354,11 +323,10 @@ void SoundManager::EndSynch(void)
 ***************************************************************************/
 SoundManagerQueue::~SoundManagerQueue(void)
 {
-    if (_pglsnqd)
+    if (_queues.rows.storage)
     {
         auto s = _Services();
-        mm_sound_endpoints_release(&s, 1);
-        ReleasePpo(&_pglsnqd);
+        mm_sound_endpoints_dispose(&s, 1);
     }
 }
 
@@ -369,7 +337,7 @@ SoundManagerQueue::~SoundManagerQueue(void)
 void SoundManagerQueue::AssertValid(LegacyUlong grf)
 {
     SoundManagerQueue_PAR::AssertValid(0);
-    AssertPo(_pglsnqd, 0);
+    Assert(_queues.rows.storage == &_queues.storage, "sound queues uninitialized");
 }
 
 /***************************************************************************
@@ -378,16 +346,10 @@ void SoundManagerQueue::AssertValid(LegacyUlong grf)
 void SoundManagerQueue::MarkMem(void)
 {
     AssertValid(0);
-    LegacyLong isnqd;
-    SNQD snqd;
-
     SoundManagerQueue_PAR::MarkMem();
-    MarkMemObj(_pglsnqd);
-    for (isnqd = 0; isnqd < _pglsnqd->IvMac(); isnqd++)
-    {
-        _pglsnqd->Get(isnqd, &snqd);
-        MarkMemObj(snqd.psnque);
-    }
+    MarkPv(_queues.storage.buffers[0].data);
+    for (MMU32 i = 0; i < _queues.rows.count; ++i)
+        MarkMemObj(static_cast<PSoundQueue>(mm_sound_endpoint_at(&_queues, i)->object));
 }
 #endif // DEBUG
 
@@ -398,34 +360,14 @@ bool SoundManagerQueue::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsnqd = DynamicArray::PglNew(size(SNQD))))
+    const auto allocator = Group::CollectionAllocator();
+    if (!mm_sound_endpoints_init(&_queues, &allocator, 128, DebugShip(1, 0)))
         return fFalse;
 
     _control.active = fTrue;
     AssertThis(0);
 
     return fTrue;
-}
-
-/***************************************************************************
-    Ensure a queue exists for the given sqn and return it.
-***************************************************************************/
-bool SoundManagerQueue::_FEnsureQueue(LegacyLong sqn, SNQD *psnqd, LegacyLong *pisnqd)
-{
-    auto s = _Services();
-    MMSoundEndpoint e;
-    MMI32 i;
-    if (!mm_sound_ensure_queue(&s, sqn, ksqnNone, sclNil, &e, &i))
-    {
-        TrashVar(psnqd);
-        TrashVar(pisnqd);
-        return false;
-    }
-    if (psnqd)
-        *psnqd = {static_cast<PSoundQueue>(e.object), mm_signed_word(e.tag)};
-    if (pisnqd)
-        *pisnqd = i;
-    return true;
 }
 
 /***************************************************************************
@@ -465,17 +407,17 @@ LegacyLong SoundManagerQueue::SiiPlay(MMResourceAccess source, ChunkTagOrType ct
 {
     AssertThis(0);
     Assert(source.cache || source.manager, "missing sound resource source");
-    LegacyLong isnqd;
-    SNQD snqd;
+    const auto services = _Services();
+    MMSoundEndpoint endpoint;
     LegacyLong sii = _SiiAlloc();
 
     if (sqn == sqnNil)
         sqn = ksqnNone;
 
-    if (_FEnsureQueue(sqn, &snqd, &isnqd))
+    if (mm_sound_ensure_queue(&services, sqn, ksqnNone, sclNil, &endpoint, nullptr))
     {
         const MMSoundPlay play = {source, ctg, cno, sqn, vlm, cactPlay, dtsStart, spr, scl};
-        snqd.psnque->Enqueue(sii, play);
+        static_cast<PSoundQueue>(endpoint.object)->Enqueue(sii, play);
     }
     else
         Warn("couldn't allocate queue");
@@ -902,22 +844,7 @@ MMI32 CallSoundDevice(PSoundDevice d, int op, MMI32 a, MMI32 b)
 MMSoundManagerServices SoundManager::_Services()
 {
     MMSoundManagerServices s = {};
-    s.context = this;
-    s.count = [](void *p) -> MMI32 { return static_cast<SoundManager *>(p)->_pglsndmpe->IvMac(); };
-    s.get = [](void *p, MMI32 i, MMSoundEndpoint *out) {
-        SNDMPE e;
-        static_cast<SoundManager *>(p)->_pglsndmpe->Get(i, &e);
-        *out = {e.psndv, e.ctg};
-    };
-    s.put = [](void *p, MMI32 i, const MMSoundEndpoint *in) {
-        SNDMPE e = {in->tag, static_cast<PSoundDevice>(in->object)};
-        static_cast<SoundManager *>(p)->_pglsndmpe->Put(i, &e);
-    };
-    s.insert = [](void *p, MMI32 i, const MMSoundEndpoint *in) -> int {
-        SNDMPE e = {in->tag, static_cast<PSoundDevice>(in->object)};
-        return static_cast<SoundManager *>(p)->_pglsndmpe->FInsert(i, &e);
-    };
-    s.erase = [](void *p, MMI32 i) { static_cast<SoundManager *>(p)->_pglsndmpe->Delete(i); };
+    s.endpoints = &_devices;
     s.retain = [](void *, void *p) { static_cast<PSoundDevice>(p)->AddRef(); };
     s.release = [](void *, void *p) { static_cast<PSoundDevice>(p)->Release(); };
     s.allocate_id = [](void *) -> MMI32 { return _SiiAlloc(); };
@@ -935,21 +862,7 @@ MMSoundManagerServices SoundManagerQueue::_Services()
 {
     MMSoundManagerServices s = {};
     s.context = this;
-    s.count = [](void *p) -> MMI32 { return static_cast<SoundManagerQueue *>(p)->_pglsnqd->IvMac(); };
-    s.get = [](void *p, MMI32 i, MMSoundEndpoint *out) {
-        SNQD e;
-        static_cast<SoundManagerQueue *>(p)->_pglsnqd->Get(i, &e);
-        *out = {e.psnque, (MMU32)e.sqn};
-    };
-    s.put = [](void *p, MMI32 i, const MMSoundEndpoint *in) {
-        SNQD e = {static_cast<PSoundQueue>(in->object), mm_signed_word(in->tag)};
-        static_cast<SoundManagerQueue *>(p)->_pglsnqd->Put(i, &e);
-    };
-    s.insert = [](void *p, MMI32 i, const MMSoundEndpoint *in) -> int {
-        SNQD e = {static_cast<PSoundQueue>(in->object), mm_signed_word(in->tag)};
-        return static_cast<SoundManagerQueue *>(p)->_pglsnqd->FInsert(i, &e);
-    };
-    s.erase = [](void *p, MMI32 i) { static_cast<SoundManagerQueue *>(p)->_pglsnqd->Delete(i); };
+    s.endpoints = &_queues;
     s.release = [](void *, void *p) { static_cast<PSoundQueue>(p)->Release(); };
     s.create_queue = [](void *p) -> void * { return static_cast<SoundManagerQueue *>(p)->_PsnqueNew(); };
     s.call = [](void *context, void *p, int op, MMI32 a, MMI32) -> MMI32 {

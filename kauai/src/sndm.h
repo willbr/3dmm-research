@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef SNDM_H
 #define SNDM_H
+#include "movie_sound.h"
 #include "mm/sound_manager.h"
 
 const LegacyLong siiNil = 0;
@@ -86,22 +87,18 @@ class SoundManager : public SoundManager_PAR
     void (*_playObserver)(ChunkTagOrType, ChunkNumber, LegacyLong, LegacyLong, LegacyLong, LegacyUlong, LegacyLong,
                           LegacyLong) = nullptr;
 #endif
-    struct SNDMPE
-    {
-        ChunkTagOrType ctg;
-        PSoundDevice psndv;
-    };
-
-    PDynamicArray _pglsndmpe; // sound type to device mapper
+    MMSoundEndpointList _devices = {};
     LegacyLong _sclFirst = klwMin, _sclLast = klwMax;
 
-    MMSoundControl _control;
-    bool _fFreeing : 1; // we're in the destructor
+    MMSoundControl _control = {};
 
     MMSoundManagerServices _Services();
     SoundManager(void);
     bool _FInit(void);
-    bool _FFindCtg(ChunkTagOrType ctg, SNDMPE *psndmpe, LegacyLong *pisndmpe = pvNil);
+
+  private:
+    MMSoundLastMidi _lastMovieMidi = {};
+    friend MMSoundLastMidi *mm_kauai_movie_sound_device(MMSoundResourceServices *, void *);
 
   public:
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
@@ -171,20 +168,12 @@ class SoundManagerQueue : public SoundManagerQueue_PAR
     MARKMEM
 
   protected:
-    // queue descriptor
-    struct SNQD
-    {
-        PSoundQueue psnque;
-        LegacyLong sqn;
-    };
+    MMSoundEndpointList _queues = {};
 
-    PDynamicArray _pglsnqd; // the queues
-
-    MMSoundControl _control;
+    MMSoundControl _control = {};
 
     virtual bool _FInit(void);
     MMSoundManagerServices _Services();
-    virtual bool _FEnsureQueue(LegacyLong sqn, SNQD *psnqd, LegacyLong *pisnqd);
 
     virtual PSoundQueue _PsnqueNew(void) = 0;
     virtual void _Suspend(bool fSuspend) = 0;

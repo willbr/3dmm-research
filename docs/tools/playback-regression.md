@@ -24955,3 +24955,37 @@ difference and reproduced the prior PCM16 peak of 4,081.
 
 Evidence is under `tmp/c89-shared-sound-import`. The playback suite is in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 sound manager storage (23 November 2026)
+
+Studio's device registry and sound queue descriptors use C89 dense storage.
+The host binds the live devices, queue factory, allocator and debug memory
+tracking. The C89 dispatcher still controls retain and release, device
+selection, queue reuse and flushing. Studio tracks the last MIDI instance
+per sound manager. The dispatch fixture changes managers while both report
+the same playing instance ID, then switches back to the first manager to
+check that its duplicate suppression is still active.
+
+The 228 selected native checks, 48 selected SDL checks and 23 standalone C89
+checks passed. The standalone audio fixture exercises allocation failure on
+both device registration and queue creation. The x86 checks and external
+consumer passed, and classic Studio rebuilt. All nineteen native save/load
+traces matched, including the 99,001-byte sound-resource trace and the
+15,580-byte movie-sound trace. All eight scene traces and the headless Marcus
+startup canvas matched. SDL Studio reproduced its save and sound traces and
+its 27,056-byte authored movie. The eight-check VMM workflow reproduced the
+ordinary `.3mm`, five `.vmm` files and two canvas captures.
+
+Suite `20261123T165917Z-68307f0c` completed eight fresh captures with verified
+input hashes. On Actor Audio both ports matched their prior seek canvases and
+scene states. They matched 60 frame positions, 60 camera indices and 59 seek
+canvases against retained retail and V3DMM captures. Studio matched all 240
+retained actor snapshots at six significant digits in position. Both ports
+reproduced the sampled audio peak of 4,081 in stereo PCM16. The embedded MIDI
+case played all four frames in both ports and produced audible MIDI after
+the 100 ms sampled cue. The native fixture tests MIDI suppression across
+manager lifetimes, and Marcus's sound-edit check auditions MIDI after saving
+and reopening the movie.
+
+Evidence is under `tmp/c89-sound-manager-state`. The playback suite is in
+`tmp/c89-working-archive/capture/playback.sqlite`.

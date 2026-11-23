@@ -902,36 +902,20 @@ static void audioman_device(void)
 
 typedef struct Dispatch
 {
-    MMSoundEndpoint entries[8];
-    int count, calls, retained, released, fail, created, busy[8], last_op, last_first, next_id, clear_on_release;
+    MMSoundEndpointList endpoints;
+    int calls, retained, released, fail, created, busy[8], last_op, last_first, next_id, clear_on_release;
 } Dispatch;
-static MMI32 endpoint_count(void *p)
+static void *endpoint_resize(void *p, void *bytes, MMU32 old_size, MMU32 size, int priority)
 {
-    return ((Dispatch *)p)->count;
+    (void)old_size;
+    (void)priority;
+    return ((Dispatch *)p)->fail ? NULL : realloc(bytes, size);
 }
-static void endpoint_get(void *p, MMI32 i, MMSoundEndpoint *e)
+static void endpoint_free(void *p, void *bytes, MMU32 size)
 {
-    *e = ((Dispatch *)p)->entries[i];
-}
-static void endpoint_put(void *p, MMI32 i, const MMSoundEndpoint *e)
-{
-    ((Dispatch *)p)->entries[i] = *e;
-}
-static int endpoint_insert(void *p, MMI32 i, const MMSoundEndpoint *e)
-{
-    Dispatch *f = (Dispatch *)p;
-    if (f->fail)
-        return 0;
-    memmove(f->entries + i + 1, f->entries + i, (f->count - i) * sizeof(*e));
-    f->entries[i] = *e;
-    ++f->count;
-    return 1;
-}
-static void endpoint_erase(void *p, MMI32 i)
-{
-    Dispatch *f = (Dispatch *)p;
-    --f->count;
-    memmove(f->entries + i, f->entries + i + 1, (f->count - i) * sizeof(*f->entries));
+    (void)p;
+    (void)size;
+    free(bytes);
 }
 static void endpoint_retain(void *p, void *o)
 {
@@ -944,7 +928,7 @@ static void endpoint_release(void *p, void *o)
     (void)o;
     ++f->released;
     if (f->clear_on_release)
-        f->count = 0;
+        f->endpoints.rows.count = 0;
 }
 static void *endpoint_create(void *p)
 {
@@ -978,6 +962,7 @@ static MMI32 endpoint_id(void *p)
 static void dispatch(void)
 {
     Dispatch f;
+    MMStorageAllocator allocator;
     MMSoundManagerServices s;
     MMSoundControl c;
     MMSoundEndpoint e;
@@ -986,12 +971,12 @@ static void dispatch(void)
     memset(&f, 0, sizeof(f));
     memset(&s, 0, sizeof(s));
     memset(&p, 0, sizeof(p));
+    allocator.context = &f;
+    allocator.resize = endpoint_resize;
+    allocator.release = endpoint_free;
+    assert(mm_sound_endpoints_init(&f.endpoints, &allocator, 0, 1));
     s.context = &f;
-    s.count = endpoint_count;
-    s.get = endpoint_get;
-    s.put = endpoint_put;
-    s.insert = endpoint_insert;
-    s.erase = endpoint_erase;
+    s.endpoints = &f.endpoints;
     s.retain = endpoint_retain;
     s.release = endpoint_release;
     s.call = endpoint_call;
@@ -1005,7 +990,7 @@ static void dispatch(void)
     f.fail = 0;
     assert(mm_sound_manager_add(&s, &c, 10, f.busy));
     assert(f.calls == 3);
-    assert(mm_sound_manager_add(&s, &c, 10, f.busy + 1) && f.count == 1 && f.released == 2);
+    assert(mm_sound_manager_add(&s, &c, 10, f.busy + 1) && f.endpoints.rows.count == 1 && f.released == 2);
     assert(mm_sound_manager_find(&s, 10, &e, &index) && !index && e.object == f.busy + 1);
     p.type = 10;
     p.number = 123;
@@ -1013,29 +998,29 @@ static void dispatch(void)
     p.sound_class = 2;
     assert(mm_sound_manager_play(&s, &p, -1, 1) == 1 && f.next_id == 1);
     mm_sound_manager_remove(&s, 10);
-    assert(f.count == 0 && f.released == 3);
-    assert(mm_sound_ensure_queue(&s, 10, -2, -1, &e, &index) && f.count == 1 && f.created == 1);
+    assert(f.endpoints.rows.count == 0 && f.released == 3);
+    assert(mm_sound_ensure_queue(&s, 10, -2, -1, &e, &index) && f.endpoints.rows.count == 1 && f.created == 1);
     assert(mm_sound_ensure_queue(&s, 10, -2, -1, &e, &index) && f.created == 1);
-    assert(mm_sound_ensure_queue(&s, 20, -2, -1, &e, &index) && f.count == 1 && e.tag == 20);
+    assert(mm_sound_ensure_queue(&s, 20, -2, -1, &e, &index) && f.endpoints.rows.count == 1 && e.tag == 20);
     f.busy[1] = 1;
-    assert(mm_sound_ensure_queue(&s, 30, -2, -1, &e, &index) && f.created == 2 && f.count == 2);
+    assert(mm_sound_ensure_queue(&s, 30, -2, -1, &e, &index) && f.created == 2 && f.endpoints.rows.count == 2);
     f.fail = 1;
     f.busy[2] = 1;
     assert(!mm_sound_ensure_queue(&s, 40, -2, -1, &e, &index) && f.released == 4);
     f.fail = 0;
     f.busy[1] = f.busy[2] = 0;
     mm_sound_queues_flush(&s, -1);
-    assert(f.count == 1 && f.released == 5);
+    assert(f.endpoints.rows.count == 1 && f.released == 5);
     mm_sound_activate(&s, &c, 0, 1);
     assert(!c.active && f.last_op == MM_SOUND_SUSPEND && f.last_first);
     mm_sound_suspend(&s, &c, 0, 1);
     assert(c.suspended == 1 && f.last_first);
     assert(mm_sound_next_id(2147483647) == (-2147483647 - 1));
-    f.count = 2;
+    assert(mm_sound_manager_add(&s, &c, 40, f.busy));
     f.clear_on_release = 1;
     index = f.released;
-    mm_sound_endpoints_release(&s, 0);
-    assert(f.released == index + 1);
+    mm_sound_endpoints_dispose(&s, 0);
+    assert(f.released == index + 1 && f.endpoints.rows.count == 0 && !f.endpoints.storage.buffers[0].data);
 }
 typedef struct StreamFixture
 {

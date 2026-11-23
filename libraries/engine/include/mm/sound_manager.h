@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_SOUND_MANAGER_H
 #define MM_SOUND_MANAGER_H
+#include "collections.h"
 #include "resource_cache.h"
 #include "sound_queue.h"
 #ifdef __cplusplus
@@ -36,6 +37,12 @@ extern "C"
         void *object;
         MMU32 tag;
     } MMSoundEndpoint;
+    /* Owns dense endpoint rows. Initialize in place before use. */
+    typedef struct MMSoundEndpointList
+    {
+        MMCollectionStorage storage;
+        MMArray rows;
+    } MMSoundEndpointList;
     typedef struct MMSoundPlay
     {
         MMResourceAccess source;
@@ -47,17 +54,17 @@ extern "C"
     typedef struct MMSoundManagerServices
     {
         void *context;
-        MMI32 (*count)(void *);
-        void (*get)(void *, MMI32, MMSoundEndpoint *);
-        void (*put)(void *, MMI32, const MMSoundEndpoint *);
-        int (*insert)(void *, MMI32, const MMSoundEndpoint *);
-        void (*erase)(void *, MMI32);
+        MMSoundEndpointList *endpoints;
         void (*retain)(void *, void *), (*release)(void *, void *);
         void *(*create_queue)(void *);
         MMI32 (*call)(void *, void *object, int operation, MMI32 first, MMI32 second);
         MMI32 (*play)(void *, void *object, const MMSoundPlay *);
         MMI32 (*allocate_id)(void *);
     } MMSoundManagerServices;
+    int mm_sound_endpoints_init(MMSoundEndpointList *, const MMStorageAllocator *, MMU32 min_grow, int trash_unused);
+    void mm_sound_endpoints_dispose(const MMSoundManagerServices *, int reverse);
+    /* index must name a live row. The result is borrowed until the next mutation. */
+    const MMSoundEndpoint *mm_sound_endpoint_at(const MMSoundEndpointList *, MMU32 index);
     int mm_sound_manager_find(const MMSoundManagerServices *, MMU32, MMSoundEndpoint *,
                                     MMI32 *);
     int mm_sound_manager_add(const MMSoundManagerServices *, const MMSoundControl *, MMU32,
@@ -79,7 +86,6 @@ extern "C"
     int mm_sound_ensure_queue(const MMSoundManagerServices *, MMI32 queue, MMI32 anonymous,
                                     MMI32 any_class, MMSoundEndpoint *, MMI32 *);
     void mm_sound_queues_flush(const MMSoundManagerServices *, MMI32 any_class);
-    void mm_sound_endpoints_release(const MMSoundManagerServices *, int reverse);
 #ifdef __cplusplus
 }
 #endif

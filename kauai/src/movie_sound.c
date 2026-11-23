@@ -14,10 +14,9 @@ MMSoundOwner *mm_kauai_movie_sound_fetch(MMResourceCache *cache, MMU32 type, MMU
 
 void mm_kauai_movie_sound_play(void *manager, const MMFrameSoundRequest *request)
 {
-    static MMSoundLastMidi last;
     MMSoundResourceServices services = {0};
-    mm_kauai_movie_sound_device(&services, manager);
-    mm_sound_play(mm_sound_owner_state(request->sound), &last, request->object, request->loop,
+    MMSoundLastMidi *last = mm_kauai_movie_sound_device(&services, manager);
+    mm_sound_play(mm_sound_owner_state(request->sound), last, request->object, request->loop,
                   request->queued, request->volume, request->priority, request->actor, request->offset,
                   &services);
 }

@@ -72,12 +72,6 @@ struct SoundResourceFixtureAccess
         state->silent = silent;
         state->invalid = invalid;
     }
-    static void ResetMidi(PMovieSoundMSND sound)
-    {
-        SetPlayback(sound, styMidi, true, false, 0);
-        mm_sound_owner_state(sound)->resource.type = 0;
-        EngineSound::Play(sound, 0, false, false, 0, 0, false, 0);
-    }
     static bool Record(PMovieSoundMSND sound, FILE *out, PChunkyResourceFile cache)
     {
         if (!sound)
@@ -132,10 +126,24 @@ static bool TestSoundResourceDispatch()
         EngineSound::Play(sound, 1,true,false,123,6,true,0); ok=manager->queries==1 && manager->instance==9 && !manager->stops && !manager->plays;
         manager->Reset(); manager->playing=false; EngineSound::Play(sound, 1,true,false,123,6,true,0); ok=manager->queries==1 && manager->stops==1 && manager->plays==1 && ok;
     }
-    if (manager && sound)
+    if (ok)
     {
-        // Restore the initially empty process-wide MIDI suppression state.
-        SoundResourceFixtureAccess::ResetMidi(sound);
+        auto second = SoundResourceTestManager::Create();
+        ok = second != nullptr;
+        if (second)
+        {
+            // Both devices can report the same playing instance ID.
+            second->playing = true;
+            vpsndm = second;
+            EngineSound::Play(sound, 1, false, false, 123, 6, true, 0);
+            ok = second->queries == 0 && second->stops == 1 && second->plays == 1;
+            vpsndm = manager;
+            manager->Reset();
+            manager->playing = true;
+            EngineSound::Play(sound, 1, false, false, 123, 6, true, 0);
+            ok = manager->queries == 1 && !manager->stops && !manager->plays && ok;
+            ReleasePpo(&second);
+        }
     }
     vpsndm=previous; mm_sound_owner_release(sound); ReleasePpo(&manager);
     std::fprintf(stderr,"[sound dispatch] cases=%d\n",cases); return ok && cases==96;

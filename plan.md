@@ -2284,6 +2284,10 @@ and clipboard paste uses the shared C89 caption duplication routine.
 Studio and Marcus route file sound import through one C89 dispatcher. It
 selects the MIDI or sampled path, writes the little-endian sound envelope,
 and supplies the 11.025 kHz resampling target to the platform decoder.
+Studio's audio dispatch stores its device registry and queue descriptors in
+C89 dense collections. The native sound host supplies device calls and retains
+the MIDI suppression record per manager, so replacing the manager starts
+with an empty record.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

@@ -2,26 +2,49 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/sound_manager.h"
 #include "mm/wide.h"
-#include <stddef.h>
+#include <string.h>
+
+int mm_sound_endpoints_init(MMSoundEndpointList *list, const MMStorageAllocator *allocator, MMU32 min_grow,
+                            int trash_unused)
+{
+    if (mm_storage_init(&list->storage, allocator) != MM_STORAGE_OK)
+        return 0;
+    memset(&list->rows, 0, sizeof(list->rows));
+    list->rows.storage = &list->storage;
+    list->rows.width = sizeof(MMSoundEndpoint);
+    list->rows.trash_unused = trash_unused;
+    list->storage.min_grow[0] = min_grow;
+    return 1;
+}
+
+const MMSoundEndpoint *mm_sound_endpoint_at(const MMSoundEndpointList *list, MMU32 index)
+{
+    return (const MMSoundEndpoint *)list->storage.buffers[0].data + index;
+}
+
+static void put_endpoint(MMSoundEndpointList *list, MMU32 index, const MMSoundEndpoint *endpoint)
+{
+    memcpy(list->storage.buffers[0].data + index * sizeof(*endpoint), endpoint, sizeof(*endpoint));
+}
+
 int mm_sound_manager_find(const MMSoundManagerServices *s, MMU32 tag, MMSoundEndpoint *out,
                                 MMI32 *index)
 {
-    MMI32 i;
-    MMSoundEndpoint e;
-    for (i = 0; i < s->count(s->context); ++i)
+    MMU32 i;
+    for (i = 0; i < s->endpoints->rows.count; ++i)
     {
-        s->get(s->context, i, &e);
-        if (e.tag == tag)
+        const MMSoundEndpoint *e = mm_sound_endpoint_at(s->endpoints, i);
+        if (e->tag == tag)
         {
             if (out)
-                *out = e;
+                *out = *e;
             if (index)
                 *index = i;
             return 1;
         }
     }
     if (index)
-        *index = s->count(s->context);
+        *index = i;
     return 0;
 }
 int mm_sound_manager_add(const MMSoundManagerServices *s, const MMSoundControl *state, MMU32 tag,
@@ -34,13 +57,13 @@ int mm_sound_manager_add(const MMSoundManagerServices *s, const MMSoundControl *
     {
         s->release(s->context, e.object);
         e.object = object;
-        s->put(s->context, i, &e);
+        put_endpoint(s->endpoints, i, &e);
     }
     else
     {
         e.tag = tag;
         e.object = object;
-        if (!s->insert(s->context, i, &e))
+        if (mm_array_add(&s->endpoints->rows, &e, NULL) != MM_STORAGE_OK)
         {
             s->release(s->context, object);
             return 0;
@@ -57,20 +80,20 @@ void mm_sound_manager_remove(const MMSoundManagerServices *s, MMU32 tag)
     MMI32 i;
     if (!mm_sound_manager_find(s, tag, &e, &i))
         return;
-    s->erase(s->context, i);
+    mm_array_delete(&s->endpoints->rows, i, 1);
     s->release(s->context, e.object);
 }
 MMI32 mm_sound_dispatch(const MMSoundManagerServices *s, int op, int filter, MMU32 tag,
                                    MMI32 first, MMI32 second)
 {
-    MMI32 i, value, result = 0;
-    MMSoundEndpoint e;
-    for (i = 0; i < s->count(s->context); ++i)
+    MMU32 i;
+    MMI32 value, result = 0;
+    for (i = 0; i < s->endpoints->rows.count; ++i)
     {
-        s->get(s->context, i, &e);
-        if (filter && e.tag != tag)
+        const MMSoundEndpoint *e = mm_sound_endpoint_at(s->endpoints, i);
+        if (filter && e->tag != tag)
             continue;
-        value = s->call(s->context, e.object, op, first, second);
+        value = s->call(s->context, e->object, op, first, second);
         if ((op == MM_SOUND_INSTANCE_PLAYING || op == MM_SOUND_ALL_PLAYING) && value)
             return 1;
         if (op == MM_SOUND_GET_VOLUME && value > result)
@@ -135,9 +158,9 @@ int mm_sound_ensure_queue(const MMSoundManagerServices *s, MMI32 queue, MMI32 an
 {
     MMI32 i, empty = -1;
     MMSoundEndpoint e;
-    for (i = s->count(s->context); i-- > 0;)
+    for (i = s->endpoints->rows.count; i-- > 0;)
     {
-        s->get(s->context, i, &e);
+        e = *mm_sound_endpoint_at(s->endpoints, i);
         if (e.tag == (MMU32)queue && queue != anonymous)
             goto found;
         if (empty == -1 && !s->call(s->context, e.object, MM_SOUND_ALL_PLAYING, any_class, 0))
@@ -149,15 +172,15 @@ int mm_sound_ensure_queue(const MMSoundManagerServices *s, MMI32 queue, MMI32 an
     }
     if ((i = empty) != -1)
     {
-        s->get(s->context, i, &e);
+        e = *mm_sound_endpoint_at(s->endpoints, i);
         e.tag = (MMU32)queue;
-        s->put(s->context, i, &e);
+        put_endpoint(s->endpoints, i, &e);
         goto found;
     }
     e.tag = (MMU32)queue;
     e.object = s->create_queue(s->context);
-    i = s->count(s->context);
-    if (!e.object || !s->insert(s->context, i, &e))
+    i = s->endpoints->rows.count;
+    if (!e.object || mm_array_add(&s->endpoints->rows, &e, NULL) != MM_STORAGE_OK)
     {
         if (e.object)
             s->release(s->context, e.object);
@@ -174,24 +197,26 @@ void mm_sound_queues_flush(const MMSoundManagerServices *s, MMI32 any_class)
 {
     MMI32 i;
     MMSoundEndpoint e;
-    for (i = s->count(s->context); i-- > 0;)
+    for (i = s->endpoints->rows.count; i-- > 0;)
     {
-        s->get(s->context, i, &e);
+        e = *mm_sound_endpoint_at(s->endpoints, i);
         s->call(s->context, e.object, MM_SOUND_FLUSH, 0, 0);
-        if (!s->call(s->context, e.object, MM_SOUND_ALL_PLAYING, any_class, 0) && s->count(s->context) > 1)
+        if (!s->call(s->context, e.object, MM_SOUND_ALL_PLAYING, any_class, 0) && s->endpoints->rows.count > 1)
         {
             s->release(s->context, e.object);
-            s->erase(s->context, i);
+            mm_array_delete(&s->endpoints->rows, i, 1);
         }
     }
 }
-void mm_sound_endpoints_release(const MMSoundManagerServices *s, int reverse)
+void mm_sound_endpoints_dispose(const MMSoundManagerServices *s, int reverse)
 {
-    MMI32 i, count = s->count(s->context);
-    MMSoundEndpoint e;
-    for (i = 0; i < (reverse ? count : s->count(s->context)); ++i)
+    MMSoundEndpointList *list = s->endpoints;
+    MMU32 i, count = list->rows.count;
+    for (i = 0; i < (reverse ? count : list->rows.count); ++i)
     {
-        s->get(s->context, reverse ? count - 1 - i : i, &e);
-        s->release(s->context, e.object);
+        const MMSoundEndpoint *e = mm_sound_endpoint_at(list, reverse ? count - 1 - i : i);
+        s->release(s->context, e->object);
     }
+    mm_storage_dispose(&list->storage);
+    list->rows.count = 0;
 }

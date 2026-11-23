@@ -50,7 +50,7 @@ const MMSoundResourceHost *mm_kauai_movie_sound_host(void)
     return &host;
 }
 
-void mm_kauai_movie_sound_device(MMSoundResourceServices *s, void *manager)
+MMSoundLastMidi *mm_kauai_movie_sound_device(MMSoundResourceServices *s, void *manager)
 {
     s->context = manager;
     s->playing = [](void *p, MMI32 instance) -> int { return static_cast<PSoundManager>(p)->FPlaying(instance); };
@@ -60,4 +60,5 @@ void mm_kauai_movie_sound_device(MMSoundResourceServices *s, void *manager)
         return static_cast<PSoundManager>(p)->SiiPlay({sound->cache, nullptr}, sound->type, sound->number, queue, volume,
                                                      repeat, start, priority, soundClass);
     };
+    return manager ? &static_cast<PSoundManager>(manager)->_lastMovieMidi : nullptr;
 }
