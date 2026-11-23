@@ -83,17 +83,22 @@ static int set_flags(MMRegisteredFile *file, MMU32 flags, MMU32 mask)
     const MMFileOwnerHost host = file_host(file);
     return mm_file_owner_set_flags(file->owner, &host, flags, mask);
 }
+int mm_file_ops_matches(const MMFileOpsHost *h, const MMRegisteredFile *file, void *name)
+{
+    const MMFileOwnerHost host = file_host(file);
+    int equal;
+    enter_file(&host);
+    equal = h->equal_names(h->context, name, file->name);
+    leave_file(&host);
+    return equal;
+}
 MMRegisteredFile *mm_file_ops_find(const MMFileOpsHost *h, void *name)
 {
     MMRegisteredFile *p;
-    int equal;
     validate_name(h, name); enter_registry(h->registry);
     for (p = mm_file_registry_first(h->registry); p; p = mm_file_registry_next(p)) {
-        const MMFileOwnerHost host = file_host(p);
-        validate(h, p); enter_file(&host);
-        equal = h->equal_names(h->context, name, p->name);
-        leave_file(&host);
-        if (equal) break;
+        validate(h, p);
+        if (mm_file_ops_matches(h, p, name)) break;
     }
     leave_registry(h->registry); return p;
 }
@@ -130,6 +135,7 @@ fail:
 MMRegisteredFile *mm_file_ops_temp(const MMFileOpsHost *h, void *basis, void *scratch)
 {
     if (basis) {
+        validate_name(h, basis);
         h->copy_name(h->context, scratch, basis);
         if (!h->unique_name(h->context, scratch)) goto fail;
     } else if (!h->temp_name(h->context, scratch)) goto fail;
@@ -142,6 +148,7 @@ int mm_file_ops_swap(const MMFileOpsHost *h, MMRegisteredFile *a, MMRegisteredFi
     int result = 0;
     void *an, *bn;
     MMFileOwnerHost ah, bh;
+    validate(h, a); validate(h, b);
     if (a == b) { assertion(h, MM_FILE_OP_SWAP_SELF); return 1; }
     ah = file_host(a); bh = file_host(b);
     enter_file(&ah); enter_file(&bh);
@@ -181,6 +188,7 @@ int mm_file_ops_rename(const MMFileOpsHost *h, MMRegisteredFile *file, void *nam
     const MMFileOwnerHost host = file_host(file);
     int result;
     void *old;
+    validate(h, file); validate_name(h, name);
     enter_file(&host); old = file->name;
     if (h->assertion && !h->same_directory(h->context, old, name)) assertion(h, MM_FILE_OP_RENAME_DIRECTORY);
     mm_file_owner_close(file->owner, &host, 0);
@@ -191,20 +199,22 @@ int mm_file_ops_rename(const MMFileOpsHost *h, MMRegisteredFile *file, void *nam
     if (!result) issue(h, MM_FILE_OP_RENAME);
     validate(h, file); return result;
 }
+int mm_file_ops_rename_replacing(const MMFileOpsHost *h, MMRegisteredFile *file, void *name)
+{
+    if (h->name_status(h->context, name) != MM_FILE_NAME_MISSING) h->delete_name(h->context, name);
+    return mm_file_ops_rename(h, file, name);
+}
 int mm_file_ops_set_name(const MMFileOpsHost *h, MMRegisteredFile *file, void *name, void *scratch)
 {
     MMFileOwnerHost host;
     MMRegisteredFile *old = mm_file_ops_find(h, name);
     if (old) {
         if (old == file) return 1;
-        validate(h, file); validate(h, old);
         if (!mm_file_ops_swap(h, file, old, scratch)) return 0;
         host = file_host(old);
         mm_file_owner_set_temp(old->owner, &host, 1); return 1;
     }
-    if (h->name_status(h->context, name) != MM_FILE_NAME_MISSING) h->delete_name(h->context, name);
-    validate(h, file); validate_name(h, name);
-    return mm_file_ops_rename(h, file, name);
+    return mm_file_ops_rename_replacing(h, file, name);
 }
 void mm_file_ops_clear_marks(const MMFileOpsHost *h)
 {

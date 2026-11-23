@@ -46,9 +46,7 @@ typedef struct MMNamedArchiveServices
     const MMChunkOwnerFileIO *io;
     const MMBlockFileServices *blocks;
     const MMPrivateArchiveProfile *profile;
-    void *(*find_file)(void *name);
-    void *(*open_file)(void *name, int create, MMU32 flags);
-    MMU32 (*file_flags)(void *file);
+    const struct MMFileOpsHost *file_ops;
     void (*open_failed)(int create);
 } MMNamedArchiveServices;
 /* Reuse a registered working owner or open a file and register its archive.

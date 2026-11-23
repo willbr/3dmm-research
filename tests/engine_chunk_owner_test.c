@@ -1,5 +1,5 @@
 #include "mm/chunk_owner.h"
-#include "mm/file_owner.h"
+#include "mm/file_ops.h"
 #include "mm/movie_session.h"
 #include "mm/private_archive_cache.h"
 #include <stdio.h>
@@ -834,29 +834,32 @@ static size_t convert_text(void *context, const void *bytes, size_t count, int e
 typedef struct NamedFiles
 {
     TestFile *file;
+    MMFileOwner owner;
+    MMReference references;
+    MMRegisteredFile registration;
     int opens, legacy_lookups, legacy_prepares, has_legacy, fail_open;
 } NamedFiles;
 
-static void *find_named_file(void *name)
+static int equal_named_files(void *context, void *a, void *b)
 {
-    return ((NamedFiles *)name)->file;
+    (void)context;
+    return a == b;
 }
 
-static void *open_named_file(void *name, int create, MMU32 flags)
+static void *open_named_file(void *context, int create, MMU32 flags)
 {
-    NamedFiles *files = name;
-    const MMU32 expected = MM_FILE_DENY_WRITE | (create ? MM_FILE_WRITE | MM_FILE_DENY_READ | MM_FILE_TEMP : 0);
-    CHECK(flags == expected);
+    NamedFiles *files = context;
+    CHECK(!create && flags == MM_FILE_DENY_WRITE);
     ++files->opens;
-    if (files->fail_open)
-        return NULL;
-    retain_block(NULL, files->file);
-    return files->file;
+    return files->fail_open ? NULL : files->file;
 }
 
-static MMU32 named_file_flags(void *file)
+static MMFileOwnerHost named_file_host(void *context)
 {
-    return ((TestFile *)file)->flags;
+    MMFileOwnerHost host = {0};
+    host.context = context;
+    host.open = open_named_file;
+    return host;
 }
 
 static void *find_legacy_archive(void *name)
@@ -882,7 +885,9 @@ static void private_archive_cases(void)
     MMChunkTitleIO titles = {0};
     MMMovieTitle title;
     MMChunkOwnerFileIO io = storage_io(&host);
-    MMNamedArchiveServices files = {NULL, NULL, NULL, NULL, find_named_file, open_named_file, named_file_flags, NULL};
+    MMFileRegistry file_registry;
+    MMFileOpsHost file_ops = {0};
+    MMNamedArchiveServices files = {0};
     MMSharedArchiveCacheServices shared = {NULL, NULL, NULL, find_legacy_archive, refuse_legacy_archive, NULL, NULL};
     NamedFiles name = {0};
     MMPrivateArchive *archive, *alias;
@@ -906,8 +911,16 @@ static void private_archive_cases(void)
     files.io = &io;
     files.blocks = &blocks;
     files.profile = &profile;
+    files.file_ops = &file_ops;
     shared.files = &files;
     name.file = &host.main;
+    mm_file_registry_init(&file_registry, NULL, NULL, NULL);
+    mm_registered_file_init(&name.registration, name.file, &name, &name.owner, &name.references, &name,
+                            named_file_host);
+    mm_file_registry_attach(&file_registry, &name.registration);
+    file_ops.registry = &file_registry;
+    file_ops.equal_names = equal_named_files;
+    file_ops.retain = retain_block;
     archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks,
                                                   &profile);
     CHECK(archive != NULL && mm_private_archive_find(&registry, &host.main) == archive);
@@ -946,10 +959,10 @@ static void private_archive_cases(void)
           name.legacy_prepares == 1);
     name.has_legacy = 0;
     name.fail_open = 1;
-    host.main.flags = MM_FILE_DENY_READ;
+    name.owner.flags = MM_FILE_DENY_READ;
     CHECK(!mm_shared_archive_cache_open(&shared, &name, 0, 0, &live, &borrowed) && live && !borrowed &&
           name.opens == 1);
-    host.main.flags = 0;
+    mm_file_owner_init(&name.owner, 0);
     name.fail_open = 0;
     shared_cache = mm_shared_archive_cache_open(&shared, &name, 1, 0, &live, &borrowed);
     CHECK(shared_cache && live && borrowed && name.opens == 2);
@@ -1009,6 +1022,7 @@ static void private_archive_cases(void)
     CHECK(rich.read_at(&rich, &text, sizeof(value), NULL, 0));
     mm_private_archive_close(archive);
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
+    mm_file_registry_detach(&file_registry, &name.registration);
 }
 
 static void private_forest_cases(void)

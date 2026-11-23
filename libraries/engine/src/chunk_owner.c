@@ -1,6 +1,7 @@
 /* Container ownership converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_owner.h"
+#include "mm/file_ops.h"
 #include <stdlib.h>
 #include <string.h>
 int mm_chunk_owner_init(MMChunkOwner *o, const MMStorageAllocator *allocator, int expanded)
@@ -722,6 +723,54 @@ int mm_chunk_owner_save(MMChunkOwnerStorage *storage, const MMChunkOwnerSavePath
     status = mm_chunk_save(&state, &index, &services, creator, path != NULL);
     save_publish(&save, &state);
     return status;
+}
+
+typedef struct RegisteredSave
+{
+    const MMFileOpsHost *files;
+    MMRegisteredFile *(*registration)(void *);
+    void *scratch;
+} RegisteredSave;
+
+static int registered_matches(void *p, void *file, void *path)
+{
+    const RegisteredSave *save = p;
+    return mm_file_ops_matches(save->files, save->registration(file), path);
+}
+
+static void *registered_temp(void *p, void *current, void *path)
+{
+    const RegisteredSave *save = p;
+    MMRegisteredFile *file = mm_file_ops_temp(save->files, path ? path : save->registration(current)->name,
+                                             save->scratch);
+    return file ? file->object : NULL;
+}
+
+static int registered_rename(void *p, void *file, void *path)
+{
+    const RegisteredSave *save = p;
+    return mm_file_ops_rename_replacing(save->files, save->registration(file), path);
+}
+
+static int registered_swap(void *p, void *file, void *old)
+{
+    const RegisteredSave *save = p;
+    return mm_file_ops_swap(save->files, save->registration(file), save->registration(old), save->scratch);
+}
+
+int mm_chunk_owner_save_registered(MMChunkOwnerStorage *storage, const MMFileOpsHost *files,
+                                   MMRegisteredFile *(*registration)(void *), void *path, void *scratch,
+                                   MMU32 creator, int system)
+{
+    RegisteredSave save;
+    MMChunkOwnerSavePaths paths = {NULL, registered_matches, registered_temp, registered_rename, registered_swap};
+    if (!files || !registration || !scratch)
+        return MM_CHUNK_BAD_FILE;
+    save.files = files;
+    save.registration = registration;
+    save.scratch = scratch;
+    paths.context = &save;
+    return mm_chunk_owner_save(storage, &paths, path, creator, system);
 }
 
 typedef struct OwnerCopy

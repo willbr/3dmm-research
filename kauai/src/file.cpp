@@ -106,7 +106,7 @@ PFileObject FileObject::PfilNext(void)
     return FileFromRegistration(mm_file_registry_next(&_registration));
 }
 
-MMFileOpsHost FileObject::_OpsHost()
+MMFileOpsHost FileObject::CoreFileOps()
 {
     static_assert(tNo == MM_FILE_NAME_MISSING, "native file status contract");
     MMFileOpsHost host{};
@@ -150,6 +150,11 @@ MMFileOpsHost FileObject::_OpsHost()
     return host;
 }
 
+MMRegisteredFile *FileObject::CoreFileRegistration(void *file)
+{
+    return &static_cast<PFileObject>(file)->_registration;
+}
+
 /***************************************************************************
     Constructor for a file.
 ***************************************************************************/
@@ -183,7 +188,7 @@ FileObject::~FileObject(void)
 ***************************************************************************/
 PFileObject FileObject::PfilOpen(Filename *pfni, LegacyUlong grffil)
 {
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     return FileFromRegistration(mm_file_ops_open(&host, pfni, grffil));
 }
 
@@ -197,7 +202,7 @@ MMReadStream FileObject::ReadStream()
 ***************************************************************************/
 PFileObject FileObject::PfilCreate(Filename *pfni, LegacyUlong grffil)
 {
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     return FileFromRegistration(mm_file_ops_create(&host, pfni, grffil));
 }
 
@@ -208,9 +213,8 @@ PFileObject FileObject::PfilCreate(Filename *pfni, LegacyUlong grffil)
 ***************************************************************************/
 PFileObject FileObject::PfilCreateTemp(Filename *pfni)
 {
-    AssertNilOrPo(pfni, ffniFile);
     Filename scratch;
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     return FileFromRegistration(mm_file_ops_temp(&host, pfni, &scratch));
 }
 
@@ -220,7 +224,7 @@ PFileObject FileObject::PfilCreateTemp(Filename *pfni)
 ***************************************************************************/
 PFileObject FileObject::PfilFromFni(Filename *pfni)
 {
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     return FileFromRegistration(mm_file_ops_find(&host, pfni));
 }
 
@@ -277,7 +281,7 @@ bool FileObject::FSetFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
     Filename scratch;
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     return mm_file_ops_set_name(&host, &_registration, pfni, &scratch) != 0;
 }
 
@@ -286,7 +290,7 @@ bool FileObject::FSetFni(Filename *pfni)
 ***************************************************************************/
 void FileObject::ClearMarks(void)
 {
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     mm_file_ops_clear_marks(&host);
 }
 
@@ -295,7 +299,7 @@ void FileObject::ClearMarks(void)
 ***************************************************************************/
 void FileObject::CloseUnmarked(void)
 {
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     mm_file_ops_close_unmarked(&host);
 }
 
@@ -304,7 +308,7 @@ void FileObject::CloseUnmarked(void)
 ***************************************************************************/
 void FileObject::ShutDown(void)
 {
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     mm_file_ops_shutdown(&host);
 }
 

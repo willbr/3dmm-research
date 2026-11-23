@@ -105,10 +105,8 @@ bool FileObject::FWriteRgb(void *data, LegacyLong bytes, FilePosition position)
 ***************************************************************************/
 bool FileObject::FSwapNames(PFileObject pfil)
 {
-    AssertThis(0);
-    AssertPo(pfil, 0);
     Filename scratch;
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     return mm_file_ops_swap(&host, &_registration, &pfil->_registration, &scratch) != 0;
 }
 
@@ -118,8 +116,6 @@ bool FileObject::FSwapNames(PFileObject pfil)
 ***************************************************************************/
 bool FileObject::FRename(Filename *pfni)
 {
-    AssertThis(0);
-    AssertPo(pfni, ffniFile);
-    const auto host = _OpsHost();
+    const auto host = CoreFileOps();
     return mm_file_ops_rename(&host, &_registration, pfni) != 0;
 }

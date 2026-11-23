@@ -3,6 +3,7 @@
 #include "mm/chunk_copy.h"
 #include "mm/chunk_forest.h"
 #include "mm/file_owner.h"
+#include "mm/file_ops.h"
 #include "mm/reference.h"
 #include "mm/text_resource.h"
 #include "mm/string_wire.h"
@@ -387,10 +388,11 @@ MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *registry, v
 static MMPrivateArchive *open_named_file(const MMNamedArchiveServices *s, void *name, int create)
 {
     const MMU32 flags = mm_chunk_file_flags(create ? MM_CHUNK_WRITE | MM_CHUNK_TEMP : 0);
-    void *file = s->open_file(name, create, flags);
+    const MMRegisteredFile *file = create ? mm_file_ops_create(s->file_ops, name, flags) :
+                                           mm_file_ops_open(s->file_ops, name, flags);
     const int mode = create ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_WORKING;
-    MMPrivateArchive *archive = mm_private_archive_open_registered(s->registry, file, mode, s->io,
-                                                                   s->blocks, s->profile);
+    MMPrivateArchive *archive = mm_private_archive_open_registered(s->registry, file ? file->object : NULL,
+                                                                   mode, s->io, s->blocks, s->profile);
     if (!archive && s->open_failed)
         s->open_failed(create);
     return archive;
@@ -400,7 +402,11 @@ MMPrivateArchive *mm_private_archive_open_named(const MMNamedArchiveServices *s,
 {
     MMPrivateArchive *archive = NULL;
     if (!create)
-        archive = mm_private_archive_find(s->registry, s->find_file(name));
+    {
+        const MMRegisteredFile *file = mm_file_ops_find(s->file_ops, name);
+        if (file)
+            archive = mm_private_archive_find(s->registry, file->object);
+    }
     if (!archive)
         return open_named_file(s, name, create);
     mm_private_archive_retain(archive);
@@ -427,8 +433,8 @@ MMResourceCache *mm_shared_archive_cache_open(const MMSharedArchiveCacheServices
                                               MMI32 budget, int *selected, MMChunkOwnerRead **reader)
 {
     const MMNamedArchiveServices *files = s->files;
-    void *file = files->find_file(name);
-    MMPrivateArchive *archive = mm_private_archive_find(files->registry, file);
+    const MMRegisteredFile *file = mm_file_ops_find(files->file_ops, name);
+    MMPrivateArchive *archive = file ? mm_private_archive_find(files->registry, file->object) : NULL;
     MMResourceCache *cache = NULL;
     MMResourceSource source = {0};
     *selected = 1;
@@ -445,7 +451,7 @@ MMResourceCache *mm_shared_archive_cache_open(const MMSharedArchiveCacheServices
         }
         else
         {
-            *selected = prefer_working || (file && (files->file_flags(file) & (MM_FILE_WRITE | MM_FILE_DENY_READ)));
+            *selected = prefer_working || (file && (file->owner->flags & (MM_FILE_WRITE | MM_FILE_DENY_READ)));
             if (*selected)
                 archive = open_named_file(files, name, 0);
         }

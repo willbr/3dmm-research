@@ -81,7 +81,6 @@ class FileObject : public FileObject_PAR
     MMFileOwnerHost _OwnerHost();
     static const MMNativeNamedFileDiagnostics *_FileDiagnostics();
     static MMFileRegistry *_Registry();
-    static MMFileOpsHost _OpsHost();
 
   public:
     // public static members
@@ -100,6 +99,8 @@ class FileObject : public FileObject_PAR
     static PFileObject PfilCreate(Filename *pfni, LegacyUlong grffil = ffilWriteEnable | ffilDenyWrite);
     static PFileObject PfilCreateTemp(Filename *pfni = pvNil);
     static PFileObject PfilFromFni(Filename *pfni);
+    static MMFileOpsHost CoreFileOps();
+    static MMRegisteredFile *CoreFileRegistration(void *file);
 
     virtual void Release(void);
     void Mark(void)

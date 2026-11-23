@@ -864,19 +864,22 @@ names after success or failed recovery. Two-object operations enter a then b and
 leave a then b, matching native order. Unique-name failure leaves handles open;
 failed recovery publishes surviving physical locations before reopening. Swap
 deliberately ignores reopen results and can succeed with critical closed owners.
-Rename fails if reopen fails. Replacement swaps with another open owner and marks
-that owner temporary only after success. Nonmissing or unknown destination status
-attempts deletion, ignores its result and proceeds to rename. These are preserved
-native policies, not newly normalized behavior.
+Rename fails if reopen fails. Setting an open owner's name swaps with a registered
+destination owner and marks that owner temporary after success. Save As checks
+the destination on disk. A nonmissing or unknown status triggers a deletion
+attempt, then rename proceeds even if deletion failed.
 
 Tokens, provider contexts and scratch names stay live; scratch storage cannot
 alias an owner/input name. Callback effects are limited to the designated
 construct/destroy/copy/physical operations; callbacks cannot unwind or mutate
 other owners/links. Locks must be recursive and callers serialize competing
-transactions. Native adapters retain entry validation and scratch-object lifetime;
-C performs post-transaction validation. Directory checks are advisory and are
-skipped when diagnostics are disabled. Existing callers use the FileObject
-facade to reach the same C records used by registry and publication operations.
+transactions. Native adapters supply validation hooks and scratch-object storage.
+Directory checks are advisory and are skipped when diagnostics are disabled.
+The C named working-archive and resource-cache bindings use the file registry
+for lookup and open. `mm_chunk_owner_save_registered` uses the same records to
+check whether the destination is the current file, stage output in the selected
+directory, and publish by rename or swap. `FileObject` supplies its embedded
+record for backing-file tokens already held by the archive.
 
 `engine-file-ops` uses independent pure-C registries, file records and a physical
 name/content model. It exercises all 32 failure combinations across the three

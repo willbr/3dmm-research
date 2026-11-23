@@ -141,6 +141,14 @@ extern "C"
      * path needs no path services. Path and services are borrowed for the call. */
     int mm_chunk_owner_save(MMChunkOwnerStorage *, const MMChunkOwnerSavePaths *,
                             void *path, MMU32 creator, int system);
+    struct MMFileOpsHost;
+    struct MMRegisteredFile;
+    /* Bind save publication to the file registry. Registration maps each
+     * backing token to its record, whose object is that same token. Scratch
+     * is an initialized name separate from the destination and file names. */
+    int mm_chunk_owner_save_registered(MMChunkOwnerStorage *, const struct MMFileOpsHost *,
+                                       struct MMRegisteredFile *(*registration)(void *file),
+                                       void *path, void *scratch, MMU32 creator, int system);
     /* Destination owns a fresh writable file and empty table of the same width.
      * A failed copy may leave partial output for its owner to discard. The source
      * is unchanged. Optional directory_failed reports failure after the payload

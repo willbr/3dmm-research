@@ -25719,3 +25719,35 @@ previously observed one-count difference in the later Actor Audio peak.
 
 Evidence is under `tmp/c89-file-registry`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 working-archive open and save publication (23 November 2026)
+
+Studio's C named working-archive binding now finds and opens its backing files
+through the file registry. The C archive owner checks for a same-name save,
+stages output beside the destination, and publishes it through the registered
+rename or swap transaction. The Kauai binding supplies the Filename values,
+backing-file tokens, and diagnostics.
+
+The standalone archive fixture exercises named lookup, cached reuse, open
+failure, and resource-cache selection through a real C registry. The registry
+and archive owners compiled with strict C89 flags for Linux x64. Runtime checks
+ran on Windows. All twelve file-owner and file-operation traces matched the
+frozen hashes for native x64 Debug, native x86 Debug, and SDL Release. The 39
+standalone engine checks and 23 strict C89 checks passed. Classic and SDL Studio
+rebuilt. SDL authoring, save and reopen, four SDL save traces, eight VMM outputs,
+the resource-cache trace, and the headless Marcus startup canvas matched their
+expected results. The external core, archive, and preview consumers passed.
+All 228 selected native tests passed. The 27 native scene, save, and edit
+traces and ten preview fingerprints matched their frozen baselines.
+
+Fresh suite `20261123T211711Z-28b7b9d3` completed eight captures and replay
+suite `20261123T211832Z-53d465d8` completed four with verified input hashes.
+Both ports matched all 60 Actor Audio frame positions and camera indices and
+59 of 60 seek canvases against retained retail and V3DMM. Both matched all 60
+seek canvases and scene states against the prior port build. The first 100 ms
+of all four Actor Audio spans, the embedded WAVE cue, and the first 400 ms of
+embedded MIDI matched the retained port samples. SDL replay reproduced the
+previously observed one-count difference in the later Actor Audio peak.
+
+Evidence is under `tmp/c89-archive-publication`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

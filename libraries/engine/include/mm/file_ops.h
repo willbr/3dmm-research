@@ -75,8 +75,8 @@ typedef struct MMFileOpsHost {
  * delete/move owners, mutate links or unwind. Copy/construct/rename services may
  * perform only their designated publication. Owner hosts follow file_owner.h.
  * Scratch name storage must be live, initialized and distinct from owner/input
- * names. Temp, rename, swap and set_name adapters validate their arguments before
- * constructing native scratch objects; open/create/find perform name validation.
+ * names. Factories and transactions validate through the host hooks. Name
+ * comparison alone uses the file lock and assumes valid arguments.
  * Directory assertions are advisory and skipped without an assertion hook.
  * Rename primitives leave name records unchanged; copy publishes logical names.
  * Failed recovery publishes the known physical location before reopening. Swap
@@ -88,8 +88,12 @@ MMRegisteredFile *mm_file_ops_find(const MMFileOpsHost *, void *name);
 MMRegisteredFile *mm_file_ops_open(const MMFileOpsHost *, void *name, MMU32 flags);
 MMRegisteredFile *mm_file_ops_create(const MMFileOpsHost *, void *name, MMU32 flags);
 MMRegisteredFile *mm_file_ops_temp(const MMFileOpsHost *, void *basis, void *scratch);
+int mm_file_ops_matches(const MMFileOpsHost *, const MMRegisteredFile *, void *name);
 int mm_file_ops_swap(const MMFileOpsHost *, MMRegisteredFile *a, MMRegisteredFile *b, void *scratch);
 int mm_file_ops_rename(const MMFileOpsHost *, MMRegisteredFile *, void *name);
+/* Publish by attempting to delete the destination before renaming. Uses
+ * filesystem status even if a caller holds another registered file. */
+int mm_file_ops_rename_replacing(const MMFileOpsHost *, MMRegisteredFile *, void *name);
 int mm_file_ops_set_name(const MMFileOpsHost *, MMRegisteredFile *, void *name, void *scratch);
 void mm_file_ops_clear_marks(const MMFileOpsHost *);
 void mm_file_ops_close_unmarked(const MMFileOpsHost *);

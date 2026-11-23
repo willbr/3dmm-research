@@ -289,17 +289,13 @@ const MMNamedArchiveServices *KauaiNamedArchiveServices()
 {
     static const auto io = ChunkOwnerFileIO();
     static const auto profile = KauaiPrivateArchiveProfile();
+    static const auto files = FileObject::CoreFileOps();
     static const MMNamedArchiveServices services = {
         &workingArchives,
         &io,
         KauaiBlockFileServices(),
         &profile,
-        [](void *name) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(name)); },
-        [](void *name, int create, MMU32 flags) -> void * {
-            const auto filename = static_cast<PFilename>(name);
-            return create ? FileObject::PfilCreate(filename, flags) : FileObject::PfilOpen(filename, flags);
-        },
-        [](void *file) -> MMU32 { return static_cast<PFileObject>(file)->GrffilCur(); },
+        &files,
         [](int create) { PushErc(create ? ercCflCreate : ercCflOpen); }};
     return &services;
 }
@@ -999,29 +995,10 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
 
 bool KauaiSaveChunkOwner(MMChunkOwnerStorage *storage, ChunkTagOrType creator, Filename *pfni)
 {
-    const MMChunkOwnerSavePaths paths = {nullptr,
-        [](void *, void *file, void *path) -> int {
-            Filename name;
-            static_cast<PFileObject>(file)->GetFni(&name);
-            return static_cast<PFilename>(path)->FEqual(&name);
-        },
-        [](void *, void *current, void *path) -> void * {
-            Filename directory;
-            if (path)
-                directory = *static_cast<PFilename>(path);
-            else
-                static_cast<PFileObject>(current)->GetFni(&directory);
-            return FileObject::PfilCreateTemp(&directory);
-        },
-        [](void *, void *file, void *path) -> int {
-            auto name = static_cast<PFilename>(path);
-            if (name->TExists() != tNo) name->FDelete();
-            return static_cast<PFileObject>(file)->FRename(name);
-        },
-        [](void *, void *file, void *old) -> int {
-            return static_cast<PFileObject>(file)->FSwapNames(static_cast<PFileObject>(old));
-        }};
-    const bool ok = mm_chunk_owner_save(storage, &paths, pfni, creator, koskCur) == MM_CHUNK_OK;
+    Filename scratch;
+    const auto files = FileObject::CoreFileOps();
+    const bool ok = mm_chunk_owner_save_registered(storage, &files, FileObject::CoreFileRegistration,
+                                                   pfni, &scratch, creator, koskCur) == MM_CHUNK_OK;
     if (!ok)
     {
         if (!pfni && storage->owner->files.invalid_main)
