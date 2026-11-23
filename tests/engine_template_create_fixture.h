@@ -126,8 +126,8 @@ static bool TestTemplateConstruction()
 #endif
         LegacyLong values[]={shape,variant,stage,kind,failure,estimate,t!=nullptr,body!=nullptr,written};
         ok=record(values,sizeof(values)) && TemplateCreateFixtureAccess::Record(t,snapshot) && (!written || record(&wire,sizeof(wire))) && ok;
-        if (body) { ok=ok && EngineBody::ActorCount(body)==(shape?8:2) && EngineBody::SetCount(body)==(shape?2:0);
-            for (int i=0;i<(shape?6:0);++i) ok=ok && EngineBody::Part(body, i)->material!=nullptr;
+        if (body) { ok=ok && (mm_body_owner_state(body)->shape.part_count + 2)==(shape?8:2) && mm_body_owner_state(body)->shape.set_count==(shape?2:0);
+            for (int i=0;i<(shape?6:0);++i) ok=ok && mm_brender_body_part(body, i)->material!=nullptr;
             ok=BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok; }
         mm_body_owner_release(body); mm_template_owner_release(t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
         if (!ok) std::fprintf(stderr,"Template construction failed: %d %d %d %d %d\n",shape,variant,stage,kind,failure);

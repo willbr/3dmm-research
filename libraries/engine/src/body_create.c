@@ -32,6 +32,14 @@ MMBodyState *mm_body_owner_state(MMBodyOwner *body)
     return &body->state;
 }
 
+MMBodyDrawView mm_body_owner_draw_view(const MMBodyOwner *body)
+{
+    MMBodyDrawView view;
+    view.bindings = body->state.shape.bindings;
+    view.part_count = body->state.shape.part_count;
+    return view;
+}
+
 void mm_body_owner_bind_render(MMBodyOwner *body, const MMBodyRenderBinding *binding)
 {
     body->state.render = *binding;

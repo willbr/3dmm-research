@@ -2094,7 +2094,12 @@ The model owner now supplies its renderer when saving BMDL chunks, measuring
 glyphs and adjusting glyph geometry. Studio reads model identity from the body
 part's retained owner. The C renderer prepares body draw entries and scans for
 body hits directly. World supplies the target scene and display effects. The
-C++ model and body-to-world modules have been removed from the engine build.
+C++ model, body and body-to-world modules have been removed from the engine
+build. Studio reads the body owner's geometry and draw bindings directly.
+The C89 BRender binding cycles costumes in authored order, identifies the
+current costume from the applied owner when needed, and compares accessory
+models before applying the selection. Kauai supplies the debug checks and
+memory marking.
 Actor-track editing in both hosts uses the shared C89 local tag operations.
 Loaded 3D text carries its host's font provider. Studio binds its catalogue
 through the C89 tag-based template fetch. The template owner keeps an

@@ -330,7 +330,7 @@ int main(int argc, char **argv)
             }
         }
         auto body = animated ? mm_brender_template_body(animated) : pvNil;
-        for (LegacyLong set = 0; body && set < EngineBody::SetCount(body); ++set)
+        for (LegacyLong set = 0; body && set < mm_body_owner_state(body)->shape.set_count; ++set)
             if (!mm_brender_template_is_accessory(animated, set) && mm_brender_template_costume_count(animated, set) > 1)
             {
                 costumeSet = set;
@@ -549,7 +549,7 @@ int main(int argc, char **argv)
     ReleasePpo(&templateResources);
     ReleasePpo(&templateFile);
     ReleasePpo(&shadeFile);
-    EngineBody::ReleaseSharedMaterial();
+    mm_brender_body_release_highlight();
     mm_brender_material_shade_clear();
     BrZbEnd();
     BrEnd();

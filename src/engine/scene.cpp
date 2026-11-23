@@ -1148,9 +1148,7 @@ MMSceneSelectionServices Scene::_SelectionServices()
         auto actor = static_cast<PActor>(object);
         if (!actor->Pbody() || !actor->FIsInView())
             return 0;
-        BRS x, y, z;
-        EngineBody::GetPosition(actor->Pbody(), &x, &y, &z);
-        *out = {x, y, z};
+        *out = mm_body_origin(&mm_body_owner_state(actor->Pbody())->shape);
         return 1;
     };
     return s;
@@ -1262,9 +1260,7 @@ MMActorGroupTransformServices Scene::_GroupTransformServices()
             *effects = static_cast<PActor>(actor)->_TransformEditServices();
         },
         [](void *, void *body, MMActorPoint *point) {
-            BRS x, y, z;
-            EngineBody::GetPosition(static_cast<PBody>(body), &x, &y, &z);
-            *point = {x, y, z};
+            *point = mm_body_origin(&mm_body_owner_state(static_cast<PBody>(body))->shape);
         }};
 }
 
@@ -1622,7 +1618,7 @@ Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
         &host,
         [](void *p, MMI32 x, MMI32 y) -> void * {
             auto h = static_cast<Host *>(p);
-            return h->scene->Pmvie()->Pbwld()->PickBody(x, y, h->part, EngineBody::GeometryServices());
+            return h->scene->Pmvie()->Pbwld()->PickBody(x, y, h->part, mm_kauai_body_renderer()->geometry);
         },
         [](void *p) -> MMI32 { return static_cast<Host *>(p)->scene->Cactr(); },
         [](void *p, MMI32 index) -> void * { return static_cast<Host *>(p)->scene->PactrAt(index); },

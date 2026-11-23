@@ -682,3 +682,62 @@ int mm_brender_template_same_accessory(MMTemplateOwner *owner, MMI32 first, MMI3
     runtime_services(&services, owner);
     return mm_template_same_accessory(first, second, &services);
 }
+
+int mm_brender_template_cycle_costume(MMTemplateOwner *owner, MMBodyOwner *body, MMI32 set, int known_id,
+                                     MMI32 current_id, int next_accessory, MMI32 *selected_id)
+{
+    const MMBRenderBody *renderer = mm_kauai_body_renderer();
+    const MMI32 count = mm_brender_template_costume_count(owner, set);
+    MMMaterialOwner *applied = NULL, *candidate;
+    MMI32 index, id, next, examined;
+    int custom, matches;
+    if (count <= 0)
+        return 0;
+    if (!known_id)
+    {
+        applied = mm_brender_body_material(renderer, body, set, &custom);
+        if (!custom)
+            applied = NULL;
+    }
+    next = mm_brender_template_costume_id(owner, set, 0);
+    for (index = 0; index < count && (known_id || applied); ++index)
+    {
+        id = mm_brender_template_costume_id(owner, set, index);
+        if (known_id)
+            matches = id == current_id;
+        else
+        {
+            candidate = mm_brender_template_costume(owner, id);
+            if (!candidate)
+                return 0;
+            matches = candidate == applied;
+            mm_material_owner_release(candidate);
+        }
+        if (matches)
+            break;
+    }
+    if (index < count && (known_id || applied))
+    {
+        id = mm_brender_template_costume_id(owner, set, index);
+        next = id;
+        for (examined = 1; examined < count; ++examined)
+        {
+            MMI32 choice;
+            if (++index == count)
+                index = 0;
+            choice = mm_brender_template_costume_id(owner, set, index);
+            if ((mm_brender_template_same_accessory(owner, id, choice) != 0) != (next_accessory != 0))
+            {
+                next = choice;
+                break;
+            }
+        }
+    }
+    candidate = mm_brender_template_costume(owner, next);
+    if (!candidate)
+        return 0;
+    mm_body_set_custom(body, candidate, &renderer->edit.runtime);
+    mm_material_owner_release(candidate);
+    *selected_id = next;
+    return 1;
+}

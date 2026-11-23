@@ -51,7 +51,38 @@ int main()
     auto missing = tmpl ? mm_brender_template_costume(tmpl, 1) : nullptr;
     if (!body || !sparse || missing) std::fputs("Sparse costume lookup/application failed.\n", stderr);
     ok = ok && body && sparse && !missing && mm_material_owner_custom(sparse)->set == 0;
-    if (body && sparse) EngineBody::SetPartSetCmtl(body, sparse);
+    if (ok)
+    {
+        const auto renderer = mm_kauai_body_renderer();
+        int appliedCustom;
+        MMI32 selected = -77;
+        auto cycle = [&](int known, MMI32 current, int accessory, bool expected, MMI32 id) {
+            const bool changed = mm_brender_template_cycle_costume(tmpl, body, 0, known, current, accessory, &selected) != 0;
+            if (changed == expected && selected == id)
+                return true;
+            std::fprintf(stderr, "cycle known=%d current=%d accessory=%d: changed=%d id=%d\n",
+                         known, int(current), accessory, changed, int(selected));
+            return false;
+        };
+        mm_body_set_custom(body, sparse, &renderer->edit.runtime);
+        file->DeleteChild(kctgTmpl, number, kctgCmtl, customNumber, 0);
+        ok = cycle(1, 2, 1, false, -77) &&
+             mm_brender_body_material(renderer, body, 0, &appliedCustom) == sparse && appliedCustom;
+
+        ChunkNumber firstCostume;
+        ok = ok && file->FAddChildPv(kctgTmpl, number, 0, &custom, sizeof(custom), kctgCmtl, &firstCostume) &&
+             file->FAdoptChild(kctgCmtl, firstCostume, kctgMtrl, materialNumber, 0);
+        auto first = mm_brender_template_costume(tmpl, 0);
+        if (!first)
+            std::fputs("Cannot load the formerly missing costume.\n", stderr);
+        mm_body_set_generic(body, 0, material, &renderer->edit.runtime);
+        ok = ok && first && cycle(0, 0, 0, true, 0) && cycle(1, 0, 0, true, 2) &&
+             mm_brender_body_material(renderer, body, 0, &appliedCustom) == sparse && appliedCustom &&
+             cycle(1, 2, 1, true, 2) && cycle(0, 0, 0, true, 0);
+        mm_material_owner_release(first);
+        if (!ok)
+            std::fputs("Sparse costume cycling or rollback failed.\n", stderr);
+    }
     mm_material_owner_release(missing); mm_material_owner_release(sparse); mm_body_owner_release(body); mm_template_owner_release(tmpl);
     ReleasePpo(&cache); mm_material_owner_release(material); ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&costumes);
     ReleasePpo(&file);

@@ -4,7 +4,7 @@ struct BodyGeometryFixtureAccess
 {
     static void Seed(PBody body, int mode)
     {
-        auto &g = EngineBody::State(body).geometry;
+        auto &g = mm_body_owner_state(body)->geometry;
         g.bounds = {mode == 0 ? 0 : -13, mode == 0 ? 0 : -7, mode < 2 ? 0 : 28, mode < 2 ? 0 : 22};
         g.last_visible = {-41, -32, 62, 51};
     }
@@ -12,7 +12,7 @@ struct BodyGeometryFixtureAccess
     {
         MMRenderBody entry = {};
         const auto &geometry = mm_kauai_body_renderer()->geometry;
-        if (mm_brender_body_read_render(EngineBody::Root(body), &entry, &geometry))
+        if (mm_brender_body_read_render(mm_brender_body_root(body), &entry, &geometry))
             mm_brender_body_prepare_render(&entry, &geometry);
     }
     static void Rendered(PBACT actor, RC *rect)
@@ -28,32 +28,33 @@ struct BodyGeometryFixtureAccess
     }
     static void State(PBody body, LegacyLong *out)
     {
-        out[0] = EngineBody::State(body).geometry.found;
-        out[1] = EngineBody::State(body).geometry.set;
+        out[0] = mm_body_owner_state(body)->geometry.found;
+        out[1] = mm_body_owner_state(body)->geometry.set;
     }
     static int Search(PBody target, PBACT actor)
     {
-        auto services = EngineBody::GeometryServices();
+        auto services = mm_kauai_body_renderer()->geometry;
         return mm_body_search_visit(target, actor, &services);
     }
     static void ResetSearch(PBody target)
     {
-        mm_body_search_begin(&EngineBody::State(target).geometry);
+        mm_body_search_begin(&mm_body_owner_state(target)->geometry);
     }
     static void Closest(PBody a, PBody b, LegacyLong *out)
     {
         MMBodyPick pick;
         mm_body_pick_begin(&pick);
-        auto services = EngineBody::GeometryServices();
-        mm_body_pick_visit(&pick, EngineBody::Root(a) + 1, BR_SCALAR(3), &services);
-        mm_body_pick_visit(&pick, EngineBody::Root(b) + 2, BR_SCALAR(3), &services);
-        mm_body_pick_visit(&pick, EngineBody::Root(b), BR_SCALAR(2), &services);
-        mm_body_pick_visit(&pick, EngineBody::Root(a) + 2, BR_SCALAR(-1), &services);
+        auto services = mm_kauai_body_renderer()->geometry;
+        mm_body_pick_visit(&pick, mm_brender_body_root(a) + 1, BR_SCALAR(3), &services);
+        mm_body_pick_visit(&pick, mm_brender_body_root(b) + 2, BR_SCALAR(3), &services);
+        mm_body_pick_visit(&pick, mm_brender_body_root(b), BR_SCALAR(2), &services);
+        mm_body_pick_visit(&pick, mm_brender_body_root(a) + 2, BR_SCALAR(-1), &services);
         out[0] = pick.body == a ? 1 : pick.body == b ? 2 : 0;
         out[1] = pick.body ? pick.depth : 0;
-        out[2] = -1;
+        MMI32 set = -1;
         if (pick.body)
-            EngineBody::FromActor(static_cast<PBACT>(pick.actor), &out[2]);
+            mm_body_from_actor(pick.actor, &set, &services);
+        out[2] = set;
     }
 };
 static bool TestBodyGeometry()
@@ -104,15 +105,15 @@ static bool TestBodyGeometry()
                               set = static_cast<short>(part % 2);
                         ok = parents->FAdd(&parent) && sets->FAdd(&set);
                     }
-                    auto body = ok ? EngineBody::Create(parents, sets) : nullptr;
-                    auto other = ok ? EngineBody::Create(parents, sets) : nullptr;
+                    auto body = ok ? CreateFixtureBody(parents, sets) : nullptr;
+                    auto other = ok ? CreateFixtureBody(parents, sets) : nullptr;
                     ok = body && other && ok;
                     if (ok)
                     {
-                        for (int set = 0; set < EngineBody::SetCount(body); ++set)
+                        for (int set = 0; set < mm_body_owner_state(body)->shape.set_count; ++set)
                         {
-                            EngineBody::SetPartSetMtrl(body, set, material);
-                            EngineBody::SetPartSetMtrl(other, set, material);
+                            mm_body_set_generic(body, set, material, &mm_kauai_body_renderer()->edit.runtime);
+                            mm_body_set_generic(other, set, material, &mm_kauai_body_renderer()->edit.runtime);
                         }
                         for (int part = 0; part < count; ++part)
                         {
@@ -123,9 +124,9 @@ static bool TestBodyGeometry()
                             m.m[3][2] = BR_SCALAR(part * 2);
                             if (part & 1)
                                 m.m[0][1] = BR_SCALAR(0.375);
-                            EngineBody::SetPartModel(body, part, model);
-                            EngineBody::SetPartModel(other, part, model);
-                            EngineBody::SetPartMatrix(body, part, &m);
+                            mm_body_set_model(body, part, model, &mm_kauai_body_renderer()->edit.runtime);
+                            mm_body_set_model(other, part, model, &mm_kauai_body_renderer()->edit.runtime);
+                            SetFixturePartMatrix(body, part, &m);
                         }
                         BMAT34 root;
                         BrMatrix34Identity(&root);
@@ -154,19 +155,19 @@ static bool TestBodyGeometry()
                             root.m[3][0] = BR_SCALAR(12000);
                             root.m[3][1] = BR_SCALAR(-12000);
                         }
-                        EngineBody::LocateOrient(body, 0, 0, 0, &root);
+                        mm_brender_body_locate(body, 0, 0, 0, &root, &mm_kauai_body_renderer()->edit.runtime);
                         if (highlight)
-                            EngineBody::Hilite(body);
+                            mm_body_highlight(body, 1, &mm_kauai_body_renderer()->edit.runtime);
                         BodyGeometryFixtureAccess::Seed(body, bounds);
                         BodyGeometryFixtureAccess::Seed(other, 3);
                         LegacyLong key[] = {shape, matrix, highlight, bounds};
                         ok = record(key, sizeof(key));
-                        BCB local, world;
-                        EngineBody::GetBcbBounds(body, &local);
-                        EngineBody::GetBcbBounds(body, &world, true);
+                        MMBodyBounds local, world;
+                        mm_brender_body_bounds(mm_kauai_body_renderer(), body, 0, &local);
+                        mm_brender_body_bounds(mm_kauai_body_renderer(), body, 1, &world);
                         ok = record(&local, sizeof(local)) && record(&world, sizeof(world)) && ok;
-                        auto drawRoot = EngineBody::Root(body);
-                        auto firstPart = EngineBody::ActorCount(body) > 2 ? EngineBody::Part(body, 0) : nullptr;
+                        auto drawRoot = mm_brender_body_root(body);
+                        auto firstPart = mm_body_owner_state(body)->shape.part_count ? mm_brender_body_part(body, 0) : nullptr;
                         const auto savedModel = firstPart ? firstPart->model : nullptr;
                         const auto savedMaterial = firstPart ? firstPart->material : nullptr;
                         drawRoot->t.t.mat.m[3][0] = BR_SCALAR(-4);
@@ -178,7 +179,7 @@ static bool TestBodyGeometry()
                         BodyGeometryFixtureAccess::Prepare(body);
                         ok = drawRoot->t.t.mat.m[3][0] == root.m[3][0] &&
                              (!firstPart || (firstPart->model == savedModel && firstPart->material == savedMaterial)) && ok;
-                        ok = record(&EngineBody::Root(body)[1].t.t.mat, sizeof(BMAT34)) && ok;
+                        ok = record(&mm_brender_body_root(body)[1].t.t.mat, sizeof(BMAT34)) && ok;
                         for (int stage = 0; stage < 5; ++stage)
                         {
                             RC r;
@@ -192,28 +193,31 @@ static bool TestBodyGeometry()
                                 r.Set(40, 50, 30, 20);
                             if (stage == 4)
                                 r.Set(-21, -23, 31, 33);
-                            BodyGeometryFixtureAccess::Rendered(EngineBody::Root(body) + stage % EngineBody::ActorCount(body), &r);
-                            RC current, fallback;
-                            BodyGeometryFixtureAccess::RawRect(EngineBody::Root(body), &current);
-                            EngineBody::GetRcBounds(body, &fallback);
-                            LegacyLong center[2];
-                            EngineBody::GetCenter(body, center, center + 1);
-                            BRS position[3];
-                            EngineBody::GetPosition(body, position, position + 1, position + 2);
-                            LegacyLong visible = EngineBody::IsInView(body);
+                            BodyGeometryFixtureAccess::Rendered(mm_brender_body_root(body) + stage % (mm_body_owner_state(body)->shape.part_count + 2), &r);
+                            RC current;
+                            BodyGeometryFixtureAccess::RawRect(mm_brender_body_root(body), &current);
+                            const auto &state = *mm_body_owner_state(body);
+                            MMBodyRect fallback;
+                            mm_body_visible_rect(&state.geometry, &fallback);
+                            MMI32 center[2];
+                            mm_body_center(&state.geometry, center, center + 1);
+                            MMI32 position[3];
+                            mm_body_position(&state.shape, position);
+                            LegacyLong visible = mm_body_in_view(&mm_body_owner_state(body)->geometry);
                             ok = record(&current, sizeof(current)) && record(&fallback, sizeof(fallback)) &&
                                  record(center, sizeof(center)) && record(position, sizeof(position)) &&
                                  record(&visible, sizeof(visible)) && ok;
                         }
-                        for (int actor = 0; actor < EngineBody::ActorCount(body); ++actor)
+                        for (int actor = 0; actor < (mm_body_owner_state(body)->shape.part_count + 2); ++actor)
                         {
-                            LegacyLong set = 99;
-                            auto owner = EngineBody::FromActor(EngineBody::Root(body) + actor, &set);
+                            MMI32 set = 99;
+                            auto owner = mm_body_from_actor(mm_brender_body_root(body) + actor, &set,
+                                                           &mm_kauai_body_renderer()->geometry);
                             LegacyLong result[] = {owner == body, set};
                             ok = record(result, sizeof(result)) && ok;
                             BodyGeometryFixtureAccess::ResetSearch(body);
-                            result[0] = BodyGeometryFixtureAccess::Search(body, EngineBody::Root(other) + actor);
-                            result[1] = BodyGeometryFixtureAccess::Search(body, EngineBody::Root(body) + actor);
+                            result[0] = BodyGeometryFixtureAccess::Search(body, mm_brender_body_root(other) + actor);
+                            result[1] = BodyGeometryFixtureAccess::Search(body, mm_brender_body_root(body) + actor);
                             LegacyLong state[2];
                             BodyGeometryFixtureAccess::State(body, state);
                             ok = record(result, sizeof(result)) && record(state, sizeof(state)) && ok;

@@ -464,9 +464,9 @@ bool Actor::_FDoAevCore(long iaev)
     hooks.visibility = [](void *p, int shown) {
         auto body = static_cast<Actor *>(p)->_Body();
         if (shown)
-            EngineBody::Show(body);
+            mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime);
         else
-            EngineBody::Hide(body);
+            mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime);
     };
     hooks.fetch_material = [](void *, const MMTag *value) -> MMMaterialOwner * {
         TAG tag;
@@ -599,7 +599,7 @@ MMActorRouteEditServices Actor::_RouteEditServices()
     mm_actor_route_edit_bind_tables(&s);
     s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_owner.runtime.life_dirty=true; };
     s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_owner.runtime.recording.recording=enabled!=0; };
-    s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Body()) EngineBody::Hide(actor->_Body()); };
+    s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Body()) mm_body_hide(actor->_Body(), &mm_kauai_body_renderer()->edit.runtime); };
     s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Template() && actor->_Body()) mm_brender_template_default_costume(actor->_Template(), actor->_Body()); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
@@ -1248,10 +1248,7 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
 {
     MMActorCostumeEditServices services={}; services.context=this; services.edits=_EventEditServices();
     services.current=[](void *p,MMI32 set,int *custom)->void * {
-        bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
-        EngineBody::GetPartSetMaterial(static_cast<Actor *>(p)->_Body(), set,&ordinary,&material,&costume);
-        *custom=!ordinary;
-        return ordinary ? static_cast<void *>(material) : static_cast<void *>(costume);
+        return mm_brender_body_material(mm_kauai_body_renderer(), static_cast<Actor *>(p)->_Body(), set, custom);
     };
     services.fetch_material=[](void *,const MMTag *value)->void * {
         TAG tag; std::memcpy(&tag,value,sizeof(tag));
@@ -1477,7 +1474,7 @@ bool Actor::FPtIn(long xp, long yp, long *pibset)
     AssertThis(0);
     AssertVarMem(pibset);
 
-    return _Scene()->Pmvie()->Pbwld()->ContainsBody(_Body(), xp, yp, pibset, EngineBody::GeometryServices());
+    return _Scene()->Pmvie()->Pbwld()->ContainsBody(_Body(), xp, yp, pibset, mm_kauai_body_renderer()->geometry);
 }
 
 /***************************************************************************
@@ -1545,8 +1542,8 @@ void Actor::Hilite(void)
 {
     AssertThis(0);
 
-    EngineBody::SetHiliteColor(_owner.runtime.time_frozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
-    EngineBody::Hilite(_Body());
+    mm_brender_body_highlight_colour(_owner.runtime.time_frozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
+    mm_body_highlight(_Body(), 1, &mm_kauai_body_renderer()->edit.runtime);
 }
 
 /***************************************************************************
@@ -1592,7 +1589,7 @@ void Actor::AssertValid(LegacyUlong grfobj)
 {
 
     Actor_PAR::AssertValid(fobjAllocated);
-    EngineBody::Validate(_Body());
+    mm_kauai_body_validate(_Body(), 0);
     mm_kauai_template_validate(_Template());
     Assert(_owner.track.events, "missing actor events");
     Assert(_owner.track.route, "missing actor path");
@@ -1749,7 +1746,7 @@ void Actor::MarkMem(void)
         MarkPv(_owner.track.route);
         MarkPv(_owner.track.route->storage.buffers[0].data);
     }
-    EngineBody::Mark(_Body());
+    mm_kauai_body_mark(_Body());
     mm_kauai_template_mark(_Template());
     if (_owner.runtime.template_tag.sid == ksidUseCrf && _owner.runtime.template_tag.cache)
         mm_resource_cache_mark(static_cast<MMResourceCache *>(_owner.runtime.template_tag.cache));

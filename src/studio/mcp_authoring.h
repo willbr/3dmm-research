@@ -60,9 +60,9 @@ static JVal AuthorActorInfo(PActor actor)
     actor->GetName(&name);
     result.Set("actor_id", JVal::MkInt(actor->Arid()));
     result.Set("name", JVal::MkStr(AuthorName(name)));
-    BRS x, y, z;
-    EngineBody::GetPosition(actor->Pbody(), &x, &y, &z);
-    result.Set("position", AuthorVector(BrScalarToFloat(x), BrScalarToFloat(y), BrScalarToFloat(z)));
+    const auto origin = mm_body_origin(&mm_body_owner_state(actor->Pbody())->shape);
+    result.Set("position", AuthorVector(BrScalarToFloat(origin.dxr), BrScalarToFloat(origin.dyr),
+                                        BrScalarToFloat(origin.dzr)));
     const auto &pose = actor->EvaluatedFrameState().transform;
     const double scale = BrScalarToFloat(pose.rScaleStep);
     result.Set("scale", JVal::MkDbl(scale));
@@ -78,12 +78,12 @@ static JVal AuthorActorInfo(PActor actor)
     actor->GetRcBounds(&bounds);
     result.Set("screen_bounds", AuthorVector(bounds.xpLeft, bounds.ypTop, bounds.Dxp()));
     result.Set("screen_height", JVal::MkInt(bounds.Dyp()));
-    const int count = EngineBody::ActorCount(actor->Pbody()) - 2;
+    const int count = mm_body_owner_state(actor->Pbody())->shape.part_count;
     result.Set("parts", JVal::MkInt(count));
     double largestVolume = -1;
     for (int part = 0; part < count; ++part)
     {
-        const auto model = EngineBody::Part(actor->Pbody(), part)->model;
+        const auto model = mm_brender_body_part(actor->Pbody(), part)->model;
         if (model)
         {
             const double dx = BrScalarToFloat(model->bounds.max.v[0] - model->bounds.min.v[0]);
@@ -520,7 +520,7 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
     if (!mm_material_archive_add(&writer, &material, &materialNumber))
         return false;
     TAG tag{0, resources, kctgMtrl, materialNumber};
-    for (long set = 0; set < EngineBody::SetCount(actor->Pbody()); ++set)
+    for (long set = 0; set < mm_body_owner_state(actor->Pbody())->shape.set_count; ++set)
         if (!actor->FSetCostumeCore(set, &tag, 0, tNo))
             return false;
     return true;
@@ -581,13 +581,12 @@ static JVal Tool_TransformActor(const JVal &args)
     bool ok = true;
     if (position || offset)
     {
-        BRS x, y, z;
-        EngineBody::GetPosition(actor->Pbody(), &x, &y, &z);
         if (position)
         {
-            delta[0] = pos[0] - BrScalarToFloat(x);
-            delta[1] = pos[1] - BrScalarToFloat(y);
-            delta[2] = pos[2] - BrScalarToFloat(z);
+            const auto origin = mm_body_origin(&mm_body_owner_state(actor->Pbody())->shape);
+            delta[0] = pos[0] - BrScalarToFloat(origin.dxr);
+            delta[1] = pos[1] - BrScalarToFloat(origin.dyr);
+            delta[2] = pos[2] - BrScalarToFloat(origin.dzr);
         }
         ok = actor->FMoveRoute(BrFloatToScalar(float(delta[0])), BrFloatToScalar(float(delta[1])),
                                BrFloatToScalar(float(delta[2])));

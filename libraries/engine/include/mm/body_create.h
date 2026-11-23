@@ -87,6 +87,8 @@ void mm_body_state_init(MMBodyState *);
 typedef struct MMBodyOwner MMBodyOwner;
 MMBodyOwner *mm_body_owner_create(const MMStorageAllocator *, const MMBodyCreateServices *);
 MMBodyState *mm_body_owner_state(MMBodyOwner *);
+/* Borrow draw bindings until the next edit or release. */
+MMBodyDrawView mm_body_owner_draw_view(const MMBodyOwner *);
 /* Bind a hidden body. The renderer context must outlive the body and its duplicates. */
 void mm_body_owner_bind_render(MMBodyOwner *, const MMBodyRenderBinding *);
 MMI32 mm_body_owner_references(const MMBodyOwner *);

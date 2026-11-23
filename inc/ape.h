@@ -79,7 +79,6 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     void _UpdateView(void);
     bool _FApplyGms(GeneralMaterialSpec *pgms, long ibset);
     bool _FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool fNextAccessory);
-    long _CmidNext(long ibset, long icmidCur, bool fNextAccessory);
 
   public:
     static PActorPreviewEntity PapeNew(PGraphicsObjectBlock pgcb, PTemplate ptmpl, PBodyCostume pcost, long anid, bool fCycleCels, PResourceCache prca = pvNil);
@@ -120,7 +119,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     bool FDisplayCel(long celn);
     long Cbset(void)
     {
-        return EngineBody::SetCount(_pbody);
+        return mm_body_owner_state(_pbody)->shape.set_count;
     }
 
     // Returns fTrue if a material was applied to this ibset

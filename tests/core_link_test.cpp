@@ -3,6 +3,7 @@
 // A real host supplies assertion reporting; no GUI/application replacements.
 #if defined(TEST_ENGINE_CORE)
 #include "soc_core.h"
+#include "body_fixture.h"
 #include "texture_renderer.h"
 #include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
@@ -1773,7 +1774,7 @@ struct RenderHost
 static void Attach(void *context, void *body)
 {
     RenderHost *host = static_cast<RenderHost *>(context);
-    BrActorAdd(host->root, EngineBody::Root(static_cast<PBody>(body)));
+    BrActorAdd(host->root, mm_brender_body_root(static_cast<PBody>(body)));
     ++host->attachments;
 }
 static void Changed(void *context)
@@ -4987,63 +4988,66 @@ static void TestEngineServices()
     Check(parents != pvNil && sets != pvNil);
     short parent = ivNil, set = 0;
     Check(parents->FAdd(&parent) && sets->FAdd(&set));
-    PBody body = EngineBody::Create(parents, sets);
+    PBody body = CreateFixtureBody(parents, sets);
     Check(body != pvNil);
     PMaterial_MTRL material = mm_brender_material_new(ivNil, ivNil);
     Check(material != pvNil);
-    EngineBody::SetPartSetMtrl(body, 0, material);
+    mm_body_set_generic(body, 0, material, &mm_kauai_body_renderer()->edit.runtime);
     mm_material_owner_release(material);
-    EngineBody::SetRenderCallbacks(body, &first, Attach, Changed);
-    EngineBody::Show(body);
+    BindFixtureBody(body, &first, Attach, Changed);
+    mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime);
     Check(first.attachments == 1 && first.changes == 1);
     BMAT34 matrix;
     BrMatrix34Identity(&matrix);
-    EngineBody::SetPartMatrix(body, 0, &matrix);
+    SetFixturePartMatrix(body, 0, &matrix);
     Check(first.changes == 2);
-    EngineBody::Hide(body);
-    Check(first.changes == 3 && EngineBody::Root(body)->parent == 0);
-    EngineBody::SetPartMatrix(body, 0, &matrix);
+    mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime);
+    Check(first.changes == 3 && mm_brender_body_root(body)->parent == 0);
+    SetFixturePartMatrix(body, 0, &matrix);
     Check(first.changes == 3); // Hidden edits do not invalidate a renderer.
-    PBody copy = EngineBody::Duplicate(body);
+    PBody copy = static_cast<PBody>(mm_body_duplicate(body, &mm_kauai_body_renderer()->edit));
     Check(copy != pvNil);
-    EngineBody::Show(copy);
+    mm_body_show(copy, &mm_kauai_body_renderer()->edit.runtime);
     Check(first.attachments == 2 && first.changes == 4);
-    EngineBody::Hide(copy);
+    mm_body_hide(copy, &mm_kauai_body_renderer()->edit.runtime);
     mm_body_owner_release(copy);
     Check(first.changes == 5);
-    EngineBody::SetRenderCallbacks(body, &second, Attach, Changed);
-    EngineBody::Show(body);
-    EngineBody::SetPartMatrix(body, 0, &matrix);
-    EngineBody::Hide(body);
+    BindFixtureBody(body, &second, Attach, Changed);
+    mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime);
+    SetFixturePartMatrix(body, 0, &matrix);
+    mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime);
     Check(second.attachments == 1 && second.changes == 3 && first.changes == 5);
-    EngineBody::Show(body);
-    PBody snapshot = EngineBody::Duplicate(body); // Original is hidden and reattached.
-    Check(snapshot != pvNil && EngineBody::Root(body)->parent == second.root);
-    Check(EngineBody::Root(snapshot)->parent == 0);
-    PBACT oldRoot = EngineBody::Root(body), newRoot = EngineBody::Root(snapshot);
+    mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime);
+    PBody snapshot = static_cast<PBody>(mm_body_duplicate(body, &mm_kauai_body_renderer()->edit)); // Original is hidden and reattached.
+    Check(snapshot != pvNil && mm_brender_body_root(body)->parent == second.root);
+    Check(mm_brender_body_root(snapshot)->parent == 0);
+    PBACT oldRoot = mm_brender_body_root(body), newRoot = mm_brender_body_root(snapshot);
     mm_body_owner_retain(body);
-    EngineBody::Restore(body, snapshot);
+    mm_body_restore(body, snapshot, &mm_kauai_body_renderer()->edit);
     Check(mm_body_owner_references(body) == 2 && mm_body_owner_references(snapshot) == 1);
-    Check(EngineBody::Root(body) == newRoot && EngineBody::Root(snapshot) == oldRoot);
+    Check(mm_brender_body_root(body) == newRoot && mm_brender_body_root(snapshot) == oldRoot);
     Check(oldRoot->parent == second.root && newRoot->parent == second.root);
-    Check(EngineBody::FromActor(oldRoot) == snapshot && EngineBody::FromActor(newRoot) == body);
-    Check(EngineBody::FromActor(EngineBody::Part(snapshot, 0)) == snapshot && EngineBody::FromActor(EngineBody::Part(body, 0)) == body);
+    const auto &geometry = mm_kauai_body_renderer()->geometry;
+    Check(mm_body_from_actor(oldRoot, nullptr, &geometry) == snapshot &&
+          mm_body_from_actor(newRoot, nullptr, &geometry) == body);
+    Check(mm_body_from_actor(mm_brender_body_part(snapshot, 0), nullptr, &geometry) == snapshot &&
+          mm_body_from_actor(mm_brender_body_part(body, 0), nullptr, &geometry) == body);
     mm_body_owner_release(body);
     mm_body_owner_release(snapshot); // Releases and detaches the displaced tree.
-    Check(EngineBody::Root(body)->parent == second.root);
-    Check(EngineBody::ChangeShape(body, parents, sets));
-    Check(EngineBody::Root(body)->parent == second.root);
+    Check(mm_brender_body_root(body)->parent == second.root);
+    Check(ChangeFixtureBody(body, parents, sets));
+    Check(mm_brender_body_root(body)->parent == second.root);
     material = mm_brender_material_new(ivNil, ivNil);
     Check(material != pvNil);
-    EngineBody::SetPartSetMtrl(body, 0, material);
+    mm_body_set_generic(body, 0, material, &mm_kauai_body_renderer()->edit.runtime);
     mm_material_owner_release(material);
-    EngineBody::Hide(body);
+    mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime);
     // An unbound body can also change visibility without any GUI stubs.
-    EngineBody::SetRenderCallbacks(body, 0, 0, 0);
-    EngineBody::Show(body);
-    EngineBody::Hide(body);
-    EngineBody::SetRenderCallbacks(body, &second, Attach, Changed);
-    EngineBody::Show(body);
+    BindFixtureBody(body, 0, 0, 0);
+    mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime);
+    mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime);
+    BindFixtureBody(body, &second, Attach, Changed);
+    mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime);
     mm_body_owner_release(body); // Visible destruction must detach its root from host.
     Check(second.root->children == 0);
     ReleasePpo(&parents);

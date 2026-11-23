@@ -32,6 +32,12 @@ int mm_brender_body_read_render(void *actor, MMRenderBody *, const MMBodyGeometr
 void mm_brender_body_prepare_render(const MMRenderBody *, const MMBodyGeometryServices *);
 
 void *mm_brender_body_owner(const void *actor);
+struct br_actor;
+struct br_matrix34;
+struct br_actor *mm_brender_body_root(MMBodyOwner *);
+struct br_actor *mm_brender_body_part(MMBodyOwner *, MMI32 part);
+void mm_brender_body_locate(MMBodyOwner *, MMI32 x, MMI32 y, MMI32 z,
+                            const struct br_matrix34 *, const MMBodyRuntimeServices *);
 void mm_brender_body_geometry_services(MMBodyGeometryServices *);
 void mm_brender_body_model_bounds(const void *model, MMBodyBounds *);
 
@@ -62,6 +68,8 @@ MMMaterialOwner *mm_brender_body_material(const MMBRenderBody *, MMBodyOwner *, 
 
 /* Native memory and diagnostic callbacks used by Studio and Preview. */
 const MMBRenderBody *mm_kauai_body_renderer(void);
+void mm_kauai_body_validate(MMBodyOwner *, unsigned full);
+void mm_kauai_body_mark(MMBodyOwner *);
 
 #ifdef __cplusplus
 }

@@ -20,6 +20,7 @@
 
 #include <vector>
 #include "soc.h"
+#include "body_fixture.h"
 #include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 #include "movie_state_fixture.h"
@@ -717,7 +718,7 @@ class TrackTestActor : public Actor
             !append(aetPull,23,3,0,0,&pull,sizeof(pull)) || !append(aetFreeze,24,3,0,1,&freeze,sizeof(freeze)) ||
             !append(aetAdd,40,4,0,0,&entrance,sizeof(entrance)) || !append(aetActn,40,4,0,0,&action,sizeof(action))) return false;
         mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
-        _owner.runtime.state.frame=20; _owner.runtime.state.location={2,rZero,0}; _owner.runtime.state.position=tweak; _owner.runtime.state.onStage=true; EngineBody::Show(_Body());
+        _owner.runtime.state.frame=20; _owner.runtime.state.location={2,rZero,0}; _owner.runtime.state.position=tweak; _owner.runtime.state.onStage=true; mm_body_show(_Body(), &mm_kauai_body_renderer()->edit.runtime);
         _owner.runtime.state.addEvent=4; _owner.runtime.state.actionEvent=5; _owner.runtime.state.firstEventInFrame=4; _owner.runtime.state.nextEvent=9;
         _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=(mode&32)?factnRotateX|factnRotateY|factnRotateZ:factnRotateY;
         std::memcpy(&_owner.runtime.state.transform.bmat34Fwd, &forward, sizeof(forward));
@@ -807,7 +808,7 @@ class TrackTestActor : public Actor
         mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.frame=3; _owner.runtime.state.location={1,rZero,0}; _owner.runtime.state.position=tweak;
         _owner.runtime.state.onStage=!(group==2 && (mode&32) && (mode&2)); _owner.runtime.state.frozen=(mode&4)!=0;
-        if (_owner.runtime.state.onStage) EngineBody::Show(_Body());
+        if (_owner.runtime.state.onStage) mm_body_show(_Body(), &mm_kauai_body_renderer()->edit.runtime);
         _owner.runtime.state.action=0; _owner.runtime.state.cel=(mode&64)?1:0; _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=factnRotateY;
         _owner.runtime.state.step=(group==2 && (mode&64))?rZero:kdwrNil;
         _owner.runtime.state.addEvent=0; _owner.runtime.state.actionEvent=1; _owner.runtime.state.firstEventInFrame=3; _owner.runtime.state.nextEvent=4;
@@ -905,7 +906,7 @@ class TrackTestActor : public Actor
         _owner.runtime.state.action=0; _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=factnRotateY;
         _owner.runtime.state.frame=kind==0?3:kind==1?1:kind==2?7:kind==6?1:kind==7?10:3;
         _owner.runtime.state.onStage=kind==3 || kind>=5;
-        if (_owner.runtime.state.onStage) EngineBody::Show(_Body());
+        if (_owner.runtime.state.onStage) mm_body_show(_Body(), &mm_kauai_body_renderer()->edit.runtime);
         _owner.runtime.state.addEvent=kind<=1?-1:kind==7?((mode&16)?5:4):0;
         _owner.runtime.state.nextEvent=kind<=1?0:kind==7?mm_actor_events_count(_owner.track.events):4;
         _owner.runtime.state.firstEventInFrame=kind==7?_owner.runtime.state.addEvent:0;
@@ -952,10 +953,10 @@ class TrackTestActor : public Actor
         PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         short parent=-1,set=0;
         bool ok=material && parents && sets && parents->FAdd(&parent) && sets->FAdd(&set);
-        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = ok ? EngineBody::Create(parents,sets) : pvNil;
+        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = ok ? CreateFixtureBody(parents,sets) : pvNil;
         ReleasePpo(&parents); ReleasePpo(&sets);
         if (!_Body()) { mm_material_owner_release(material); return false; }
-        EngineBody::SetPartSetMtrl(_Body(), 0,material); mm_material_owner_release(material);
+        mm_body_set_generic(_Body(), 0,material, &mm_kauai_body_renderer()->edit.runtime); mm_material_owner_release(material);
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<3;++i)
         {
@@ -1061,7 +1062,7 @@ class TrackTestActor : public Actor
             { MMActorSound s; mm_actor_events_get_payload(_owner.track.events, i,&s); LegacyLong fields[]={s.cel,s.style,s.volume,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
             else { if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_owner.track.events, i,payload); saved=saved && record(payload,bytes); }
         }
-        EngineBody::Hide(_Body()); if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } mm_actor_track_dispose(&_owner.track, mm_tag_local_cache_services());
+        mm_body_hide(_Body(), &mm_kauai_body_renderer()->edit.runtime); if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } mm_actor_track_dispose(&_owner.track, mm_tag_local_cache_services());
         return saved;
     }
     bool FTestRouteEdit(int mode,FILE *snapshot)
@@ -1180,11 +1181,11 @@ class TrackTestActor : public Actor
         short parent=-1,set=0;
         bool ok=parents && sets && parents->FAdd(&parent) && sets->FAdd(&set);
         set=1; ok=ok && parents->FAdd(&parent) && sets->FAdd(&set);
-        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = ok ? EngineBody::Create(parents,sets) : pvNil;
+        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = ok ? CreateFixtureBody(parents,sets) : pvNil;
         ReleasePpo(&parents); ReleasePpo(&sets);
         if (!_Body()) return false;
-        EngineBody::SetPartSetMtrl(_Body(), 0,a); EngineBody::SetPartSetMtrl(_Body(), 1,a);
-        if (mode&4) EngineBody::SetPartSetCmtl(_Body(), ca);
+        mm_body_set_generic(_Body(), 0,a, &mm_kauai_body_renderer()->edit.runtime); mm_body_set_generic(_Body(), 1,a, &mm_kauai_body_renderer()->edit.runtime);
+        if (mode&4) mm_body_set_custom(_Body(), ca, &mm_kauai_body_renderer()->edit.runtime);
         ActorTrack track; ok=track.FCreate();
         RouteDistancePoint point={{rZero,rZero,rZero},rZero};
         Base event={aetAdd,1,{0,rZero,0}}; Add add={};
@@ -1247,9 +1248,9 @@ class TrackTestActor : public Actor
                 saved=saved && record(fields,sizeof(fields));
             }
         }
-        bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL custom;
-        EngineBody::GetPartSetMaterial(_Body(), 0,&ordinary,&material,&custom);
-        LegacyLong body[]={ordinary,ordinary ? (material==a?0:material==b?1:2) : (custom==ca?0:custom==cb?1:2)};
+        int custom;
+        const auto applied = mm_brender_body_material(mm_kauai_body_renderer(), _Body(), 0, &custom);
+        LegacyLong body[]={!custom, custom ? (applied==ca?0:applied==cb?1:2) : (applied==a?0:applied==b?1:2)};
         saved=saved && record(body,sizeof(body));
         mm_actor_track_dispose(&_owner.track, mm_tag_local_cache_services()); if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; }
         LegacyLong refs[]={mm_material_owner_references(a),mm_material_owner_references(b),

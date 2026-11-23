@@ -24527,3 +24527,42 @@ seek canvas difference at scene 0, frame 4 reproduced. Both ports matched
 dissolve canvas matched retail and V3DMM.
 
 Evidence is under `tmp/c89-template-owner`.
+
+## C89 actor body and wardrobe bindings (23 November 2026)
+
+Studio uses the same C89 body bindings as Preview for visibility, selection
+highlights, geometry, material queries and draw state. Wardrobe cycling
+resolves the current costume, follows authored slot order, and applies
+the selected costume through the C89 renderer binding. The C++ body
+module is out of the engine build. Kauai supplies native diagnostics and
+memory marking.
+
+The sparse costume fixture tests an unavailable accessory slot, verifies
+that the failed cycle keeps the applied costume and output ID, and then
+exercises default selection, same-accessory cycling, and lookup by the
+retained costume. Body creation, editing, geometry and runtime traces
+matched byte for byte, as did template runtime, actor creation, 3D text
+generation, and the two native movie traces.
+
+The 227 native suite checks passed after correcting a declaration order
+and rerunning the strict C89 syntax check. The rebuilt template renderer's
+disassembly and relocations matched on both x64 builds and the x86 worker.
+All 17 SDL checks, three native costume/render checks and three x86 worker
+fixtures passed. All ten Preview fingerprints and eight native scene
+traces matched. Marcus relaunched headlessly with the same startup image.
+The existing `scene-load` debug assertion reproduced the same 63,224-byte
+trace and fingerprint `0D666753`.
+
+Studio's authored movie matched all 27,056 reference bytes. All twelve
+costume workflow captures matched. The costume workflow save reopened
+and differed in two alignment bytes after the counted TMPL name.
+
+Both seeks in `20261123T143134Z-3d71e6dd` matched the retained retail and
+V3DMM canvas on the identical copied 3D text save. The eight port runs
+in `20261123T143134Z-76bd2954` retained the 60 previous Actor Audio seek
+canvases, the retail and V3DMM camera indices and authored frame order,
+and the existing canvas difference at scene 0, frame 4. Both ports
+reproduced 60 dissolve seeks and 59 steady observations per port. The
+settled dissolve canvas matched retail and V3DMM.
+
+Evidence is under `tmp/c89-body-owner`.

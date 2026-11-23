@@ -65,7 +65,7 @@ int __cdecl main(int argc, char **argv)
     br_pixelmap *depth = 0;
     br_actor *world_actor = 0;
 
-    /* BRender init -- EngineBody::Create allocates materials via
+    /* BRender init -- the body binding allocates materials via
      * BrMaterialAllocate, which needs the BRender registries set up. */
     BrBegin();
     BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
@@ -140,7 +140,8 @@ int __cdecl main(int argc, char **argv)
         fprintf(stderr, "actor-render-test: PbodyCreate failed\n");
         goto LDone;
     }
-    fprintf(stderr, "Body created with %" LEGACY_PRId " BACTs.\n", EngineBody::ActorCount(pbody));
+    fprintf(stderr, "Body created with %" LEGACY_PRId " BACTs.\n",
+            static_cast<LegacyLong>(mm_body_owner_state(pbody)->shape.part_count + 2));
 
     /* Action 0, cel 0 = rest pose. This is the call that eluded my
      * hand-rolled actor-pose binding -- it's what the engine actually
@@ -184,7 +185,7 @@ int __cdecl main(int argc, char **argv)
         if (costume == pvNil)
             goto LDone;
         const auto custom = mm_material_owner_custom(costume);
-        const bool spare = EngineBody::ActorCount(pbody) == 3 && custom->set == 0 && custom->count == 2;
+        const bool spare = (mm_body_owner_state(pbody)->shape.part_count + 2) == 3 && custom->set == 0 && custom->count == 2;
         if (spare)
         {
             ScopedBodyCostume previous;
@@ -193,15 +194,15 @@ int __cdecl main(int argc, char **argv)
                 mm_material_owner_release(costume);
                 goto LDone;
             }
-            EngineBody::SetPartSetCmtl(pbody, costume);
-            PBody duplicate = EngineBody::Duplicate(pbody);
+            mm_body_set_custom(pbody, costume, &mm_kauai_body_renderer()->edit.runtime);
+            PBody duplicate = static_cast<PBody>(mm_body_duplicate(pbody, &mm_kauai_body_renderer()->edit));
             const auto material = mm_custom_material_handle(custom, 0, mm_material_owner_host(costume)->services);
-            const bool matched = duplicate != pvNil && EngineBody::Part(pbody, 0)->material == material &&
-                                 EngineBody::Part(duplicate, 0)->material == material;
+            const bool matched = duplicate != pvNil && mm_brender_body_part(pbody, 0)->material == material &&
+                                 mm_brender_body_part(duplicate, 0)->material == material;
             mm_body_owner_release(duplicate);
             previous.Set(pbody);
             if (matched)
-                EngineBody::SetPartSetCmtl(pbody, costume);
+                mm_body_set_custom(pbody, costume, &mm_kauai_body_renderer()->edit.runtime);
             mm_material_owner_release(costume);
             if (!matched)
                 goto LDone;
@@ -231,14 +232,12 @@ int __cdecl main(int argc, char **argv)
 
         world_actor = BrActorAllocate(BR_ACTOR_NONE, 0);
 
-        /* Compute world-space bounds of the body so we can frame the
-         * camera. Body::GetBcbBounds gives us the bounding box in
-         * world coordinates (with fWorld=fTrue). */
-        BCB bcb = {0};
-        EngineBody::GetBcbBounds(pbody, &bcb, fTrue);
-        float xMin = BrScalarToFloat(bcb.xrMin), xMax = BrScalarToFloat(bcb.xrMax);
-        float yMin = BrScalarToFloat(bcb.yrMin), yMax = BrScalarToFloat(bcb.yrMax);
-        float zMin = BrScalarToFloat(bcb.zrMin), zMax = BrScalarToFloat(bcb.zrMax);
+        /* Frame the camera using the body's world-space bounds. */
+        MMBodyBounds bounds;
+        mm_brender_body_bounds(mm_kauai_body_renderer(), pbody, 1, &bounds);
+        float xMin = BrScalarToFloat(bounds.min[0]), xMax = BrScalarToFloat(bounds.max[0]);
+        float yMin = BrScalarToFloat(bounds.min[1]), yMax = BrScalarToFloat(bounds.max[1]);
+        float zMin = BrScalarToFloat(bounds.min[2]), zMax = BrScalarToFloat(bounds.max[2]);
         float cx = (xMin + xMax) * 0.5f, cy = (yMin + yMax) * 0.5f, cz = (zMin + zMax) * 0.5f;
         float spanX = xMax - xMin, spanY = yMax - yMin;
         float scene_size = spanX > spanY ? spanX : spanY;
@@ -280,7 +279,7 @@ int __cdecl main(int argc, char **argv)
          * is already linked to its proper parent BACT in Body's
          * tree, the path of least surprise is to detach from Body's
          * root and re-parent under our world. */
-        LegacyLong n_parts = EngineBody::ActorCount(pbody) - 2; /* skip root + hilite */
+        LegacyLong n_parts = mm_body_owner_state(pbody)->shape.part_count;
         LegacyLong n_attached = 0;
         LegacyLong n_max = n_parts;
         if (const char *m = getenv("MAX_PARTS")) n_max = atol(m);
@@ -296,13 +295,13 @@ int __cdecl main(int argc, char **argv)
          * .parent pointers within Body's tree before attaching. */
         for (LegacyLong i = 0; i < n_parts && n_attached < n_max; i++)
         {
-            PBACT pb = EngineBody::Part(pbody, i);
+            PBACT pb = mm_brender_body_part(pbody, i);
             if (!pb || pb->type != BR_ACTOR_MODEL || !pb->model) continue;
 
             /* Compose world transform by walking parent chain. */
             br_matrix34 m;
             BrMatrix34Copy(&m, &pb->t.t.mat);
-            for (br_actor *par = pb->parent; par != NULL && par != EngineBody::Root(pbody); par = par->parent)
+            for (br_actor *par = pb->parent; par != NULL && par != mm_brender_body_root(pbody); par = par->parent)
             {
                 br_matrix34 tmp;
                 BrMatrix34Mul(&tmp, &m, &par->t.t.mat);

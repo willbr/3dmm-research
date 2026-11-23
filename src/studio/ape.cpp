@@ -79,7 +79,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
         return fFalse;
     if (pvNil != pcost)
         pcost->Set(_pbody);
-    cbset = EngineBody::SetCount(_pbody);
+    cbset = mm_body_owner_state(_pbody)->shape.set_count;
 
     // If there is exactly one accessory body part set, set _ibsetOnlyAcc
     // to that ibset.  Else set it to ivNil.
@@ -129,7 +129,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
     _pbwld->AddActor(&_bact);
     BrLightEnable(&_bact);
     _pbwld->BindBody(_pbody);
-    EngineBody::Show(_pbody);
+    mm_body_show(_pbody, &mm_kauai_body_renderer()->edit.runtime);
 
     _InitView();
     if (!FSetAction(anid))
@@ -293,7 +293,7 @@ void ActorPreviewEntity::_InitView(void)
     BrMatrix34PostRotateX(&bmat34, xa);
     BrMatrix34PostRotateY(&bmat34, ya);
     BrMatrix34PostRotateZ(&bmat34, za);
-    EngineBody::LocateOrient(_pbody, rZero, rZero, rZero, &bmat34);
+    mm_brender_body_locate(_pbody, rZero, rZero, rZero, &bmat34, &mm_kauai_body_renderer()->edit.runtime);
     _SetScale();
     _UpdateView();
 }
@@ -317,7 +317,7 @@ void ActorPreviewEntity::SetCustomView(BRA xa, BRA ya, BRA za)
     BrMatrix34PostRotateX(&bmat34, xa);
     BrMatrix34PostRotateY(&bmat34, ya);
     BrMatrix34PostRotateZ(&bmat34, za);
-    EngineBody::LocateOrient(_pbody, rZero, rZero, rZero, &bmat34);
+    mm_brender_body_locate(_pbody, rZero, rZero, rZero, &bmat34, &mm_kauai_body_renderer()->edit.runtime);
     _SetScale();
     _UpdateView();
 }
@@ -358,7 +358,7 @@ void ActorPreviewEntity::ChangeView(void)
         break;
     }
 
-    EngineBody::LocateOrient(_pbody, rZero, rZero, rZero, &bmat34);
+    mm_brender_body_locate(_pbody, rZero, rZero, rZero, &bmat34, &mm_kauai_body_renderer()->edit.runtime);
     _SetScale();
     _UpdateView();
 }
@@ -371,8 +371,8 @@ void ActorPreviewEntity::_SetScale(void)
     AssertThis(0);
 
     RC rcView;
-    BCB bcbBody; // 3-D bounds of Body
-    BRS dxrBody, dyrBody, dzrBody;
+    MMBodyBounds bounds;
+    BRS dxrBody, dyrBody;
     BRS rDydxBody;
     BRS xrCam, yrCam, zrCam;
     BRS zrHither, zrYon;
@@ -382,16 +382,15 @@ void ActorPreviewEntity::_SetScale(void)
     BRA aFov;
     BRS rAtan;
 
-    EngineBody::GetBcbBounds(_pbody, &bcbBody, fTrue);
-    dxrBody = bcbBody.xrMax - bcbBody.xrMin;
-    dyrBody = bcbBody.yrMax - bcbBody.yrMin;
-    dzrBody = bcbBody.zrMax - bcbBody.zrMin;
+    mm_brender_body_bounds(mm_kauai_body_renderer(), _pbody, 1, &bounds);
+    dxrBody = bounds.max[0] - bounds.min[0];
+    dyrBody = bounds.max[1] - bounds.min[1];
 
     rDydxBody = BrsDiv(dyrBody, dxrBody);
 
     // The x and y camera distances are functions of the body only
-    xrCam = BrsHalf(bcbBody.xrMax + bcbBody.xrMin);
-    yrCam = BrsHalf(bcbBody.yrMax + bcbBody.yrMin);
+    xrCam = BrsHalf(bounds.max[0] + bounds.min[0]);
+    yrCam = BrsHalf(bounds.max[1] + bounds.min[1]);
 
     GetRc(&rcView, cooLocal);
     dxrView = BrIntToScalar(rcView.Dxp());
@@ -415,7 +414,7 @@ void ActorPreviewEntity::_SetScale(void)
     }
 
     // Adjust for body depth
-    zrCam += bcbBody.zrMax;
+    zrCam += bounds.max[2];
 
     // Set hither and yon.  Note: there's probably a good algorithm to
     //    compute the optimal values for zrHither and zrYon, but I
@@ -465,7 +464,7 @@ bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
 
     PBACT pbact;
     PBody pbody;
-    LegacyLong ibset;
+    MMI32 ibset;
     LegacyLong ibsetAcc;
 
     if (pvNil != _prca)
@@ -473,7 +472,7 @@ bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
         SetCursCno(_prca, kcrsDefault);
         if (_pbwld->FClickedActor(pcmd->xp, pcmd->yp, &pbact))
         {
-            pbody = EngineBody::FromActor(pbact, &ibset);
+            pbody = static_cast<PBody>(mm_body_from_actor(pbact, &ibset, &mm_kauai_body_renderer()->geometry));
             Assert(pbody == _pbody, "what Body is this?");
             if (_apet.apt == aptIncCmtl)
             {
@@ -504,7 +503,7 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
 
     PBACT pbact;
     PBody pbody;
-    LegacyLong ibset;
+    MMI32 ibset;
     LegacyLong ibsetAcc;
     GeneralMaterialSpec gms;
 
@@ -515,7 +514,7 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
     }
     if (!_pbwld->FClickedActor(pcmd->xp, pcmd->yp, &pbact))
         return fTrue;
-    pbody = EngineBody::FromActor(pbact, &ibset);
+    pbody = static_cast<PBody>(mm_body_from_actor(pbact, &ibset, &mm_kauai_body_renderer()->geometry));
     Assert(pbody == _pbody, "what Body is this?");
 
     switch (_apet.apt)
@@ -563,7 +562,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
     AssertThis(0);
     AssertVarMem(pgms);
     Assert(pgms->fValid, "bad gms");
-    AssertIn(ibset, 0, EngineBody::SetCount(_pbody));
+    AssertIn(ibset, 0, mm_body_owner_state(_pbody)->shape.set_count);
 
     PMaterial_MTRL pmtrl;
     PCustomMaterial_CMTL pcmtl;
@@ -573,7 +572,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
         pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(&pgms->tagMtrl, mm_brender_material_read, mm_material_owner_services()));
         if (pvNil == pmtrl)
             return fFalse;
-        EngineBody::SetPartSetMtrl(_pbody, ibset, pmtrl);
+        mm_body_set_generic(_pbody, ibset, pmtrl, &mm_kauai_body_renderer()->edit.runtime);
         mm_material_owner_release(pmtrl);
     }
     else // cmtl
@@ -581,7 +580,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
         pcmtl = mm_brender_template_costume(_ptmpl, pgms->cmid);
         if (pvNil == pcmtl)
             return fFalse;
-        EngineBody::SetPartSetCmtl(_pbody, pcmtl);
+        mm_body_set_custom(_pbody, pcmtl, &mm_kauai_body_renderer()->edit.runtime);
         mm_material_owner_release(pcmtl);
     }
     return fTrue;
@@ -595,106 +594,17 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
 {
     AssertThis(0);
     AssertVarMem(pgms);
-    AssertIn(ibset, 0, EngineBody::SetCount(_pbody));
+    AssertIn(ibset, 0, mm_body_owner_state(_pbody)->shape.set_count);
 
-    long cmid;
-    long cmidNext;
-    long icmid;
-    long ccmid;
-    PCustomMaterial_CMTL pcmtl;
-    PCustomMaterial_CMTL pcmtlOld;
-    PMaterial_MTRL pmtrlOld;
-    bool fMtrl;
-
-    // Default cmidNext is default cmid for this body part set
-    cmidNext = mm_brender_template_costume_id(_ptmpl, ibset, 0);
-
-    ccmid = mm_brender_template_costume_count(_ptmpl, ibset);
-
-    // Need to find out what cmid (if any) is currently attached to ibset.
-    // If the GeneralMaterialSpec is valid, use it.  Otherwise, figure out which cmid
-    // generates the same pcmtl that is currently attached to the body.
-    if (!pgms->fValid || pgms->fMtrl)
-    {
-        // GeneralMaterialSpec is useless...look at the body
-        EngineBody::GetPartSetMaterial(_pbody, ibset, &fMtrl, &pmtrlOld, &pcmtlOld);
-        if (!fMtrl)
-        {
-            for (icmid = 0; icmid < ccmid; icmid++)
-            {
-                cmid = mm_brender_template_costume_id(_ptmpl, ibset, icmid);
-                pcmtl = mm_brender_template_costume(_ptmpl, cmid);
-                if (pvNil == pcmtl)
-                    return fFalse;
-                if (pcmtl == pcmtlOld)
-                {
-                    mm_material_owner_release(pcmtl);
-                    cmidNext = _CmidNext(ibset, icmid, fNextAccessory);
-                    break;
-                }
-                mm_material_owner_release(pcmtl);
-            }
-        }
-    }
-    else
-    {
-        // GeneralMaterialSpec has current cmid
-        cmid = pgms->cmid;
-        for (icmid = 0; icmid < ccmid; icmid++)
-        {
-            if (cmid == mm_brender_template_costume_id(_ptmpl, ibset, icmid))
-            {
-                cmidNext = _CmidNext(ibset, icmid, fNextAccessory);
-                break;
-            }
-        }
-    }
-    pcmtl = mm_brender_template_costume(_ptmpl, cmidNext);
-    if (pvNil == pcmtl)
+    MMI32 selected;
+    const bool known = pgms->fValid && !pgms->fMtrl;
+    if (!mm_brender_template_cycle_costume(_ptmpl, _pbody, ibset, known, known ? pgms->cmid : 0,
+                                          fNextAccessory, &selected))
         return fFalse;
-    EngineBody::SetPartSetCmtl(_pbody, pcmtl);
-    mm_material_owner_release(pcmtl);
-    pgms->cmid = cmidNext;
+    pgms->cmid = selected;
     pgms->fMtrl = fFalse;
     pgms->fValid = fTrue;
     return fTrue;
-}
-
-/***************************************************************************
-    Return the CMID that follows the given CMID.  If fNextAccessory, it
-    returns the next CMID that has a different set of models than icmidCur.
-    Otherwise it returns the next CMID that has the same set of models as
-    icmidCur.
-***************************************************************************/
-long ActorPreviewEntity::_CmidNext(long ibset, long icmidCur, bool fNextAccessory)
-{
-    AssertThis(0);
-
-    long cmidCur;
-    long ccmid;
-    long icmidNext;
-    long cmidNext;
-    long dicmid;
-
-    cmidCur = mm_brender_template_costume_id(_ptmpl, ibset, icmidCur);
-    ccmid = mm_brender_template_costume_count(_ptmpl, ibset);
-
-    for (dicmid = 1; dicmid < ccmid; dicmid++)
-    {
-        icmidNext = (icmidCur + dicmid) % ccmid;
-        cmidNext = mm_brender_template_costume_id(_ptmpl, ibset, icmidNext);
-        if (fNextAccessory)
-        {
-            if (!mm_brender_template_same_accessory(_ptmpl, cmidCur, cmidNext))
-                return cmidNext;
-        }
-        else
-        {
-            if (mm_brender_template_same_accessory(_ptmpl, cmidCur, cmidNext))
-                return cmidNext;
-        }
-    }
-    return cmidCur; // couldn't find anything...just use this cmid
 }
 
 /***************************************************************************
@@ -725,7 +635,7 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
 {
     AssertThis(0);
     Assert(mm_template_owner_has_flag(_ptmpl, MM_TEMPLATE_TEXT), "FSetTdtMtrl is only for ThreeDTexts");
-    Assert(EngineBody::SetCount(_pbody) == 1, "ThreeDTexts should only have one body part set");
+    Assert(mm_body_owner_state(_pbody)->shape.set_count == 1, "ThreeDTexts should only have one body part set");
     AssertVarMem(ptagMtrl);
 
     PMaterial_MTRL pmtrl;
@@ -734,7 +644,7 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
     pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(ptagMtrl, mm_brender_material_read, mm_material_owner_services()));
     if (pvNil == pmtrl)
         return fFalse;
-    EngineBody::SetPartSetMtrl(_pbody, 0, pmtrl);
+    mm_body_set_generic(_pbody, 0, pmtrl, &mm_kauai_body_renderer()->edit.runtime);
     mm_material_owner_release(pmtrl);
 
     gms.fValid = fTrue;
@@ -757,14 +667,11 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
     Assert(mm_template_owner_has_flag(_ptmpl, MM_TEMPLATE_TEXT), "FGetTdtMtrlCno is only for ThreeDTexts");
     AssertVarMem(pcno);
 
-    PMaterial_MTRL pmtrl;
-    PCustomMaterial_CMTL pcmtl;
-    bool fMtrl;
-
-    EngineBody::GetPartSetMaterial(_pbody, 0, &fMtrl, &pmtrl, &pcmtl);
-    if (!fMtrl)
+    int custom;
+    const auto material = mm_brender_body_material(mm_kauai_body_renderer(), _pbody, 0, &custom);
+    if (custom || !material)
         return fFalse;
-    const auto binding = mm_material_owner_binding(pmtrl);
+    const auto binding = mm_material_owner_binding(material);
     if (!binding->cache)
         return fFalse;
     *pcno = binding->number;
@@ -799,7 +706,7 @@ void ActorPreviewEntity::GetTdtInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTd
 bool ActorPreviewEntity::FGetMaterial(long ibset, tribool *pfMtrl, long *pcmid, TAG *ptagMtrl)
 {
     AssertThis(0);
-    AssertIn(ibset, 0, EngineBody::SetCount(_pbody));
+    AssertIn(ibset, 0, mm_body_owner_state(_pbody)->shape.set_count);
     AssertVarMem(pfMtrl);
     AssertVarMem(pcmid);
     AssertVarMem(ptagMtrl);
@@ -825,9 +732,9 @@ void ActorPreviewEntity::AssertValid(LegacyUlong grf)
     ActorPreviewEntity_PAR::AssertValid(fobjAllocated);
     AssertPo(_pbwld, 0);
     mm_kauai_template_validate(_ptmpl);
-    EngineBody::Validate(_pbody);
+    mm_kauai_body_validate(_pbody, 0);
     AssertPo(_pglgms, 0);
-    Assert(_pglgms->IvMac() == EngineBody::SetCount(_pbody), "_pglgms wrong size");
+    Assert(_pglgms->IvMac() == mm_body_owner_state(_pbody)->shape.set_count, "_pglgms wrong size");
     AssertNilOrPo(_prca, 0);
 }
 
@@ -840,7 +747,7 @@ void ActorPreviewEntity::MarkMem(void)
     ActorPreviewEntity_PAR::MarkMem();
     MarkMemObj(_pbwld);
     mm_kauai_template_mark(_ptmpl);
-    EngineBody::Mark(_pbody);
+    mm_kauai_body_mark(_pbody);
     MarkMemObj(_pglgms);
     MarkMemObj(_prca);
 }

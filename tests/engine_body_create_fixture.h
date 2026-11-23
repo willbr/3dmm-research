@@ -16,7 +16,7 @@ static bool TestBodyCreation()
         ok=par && set;
         for (int i=0;ok && i<counts[shape];++i) ok=par->FAdd(&parents[shape][i]) && set->FAdd(&sets[shape][i]);
         // Warm the shared highlight material before allocator failure injection.
-        auto warm=ok?EngineBody::Create(par,set):nullptr; ok=ok && warm; mm_body_owner_release(warm);
+        auto warm=ok?CreateFixtureBody(par,set):nullptr; ok=ok && warm; mm_body_owner_release(warm);
         for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<9;++failure)
         {
 #ifdef DEBUG
@@ -26,19 +26,19 @@ static bool TestBodyCreation()
             if (failure) { allocator->cactDo=failure; allocator->cactFail=1; }
             vmutxMem.Leave();
 #endif
-            auto body=EngineBody::Create(par,set);
+            auto body=CreateFixtureBody(par,set);
 #ifdef DEBUG
             vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
-            LegacyLong values[]={shape,kind,failure,body!=nullptr,body?EngineBody::SetCount(body):-1,
-                body?EngineBody::ActorCount(body):-1,body?EngineBody::State(body).shape.hidden:-1};
+            LegacyLong values[]={shape,kind,failure,body!=nullptr,body?mm_body_owner_state(body)->shape.set_count:-1,
+                body?(mm_body_owner_state(body)->shape.part_count + 2):-1,body?mm_body_owner_state(body)->shape.hidden:-1};
             ok=record(values,sizeof(values)) && ok;
             if (body)
             {
-                ++successes; ok=ok && EngineBody::ActorCount(body)==counts[shape]+2 && EngineBody::State(body).shape.hidden==1;
-                auto root=EngineBody::Root(body);
+                ++successes; ok=ok && (mm_body_owner_state(body)->shape.part_count + 2)==counts[shape]+2 && mm_body_owner_state(body)->shape.hidden==1;
+                auto root=mm_brender_body_root(body);
                 auto index=[&](PBACT actor)->LegacyLong { return actor?static_cast<LegacyLong>(actor-root):-1; };
-                for (int i=0;ok && i<EngineBody::ActorCount(body);++i)
+                for (int i=0;ok && i<(mm_body_owner_state(body)->shape.part_count + 2);++i)
                 {
                     auto actor=root+i;
                     LegacyLong fields[]={actor->type,actor->render_style,actor->t.type,index(actor->parent),
@@ -46,10 +46,11 @@ static bool TestBodyCreation()
                         actor->material!=nullptr,actor->model!=nullptr};
                     ok=record(fields,sizeof(fields)) && record(&actor->t.t.mat,sizeof(actor->t.t.mat)) && ok;
                     if (i>=2) ok=ok && actor->parent==root+(parents[shape][i-2]<0?0:parents[shape][i-2]+2);
-                    LegacyLong partSet=-2;
-                    ok=ok && EngineBody::FromActor(actor,&partSet)==body && partSet==(i<2?-1:sets[shape][i-2]);
+                    MMI32 partSet=-2;
+                    ok=ok && mm_body_from_actor(actor, &partSet, &mm_kauai_body_renderer()->geometry)==body &&
+                        partSet==(i<2?-1:sets[shape][i-2]);
                 }
-                if ((kind+failure)%2) EngineBody::Show(body); // disposal must hide a visible body first
+                if ((kind+failure)%2) mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime); // disposal must hide a visible body first
             }
             else ++failures;
             mm_body_owner_release(body);

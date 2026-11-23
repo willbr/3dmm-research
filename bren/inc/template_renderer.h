@@ -54,6 +54,10 @@ MMI32 mm_brender_template_costume_id(MMTemplateOwner *, MMI32 set, MMI32 index);
 int mm_brender_template_is_accessory(MMTemplateOwner *, MMI32 set);
 int mm_brender_template_accessory_set(MMTemplateOwner *, MMI32 set, void *out);
 int mm_brender_template_same_accessory(MMTemplateOwner *, MMI32 first, MMI32 second);
+/* Cycle an applied costume in authored order. When the current ID is unknown,
+ * use the body's retained costume. Publish the ID after applying the result. */
+int mm_brender_template_cycle_costume(MMTemplateOwner *, struct MMBodyOwner *, MMI32 set, int known_id,
+                                     MMI32 current_id, int next_accessory, MMI32 *selected_id);
 void mm_brender_template_rest(MMTemplateOwner *, unsigned short *x, unsigned short *y, unsigned short *z);
 void mm_brender_template_rest_pose(MMTemplateOwner *, struct MMBodyOwner *);
 int mm_brender_template_action_name(MMTemplateOwner *, MMI32 action, const MMStringValue *);

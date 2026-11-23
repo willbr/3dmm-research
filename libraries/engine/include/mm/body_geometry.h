@@ -61,6 +61,7 @@ extern "C"
      * models leaves the caller's output untouched. */
     int mm_body_set_bounds(const struct MMBodyShape *, MMI32 set, MMBodyModelBounds *, MMBodyBounds *);
     void mm_body_position(const struct MMBodyShape *, MMI32 out[3]);
+    MMActorPoint mm_body_origin(const struct MMBodyShape *);
     /* Picking uses an explicit caller-owned context. Strictly closer visible hits
      * win (first hit wins equal depth); root/highlight hits may select a body but
      * publish set -1. Search marks found for highlight hits and keeps searching. */

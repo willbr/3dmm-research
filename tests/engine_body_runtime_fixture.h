@@ -34,7 +34,7 @@ static bool TestBodyRuntime()
         int n=counts[shape],next=counts[(shape+visibility+1)%3];
         for (int i=0;ok && i<n;++i) { short par=i?static_cast<short>((i-1)/2):-1,set=static_cast<short>(i%2); ok=parents->FAdd(&par) && sets->FAdd(&set); }
         for (int i=0;ok && i<next;++i) { short par=i?static_cast<short>(i-1):-1,set=static_cast<short>(i%3); ok=newParents->FAdd(&par) && newSets->FAdd(&set); }
-        auto body=ok?EngineBody::Create(parents,sets):nullptr;
+        auto body=ok?CreateFixtureBody(parents,sets):nullptr;
         ok=ok && body;
         auto state=[&](int stage) {
             LegacyLong values[]={shape,visibility,accessory,failure,stage,mm_model_owner_references(a),mm_model_owner_references(b),mm_material_owner_references(ma),mm_material_owner_references(mb),mm_material_owner_references(ca),mm_material_owner_references(cb),host.attached,host.changed};
@@ -43,22 +43,23 @@ static bool TestBodyRuntime()
         if (ok)
         {
             ScopedBodyCostume costume;
-            for (int i=0;i<EngineBody::SetCount(body);++i) EngineBody::SetPartSetMtrl(body, i,ma);
-            EngineBody::SetRenderCallbacks(body, &host,BodyEditAttach,BodyEditChanged);
-            if (!visibility) EngineBody::Show(body); else if (visibility==2) { EngineBody::Hide(body); EngineBody::Hide(body); }
+            for (int i=0;i<mm_body_owner_state(body)->shape.set_count;++i) mm_body_set_generic(body, i,ma, &mm_kauai_body_renderer()->edit.runtime);
+            BindFixtureBody(body, &host,BodyEditAttach,BodyEditChanged);
+            if (!visibility) mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime); else if (visibility==2) { mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime); mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime); }
             BodyEditFixtureAccess::Seed(body); ok=state(0);
-            for (int i=0;i<n;++i) { EngineBody::SetPartModel(body, i,a); EngineBody::SetPartModel(body, i,a); EngineBody::SetPartModel(body, i,b); BMAT34 m; BrMatrix34Identity(&m); m.m[3][1]=BR_SCALAR(i+3); EngineBody::SetPartMatrix(body, i,&m); }
-            BMAT34 root; BrMatrix34Identity(&root); root.m[3][0]=BR_SCALAR(9); EngineBody::LocateOrient(body, BR_SCALAR(2),BR_SCALAR(-3),BR_SCALAR(4),&root);
-            EngineBody::Hilite(body); EngineBody::Hilite(body); EngineBody::Unhilite(body); ok=state(1) && ok;
+            for (int i=0;i<n;++i) { mm_body_set_model(body, i,a, &mm_kauai_body_renderer()->edit.runtime); mm_body_set_model(body, i,a, &mm_kauai_body_renderer()->edit.runtime); mm_body_set_model(body, i,b, &mm_kauai_body_renderer()->edit.runtime); BMAT34 m; BrMatrix34Identity(&m); m.m[3][1]=BR_SCALAR(i+3); SetFixturePartMatrix(body, i,&m); }
+            BMAT34 root; BrMatrix34Identity(&root); root.m[3][0]=BR_SCALAR(9); mm_brender_body_locate(body, BR_SCALAR(2),BR_SCALAR(-3),BR_SCALAR(4),&root, &mm_kauai_body_renderer()->edit.runtime);
+            mm_body_highlight(body, 1, &mm_kauai_body_renderer()->edit.runtime); mm_body_highlight(body, 1, &mm_kauai_body_renderer()->edit.runtime); mm_body_highlight(body, 0, &mm_kauai_body_renderer()->edit.runtime); ok=state(1) && ok;
             ok=costume.FGet(body) && state(2) && ok;
-            for (int i=0;i<EngineBody::SetCount(body);++i) { EngineBody::SetPartSetMtrl(body, i,mb); EngineBody::SetPartSetMtrl(body, i,mb); }
+            for (int i=0;i<mm_body_owner_state(body)->shape.set_count;++i) { mm_body_set_generic(body, i,mb, &mm_kauai_body_renderer()->edit.runtime); mm_body_set_generic(body, i,mb, &mm_kauai_body_renderer()->edit.runtime); }
             ok=state(3) && ok;
-            if (accessory) { if (EngineBody::SetCount(body)) { EngineBody::SetPartSetCmtl(body, ca); EngineBody::SetPartSetCmtl(body, ca); } if (EngineBody::SetCount(body)>1) { EngineBody::SetPartSetCmtl(body, cb); EngineBody::SetPartSetCmtl(body, cb); } }
+            if (accessory) { if (mm_body_owner_state(body)->shape.set_count) { mm_body_set_custom(body, ca, &mm_kauai_body_renderer()->edit.runtime); mm_body_set_custom(body, ca, &mm_kauai_body_renderer()->edit.runtime); } if (mm_body_owner_state(body)->shape.set_count>1) { mm_body_set_custom(body, cb, &mm_kauai_body_renderer()->edit.runtime); mm_body_set_custom(body, cb, &mm_kauai_body_renderer()->edit.runtime); } }
             ok=state(4) && ok;
-            for (int i=0;i<EngineBody::SetCount(body);++i)
+            for (int i=0;i<mm_body_owner_state(body)->shape.set_count;++i)
             {
-                bool generic=false; PMaterial_MTRL material=reinterpret_cast<PMaterial_MTRL>(0x1357); PCustomMaterial_CMTL custom=nullptr;
-                EngineBody::GetPartSetMaterial(body, i,&generic,&material,&custom);
+                int generic=0;
+                void *material=reinterpret_cast<void *>(0x1357), *custom=nullptr;
+                mm_body_get_material(body, i, &generic, &material, &custom, &mm_kauai_body_renderer()->edit.runtime);
                 LegacyLong identity=generic?(material==ma?1:material==mb?2:0):(custom==ca?3:custom==cb?4:0);
                 ok=identity!=0 && record(&identity,sizeof(identity)) &&
                     (generic?record(&custom,sizeof(custom)):record(&material,sizeof(material))) && ok;
@@ -73,11 +74,11 @@ static bool TestBodyRuntime()
             if (captured) ++captures; else ++failed;
             LegacyLong result=captured; ok=record(&result,sizeof(result)) && state(5) && ok;
             if (captured) { costume.Set(body); ok=state(6) && ok; }
-            ok=EngineBody::ChangeShape(body, newParents,newSets) && ok;
-            for (int i=0;i<EngineBody::SetCount(body);++i) EngineBody::SetPartSetMtrl(body, i,ma);
+            ok=ChangeFixtureBody(body, newParents,newSets) && ok;
+            for (int i=0;i<mm_body_owner_state(body)->shape.set_count;++i) mm_body_set_generic(body, i,ma, &mm_kauai_body_renderer()->edit.runtime);
             if (captured) costume.Set(body,true);
             ok=state(7) && ok;
-            EngineBody::Hide(body); EngineBody::Hide(body); EngineBody::Show(body); EngineBody::Show(body); ok=state(8) && ok;
+            mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime); mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime); mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime); mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime); ok=state(8) && ok;
         }
         mm_body_owner_release(body);
         ok=ok && host.root->children==nullptr && mm_model_owner_references(a)==3 && mm_model_owner_references(b)==3 && mm_material_owner_references(ma)==7 && mm_material_owner_references(mb)==7 && mm_material_owner_references(ca)==1 && mm_material_owner_references(cb)==1;

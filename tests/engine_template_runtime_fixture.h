@@ -65,8 +65,8 @@ static bool TestTemplateRuntime()
         if (t) { fixture.action=action; fixture.models[0]=a; fixture.models[1]=b; fixture.mode=mode; }
         auto parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         for (int i=0;ok && i<n;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=parents->FAdd(&p) && sets->FAdd(&s); }
-        body=ok?EngineBody::Create(parents,sets):nullptr; ok=ok && action && body;
-        if (body) { for (int i=0;i<EngineBody::SetCount(body);++i) EngineBody::SetPartSetMtrl(body, i,material); for (int i=0;i<n;++i) EngineBody::SetPartModel(body, i,a); }
+        body=ok?CreateFixtureBody(parents,sets):nullptr; ok=ok && action && body;
+        if (body) { for (int i=0;i<mm_body_owner_state(body)->shape.set_count;++i) mm_body_set_generic(body, i,material, &mm_kauai_body_renderer()->edit.runtime); for (int i=0;i<n;++i) mm_body_set_model(body, i,a, &mm_kauai_body_renderer()->edit.runtime); }
         BRS distance=BR_SCALAR(-33); bool applied=false;
         if (ok)
         {
@@ -81,7 +81,7 @@ static bool TestTemplateRuntime()
             if (applied) ++successes; else ++failures;
             LegacyLong values[]={shape,mode,cn,kind,failure,applied,distance,mm_model_owner_references(a),mm_model_owner_references(b),mm_action_resource_references(action),fixture.used};
             ok=record(values,sizeof(values)) && record(fixture.trace,fixture.used*sizeof(int)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
-            for (int i=0;i<n;++i) { LegacyLong identity=EngineBody::Part(body, i)->model==mm_brender_model_handle(a)?1:EngineBody::Part(body, i)->model==mm_brender_model_handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
+            for (int i=0;i<n;++i) { LegacyLong identity=mm_brender_body_part(body, i)->model==mm_brender_model_handle(a)?1:mm_brender_body_part(body, i)->model==mm_brender_model_handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
             LegacyLong count=-77; LegacyUlong flags=0x1357; int exists=1; MMTag tag={123,nullptr,0x12345678,456};
             MMI32 d=BR_SCALAR(-99);
             bool dOk=mm_brender_template_distance(t, 0,cels[cn],&d)!=0;

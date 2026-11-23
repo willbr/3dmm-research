@@ -3699,10 +3699,10 @@ void MovieView::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
                 // Read live BRender transform so the readout tracks during
                 // drag. Actor::GetXyzWorld reads committed path data and is
                 // stale until mouseup.
-                BRS xr, yr, zr;
                 String stn;
-                EngineBody::GetPosition(pactrSel->Pbody(), &xr, &yr, &zr);
-                stn.FFormatSz(PszLit("X=%d Y=%d Z=%d"), BrScalarToInt(xr), BrScalarToInt(yr), BrScalarToInt(zr));
+                const auto origin = mm_body_origin(&mm_body_owner_state(pactrSel->Pbody())->shape);
+                stn.FFormatSz(PszLit("X=%d Y=%d Z=%d"), BrScalarToInt(origin.dxr), BrScalarToInt(origin.dyr),
+                              BrScalarToInt(origin.dzr));
                 pgnv->DrawStn(&stn, 4, 4, kacrBlack, kacrWhite);
             }
         }
@@ -4425,12 +4425,8 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     if (pvNil != pactr &&
         ((vpappb->GrfcustCur(fFalse) & (fcustShift | fcustCmd | fcustOption)) == (fcustShift | fcustCmd | fcustOption)))
     {
-        BRS xr;
-        BRS yr;
-        BRS zr;
-
-        EngineBody::GetPosition(pactr->Pbody(), &xr, &yr, &zr);
-        if (!WriteActorPlaceFile(Pmvie()->Pscen()->Pbkgd(), xr, yr, zr))
+        const auto origin = mm_body_origin(&mm_body_owner_state(pactr->Pbody())->shape);
+        if (!WriteActorPlaceFile(Pmvie()->Pscen()->Pbkgd(), origin.dxr, origin.dyr, origin.dzr))
         {
             Bug("ouch.  bkgd write failed.");
         }

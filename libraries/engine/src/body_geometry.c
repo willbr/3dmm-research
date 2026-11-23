@@ -184,6 +184,17 @@ void mm_body_position(const MMBodyShape *shape, MMI32 out[3])
 {
     memcpy(out, shape->bindings[0].matrix.m[3], 3 * sizeof(*out));
 }
+
+MMActorPoint mm_body_origin(const MMBodyShape *shape)
+{
+    MMI32 position[3];
+    MMActorPoint origin;
+    mm_body_position(shape, position);
+    origin.dxr = position[0];
+    origin.dyr = position[1];
+    origin.dzr = position[2];
+    return origin;
+}
 void mm_body_pick_begin(MMBodyPick *p)
 {
     p->body = NULL;

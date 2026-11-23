@@ -260,6 +260,27 @@ void *mm_brender_body_owner(const void *actor)
     return ((const br_actor *)actor)->identifier;
 }
 
+br_actor *mm_brender_body_root(MMBodyOwner *body)
+{
+    return mm_body_owner_state(body)->shape.actors;
+}
+
+br_actor *mm_brender_body_part(MMBodyOwner *body, MMI32 part)
+{
+    return mm_brender_body_root(body) + 2 + part;
+}
+
+void mm_brender_body_locate(MMBodyOwner *body, MMI32 x, MMI32 y, MMI32 z, const br_matrix34 *matrix,
+                            const MMBodyRuntimeServices *runtime)
+{
+    MMActorBodyPose pose;
+    pose.translation.dxr = x;
+    pose.translation.dyr = y;
+    pose.translation.dzr = z;
+    memcpy(&pose.orientation, matrix, sizeof(pose.orientation));
+    mm_body_locate(body, &pose, runtime);
+}
+
 static void *actor_at(void *context, void *actors, MMI32 index)
 {
     (void)context;

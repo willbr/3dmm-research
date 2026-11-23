@@ -1220,7 +1220,6 @@ target_link_libraries(brender
 add_library(engine-core)
 target_sources(engine-core
     PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/engine/body.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/portfolio_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"

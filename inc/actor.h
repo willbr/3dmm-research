@@ -229,32 +229,37 @@ class Actor : public Actor_PAR
     void Unhilite(void)
     {
         AssertBaseThis(0);
-        EngineBody::Unhilite(_Body());
+        mm_body_highlight(_Body(), 0, &mm_kauai_body_renderer()->edit.runtime);
     }
     void Hide(void)
     {
         AssertBaseThis(0);
-        EngineBody::Hide(_Body());
+        mm_body_hide(_Body(), &mm_kauai_body_renderer()->edit.runtime);
     }
     void Show(void)
     {
         AssertBaseThis(0);
-        EngineBody::Show(_Body());
+        mm_body_show(_Body(), &mm_kauai_body_renderer()->edit.runtime);
     }
     bool FIsInView(void)
     {
         AssertBaseThis(0);
-        return EngineBody::IsInView(_Body());
+        return mm_body_in_view(&mm_body_owner_state(_Body())->geometry);
     }
     void GetCenter(LegacyLong *pxp, LegacyLong *pyp)
     {
         AssertBaseThis(0);
-        EngineBody::GetCenter(_Body(), pxp, pyp);
+        MMI32 x, y;
+        mm_body_center(&mm_body_owner_state(_Body())->geometry, &x, &y);
+        *pxp = x;
+        *pyp = y;
     }
     void GetRcBounds(RC *prc)
     {
         AssertBaseThis(0);
-        EngineBody::GetRcBounds(_Body(), prc);
+        MMBodyRect bounds;
+        mm_body_visible_rect(&mm_body_owner_state(_Body())->geometry, &bounds);
+        prc->Set(bounds.left, bounds.top, bounds.right, bounds.bottom);
     }
     void SetPrerendered(bool fPrerendered)
     {

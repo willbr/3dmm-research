@@ -4,25 +4,25 @@ struct BodyEditFixtureAccess
 {
     static void Seed(PBody b)
     {
-        auto &g = EngineBody::State(b).geometry;
+        auto &g = mm_body_owner_state(b)->geometry;
         g.found=1; g.set=1; g.bounds={1,2,30,40}; g.last_visible={5,6,70,80};
     }
     static bool Record(PBody b,FILE *out,PBACT host)
     {
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
-        LegacyLong fields[]={b!=nullptr,b?EngineBody::ActorCount(b):0,b?EngineBody::SetCount(b):0,b?EngineBody::State(b).shape.hidden:0,
-            b && EngineBody::State(b).geometry.found,b?EngineBody::State(b).geometry.set:0};
+        LegacyLong fields[]={b!=nullptr,b?(mm_body_owner_state(b)->shape.part_count + 2):0,b?mm_body_owner_state(b)->shape.set_count:0,b?mm_body_owner_state(b)->shape.hidden:0,
+            b && mm_body_owner_state(b)->geometry.found,b?mm_body_owner_state(b)->geometry.set:0};
         if (!record(fields,sizeof(fields))) return false;
         if (!b) return true;
-        if (!record(&EngineBody::State(b).geometry.bounds,sizeof(RC)) || !record(&EngineBody::State(b).geometry.last_visible,sizeof(RC))) return false;
-        auto root=EngineBody::Root(b);
-        const auto draw=EngineBody::DrawView(b);
-        auto index=[&](PBACT p)->LegacyLong { if (!p) return -1; for (int i=0;i<EngineBody::ActorCount(b);++i) if (p==root+i) return i; return -2; };
-        for (int i=0;i<EngineBody::ActorCount(b);++i)
+        if (!record(&mm_body_owner_state(b)->geometry.bounds,sizeof(RC)) || !record(&mm_body_owner_state(b)->geometry.last_visible,sizeof(RC))) return false;
+        auto root=mm_brender_body_root(b);
+        const auto draw=mm_body_owner_draw_view(b);
+        auto index=[&](PBACT p)->LegacyLong { if (!p) return -1; for (int i=0;i<(mm_body_owner_state(b)->shape.part_count + 2);++i) if (p==root+i) return i; return -2; };
+        for (int i=0;i<(mm_body_owner_state(b)->shape.part_count + 2);++i)
         {
             auto a=root+i; LegacyLong prev=-1;
             if (i!=1 && (draw.bindings[i].model_handle!=a->model || draw.bindings[i].material!=a->material)) return false;
-            if (a->prev) { prev=-2; for (int j=0;j<EngineBody::ActorCount(b);++j) {
+            if (a->prev) { prev=-2; for (int j=0;j<(mm_body_owner_state(b)->shape.part_count + 2);++j) {
                 if (a->prev==&(root+j)->children) prev=j*2;
                 if (a->prev==&(root+j)->next) prev=j*2+1;
             } }
@@ -34,7 +34,7 @@ struct BodyEditFixtureAccess
     }
 };
 struct BodyEditRenderHost { PBACT root; int attached,changed; };
-static void BodyEditAttach(void *p,void *body) { auto h=static_cast<BodyEditRenderHost *>(p); ++h->attached; BrActorAdd(h->root,EngineBody::Root(static_cast<PBody>(body))); }
+static void BodyEditAttach(void *p,void *body) { auto h=static_cast<BodyEditRenderHost *>(p); ++h->attached; BrActorAdd(h->root,mm_brender_body_root(static_cast<PBody>(body))); }
 static void BodyEditChanged(void *p) { ++static_cast<BodyEditRenderHost *>(p)->changed; }
 static bool TestBodyEditing()
 {
@@ -63,15 +63,15 @@ static bool TestBodyEditing()
         int n=sourceCounts[shape],next=targetCounts[(shape+visibility+highlight)%4];
         for (int i=0;ok && i<n;++i) { short par=i?static_cast<short>((i-1)/2):-1,set=static_cast<short>(i%2); ok=parents->FAdd(&par) && sets->FAdd(&set); }
         for (int i=0;ok && i<next;++i) { short par=i?static_cast<short>(i-1):-1,set=static_cast<short>(i%2); ok=newParents->FAdd(&par) && newSets->FAdd(&set); }
-        auto body=ok?EngineBody::Create(parents,sets):nullptr; ok=ok && body;
+        auto body=ok?CreateFixtureBody(parents,sets):nullptr; ok=ok && body;
         if (body)
         {
-            if (n) EngineBody::SetPartSetMtrl(body, 0,generic); if (n>1) EngineBody::SetPartSetCmtl(body, custom);
-            for (int i=0;i<n;++i) { BMAT34 m; BrMatrix34Identity(&m); m.m[3][0]=BR_SCALAR(i+1); EngineBody::SetPartMatrix(body, i,&m); if (i%3!=1) EngineBody::SetPartModel(body, i,model); }
-            BMAT34 root; BrMatrix34Identity(&root); root.m[3][2]=BR_SCALAR(37); EngineBody::LocateOrient(body, BR_SCALAR(1),BR_SCALAR(2),BR_SCALAR(3),&root);
-            EngineBody::SetRenderCallbacks(body, &host,BodyEditAttach,BodyEditChanged);
-            if (highlight) EngineBody::Hilite(body);
-            if (!visibility) EngineBody::Show(body); else if (visibility==2) { EngineBody::Hide(body); EngineBody::Hide(body); }
+            if (n) mm_body_set_generic(body, 0,generic, &mm_kauai_body_renderer()->edit.runtime); if (n>1) mm_body_set_custom(body, custom, &mm_kauai_body_renderer()->edit.runtime);
+            for (int i=0;i<n;++i) { BMAT34 m; BrMatrix34Identity(&m); m.m[3][0]=BR_SCALAR(i+1); SetFixturePartMatrix(body, i,&m); if (i%3!=1) mm_body_set_model(body, i,model, &mm_kauai_body_renderer()->edit.runtime); }
+            BMAT34 root; BrMatrix34Identity(&root); root.m[3][2]=BR_SCALAR(37); mm_brender_body_locate(body, BR_SCALAR(1),BR_SCALAR(2),BR_SCALAR(3),&root, &mm_kauai_body_renderer()->edit.runtime);
+            BindFixtureBody(body, &host,BodyEditAttach,BodyEditChanged);
+            if (highlight) mm_body_highlight(body, 1, &mm_kauai_body_renderer()->edit.runtime);
+            if (!visibility) mm_body_show(body, &mm_kauai_body_renderer()->edit.runtime); else if (visibility==2) { mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime); mm_body_hide(body, &mm_kauai_body_renderer()->edit.runtime); }
             BodyEditFixtureAccess::Seed(body);
         }
         auto refs=[&]() { LegacyLong r[]={mm_model_owner_references(model),mm_material_owner_references(generic),mm_material_owner_references(material),mm_material_owner_references(custom),host.attached,host.changed}; return record(r,sizeof(r)); };
@@ -83,14 +83,14 @@ static bool TestBodyEditing()
             vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;
             if (failure) { allocator->cactDo=failure; allocator->cactFail=1; } vmutxMem.Leave();
 #endif
-            if (operation) result=EngineBody::ChangeShape(body, newParents,newSets);
-            else { copy=EngineBody::Duplicate(body); result=copy!=nullptr; }
+            if (operation) result=ChangeFixtureBody(body, newParents,newSets);
+            else { copy=static_cast<PBody>(mm_body_duplicate(body, &mm_kauai_body_renderer()->edit)); result=copy!=nullptr; }
 #ifdef DEBUG
             vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
             if (result) ++successes; else ++failures;
             LegacyLong value=result; ok=record(&value,sizeof(value)) && refs() && BodyEditFixtureAccess::Record(body,snapshot,host.root) && BodyEditFixtureAccess::Record(copy,snapshot,host.root) && ok;
-            if (copy) { EngineBody::Restore(body, copy); mm_body_owner_release(copy); copy = nullptr; }
+            if (copy) { mm_body_restore(body, copy, &mm_kauai_body_renderer()->edit); mm_body_owner_release(copy); copy = nullptr; }
             ok=refs() && BodyEditFixtureAccess::Record(body,snapshot,host.root) && ok;
         }
         mm_body_owner_release(copy); mm_body_owner_release(body);
