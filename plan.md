@@ -2360,6 +2360,9 @@ The shared C resource cache uses the live archive reader for chunk lookup,
 names, and payload extents. It builds a writer from the current index using
 the archive's write options. Typed siblings carry the same source, and names
 decode into the counted values used by template, background, and sound readers.
+Studio and private archives use the reader's C89 index binding to load,
+validate, and reload live tables. A failed reload restores the running archive
+for both paths and follows each path's deferred free-map policy.
 Legacy allocation and diagnostics remain host services.
 Stored preview caches and native private archives use the shared C heap
 handles and KCDC/KCD2 decoder. Resource readers use the decoder paired with

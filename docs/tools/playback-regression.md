@@ -25819,3 +25819,40 @@ embedded MIDI matched the retained port samples in fresh playback and replay.
 
 Evidence is under `tmp/c89-live-resource-reader`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## Shared C89 archive reload (23 November 2026)
+
+Studio and private archive readers bind their index allocator and name decoder
+in C. Both live resource-cache paths use the reader to check write permission,
+reload the index, and validate the graph. The transaction retains the old
+graph, backing files, and runtime cache until it can commit a valid replacement.
+Private archives clear transient editor data on success and restore their old
+deferred free-map location on failure. Legacy containers retain the last-read
+location, matching their existing reload behavior.
+
+The standalone archive fixture exercises permission rejection, a corrupt header,
+and a replacement index that parses but fails graph validation. It verifies
+both free-map policies and the staged edit after failure, then verifies that
+the successful reload exposes the restored payload and writer through a sibling
+cache. All 41 standalone engine checks passed. The changed modules compiled
+with strict C89 flags for Linux x64. Runtime checks used Windows.
+All 23 strict C89 checks passed. The x64 and x86 registry, construction, and
+lifecycle traces, twelve file traces, and resource-cache trace matched their
+baselines. Classic and SDL Studio rebuilt. The headless Marcus startup image
+matched. SDL authoring and save/reopen passed, and four SDL save traces and
+eight VMM outputs matched their baselines. The external core, archive, and
+preview consumers passed.
+All 228 selected native tests passed. The 27 native scene, save, and edit
+traces and ten preview fingerprints matched their baselines.
+
+Fresh suite `20261123T215312Z-3aa02ca9` completed eight captures and replay
+suite `20261123T215507Z-26b2f42a` completed four with verified input hashes.
+Both ports matched all 60 Actor Audio frame positions and camera indices and
+59 of 60 seek canvases against retained retail and V3DMM. Both matched all 60
+seek canvases and scene states against the prior port build. The first 100 ms
+of all four Actor Audio spans, the embedded WAVE cue, and the first 400 ms of
+embedded MIDI matched the retained port samples. SDL replay hit the previously
+observed later MIDI peak of 7,609.
+
+Evidence is under `tmp/c89-archive-reload`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

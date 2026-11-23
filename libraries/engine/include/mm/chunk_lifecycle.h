@@ -54,12 +54,12 @@ extern "C"
         void (*release_index)(void *, void *index);
         int (*read_index)(void *, MMChunkReopenState *);
         int (*validate)(void *);
-        void (*publish)(void *, const MMChunkReopenState *);
+        void (*publish)(void *, const MMChunkReopenState *); /* Optional mirror update. */
     } MMChunkReopenServices;
     /* State owns file/index references and unique maps on entry/return. A nullable
      * runtime owner supplies compact-index cache storage. The transaction explicitly
-     * swaps that owner, retains main, then publishes before index I/O and cleanup.
-     * Read callback mirrors newly loaded native owners into state.
+     * swaps that owner and retains main. An optional publication hook mirrors
+     * the new state before index I/O and cleanup. The read callback fills state.
      * Failure restores the original owners and unread state, then disposes rejected
      * owners. Deferred-map offset/size fields outside this record retain the last
      * read values, as in legacy FReopen. Other container options are unchanged.

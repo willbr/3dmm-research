@@ -512,6 +512,23 @@ MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *storage, const MMChu
     return reader;
 }
 
+int mm_chunk_reader_read_index(const MMChunkOwnerRead *reader)
+{
+    return mm_chunk_owner_read_index(reader->storage, reader->index.table_allocator, reader->index.trash_unused,
+                                     reader->max_name_bytes, reader->index.legacy_name, NULL);
+}
+
+int mm_chunk_reader_validate_index(const MMChunkOwnerRead *reader)
+{
+    int status;
+    if (reader->index.validation_scope)
+        reader->index.validation_scope(1);
+    status = mm_chunk_owner_validate_index(reader->storage, reader->write.max_references);
+    if (reader->index.validation_scope)
+        reader->index.validation_scope(0);
+    return status;
+}
+
 MMArchiveWriter mm_chunk_owner_writer(const MMChunkOwnerRead *reader)
 {
     const unsigned short order = 1;
@@ -538,7 +555,7 @@ struct MMChunkArchive
 
 MMChunkArchive *mm_chunk_archive_new(int expanded, const MMStorageAllocator *allocator, const MMChunkOwnerFileIO *io,
                                       const MMChunkPayloadServices *payloads, MMU32 max_name_bytes,
-                                      const MMChunkWriteOptions *write)
+                                      const MMChunkIndexOptions *index, const MMChunkWriteOptions *write)
 {
     MMChunkArchive *archive;
     if (!io || !io->release || !payloads)
@@ -554,6 +571,8 @@ MMChunkArchive *mm_chunk_archive_new(int expanded, const MMStorageAllocator *all
     mm_chunk_owner_bind_storage(&archive->storage, &archive->owner, allocator,
                                 expanded ? 0x7fffffffUL : 0x00ffffffUL, io);
     archive->reader = mm_chunk_owner_reader(&archive->storage, payloads, max_name_bytes);
+    if (index)
+        archive->reader.index = *index;
     if (write)
         archive->reader.write = *write;
     return archive;
@@ -566,13 +585,65 @@ MMChunkOwnerRead *mm_chunk_archive_reader(MMChunkArchive *archive)
 
 static void release_archive_file(void *context, void *file)
 {
-    ((MMChunkArchive *)context)->storage.io.release(file);
+    const MMChunkOwnerRead *reader = context;
+    reader->storage->io.release(file);
 }
 
 static void release_archive_table(void *context, void *table)
 {
-    (void)context;
-    mm_chunk_table_close(table);
+    const MMChunkOwnerRead *reader = context;
+    if (mm_chunk_table_close(table) != MM_STORAGE_OK)
+        owner_issue(reader->storage, MM_CHUNK_OWNER_TABLE_DISPOSAL);
+}
+
+static int archive_writable(void *context, void *file)
+{
+    const MMChunkOwnerRead *reader = context;
+    const MMChunkOwnerFileIO *io = &reader->storage->io;
+    return io->is_writable && io->is_writable(file);
+}
+
+static void retain_archive_file(void *context, void *file)
+{
+    const MMChunkOwnerRead *reader = context;
+    const MMBlockFileServices *blocks = reader->payloads.files;
+    blocks->retain(blocks->context, file);
+}
+
+static int reload_archive_index(void *context, MMChunkReopenState *files)
+{
+    /* The transaction and reader share the same live state. */
+    (void)files;
+    return mm_chunk_reader_read_index(context) == MM_CHUNK_OK;
+}
+
+static int validate_archive_index(void *context)
+{
+    return mm_chunk_reader_validate_index(context) == MM_CHUNK_OK;
+}
+
+int mm_chunk_reader_reopen(MMChunkOwnerRead *reader)
+{
+    MMChunkReopenServices services = {NULL, archive_writable, retain_archive_file, release_archive_file,
+                                      release_archive_table, reload_archive_index, validate_archive_index, NULL};
+    MMChunkOwner *owner;
+    MMU32 map_offset, map_bytes;
+    int status;
+    if (!reader || !reader->storage || !reader->storage->owner || !reader->storage->io.read_stream ||
+        !reader->storage->io.release ||
+        !reader->payloads.files || !reader->payloads.files->retain)
+        return MM_CHUNK_BAD_FILE;
+    services.context = reader;
+    owner = reader->storage->owner;
+    map_offset = owner->map_offset;
+    map_bytes = owner->map_bytes;
+    status = mm_chunk_owner_reopen(owner, &services);
+    if (status != MM_CHUNK_OK && reader->index.restore_map_on_failure)
+    {
+        owner->map_offset = map_offset;
+        owner->map_bytes = map_bytes;
+    }
+    return status;
 }
 
 static void archive_disposed(void *context, const MMChunkReopenState *files)
@@ -588,7 +659,7 @@ int mm_chunk_archive_close(MMChunkArchive *archive)
     int status;
     if (!archive)
         return MM_CHUNK_OK;
-    services.context = archive;
+    services.context = &archive->reader;
     status = mm_chunk_owner_dispose(&archive->owner, &services);
     if (status == MM_CHUNK_OK)
         free(archive);

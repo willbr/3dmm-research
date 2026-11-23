@@ -628,7 +628,15 @@ MMArchiveWriter mm_resource_cache_writer(const MMResourceCache *c)
 
 void mm_resource_cache_reopen(MMResourceCache *cache)
 {
-    if (cache && cache->file && !cache->wire_index && cache->services.live_reopen)
+    if (!cache || !cache->file || cache->wire_index)
+        return;
+    if (cache->reader)
+    {
+        if (cache->reader->storage->io.is_writable && mm_chunk_reader_reopen(cache->reader) == MM_CHUNK_OK &&
+            cache->services.live_reloaded)
+            cache->services.live_reloaded(cache->file);
+    }
+    else if (cache->services.live_reopen)
         cache->services.live_reopen(cache->file);
 }
 

@@ -6817,9 +6817,14 @@ removed. The owner initializes explicitly, is unique and cannot be copied or
 moved. Expanded-index owners omit compact runtime initialization/disposal.
 
 Reopen and disposal operate directly on the live C file/index/map record.
-Callbacks see the cleared/new/restored state at the existing publication points.
-Failed reopen restores prior owners and runtime cache, while retaining last-read
-deferred-map positions as before. Mark/add/read flags survive reopen unchanged.
+The archive reader binds its table allocator, name decoder, and graph validation
+policy for initial reads and reload. Both live cache paths reload through that
+binding. Failed reload restores the prior graph, backing files, and runtime
+cache. Legacy containers keep the last-read deferred free-map location. Private
+archives restore the previous location on failure and clear the editor's
+transient data after successful reload. Mark/add/read flags survive reload.
+An optional publication hook exposes the cleared, loaded, or restored state to
+callers that keep a separate view of the transaction.
 Save transaction views borrow aliases to owner references, without retaining or
 creating independent owners. C publication updates only file/map/end/invalid/add/
 unread fields; index, mark/read flags, deferred positions and runtime cache survive.

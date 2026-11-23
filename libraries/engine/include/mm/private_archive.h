@@ -56,8 +56,8 @@ MMPrivateArchive *mm_private_archive_open_named(const MMNamedArchiveServices *, 
 void mm_private_archive_retain(MMPrivateArchive *);
 void mm_private_archive_close(MMPrivateArchive *);
 /* Reload the index of a read-only backing file and discard its staged data on
- * success. Failed reloads leave the existing graph intact. The caller reports
- * the backing file's current physical write flag. */
+ * success. Failed reloads leave the existing graph intact. A caller that knows
+ * the backing file is writable can veto reload through backing_writable. */
 int mm_private_archive_reopen(MMPrivateArchive *, int backing_writable);
 MMChunkOwnerRead *mm_private_archive_reader(MMPrivateArchive *);
 MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *);

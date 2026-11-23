@@ -900,9 +900,13 @@ static void private_archive_cases(void)
     MMMovieSessionGraph graph;
     MMChunkAccess access;
     MMChunkEntry entry;
+    MMArchiveWriter writer;
+    MMChunkOwner *owner;
+    MMChunkHeader header;
+    MMReadStream wire;
     MMU32 number;
     char value[4];
-    unsigned char magic;
+    unsigned char magic, valid_bytes[sizeof(host.main.bytes)], invalid_graph[sizeof(host.main.bytes)];
     int live;
 
     io.trace = NULL;
@@ -957,6 +961,16 @@ static void private_archive_cases(void)
     CHECK(alias == archive && !name.opens);
     mm_private_archive_close(alias);
     CHECK(mm_private_archive_save(archive, 0));
+    memcpy(valid_bytes, host.main.bytes, host.main.length);
+    writer = mm_private_archive_writer(archive);
+    CHECK(writer.edit.entry(writer.edit.context, 0, &entry) && !entry.parent_count);
+    entry.parent_count = 1;
+    writer.edit.store(writer.edit.context, 0, &entry, 0);
+    CHECK(mm_private_archive_save(archive, 0));
+    memcpy(invalid_graph, host.main.bytes, host.main.length);
+    memcpy(host.main.bytes, valid_bytes, host.main.length);
+    entry.parent_count = 0;
+    writer.edit.store(writer.edit.context, 0, &entry, 0);
     mm_private_archive_close(archive);
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
 
@@ -1014,6 +1028,20 @@ static void private_archive_cases(void)
     CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
     CHECK(!memcmp(value, "edit", sizeof(value)));
     host.main.bytes[0] = magic;
+    memcpy(host.main.bytes, invalid_graph, host.main.length);
+    wire = file_stream(&host.main);
+    CHECK(mm_chunk_read_header(&wire, &header) == MM_CHUNK_OK);
+    owner = borrowed->storage->owner;
+    owner->map_offset = header.map_offset + 1;
+    owner->map_bytes = header.map_bytes + 1;
+    CHECK(mm_private_archive_reopen(archive, 0) == MM_CHUNK_IO);
+    CHECK(owner->map_offset == header.map_offset + 1 && owner->map_bytes == header.map_bytes + 1);
+    borrowed->index.restore_map_on_failure = 0;
+    CHECK(mm_chunk_reader_reopen(borrowed) == MM_CHUNK_IO);
+    CHECK(owner->map_offset == header.map_offset && owner->map_bytes == header.map_bytes);
+    borrowed->index.restore_map_on_failure = 1;
+    CHECK(owner->files.extra_file == &host.extra);
+    memcpy(host.main.bytes, valid_bytes, host.main.length);
     mm_resource_cache_reopen(cache);
     CHECK(!mm_private_archive_reader(archive)->storage->owner->files.extra_file &&
           mm_private_archive_find(&registry, &host.main) == archive);

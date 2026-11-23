@@ -94,7 +94,8 @@ extern "C"
         void (*live_copy_target)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
         const struct MMResourceCopyServices *copy; /* Borrowed codec and backing access services. */
         struct MMArchiveWriter (*live_writer)(void *file);
-        void (*live_reopen)(void *file);
+        void (*live_reopen)(void *file); /* Reload for sources without an archive reader. */
+        void (*live_reloaded)(void *file); /* Optional notification after a reader reload. */
         void (*mark_source)(MMResourceCache *);
         void (*mark_owner)(MMResourceCache *);
         void (*destroy_owner)(void *owner);

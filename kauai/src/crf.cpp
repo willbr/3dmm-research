@@ -231,7 +231,6 @@ namespace
 MMResourceServices LegacyCacheServices()
 {
     MMResourceServices s = {};
-    s.live_reopen = [](void *file) { static_cast<PChunkyFile>(file)->FReopen(); };
     s.handles = KauaiHandleServices();
     s.block_files = KauaiBlockFileServices();
     s.retain_file = [](void *file) { static_cast<PChunkyFile>(file)->AddRef(); };

@@ -45,8 +45,7 @@ int mm_chunk_reopen(MMChunkReopenState *state, MMChunkRuntime *runtime,
     MMChunkRuntime saved_runtime;
     int ok;
     if (!state || !state->main_file || !services || !services->writable || !services->retain_file ||
-        !services->release_file || !services->release_index || !services->read_index || !services->validate ||
-        !services->publish)
+        !services->release_file || !services->release_index || !services->read_index || !services->validate)
         return MM_CHUNK_BAD_FILE;
     if (state->invalid_main || services->writable(services->context, state->main_file))
         return MM_CHUNK_BAD_FILE;
@@ -64,7 +63,8 @@ int mm_chunk_reopen(MMChunkReopenState *state, MMChunkRuntime *runtime,
     memset(state, 0, sizeof(*state));
     state->main_file = old.main_file;
     services->retain_file(services->context, state->main_file);
-    services->publish(services->context, state);
+    if (services->publish)
+        services->publish(services->context, state);
     ok = services->read_index(services->context, state) && services->validate(services->context);
     if (!ok)
     {
@@ -74,7 +74,8 @@ int mm_chunk_reopen(MMChunkReopenState *state, MMChunkRuntime *runtime,
         if (runtime)
             mm_chunk_runtime_swap(runtime, &saved_runtime);
     }
-    services->publish(services->context, state);
+    if (services->publish)
+        services->publish(services->context, state);
     if (old.index)
         services->release_index(services->context, old.index);
     if (runtime)

@@ -42,7 +42,8 @@ extern "C"
         MM_CHUNK_OWNER_MAP_PRESENT = MM_EDIT_INDEX_OPERATION + 1,
         MM_CHUNK_OWNER_FREE_RANGE,
         MM_CHUNK_OWNER_EXTENT_LIMIT,
-        MM_CHUNK_OWNER_MAP_UNREAD
+        MM_CHUNK_OWNER_MAP_UNREAD,
+        MM_CHUNK_OWNER_TABLE_DISPOSAL
     };
     typedef struct MMChunkOwnerFileIO
     {
@@ -111,6 +112,13 @@ extern "C"
         int scan_all_references;
         void (*invalidate_number)(MMU32 *);
     } MMChunkWriteOptions;
+    typedef struct MMChunkIndexOptions
+    {
+        const MMStorageAllocator *table_allocator;
+        MMChunkLegacyName legacy_name;
+        void (*validation_scope)(int entering); /* Optional diagnostic hook. */
+        int trash_unused, restore_map_on_failure;
+    } MMChunkIndexOptions;
     /* Borrow a stable storage binding and platform block services. Nonzero
      * write.max_references enables a writer bound to the current table. */
     typedef struct MMChunkOwnerRead
@@ -118,9 +126,16 @@ extern "C"
         MMChunkOwnerStorage *storage;
         MMChunkPayloadServices payloads;
         MMU32 max_name_bytes;
+        MMChunkIndexOptions index;
         MMChunkWriteOptions write;
     } MMChunkOwnerRead;
     MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *, const MMChunkPayloadServices *, MMU32 max_name_bytes);
+    int mm_chunk_reader_read_index(const MMChunkOwnerRead *);
+    int mm_chunk_reader_validate_index(const MMChunkOwnerRead *);
+    /* Reload an attached archive, consulting physical write state if available.
+     * Failure restores its graph, extents, and runtime cache. The index profile
+     * selects whether failure also restores the old deferred free-map location. */
+    int mm_chunk_reader_reopen(MMChunkOwnerRead *);
     /* MMChunkTitleIO callbacks for a borrowed MMChunkOwnerRead. */
     int mm_chunk_owner_title_read(void *, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written);
     int mm_chunk_owner_title_write(void *, MMU32 type, MMU32 number, const void *wire, MMU32 bytes);
@@ -128,10 +143,11 @@ extern "C"
 
     typedef struct MMChunkArchive MMChunkArchive;
     /* Allocate an empty owner and stable views. The caller attaches its file
-     * and table using the owner services. The archive releases both on close. */
+     * and table using the owner services. The archive copies its options and
+     * borrows their services. It releases its file and table on close. */
     MMChunkArchive *mm_chunk_archive_new(int expanded, const MMStorageAllocator *, const MMChunkOwnerFileIO *,
                                          const MMChunkPayloadServices *, MMU32 max_name_bytes,
-                                         const MMChunkWriteOptions *);
+                                         const MMChunkIndexOptions *, const MMChunkWriteOptions *);
     MMChunkOwnerRead *mm_chunk_archive_reader(MMChunkArchive *);
     int mm_chunk_archive_close(MMChunkArchive *);
 

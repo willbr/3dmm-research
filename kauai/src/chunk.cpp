@@ -170,8 +170,6 @@ PChunkTable NewChunkTable(LegacyLong width, LegacyLong reserve = 0)
     const auto allocator = CollectionAllocator();
     mm_chunk_table_create(&allocator, width, reserve, trash, &table); return table;
 }
-void CloseChunkTable(PChunkTable table)
-{ AssertDo(mm_chunk_table_close(table) == MM_STORAGE_OK, "invalid chunk table disposal"); }
 void *ChunkFixed(PChunkTable table, LegacyLong i, LegacyLong *bytes = nullptr)
 {
     MMU32 count = 0; auto p = mm_chunk_table_fixed(table, i, &count);
@@ -278,6 +276,8 @@ MMChunkOwnerFileIO ChunkOwnerFileIO()
                 Bug("Requested FileLocation too big");
             else if (kind == MM_CHUNK_OWNER_MAP_UNREAD)
                 Assert(false, "free map not read yet");
+            else if (kind == MM_CHUNK_OWNER_TABLE_DISPOSAL)
+                Bug("invalid chunk table disposal");
             else
                 Bug("invalid chunk deletion reference");
         },
@@ -308,11 +308,27 @@ MMPrivateArchive *KauaiWorkingArchive(Filename *name, bool create)
 
 PChunkyFile ChunkyFile::_PcflNew()
 {
+    static const auto tableAllocator = CollectionAllocator();
+    MMChunkIndexOptions index = {&tableAllocator, KauaiEncodeLegacyChunkName, nullptr, DebugShip(1, 0), 0};
+#ifdef DEBUG
+    index.validation_scope = [](int entering) {
+        if (entering)
+        {
+            SuspendAssertValid();
+            SuspendCheckPointers();
+        }
+        else
+        {
+            ResumeAssertValid();
+            ResumeCheckPointers();
+        }
+    };
+#endif
     const auto io = ChunkOwnerFileIO();
     const MMChunkWriteOptions write = {kckidMax, koskCur, DebugShip(1, 0),
         [](MMU32 *number) { (void)number; TrashVar(number); }};
     auto archive = mm_chunk_archive_new(expandedRecords, KauaiCopyAllocator(), &io, KauaiChunkPayloadServices(),
-                                        kcbMaxDataStn, &write);
+                                        kcbMaxDataStn, &index, &write);
     if (!archive)
         return nullptr;
     auto file = NewObj ChunkyFile(archive);
@@ -376,17 +392,7 @@ PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, LegacyUlong grfcfl)
 bool ChunkyFile::FReopen(void)
 {
     AssertThis(0);
-    const MMChunkReopenServices services = {this,
-        [](void *, void *file) -> int { return (static_cast<PFileObject>(file)->GrffilCur() & ffilWriteEnable) != 0; },
-        [](void *, void *file) { static_cast<PFileObject>(file)->AddRef(); },
-        [](void *, void *file) { static_cast<PFileObject>(file)->Release(); },
-        [](void *, void *index) { CloseChunkTable(static_cast<PChunkTable>(index)); },
-        [](void *c, MMChunkReopenState *state) -> int {
-            auto self = static_cast<PChunkyFile>(c); const bool ok = self->_FReadIndex(); *state = self->_owner.files; return ok;
-        },
-        [](void *c) -> int { return static_cast<PChunkyFile>(c)->_TValidIndex() == tYes; },
-        [](void *c, const MMChunkReopenState *state) { static_cast<PChunkyFile>(c)->_owner.files = *state; }};
-    const bool ok = mm_chunk_owner_reopen(&_owner, &services) == MM_CHUNK_OK;
+    const bool ok = mm_chunk_reader_reopen(&_reader) == MM_CHUNK_OK;
     AssertThis(0); return ok;
 }
 /***************************************************************************
@@ -943,11 +949,7 @@ void ChunkyFile::MarkMem(void)
 ***************************************************************************/
 tribool ChunkyFile::_TValidIndex(void)
 {
-    SuspendAssertValid();
-    SuspendCheckPointers();
-    const int result = mm_chunk_owner_validate_index(&_storage, kckidMax);
-    ResumeAssertValid();
-    ResumeCheckPointers();
+    const int result = mm_chunk_reader_validate_index(&_reader);
     return result == MM_CHUNK_OK ? tYes : result == MM_CHUNK_MEMORY ? tMaybe : tNo;
 }
 
@@ -967,11 +969,7 @@ bool ChunkyFile::_FReadIndex(void)
     static_assert(kcvnCur == MM_CHUNK_CURRENT_VERSION && kcvnBack == MM_CHUNK_BACKWARD_VERSION &&
                   kcvnMin == 1 && sizeof(ChunkyFilePrefix) == MM_CHUNK_PREFIX_BYTES &&
                   sizeof(ChildChunkIdentification) == sizeof(MMChunkChild), "Chunk C89 wire contract");
-    const auto allocator = CollectionAllocator();
-    int trash = 0;
-    Debug(trash = 1;)
-    return mm_chunk_owner_read_index(&_storage, &allocator, trash, kcbMaxDataStn,
-                                     KauaiEncodeLegacyChunkName, nullptr) == MM_CHUNK_OK;
+    return mm_chunk_reader_read_index(&_reader) == MM_CHUNK_OK;
 }
 
 int KauaiEncodeLegacyChunkName(void *, const char *text, void *wire, MMU32 capacity, MMU32 *bytes)
