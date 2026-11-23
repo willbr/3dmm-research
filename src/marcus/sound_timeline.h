@@ -16,6 +16,7 @@ struct MarcusSoundSpan
     std::size_t scene = 0;
     double start = 0, end = 0; // Seconds on the presentation clock.
 };
+struct MarcusPlaybackScene;
 MM::PreviewSoundCue MarcusPreviewCue(const MMMovieTimingCue &);
 class MarcusSoundTimeline;
 struct MarcusSoundScene
@@ -60,7 +61,7 @@ class MarcusSoundTimeline
 
   public:
     using WaveformReader = std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)>;
-    using PresentationReader = std::function<bool(std::size_t, MM::PreviewPresentation &, MMMovieTimingHolds &)>;
+    using PresentationReader = std::function<bool(std::size_t, MarcusPlaybackScene &, MMMovieTimingHolds &)>;
     MarcusSoundTimeline();
     void Clear();
     void SetRate(double fps);

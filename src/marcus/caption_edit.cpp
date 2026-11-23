@@ -227,8 +227,8 @@ void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &pr
     }
 }
 
-MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
-                                     const MarcusCaptionOptions &options, const char *text)
+void MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
+                        const MarcusCaptionOptions &options, const char *text, MMPreviewOwnedCaption &preview)
 {
     const auto *entry = index < 0 ? nullptr : &list.entries.at(index);
     const auto value = CaptionInput(options, text);
@@ -256,7 +256,6 @@ MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const M
     }
     int bodyChanged;
     CheckCaptionEdit(ApplyCaption(plan, list, box, rich, &bodyChanged));
-    MM::PreviewCaption preview;
     MMRichTextStream stored;
     mm_rich_text_archive_stream(&stored, &rich.archive, &rich.state.text);
     const MMReadStream *stream = &stored.stream;
@@ -269,7 +268,6 @@ MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const M
         encoding = editor.big_endian ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE;
     }
     Require(MM::ReadCaptionData(box, rich.state, *stream, encoding, preview), "Cannot prepare the 2D text preview.");
-    return preview;
 }
 
 std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path &path,

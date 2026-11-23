@@ -23428,3 +23428,29 @@ Text Acid candidate `20261123T003003Z-06da0caf` matched baseline
 states per port. Seek and continuous playback frame order matched retained
 retail and V3DMM captures `20261122T033140Z-2abe2197` and
 `20261122T033233Z-5e23a412`. Evidence is under `tmp/c89-caption-owner`.
+
+## C89 caption drafts and timing inputs (23 November 2026)
+
+The live editor takes the C89 decoded caption before laying out the draft.
+Draft replacement keeps its scroll position and releases the staged buffers
+if layout fails. Timing analysis reads the C playback records for captions,
+pauses and cues. C measures scrolling captions and orders cues by frame
+through the same stable sorter used by Preview.
+
+Eight timing snapshots matched the previous build byte for byte across
+Actor Audio, Presentation, Scene Transition and Text Acid at two
+playback settings. The native playback test checks Unicode caret positions,
+draft pixels against the committed caption, undo and native save/reopen.
+All 228 selected native checks, 12 SDL checks and three x86 worker
+fixtures passed. The headless startup screenshot matched.
+
+Actor Audio candidate `20261123T003914Z-ac12ec0d` matched
+`20261123T000512Z-d829b203` on 60 seek canvases and scene states per port.
+Seek and playback frame order matched retained retail and V3DMM capture
+`20261122T082301Z-c465fa98`.
+
+Text Acid candidate `20261123T003914Z-39985da0` matched
+`20261123T003003Z-06da0caf` on 240 seek canvases and caption and camera
+states per port. Seek and continuous playback frame order matched retained
+retail and V3DMM captures `20261122T033140Z-2abe2197` and
+`20261122T033233Z-5e23a412`. Evidence is under `tmp/c89-caption-consumers`.

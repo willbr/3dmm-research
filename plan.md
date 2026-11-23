@@ -1842,6 +1842,10 @@ Playback takes the text, font and property buffers from each decoded row and
 publishes the authored stack after the scene has finished loading. Preview
 callers that request C++ records receive the same decoded data through the
 existing interface.
+The live editor also takes the decoded row directly for draft layout and
+caret placement. Timing analysis measures captions and reads pauses from
+the C playback records. It orders the raw cue rows through the shared
+sorter before adding them to the sound schedule.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

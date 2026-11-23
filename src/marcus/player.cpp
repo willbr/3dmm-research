@@ -19,6 +19,7 @@
 #include "movie_input.h"
 #include "movie_open.h"
 #include "playback.h"
+#include "playback_scene.h"
 #include "render_plan.h"
 #include "gpu_renderer.h"
 #include "asm_renderer.h"
@@ -636,9 +637,9 @@ bool ReadSoundTimeline(MarcusPlayer *player, int index, const MarcusScenes &scen
     if (timeline.Size() >= count)
         return true;
     return timeline.Extend(scenes.Data(), count,
-        [&](std::size_t next, MM::PreviewPresentation &presentation, MMMovieTimingHolds &timing) {
-            return player->preview.ReadTimingPresentation(scenes.Id(next), presentation, error) &&
-                MarcusPlayback::ReadTiming(presentation, timing, error, player->timingInput ? player->timingInput->fonts : nullptr);
+        [&](std::size_t next, MarcusPlaybackScene &sound, MMMovieTimingHolds &timing) {
+            return MarcusPlayback::ReadTiming(player->preview, scenes.Id(next), sound, timing, error,
+                                              player->timingInput ? player->timingInput->fonts : nullptr);
         },
         [&](const MM::PreviewSoundCue &cue) {
             return player->waveforms.Length(player->preview, cue);
@@ -1972,7 +1973,11 @@ extern "C"
             }
             const auto movie = MaterializedMovie(*player);
             const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
-            if (!player->playback.CaptionDraft(MarcusDraftCaption(path, *list, index, *options, text), error))
+            MMPreviewOwnedCaption draft{};
+            const std::unique_ptr<MMPreviewOwnedCaption, decltype(&mm_preview_owned_caption_dispose)>
+                owner(&draft, mm_preview_owned_caption_dispose);
+            MarcusDraftCaption(path, *list, index, *options, text, draft);
+            if (!player->playback.CaptionDraft(draft, error))
                 return false;
             MarcusPlayer::CaptionPreview preview{player->document, player->selected, {}};
             if (index >= 0)

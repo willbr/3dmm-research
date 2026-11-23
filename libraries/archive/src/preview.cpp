@@ -96,6 +96,7 @@ struct Preview::Impl
     { return scene.type == kctgScen && mm_preview_live_scene(&live, scene.number); }
     bool SyncActors(Error &error);
     template <class Output> bool ReadScenePresentation(Id, const Output &, Error &);
+    template <class Output> bool ReadSceneTiming(Id, const Output &, Error &);
     template <class Output> bool StoredPresentation(ChunkNumber scene, const Output &, bool soundSheet = false,
                             bool includeCaptions = false) const;
     Id Asset() const
@@ -866,22 +867,33 @@ bool Preview::ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error)
 {
     return ReadSoundCues(_impl->Asset(), cues, error);
 }
-bool Preview::ReadTimingPresentation(Id scene, PreviewPresentation &presentation, Error &error)
+template <class Output>
+bool Preview::Impl::ReadSceneTiming(Id scene, const Output &output, Error &error)
 try
 {
     error = {};
-    presentation = {};
-    if (_impl->IsVirtualScene(scene)) return true;
-    if (!_impl->live.status.ready || scene.type != kctgScen ||
-        !_impl->StoredPresentation(scene.number, Internal::PresentationCollector(presentation), true, true))
+    output.reset(output.context);
+    if (IsVirtualScene(scene)) return true;
+    if (!live.status.ready || scene.type != kctgScen ||
+        !StoredPresentation(scene.number, output, true, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read scene timing.");
-    Internal::OrderPreviewCues(presentation.sounds, scene);
     return true;
 }
 catch (const std::bad_alloc &)
 {
-    presentation = {};
+    output.reset(output.context);
     return Fail(error, ErrorCode::out_of_memory, "Insufficient memory for scene timing.");
+}
+bool Preview::ReadTimingPresentation(Id scene, PreviewPresentation &presentation, Error &error)
+{
+    if (!_impl->ReadSceneTiming(scene, Internal::PresentationCollector(presentation), error))
+        return false;
+    Internal::OrderPreviewCues(presentation.sounds, scene);
+    return true;
+}
+bool Preview::ReadTimingPresentation(Id scene, const MMPreviewOwnedPresentationOutput &output, Error &error)
+{
+    return _impl->ReadSceneTiming(scene, output, error);
 }
 bool Preview::ReadSoundCues(Id scene, std::vector<PreviewSoundCue> &cues, Error &error)
 try
@@ -921,6 +933,10 @@ void Preview::OverlayTransitionPalette(unsigned char bgrx[1024]) const
 {
     if (bgrx && _impl->live.assets.background)
         mm_background_preview_overlay_palette(_impl->live.assets.background, bgrx);
+}
+PreviewSoundCue PreviewSoundCue::FromNative(const MMPreviewCue &cue)
+{
+    return Internal::PreviewCue(cue);
 }
 MMPreviewCue PreviewSoundCue::Native() const
 {

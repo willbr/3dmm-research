@@ -46,6 +46,8 @@ void marcus_caption_scene_clear_draft(MarcusCaptionScene *);
 /* Replace the draft and lay it out against the scene's mask budget. A failed
  * draft leaves the authored rows intact and clears the draft preview. */
 int marcus_caption_scene_draft(MarcusCaptionScene *, const MarcusCaptionSource *, const MarcusCaptionFonts *);
+/* Consume the owned row once allocation succeeds, including on layout failure. */
+int marcus_caption_scene_draft_owned(MarcusCaptionScene *, struct MMPreviewOwnedCaption *, const MarcusCaptionFonts *);
 int marcus_caption_scene_layout(MarcusCaptionScene *, MarcusStoredCaption *, const MarcusCaptionFonts *);
 int marcus_caption_scene_measure(const MarcusCaptionSource *, const MarcusCaptionFonts *, MMI32 *height);
 MarcusStoredCaption *marcus_caption_scene_row(MarcusCaptionScene *, size_t row);

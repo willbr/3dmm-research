@@ -235,6 +235,7 @@ struct PreviewSoundCue
     std::uint32_t child = 0;
     bool actorSound = false, loop = false, queue = false, silent = false, motion = false;
     std::int32_t motionCel = -1; // Motion binding cel; -1 for an ordinary cue.
+    static PreviewSoundCue FromNative(const MMPreviewCue &);
     MMPreviewCue Native() const;
 };
 struct PreviewPause
@@ -379,6 +380,7 @@ class Preview
     bool ReadSceneThumbnail(Id scene, PreviewImage &image, Error &error);
     // Captions, pauses and all scene/actor cues in one read, without seeking.
     bool ReadTimingPresentation(Id scene, PreviewPresentation &presentation, Error &error);
+    bool ReadTimingPresentation(Id scene, const MMPreviewOwnedPresentationOutput &output, Error &error);
     // Authored scene cues and actor sound events, without seeking or playing.
     // Motion sounds mark the binding event, not every subsequent cel match.
     bool ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error);

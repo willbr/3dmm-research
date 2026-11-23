@@ -202,7 +202,7 @@ bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, Previe
 } // namespace Internal
 
 bool ReadCaptionData(const MMTextBoxState &box, const MMRichTextState &text, const MMReadStream &stream, int encoding,
-                     PreviewCaption &out)
+                     MMPreviewOwnedCaption &out)
 {
     Internal::CaptionCodec host;
     host.font.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(&text.font))), text.font.count);
@@ -214,6 +214,19 @@ bool ReadCaptionData(const MMTextBoxState &box, const MMRichTextState &text, con
     if (host.exception) std::rethrow_exception(host.exception);
     if (result == -1) throw std::bad_alloc();
     if (result <= 0)
+        return false;
+    out = caption;
+    caption = {};
+    return true;
+}
+
+bool ReadCaptionData(const MMTextBoxState &box, const MMRichTextState &text, const MMReadStream &stream, int encoding,
+                     PreviewCaption &out)
+{
+    MMPreviewOwnedCaption caption{};
+    const std::unique_ptr<MMPreviewOwnedCaption, decltype(&mm_preview_owned_caption_dispose)>
+        owner(&caption, mm_preview_owned_caption_dispose);
+    if (!ReadCaptionData(box, text, stream, encoding, caption))
         return false;
     caption.chunk = out.chunk;
     out = Internal::PublicCaption(caption);

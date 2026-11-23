@@ -7,6 +7,7 @@
 namespace KauaiFonts { class FontCatalog; }
 struct MMPolledPlayback;
 struct MMGraphicsMovieCapture;
+struct MMPreviewOwnedCaption;
 class MarcusPlayback
 {
     struct Impl;
@@ -22,6 +23,8 @@ class MarcusPlayback
     bool Auditioning() const;
     static bool ReadTiming(const MM::PreviewPresentation &presentation, MMMovieTimingHolds &timing,
                            MM::Error &error, const std::shared_ptr<KauaiFonts::FontCatalog> &fonts = {});
+    static bool ReadTiming(MM::Preview &, MM::Id, MarcusPlaybackScene &, MMMovieTimingHolds &,
+                           MM::Error &, const std::shared_ptr<KauaiFonts::FontCatalog> &);
     void SetFonts(std::shared_ptr<KauaiFonts::FontCatalog> fonts);
     bool RestoreAudio(MM::Preview &preview, const std::vector<MarcusResumeSound> &sounds, MM::Error &error);
     void Statistics(MarcusAudioStats &stats);
@@ -51,7 +54,7 @@ class MarcusPlayback
     bool Composite(MM::Preview &preview, bool authored, MM::PreviewImage &image, MM::Error &error,
                    const std::uint32_t *hiddenCaption = nullptr, bool editDraft = false);
     bool CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const;
-    bool CaptionDraft(const MM::PreviewCaption &, MM::Error &);
+    bool CaptionDraft(MMPreviewOwnedCaption &, MM::Error &);
     void ClearCaptionDraft();
     const MarcusCaptionStop *CaptionPositions(int &count, int &scroll) const;
     bool CaptionCaret(int offset);

@@ -6,7 +6,8 @@
 #include <string>
 #include <vector>
 
-namespace MM { class Preview; struct PreviewCaption; }
+namespace MM { class Preview; }
+struct MMPreviewOwnedCaption;
 
 struct MarcusCaptionEntry
 {
@@ -26,8 +27,8 @@ struct MarcusCaptionList
 namespace KauaiFonts { class FontCatalog; }
 std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *bundled);
 void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &preview, MarcusCaptionList &list);
-MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
-                                     const MarcusCaptionOptions &options, const char *text);
+void MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
+                        const MarcusCaptionOptions &options, const char *text, MMPreviewOwnedCaption &);
 std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path &path,
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusCaptionList &list, int index,
     const MarcusCaptionOptions *options, const char *text);

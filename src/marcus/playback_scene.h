@@ -3,6 +3,7 @@
 
 #include "mm/frame_sound.h"
 #include "mm/preview_media.h"
+#include "mm/movie_sound_schedule.h"
 #include "caption_scene.h"
 
 #ifdef __cplusplus
@@ -24,6 +25,9 @@ typedef struct MarcusPlaybackPresentation
 
 void marcus_playback_presentation_clear(MarcusPlaybackPresentation *);
 MMPreviewOwnedPresentationOutput marcus_playback_presentation_output(MarcusPlaybackPresentation *);
+void marcus_playback_scene_order_cues(MarcusPlaybackScene *, MMU32 scene_type, MMU32 scene);
+const MMPreviewCue *marcus_playback_scene_cues(const MarcusPlaybackScene *);
+int marcus_playback_presentation_timing(const MarcusPlaybackPresentation *, const MarcusCaptionFonts *, MMMovieTimingHolds *);
 
 typedef int MarcusPlaybackCueSink(void *, const MMPreviewCue *);
 

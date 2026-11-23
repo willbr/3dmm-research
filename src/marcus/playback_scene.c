@@ -91,6 +91,79 @@ MMPreviewOwnedPresentationOutput marcus_playback_presentation_output(MarcusPlayb
     return out;
 }
 
+const MMPreviewCue *marcus_playback_scene_cues(const MarcusPlaybackScene *scene)
+{
+    return (const MMPreviewCue *)scene->cues.buffers[0].data;
+}
+
+static void order_read(void *p, MMU32 index, MMPreviewCue *out)
+{
+    *out = ((const MMPreviewCue *)p)[index];
+}
+
+static void order_write(void *p, MMU32 index, const MMPreviewCue *cue)
+{
+    ((MMPreviewCue *)p)[index] = *cue;
+}
+
+void marcus_playback_scene_order_cues(MarcusPlaybackScene *scene, MMU32 type, MMU32 number)
+{
+    MMPreviewCueOrder order = {NULL, 0, NULL, order_read, order_write};
+    order.context = scene->cues.buffers[0].data;
+    order.count = scene->cue_count;
+    mm_preview_cues_sort(type, number, &order);
+}
+
+typedef struct TimingRead
+{
+    const MarcusPlaybackPresentation *scene;
+    const MarcusCaptionFonts *fonts;
+    int layout_status;
+} TimingRead;
+
+static void timing_caption(void *p, size_t row, MMMovieTimingCaption *result)
+{
+    const TimingRead *input = p;
+    const MarcusCaptionSource *caption = &input->scene->captions->rows[row].source;
+    result->first = caption->first;
+    result->top = caption->layout.box.top;
+    result->bottom = caption->layout.box.bottom;
+    result->story = caption->story;
+}
+
+static int timing_height(void *p, size_t row, MMI32 *height)
+{
+    TimingRead *input = p;
+    input->layout_status = marcus_caption_scene_measure(&input->scene->captions->rows[row].source, input->fonts, height);
+    return !input->layout_status;
+}
+
+static void timing_pause(void *p, size_t row, MMMovieTimingPause *result)
+{
+    const TimingRead *input = p;
+    const PlaybackPause *pause = (const PlaybackPause *)input->scene->sound->pauses.buffers[0].data + row;
+    result->frame = pause->frame;
+    result->kind = pause->kind;
+    result->milliseconds = pause->milliseconds;
+}
+
+int marcus_playback_presentation_timing(const MarcusPlaybackPresentation *scene, const MarcusCaptionFonts *fonts,
+                                       MMMovieTimingHolds *timing)
+{
+    TimingRead reader;
+    MMMovieTimingPresentation input = {NULL, 0, 0, 0, timing_caption, timing_height, timing_pause};
+    int status;
+    reader.scene = scene;
+    reader.fonts = fonts;
+    reader.layout_status = 0;
+    input.context = &reader;
+    input.transition = scene->sound->transition;
+    input.caption_count = scene->captions->count;
+    input.pause_count = scene->sound->pause_count;
+    status = mm_movie_timing_holds_collect(timing, &input);
+    return status == MM_SOUND_COLLECT_MEMORY ? MARCUS_CAPTION_RUNS_MEMORY : reader.layout_status;
+}
+
 typedef struct FrameEntry
 {
     MarcusPlaybackScene *scene;

@@ -401,6 +401,23 @@ bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MMMovie
     if (status == MM_SOUND_COLLECT_MEMORY) throw std::bad_alloc();
     return status == MM_SOUND_COLLECT_OK;
 }
+
+bool MarcusPlayback::ReadTiming(Preview &preview, Id scene, MarcusPlaybackScene &sound, MMMovieTimingHolds &timing,
+                                Error &error, const std::shared_ptr<KauaiFonts::FontCatalog> &fonts)
+{
+    Impl calculator;
+    calculator.fonts = fonts;
+    MarcusPlaybackPresentation input{&sound, &calculator.captionScene};
+    if (!preview.ReadTimingPresentation(scene, marcus_playback_presentation_output(&input), error))
+        return false;
+    marcus_playback_scene_order_cues(&sound, scene.type, scene.number);
+    Impl::CaptionFontHost fontHost{calculator, nullptr, {}};
+    const auto services = fontHost.Services();
+    const int status = marcus_playback_presentation_timing(&input, &services, &timing);
+    fontHost.Check();
+    return Impl::CaptionStatus(status, error);
+}
+
 bool MarcusPlayback::RestoreAudio(Preview &preview, const std::vector<MarcusResumeSound> &sounds, Error &error)
 {
     marcus_playback_audio_suspend(impl->audio.get(), 1);
@@ -641,12 +658,11 @@ void MarcusPlayback::ClearCaptionDraft()
     marcus_caption_scene_clear_draft(&impl->captionScene);
 }
 
-bool MarcusPlayback::CaptionDraft(const PreviewCaption &data, Error &error)
+bool MarcusPlayback::CaptionDraft(MMPreviewOwnedCaption &data, Error &error)
 {
-    const auto source = CaptionSource(data);
     Impl::CaptionFontHost fonts{*impl, nullptr, {}};
     const auto services = fonts.Services();
-    const int status = marcus_caption_scene_draft(&impl->captionScene, &source, &services);
+    const int status = marcus_caption_scene_draft_owned(&impl->captionScene, &data, &services);
     fonts.Check();
     return Impl::CaptionStatus(status, error);
 }

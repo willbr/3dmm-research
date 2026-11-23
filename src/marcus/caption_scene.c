@@ -151,26 +151,10 @@ int marcus_caption_scene_load(MarcusCaptionScene *scene, size_t count, const voi
     return 0;
 }
 
-int marcus_caption_scene_take(MarcusCaptionScene *scene, MMPreviewOwnedCaption *caption)
+static void take_caption(MarcusStoredCaption *row, MMPreviewOwnedCaption *caption)
 {
     const MMPreviewCaptionData *data = &caption->data;
-    MarcusStoredCaption *row;
     MarcusCaptionInput *layout;
-    if (scene->count == scene->capacity)
-    {
-        const size_t limit = (size_t)-1 / sizeof(*scene->rows);
-        size_t capacity = scene->capacity;
-        if (capacity == limit)
-            return -1;
-        capacity = capacity ? (capacity <= limit / 2 ? 2 * capacity : limit) : 8;
-        row = realloc(scene->rows, capacity * sizeof(*row));
-        if (!row)
-            return -1;
-        scene->rows = row;
-        scene->capacity = capacity;
-    }
-    row = &scene->rows[scene->count++];
-    memset(row, 0, sizeof(*row));
     row->source.first = data->first;
     row->source.end = data->end;
     row->source.chunk = caption->chunk;
@@ -190,6 +174,27 @@ int marcus_caption_scene_take(MarcusCaptionScene *scene, MMPreviewOwnedCaption *
     layout->property_context = row->properties;
     layout->property = read_property;
     memset(caption, 0, sizeof(*caption));
+}
+
+int marcus_caption_scene_take(MarcusCaptionScene *scene, MMPreviewOwnedCaption *caption)
+{
+    MarcusStoredCaption *row;
+    if (scene->count == scene->capacity)
+    {
+        const size_t limit = (size_t)-1 / sizeof(*scene->rows);
+        size_t capacity = scene->capacity;
+        if (capacity == limit)
+            return -1;
+        capacity = capacity ? (capacity <= limit / 2 ? 2 * capacity : limit) : 8;
+        row = realloc(scene->rows, capacity * sizeof(*row));
+        if (!row)
+            return -1;
+        scene->rows = row;
+        scene->capacity = capacity;
+    }
+    row = &scene->rows[scene->count++];
+    memset(row, 0, sizeof(*row));
+    take_caption(row, caption);
     return 1;
 }
 
@@ -201,12 +206,11 @@ int marcus_caption_scene_publish(MarcusCaptionScene *scene, MMI32 frame)
     return 0;
 }
 
-int marcus_caption_scene_draft(MarcusCaptionScene *scene, const MarcusCaptionSource *source, const MarcusCaptionFonts *fonts)
+static int publish_draft(MarcusCaptionScene *scene, MarcusStoredCaption *draft, int status,
+                         const MarcusCaptionFonts *fonts)
 {
     const MMI32 scroll = scene->presentation.draft_scroll;
-    MarcusStoredCaption *draft = calloc(1, sizeof(*draft));
     const MMTextBoxBounds *box;
-    int status = draft ? copy_caption(draft, source) : MARCUS_CAPTION_RUNS_MEMORY;
     marcus_caption_scene_clear_draft(scene);
     scene->draft = draft;
     if (!status)
@@ -220,6 +224,22 @@ int marcus_caption_scene_draft(MarcusCaptionScene *scene, const MarcusCaptionSou
         mm_caption_presentation_draft(&scene->presentation, scroll, draft->runs.height, box->top, box->bottom);
     }
     return status;
+}
+
+int marcus_caption_scene_draft(MarcusCaptionScene *scene, const MarcusCaptionSource *source, const MarcusCaptionFonts *fonts)
+{
+    MarcusStoredCaption *draft = calloc(1, sizeof(*draft));
+    const int status = draft ? copy_caption(draft, source) : MARCUS_CAPTION_RUNS_MEMORY;
+    return publish_draft(scene, draft, status, fonts);
+}
+
+int marcus_caption_scene_draft_owned(MarcusCaptionScene *scene, MMPreviewOwnedCaption *source,
+                                    const MarcusCaptionFonts *fonts)
+{
+    MarcusStoredCaption *draft = calloc(1, sizeof(*draft));
+    if (draft)
+        take_caption(draft, source);
+    return publish_draft(scene, draft, draft ? 0 : MARCUS_CAPTION_RUNS_MEMORY, fonts);
 }
 
 int marcus_caption_scene_layout(MarcusCaptionScene *scene, MarcusStoredCaption *caption, const MarcusCaptionFonts *fonts)
