@@ -1877,7 +1877,7 @@ extern "C"
     }
     MarcusCaptionList *marcus_captions(MarcusPlayer *player)
     {
-        std::unique_ptr<MarcusCaptionList> result;
+        std::unique_ptr<MarcusCaptionList, decltype(&marcus_captions_destroy)> result(nullptr, marcus_captions_destroy);
         Guard(player, [&](MM::Error &error) {
             if (player->selected < 0 || std::size_t(player->selected) >= player->sceneInfo.size())
             { error.message = "Open a scene before editing 2D text."; return false; }
@@ -1887,36 +1887,15 @@ extern "C"
             if (!CancelPropPreviews(player, error)) return false;
             const auto movie = MaterializedMovie(*player);
             const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
-            auto list = std::make_unique<MarcusCaptionList>();
-            list->document = player->document;
-            list->scene = player->sceneInfo.Number(player->selected);
-            list->firstFrame = info.firstFrame;
-            list->lastFrame = info.lastFrame;
-            auto &value = list->defaults;
-            value.x = 32;
-            value.y = MM::PreviewCaptionHeight - 88;
-            value.width = MM::PreviewCaptionWidth - 2 * value.x;
-            value.height = 56;
-            value.first_frame = info.currentFrame - info.firstFrame + 1;
-            value.last_frame = info.lastFrame - info.firstFrame + 1;
-            value.through_end = value.transparent = 1;
-            value.font_size = 20;
-            value.alignment = 2;
-            value.ink = 0xffffff;
-            Copy(value.font, "Arial");
+            decltype(result) list(marcus_caption_catalog_create(player->document,
+                player->sceneInfo.Number(player->selected), info.firstFrame, info.lastFrame, info.currentFrame),
+                marcus_captions_destroy);
+            if (!list) throw std::bad_alloc();
             MarcusReadCaptions(path, player->preview, *list);
             result = std::move(list);
             return true;
         });
         return result.release();
-    }
-    void marcus_captions_destroy(MarcusCaptionList *list) { delete list; }
-    int marcus_caption_count(const MarcusCaptionList *list) { return list ? static_cast<int>(list->entries.size()) : 0; }
-    const char *marcus_caption(const MarcusCaptionList *list, int index, MarcusCaptionOptions *options)
-    {
-        if (!list || index < -1 || index >= marcus_caption_count(list)) return nullptr;
-        if (options) *options = index < 0 ? list->defaults : list->entries[index].options;
-        return index < 0 ? "" : list->entries[index].text.c_str();
     }
     static bool CurrentCaptions(const MarcusPlayer *player, const MarcusCaptionList *list)
     {
@@ -1927,24 +1906,21 @@ extern "C"
     {
         if (!Guard(player, [&](MM::Error &) {
             if (!CurrentCaptions(player, list)) return false;
-            list->fontNames = MarcusCaptionFontNames(player->timingInput->fonts.get());
+            MarcusReadCaptionFonts(*list, player->timingInput->fonts.get());
             return true;
         })) return 0;
-        return static_cast<int>(list->fontNames.size());
-    }
-    const char *marcus_caption_font_name(const MarcusCaptionList *list, int index)
-    {
-        return list && index >= 0 && std::size_t(index) < list->fontNames.size() ? list->fontNames[index].c_str() : nullptr;
+        return list->font_count;
     }
     int marcus_caption_font_sample(MarcusPlayer *player, const MarcusCaptionList *list, int index, MarcusImage *image)
     {
         if (!image) return 0;
         *image = {};
         return Guard(player, [&](MM::Error &) {
-            if (!CurrentCaptions(player, list) || !marcus_caption_font_name(list, index))
+            const auto *name = marcus_caption_font_name(list, index);
+            if (!CurrentCaptions(player, list) || !name)
                 return false;
             auto &sample = player->captionFontSample;
-            if (!player->playback.CaptionFontSample(list->fontNames[index], sample))
+            if (!player->playback.CaptionFontSample(name, sample))
                 return false;
             image->width = sample.width;
             image->height = sample.height;
@@ -2004,10 +1980,7 @@ extern "C"
         const auto &caption = player->captionPreview;
         const auto hide = caption && caption->document == player->document && caption->scene == player->selected &&
             caption->chunk ? &*caption->chunk : nullptr;
-        if (player->playback.CaptionAt(x, y, chunk, hide))
-            for (std::size_t i = 0; i < list->entries.size(); ++i)
-                if (list->entries[i].chunk == chunk) return static_cast<int>(i);
-        return -1;
+        return player->playback.CaptionAt(x, y, chunk, hide) ? marcus_caption_catalog_find(list, chunk) : -1;
     }
     int marcus_edit_caption(MarcusPlayer *player, const MarcusCaptionList *list, int index,
                             const MarcusCaptionOptions *options, const char *text)

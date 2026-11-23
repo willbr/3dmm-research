@@ -1846,6 +1846,11 @@ The live editor also takes the decoded row directly for draft layout and
 caret placement. Timing analysis measures captions and reads pauses from
 the C playback records. It orders the raw cue rows through the shared
 sorter before adding them to the sound schedule.
+The C89 caption editor catalogue reads native text boxes in authored order,
+converts their text to UTF-8, and exposes their geometry, frame range and
+starting format. It also filters and orders the font menu, keeping the last
+spelling of each case-insensitive family name. Marcus supplies the native
+character codec, palette lookup and available font families.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

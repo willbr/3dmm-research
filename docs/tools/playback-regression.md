@@ -23454,3 +23454,26 @@ Text Acid candidate `20261123T003914Z-39985da0` matched
 states per port. Seek and continuous playback frame order matched retained
 retail and V3DMM captures `20261122T033140Z-2abe2197` and
 `20261122T033233Z-5e23a412`. Evidence is under `tmp/c89-caption-consumers`.
+
+## C89 caption editor catalogue (23 November 2026)
+
+The C89 catalogue reads text boxes in start-event order and owns their
+UTF-8 text, geometry, frame ranges and starting format. An archive read
+publishes the complete list together. C89 filters font families by native
+encoding support and sorts them with ASCII case folding. Where family names
+compare equal, the last spelling supplied by the host wins.
+
+The headless player test covers frame numbering with a negative scene start,
+font ordering, duplicate spellings and invalid UTF-8. The playback test
+checks caption hit order, formatting and Unicode through editing and native
+save/reopen. All 228 selected native checks, 12 SDL checks and three rebuilt
+x86 worker fixtures passed. The headless Marcus startup screenshot matched
+the previous build byte for byte.
+
+Text Acid candidate `20261123T005007Z-e26760e2` matched baseline
+`20261123T003914Z-39985da0` on all 240 seek canvases and caption and camera
+states per port. Seek and continuous playback frame order matched the
+retained retail and V3DMM captures `20261122T033140Z-2abe2197` and
+`20261122T033233Z-5e23a412`. The candidate suite ran the two ports. The
+comparison against the retained captures read both databases afterward.
+Evidence is under `tmp/c89-caption-catalog`.

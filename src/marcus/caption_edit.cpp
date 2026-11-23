@@ -3,22 +3,18 @@
 #include "archive_file.h"
 #include "mm/native_caption.h"
 #include "mm/preview.h"
-#include "mm/caption_edit.h"
 #include "platform_text.h"
 #include "font_catalog.h"
 #include "font_host.h"
-#include <cstring>
-#include <map>
+#include <new>
 #include <stdexcept>
-#include <utility>
+#include <vector>
 #include "soc_core.h"
 #undef size
 ASSERTNAME
 
 namespace
 {
-constexpr MMU32 Rgb = 0x01000000, Clear = 0xffffffffU;
-
 void Require(bool ok, const char *message)
 {
     if (!ok) throw std::runtime_error(message);
@@ -56,28 +52,6 @@ struct CaptionBody
     }
 
 };
-std::string ToUtf8(const unsigned short *words, size_t count)
-{
-    std::string result(count * 3, '\0');
-    auto end = result.data();
-    Require(mm_text_encode_utf8(words, count, &end, [](void *p, const char *bytes, std::size_t count) {
-        auto &next = *static_cast<char **>(p);
-        std::memcpy(next, bytes, count);
-        next += count;
-        return 1;
-    }) == 1, "Cannot encode the 2D text as UTF-8.");
-    result.resize(end - result.data());
-    return result;
-}
-std::string Font(const MMRichTextState &rich)
-{
-    unsigned short units[kcchMaxStn];
-    const auto count = mm_text_utf16(KauaiText::Services(), mm_movie_title_text(&rich.font),
-                                    rich.font.count * rich.font.unit, koskCur, units, kcchMaxStn);
-    Require(!rich.font.count || count, "Cannot decode the 2D text encoding.");
-    return ToUtf8(units, count);
-}
-
 void CheckTextArchive(int status)
 {
     static const char *const messages[] = {
@@ -138,12 +112,20 @@ int ApplyCaption(const MMCaptionEditPlan &plan, const MarcusCaptionList &list, M
     MMRichTextStream stream;
     mm_rich_text_archive_stream(&stream, &rich.archive, &rich.state.text);
     const MMCaptionEditSource source{KauaiText::Services(), &stream.stream, koskCur};
-    return mm_caption_edit_apply(&plan, list.firstFrame, list.lastFrame, &box, &rich.state, &source,
+    return mm_caption_edit_apply(&plan, list.first_frame, list.last_frame, &box, &rich.state, &source,
                                  &rich.words, bodyChanged);
+}
+
+const MarcusCaptionEntry *Entry(const MarcusCaptionList &list, int index)
+{
+    if (index < 0) return nullptr;
+    const auto *entry = marcus_caption_catalog_entry(&list, index);
+    Require(entry != nullptr, "Choose a valid 2D text box.");
+    return entry;
 }
 }
 
-std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *bundled)
+void MarcusReadCaptionFonts(MarcusCaptionList &list, const KauaiFonts::FontCatalog *bundled)
 {
     std::vector<KauaiFonts::FamilyInfo> families;
     KauaiFonts::StudioFontFamilies(families);
@@ -152,87 +134,43 @@ std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *b
         const auto extra = bundled->Families(true);
         families.insert(families.end(), extra.begin(), extra.end());
     }
-    std::map<std::string, std::string> names;
-    for (auto &family : families)
-    {
-        MMMovieTitle font;
-        mm_movie_title_init(&font, sizeof(achar));
-        if (mm_caption_edit_font(family.name.data(), family.name.size(), KauaiText::Services(), &font) != MM_CAPTION_EDIT_OK)
-            continue;
-        auto key = family.name;
-        for (auto &c : key)
-            if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
-        names.insert_or_assign(std::move(key), std::move(family.name));
-    }
-    std::vector<std::string> result;
-    result.reserve(names.size());
-    for (auto &entry : names)
-        result.push_back(std::move(entry.second));
-    return result;
+    if (!marcus_caption_catalog_fonts(&list, families.size(), &families,
+            [](const void *p, std::size_t index, std::size_t *bytes) {
+                const auto &name = (*static_cast<const std::vector<KauaiFonts::FamilyInfo> *>(p))[index].name;
+                *bytes = name.size();
+                return name.data();
+            }, KauaiText::Services(), sizeof(achar)))
+        throw std::bad_alloc();
 }
 
 void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &preview, MarcusCaptionList &list)
 {
     auto file = Open(path, MM_PRIVATE_ARCHIVE_READ);
-    const auto editor = mm_private_archive_editor(file.get());
-    MMSceneArchiveText *links;
-    MMU32 count;
-    CheckTextArchive(mm_scene_archive_list_text(&editor, list.scene, &links, &count));
-    const std::unique_ptr<MMSceneArchiveText, decltype(&mm_scene_archive_free_text_list)> owned(
-        links, mm_scene_archive_free_text_list);
-    for (MMU32 i = 0; i < count; ++i)
+    int detail;
+    const int status = marcus_caption_catalog_load(&list, file.get(), KauaiText::Services(), koskCur, &preview,
+        [](const void *p, MMU32 colour) -> MMU32 {
+            return static_cast<const MM::Preview *>(p)->PresentationColour(colour);
+        },
+        &detail);
+    switch (status)
     {
-        const auto &link = links[i];
-        MMTextChunk body;
-        MMTextBoxState box;
-        CaptionBody rich(file.get(), editor);
-        Require(mm_text_box_read(&box, link.number, &body, &editor) > 0 && rich.Read(body),
-                "Cannot read a native 2D text box.");
-        MMRichTextStream stream;
-        mm_rich_text_archive_stream(&stream, &rich.archive, &rich.state.text);
-        CheckCaptionEdit(mm_caption_edit_load_text(&stream.stream, KauaiText::Services(), rich.state.text_system,
-                                                   &rich.words));
-        const auto units = mm_caption_edit_normalize(rich.words.text, rich.words.count, 10);
-        auto text = ToUtf8(rich.words.text, units);
-        Require(text.size() < MARCUS_CAPTION_UTF8_CAPACITY && text.find('\0') == std::string::npos,
-                "This 2D text cannot fit in the editor.");
-        MarcusCaptionEntry entry{link.slot, link.number, {}, std::move(text)};
-        auto &v = entry.options;
-        MMCaptionEditOptions fields;
-        CheckCaptionEdit(mm_caption_edit_read_box(&box, list.firstFrame, list.lastFrame, &fields));
-        v.x = fields.x; v.y = fields.y;
-        v.width = fields.width; v.height = fields.height;
-        v.first_frame = fields.first; v.last_frame = fields.last;
-        v.through_end = fields.through_end; v.scrolling = fields.scrolling;
-        v.font_size = rich.state.defaults.height;
-        v.transparent = rich.state.defaults.background == Clear;
-        v.paper = v.transparent ? 0 : preview.PresentationColour(rich.state.defaults.background) & 0xffffffU;
-        const auto font = Font(rich.state);
-        Require(font.size() < sizeof(v.font), "The 2D text font name is too long.");
-        std::memcpy(v.font, font.c_str(), font.size() + 1);
-        const auto properties = static_cast<const MMTextCollection *>(rich.state.properties);
-        const auto rows = mm_text_collection_count(properties);
-        for (MMU32 i = 0; i < rows; ++i)
-        {
-            MMU32 property[2];
-            if (!mm_text_collection_property(properties, i, property) || (property[0] & 0xffffffU)) continue;
-            switch (property[0] >> 24)
-            {
-            case MM_CAPTION_STYLE: v.bold = (property[1] & 1) != 0; v.italic = (property[1] & 2) != 0; break;
-            case MM_CAPTION_FOREGROUND: v.ink = preview.PresentationColour(Rgb + property[1]) & 0xffffffU; break;
-            case MM_CAPTION_ALIGNMENT: v.alignment = property[1] >> 24; break;
-            }
-        }
-        list.entries.push_back(std::move(entry));
+    case MARCUS_CAPTION_CATALOG_OK: return;
+    case MARCUS_CAPTION_CATALOG_ARCHIVE: CheckTextArchive(detail); return;
+    case MARCUS_CAPTION_CATALOG_EDIT: CheckCaptionEdit(detail); return;
+    case MARCUS_CAPTION_CATALOG_MEMORY: throw std::bad_alloc();
+    case MARCUS_CAPTION_CATALOG_UTF8: throw std::runtime_error("Cannot encode the 2D text as UTF-8.");
+    case MARCUS_CAPTION_CATALOG_TEXT_LIMIT: throw std::runtime_error("This 2D text cannot fit in the editor.");
+    case MARCUS_CAPTION_CATALOG_FONT_LIMIT: throw std::runtime_error("The 2D text font name is too long.");
+    default: throw std::runtime_error("Cannot read a native 2D text box.");
     }
 }
 
 void MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
                         const MarcusCaptionOptions &options, const char *text, MMPreviewOwnedCaption &preview)
 {
-    const auto *entry = index < 0 ? nullptr : &list.entries.at(index);
+    const auto *entry = Entry(list, index);
     const auto value = CaptionInput(options, text);
-    const auto before = entry ? CaptionInput(entry->options, entry->text.c_str()) : MMCaptionEditInput{};
+    const auto before = entry ? CaptionInput(entry->options, entry->text) : MMCaptionEditInput{};
     MMCaptionEditPlan plan;
     CheckCaptionEdit(mm_caption_edit_plan(&value, entry ? &before : nullptr, 0, &plan));
     MMTextBoxState box{};
@@ -274,10 +212,10 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusCaptionList &list, int index,
     const MarcusCaptionOptions *options, const char *text)
 {
-    const auto *entry = index < 0 ? nullptr : &list.entries.at(index);
+    const auto *entry = Entry(list, index);
     MMCaptionEditPlan plan{};
     const auto value = text ? CaptionInput(*options, text) : MMCaptionEditInput{};
-    const auto before = entry ? CaptionInput(entry->options, entry->text.c_str()) : MMCaptionEditInput{};
+    const auto before = entry ? CaptionInput(entry->options, entry->text) : MMCaptionEditInput{};
     if (text)
     {
         const int status = mm_caption_edit_plan(&value, entry ? &before : nullptr, MARCUS_CAPTION_UTF8_CAPACITY, &plan);
@@ -288,7 +226,7 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
     auto copy = MarcusCopyMovie(path, origin);
     auto file = Open(copy->path, MM_PRIVATE_ARCHIVE_EDIT);
     const MMSceneArchiveText original{entry ? entry->slot : 0, entry ? entry->chunk : 0};
-    const MMCaptionArchiveChange edit{list.scene, list.firstFrame, list.lastFrame, entry ? &original : nullptr,
+    const MMCaptionArchiveChange edit{list.scene, list.first_frame, list.last_frame, entry ? &original : nullptr,
                                       text ? &plan : nullptr, KauaiText::Services()};
     int captionStatus;
     const int result = mm_caption_edit_private_archive(file.get(), &edit, &captionStatus);

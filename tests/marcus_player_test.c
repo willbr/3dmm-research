@@ -6,6 +6,7 @@
 #include "caption_raster.h"
 #include "caption_faces.h"
 #include "caption_scene.h"
+#include "caption_catalog.h"
 #include "playback_scene.h"
 #include "mm/scene_events.h"
 #include <stdio.h>
@@ -698,6 +699,34 @@ failed:
     return ok && !scene.mask_bytes && probe.available == probe.released;
 }
 
+static const char *caption_font_name(const void *p, size_t index, size_t *bytes)
+{
+    const char *name = ((const char *const *)p)[index];
+    *bytes = strlen(name);
+    return name;
+}
+
+static int check_caption_catalog(MarcusPlayer *player)
+{
+    const char *const names[] = {"Zulu", "ARIAL", "", "Arial Black", "\xc0\xaf", "Arial"};
+    MarcusCaptionList *list = marcus_caption_catalog_create(1, 2, -4, 7, -2);
+    MarcusCaptionOptions defaults;
+    int ok = 0;
+    CHECK(list && marcus_caption_count(list) == 0);
+    CHECK(marcus_caption(list, -1, &defaults) && defaults.first_frame == 3 && defaults.last_frame == 12);
+    CHECK(marcus_caption_catalog_fonts(list, sizeof(names) / sizeof(*names), names, caption_font_name, NULL, 2));
+    CHECK(list->font_count == 3 && !marcus_caption_font_name(list, 3));
+    CHECK(!strcmp(marcus_caption_font_name(list, 0), "Arial"));
+    CHECK(!strcmp(marcus_caption_font_name(list, 1), "Arial Black"));
+    CHECK(!strcmp(marcus_caption_font_name(list, 2), "Zulu"));
+    CHECK(marcus_caption_catalog_fonts(list, 0, NULL, caption_font_name, NULL, 2));
+    CHECK(list->font_count == 0 && !marcus_caption_font_name(list, 0));
+    ok = 1;
+failed:
+    marcus_captions_destroy(list);
+    return ok;
+}
+
 typedef struct PlaybackSceneProbe
 {
     MMPreviewCue actors[3], played[5];
@@ -834,6 +863,7 @@ int main(int argc, char **argv)
     CHECK(check_caption_rasters(player));
     CHECK(check_caption_faces(player));
     CHECK(check_caption_scene(player));
+    CHECK(check_caption_catalog(player));
     CHECK(check_playback_scene(player));
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
