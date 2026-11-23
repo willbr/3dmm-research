@@ -17,7 +17,6 @@ const MMFontOwnerHost *mm_kauai_font_host(void);
 void mm_kauai_font_missing_model(void *, MMU32 id);
 const MMModelOwnerHost *mm_kauai_model_host(void);
 const MMMaterialOwnerHost *mm_kauai_material_host(void);
-MMTextureOwner *mm_kauai_asset_texture_stream(const MMReadStream *);
 void mm_kauai_material_validate(MMMaterialOwner *);
 
 /* Bind the cache readers and renderer operations before exposing a host. */
@@ -45,6 +44,7 @@ int mm_brender_material_write_view(MMMaterialOwner *, const MMArchiveWriter *, M
 const MMMaterialShade *mm_brender_material_shade(void);
 int mm_brender_material_shade_take(MMTextureOwner *);
 int mm_brender_material_shade_stream(const MMReadStream *);
+int mm_brender_material_shade_chunk(MMResourceCache *, MMU32 type, MMU32 number);
 void mm_brender_material_shade_clear(void);
 
 int mm_brender_costume_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);

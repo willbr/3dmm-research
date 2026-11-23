@@ -23759,3 +23759,31 @@ Text Acid candidate `20261123T100127Z-eb48f6a2` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-actor-binding`.
+
+## C89 BRender texture binding (23 November 2026)
+
+Studio and Preview share the C89 texture binding for cached TMAP loads,
+shade tables, material imports and texture archive writes. The material
+loader and direct callers use the same cache reader identity. The native
+host supplies file, bitmap, codec, allocation and diagnostic callbacks.
+The Marcus and preview helper linker records show the C texture module.
+
+The texture and material traces matched the previous build byte for byte.
+The texture trace covered 22,000 bytes and the material trace covered
+102,316 bytes. A C consumer installed the retail shade table and saved
+and reread its native 20-byte TMAP header and 4,096 texture pixels.
+
+All 230 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks. The headless
+Marcus startup image matched the previous build.
+
+Actor Audio candidate `20261123T101231Z-28567826` matched baseline
+`20261123T100127Z-0d8e4d17` on all 60 seek canvases and scene states
+per port. Both ports matched the retained retail and V3DMM authored frame
+order in seek and playback.
+
+Text Acid candidate `20261123T101231Z-01082b61` matched baseline
+`20261123T100127Z-eb48f6a2` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-texture-binding`.

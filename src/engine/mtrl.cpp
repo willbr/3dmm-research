@@ -13,6 +13,7 @@
 #include "mm/template_runtime.h"
 #include "handle_services.h"
 #include "material_renderer.h"
+#include "texture_renderer.h"
 #include <cstring>
 static_assert(sizeof(MaterialOnFile) == 20 && sizeof(CustomMaterialOnFile) == 8 && sizeof(TXXFF) == 28,
               "material wire layouts");
@@ -30,7 +31,7 @@ void EngineMaterial::ReleaseShadeTable()
 bool EngineMaterial::SetShadeTable(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
     AssertPo(file, 0);
-    return mm_brender_material_shade_take(EngineTexture::FromFile(file, type, number)) != 0;
+    return mm_brender_material_shade_take(mm_brender_texture_from_chunk(file, type, number)) != 0;
 }
 
 bool EngineMaterial::SetShadeTable(const MMReadStream &stream)
@@ -40,9 +41,7 @@ bool EngineMaterial::SetShadeTable(const MMReadStream &stream)
 
 bool EngineMaterial::SetShadeTable(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    int read;
-    return mm_resource_cache_visit_payload(cache, type, number, KauaiDecodeBlockHandle, nullptr,
-        [](void *, const MMReadStream *stream) -> int { return SetShadeTable(*stream); }, nullptr, &read) == MM_CHUNK_OK && read;
+    return mm_brender_material_shade_chunk(cache, type, number) != 0;
 }
 
 PMaterial_MTRL EngineMaterial::New(LegacyLong base, LegacyLong range)
@@ -76,7 +75,7 @@ PMaterial_MTRL EngineMaterial::FromBitmap(PFilename file, PDynamicArray palette)
 {
     AssertPo(file, ffniFile);
 #ifdef DEBUG
-    EngineTexture::Validate(static_cast<PTextureMap>(mm_brender_material_shade()->texture));
+    mm_kauai_texture_validate(static_cast<MMTextureOwner *>(mm_brender_material_shade()->texture));
 #endif
     return mm_material_import(file, palette, 1, &Host());
 }
@@ -207,7 +206,7 @@ void EngineMaterial::Mark(MMMaterialOwner *owner)
 
 void EngineMaterial::MarkShadeTable()
 {
-    EngineTexture::Mark(static_cast<PTextureMap>(mm_brender_material_shade()->texture));
+    mm_brender_texture_mark(static_cast<MMTextureOwner *>(mm_brender_material_shade()->texture));
 }
 
 void EngineCostume::Validate(PCustomMaterial_CMTL costume)

@@ -5,6 +5,7 @@
 #include "model_renderer.h"
 #include "socdef.h"
 #include "template_renderer.h"
+#include "texture_renderer.h"
 
 using namespace BRender;
 
@@ -231,6 +232,101 @@ const MMModelOwnerHost *mm_kauai_model_host(void)
     return &host;
 }
 
+namespace
+{
+MMTextureServices TextureEffects()
+{
+    MMTextureServices s = {};
+    s.system = koskCur;
+    s.packed_signature = klwSigPackedFile;
+    s.unpacked_signature = klwSigUnpackedFile;
+    s.release_aux = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    s.allocate = [](void *, MMI32 n, int clear, void **out) -> int {
+        return FAllocPv(out, n, clear ? fmemClear : fmemNil, mprNormal);
+    };
+    s.free_memory = [](void *, void **p) { FreePpv(p); };
+    s.invalidate = [](void *, void *p, size_t n) { TrashPvCb(p, static_cast<LegacyLong>(n)); };
+    s.diagnostic = [](void *, int code) {
+        if (code == MM_TEXTURE_ORDER)
+            Assert(false, "bad TextureMapFile");
+        else if (code == MM_TEXTURE_PACK_SHRINK)
+            Assert(false, "HQ shrink failed");
+        else
+            Assert(false, "upside down bitmap");
+    };
+    s.payloads = KauaiChunkPayloadServices();
+    s.copy_allocator = KauaiCopyAllocator();
+    s.encode = [](void *, void **handle) -> int { return vpcodmUtil->FCompressPhq(handle, cfmtNil); };
+#ifndef MAC
+    s.read_bitmap = [](void *, void *filename, MMTextureBitmap *out) -> int {
+        byte *pixels = nullptr;
+        PDynamicArray palette = nullptr;
+        LegacyLong w, h;
+        bool upside;
+        if (!FReadBitmap(static_cast<PFilename>(filename), &pixels, &palette, &w, &h, &upside))
+            return 0;
+        *out = {pixels, palette, w, h, upside};
+        return 1;
+    };
+#else
+    s.read_bitmap = [](void *, void *, MMTextureBitmap *) -> int {
+        RawRtn();
+        return 0;
+    };
+#endif
+    s.palette_count = [](void *, void *p) -> MMI32 { return static_cast<PDynamicArray>(p)->IvMac(); };
+    s.palette_colour = [](void *, void *p, MMI32 i, MMTextureColour *out) {
+        Color c;
+        static_cast<PDynamicArray>(p)->Get(i, &c);
+        *out = {c.bRed, c.bGreen, c.bBlue};
+    };
+    s.create_file = [](void *, void *p) -> void * { return FileObject::PfilCreate(static_cast<PFilename>(p)); };
+    s.make_temporary = [](void *, void *p) { static_cast<PFileObject>(p)->SetTemp(); };
+    s.report = [](void *, void *p, int error) {
+        PZString message = error == MM_TEXTURE_FILE_CREATE   ? PszLit("Couldn't create destination file\n")
+                           : error == MM_TEXTURE_FILE_MEMORY ? PszLit("allocation failure\n")
+                                                                   : PszLit("writing to destination file failed\n");
+        static_cast<PMSNK>(p)->ReportLine(message);
+    };
+    return s;
+}
+} // namespace
+
+const MMTextureOwnerHost *mm_kauai_texture_host(void)
+{
+    struct Binding
+    {
+        MMBRenderTextureHost texture;
+        Binding()
+        {
+            const auto services = TextureEffects();
+            mm_brender_texture_host_init(&texture, &services, KauaiResourceObjectAllocator(),
+#ifdef DEBUG
+                                         [](void *memory) { MarkPv(memory); }
+#else
+                                         nullptr
+#endif
+            );
+        }
+    };
+    static const Binding binding;
+    return &binding.texture.owner;
+}
+
+void mm_kauai_texture_validate(MMTextureOwner *texture)
+{
+#ifdef DEBUG
+    Assert(texture, "Bad texture owner");
+    if (texture && !texture->texture.imported_owner)
+    {
+        const auto view = static_cast<PBPMP>(mm_brender_texture_view(texture));
+        AssertPvCb(view->pixels, LwMul(view->row_bytes, view->height));
+    }
+#else
+    (void)texture;
+#endif
+}
+
 const MMMaterialOwnerHost *mm_kauai_material_host(void)
 {
     static const auto services = [] {
@@ -257,17 +353,8 @@ const MMMaterialOwnerHost *mm_kauai_material_host(void)
             }
         };
         s.decode = KauaiDecodeBlockHandle;
-        s.texture_reader = EngineTexture::Read;
         s.allocate = [](void *, MMI32 bytes, void **out) -> int { return FAllocPv(out, bytes, fmemClear, mprNormal); };
         s.free_memory = [](void *, void **p) { FreePpv(p); };
-        s.write_texture = [](void *, void *texture, const MMChunkEdit *edit, const MMBlockFileServices *files,
-                             MMU32 type, MMU32 *number) -> int {
-            return EngineTexture::Write(static_cast<PTextureMap>(texture), *edit, files, type, number);
-        };
-        s.read_bitmap = [](void *, void *file, void *palette) -> void * {
-            return EngineTexture::FromBitmap(static_cast<PFilename>(file), static_cast<PDynamicArray>(palette));
-        };
-        s.wrap_pixelmap = [](void *, void *p) -> void * { return EngineTexture::Wrap(static_cast<PBPMP>(p)); };
         return s;
     }();
     static const MMMaterialOwnerHost host = {
@@ -275,7 +362,7 @@ const MMMaterialOwnerHost *mm_kauai_material_host(void)
 #ifdef DEBUG
         [](void *p) { MarkPv(p); },
         mm_resource_cache_mark,
-        [](void *p) { EngineTexture::Mark(static_cast<PTextureMap>(p)); },
+        [](void *p) { mm_brender_texture_mark(static_cast<MMTextureOwner *>(p)); },
         [](void *p) {
             const auto owner = static_cast<MMModelOwner *>(p);
             const auto handle = mm_model_owner_resource(owner)->handle;
@@ -289,11 +376,6 @@ const MMMaterialOwnerHost *mm_kauai_material_host(void)
     return &host;
 }
 
-MMTextureOwner *mm_kauai_asset_texture_stream(const MMReadStream *stream)
-{
-    return EngineTexture::FromStream(*stream);
-}
-
 void mm_kauai_material_validate(MMMaterialOwner *owner)
 {
 #ifdef DEBUG
@@ -302,7 +384,7 @@ void mm_kauai_material_validate(MMMaterialOwner *owner)
     if (valid)
         if (auto texture = mm_material_texture(mm_material_owner_resource(owner), mm_kauai_material_host()->services))
         {
-            EngineTexture::Validate(static_cast<PTextureMap>(texture));
+            mm_kauai_texture_validate(static_cast<MMTextureOwner *>(texture));
             Assert(mm_brender_material_shade()->texture != nullptr, "Textured material needs a shade table");
         }
 #else

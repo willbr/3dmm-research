@@ -1164,6 +1164,7 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
         "${PROJECT_SOURCE_DIR}/bren/asset_resources.c"
         "${PROJECT_SOURCE_DIR}/bren/template_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/preview_actor_renderer.c"
+        "${PROJECT_SOURCE_DIR}/bren/texture_runtime.c"
         "${PROJECT_SOURCE_DIR}/bren/background_renderer.c"
         "${PROJECT_SOURCE_DIR}/libraries/archive/src/preview_draft.c")
   add_test(NAME kauai-movie-sound-c89-syntax
@@ -1186,6 +1187,7 @@ target_sources(brender-core
     "${PROJECT_SOURCE_DIR}/bren/asset_resources.c"
     "${PROJECT_SOURCE_DIR}/bren/template_renderer.c"
     "${PROJECT_SOURCE_DIR}/bren/preview_actor_renderer.c"
+    "${PROJECT_SOURCE_DIR}/bren/texture_runtime.c"
     "${PROJECT_SOURCE_DIR}/bren/background_renderer.c"
     "${PROJECT_SOURCE_DIR}/bren/background_host.cpp"
     "${PROJECT_SOURCE_DIR}/bren/asset_host.cpp"

@@ -7,7 +7,7 @@
 *************************************************************************/
 #ifndef TMAP_H
 #define TMAP_H
-#include "mm/texture_resource.h"
+#include "texture_renderer.h"
 
 namespace BRender
 {
@@ -48,7 +48,8 @@ const ByteOrderMask kbomTxxff = 0x5FFF0000;
 using PTextureMap = MMTextureOwner *;
 namespace EngineTexture
 {
-int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+// Share the cache key with material and Preview loads.
+static constexpr auto &Read = mm_brender_texture_read;
 PTextureMap FromFile(PChunkyFile, ChunkTagOrType, ChunkNumber);
 PTextureMap FromStream(const MMReadStream &);
 PTextureMap FromBitmap(PFilename, PDynamicArray palette = nullptr);

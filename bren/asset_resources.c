@@ -103,6 +103,25 @@ static void *texture_pixelmap(void *context, void *texture)
     return mm_brender_texture_view(texture);
 }
 
+static int write_texture(void *context, void *texture, const MMChunkEdit *edit, const MMBlockFileServices *files,
+                         MMU32 type, MMU32 *number)
+{
+    (void)context;
+    return mm_brender_texture_write_chunk(texture, edit, files, type, number);
+}
+
+static void *read_bitmap(void *context, void *filename, void *palette)
+{
+    (void)context;
+    return mm_brender_texture_from_bitmap(filename, palette);
+}
+
+static void *wrap_pixelmap(void *context, void *pixelmap)
+{
+    (void)context;
+    return mm_brender_texture_wrap(pixelmap);
+}
+
 static void *input_material(void *context, const void *input, MMI32 index)
 {
     (void)context;
@@ -130,6 +149,10 @@ void mm_brender_asset_material_bind(MMMaterialServices *s, int debug)
     }
     mm_brender_material_services(s);
     s->texture_objects = mm_texture_owner_services();
+    s->texture_reader = mm_brender_texture_read;
+    s->write_texture = write_texture;
+    s->read_bitmap = read_bitmap;
+    s->wrap_pixelmap = wrap_pixelmap;
     s->material_reader = mm_brender_material_read;
     s->material_objects = mm_material_owner_services();
     s->model_reader = mm_brender_model_read;
@@ -186,7 +209,21 @@ int mm_brender_material_shade_take(MMTextureOwner *texture)
 
 int mm_brender_material_shade_stream(const MMReadStream *stream)
 {
-    return mm_brender_material_shade_take(mm_kauai_asset_texture_stream(stream));
+    return mm_brender_material_shade_take(mm_brender_texture_from_stream(stream));
+}
+
+static int read_shade(void *context, const MMReadStream *stream)
+{
+    (void)context;
+    return mm_brender_material_shade_stream(stream);
+}
+
+int mm_brender_material_shade_chunk(MMResourceCache *cache, MMU32 type, MMU32 number)
+{
+    const MMChunkPayloadServices *payloads = mm_kauai_texture_host()->services->payloads;
+    int read;
+    return mm_resource_cache_visit_payload(cache, type, number, payloads->decode, payloads->decode_context,
+                                           read_shade, NULL, &read) == MM_CHUNK_OK && read;
 }
 
 void mm_brender_material_shade_clear(void)
