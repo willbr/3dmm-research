@@ -197,8 +197,7 @@ struct Preview::Impl::AdmissionHost
                 std::unique_ptr<Internal::PreviewActor> actor(new Internal::PreviewActor);
                 auto impl = h.impl;
                 bool ok = actor->Load(
-                    h.sceneSource.graph, number, [impl](const TAGOnFile &tag) { return impl->Resolve(tag); },
-                    [impl](PTemplate t) { impl->BindTemplate(t); }, impl->live.draw_clock);
+                    h.sceneSource.graph, number, impl->ActorResources(), impl->live.draw_clock);
                 *out = actor.release();
                 return ok;
             });

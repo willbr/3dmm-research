@@ -23727,3 +23727,35 @@ Text Acid candidate `20261123T094907Z-974fb352` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-runtime-archive`.
+
+## C89 Preview actor binding (23 November 2026)
+
+The C89 BRender binding loads actor headers, routes and events from the
+movie graph and creates stationary props with the native fixed-point
+placement. It connects the shared actor evaluator and edit replay to
+templates, bodies, materials and costumes. The Preview host supplies
+document resource resolution, text font binding, and diagnostics.
+
+A C89 probe loaded the route and event tables from a saved actor,
+propagated a failed template lookup, and released both tables. The same
+probe verified resolver status and signed fixed-point prop placement.
+The headless edit fixtures passed, and the saved animation, costumed
+prop, and copied 3D text archives matched the previous build byte for
+byte. The Preview admission, live scene and metadata traces also matched.
+
+All 228 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed, including 13 strict C89 checks in the native selection. After a
+temporary archive creation failure in the parallel run, the masked-bitmap
+fixture passed three isolated runs and the full native selection passed
+serially. The headless Marcus startup image matched the previous build.
+
+Actor Audio candidate `20261123T100127Z-0d8e4d17` matched baseline
+`20261123T094907Z-fb9ff924` on all 60 seek canvases and scene states
+per port. Both ports matched the retained retail and V3DMM authored frame
+order in seek and playback.
+
+Text Acid candidate `20261123T100127Z-eb48f6a2` matched baseline
+`20261123T094907Z-974fb352` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-actor-binding`.

@@ -9,6 +9,7 @@ struct PreviewActor::TimelineHost
     int failure = 0;
     std::map<LegacyLong, std::string> names;
     MMActorEffectRenderer renderer;
+    MMBRenderPreviewActor binding = {};
     template <class F> int Guard(F f)
     {
         try
@@ -105,18 +106,11 @@ struct PreviewActor::TimelineHost
                       "Preview marker kinds");
         MMPreviewTimelineServices s = {};
         s.context = this;
-        s.timeline.context = this;
-        s.timeline.motion = EngineActorMotion::Services();
-        s.timeline.diagnostic = EngineActorTimeline::Diagnostic;
-        s.timeline.resolve = [](void *v, MMI32 action, MMI32 cel, MMI32 *out) -> int {
-            auto &h = *static_cast<TimelineHost *>(v);
-            return h.Guard([&] { return mm_brender_template_distance(h.actor->Ptmpl(), action, cel, out); }) > 0;
-        };
+        binding.actor = &actor->core;
+        binding.diagnostic = EngineActorTimeline::Diagnostic;
+        mm_brender_preview_timeline_services(&binding, &renderer, &s);
         s.reset = [](void *v) { *static_cast<TimelineHost *>(v)->output = {}; };
         s.fault = [](void *v) { return static_cast<TimelineHost *>(v)->failure; };
-        s.tags = mm_tag_local_cache_services();
-        mm_brender_actor_effect_renderer(&renderer);
-        s.renderer = &renderer;
         s.marker = [](void *v, const MMPreviewMarker *e) -> int {
             auto &h = *static_cast<TimelineHost *>(v);
             return h.Guard([&] {

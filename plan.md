@@ -1918,7 +1918,12 @@ Live definition/actor ownership, reconciliation and timeline editing/seeking
 control are now C89 as well. Dependency budgets, asset/scene selection, template
 action/rest-pose control, pose validation and geometry counts now use C89 too.
 PreviewActor state/resource ownership and load/create/frame/seek/placement control
-now use C89 as well. Preview source registration/resolution, session replacement/
+now use C89 as well. The C89 BRender actor binding reads ACTR, PATH and GGAE
+through the shared movie graph, builds stationary props, and connects the
+same template, costume, material and body operations to seeks and metadata
+replay. Preview supplies the resource lookup and font binding for its
+session and formats the public presentation records.
+Preview source registration/resolution, session replacement/
 setup and runtime-lease/source/cache ownership now also use C89. Typed resource/
 track/archive/path providers remain. Actor timeline replay/span/event control,
 scene cue traversal, actor-cue mapping and stable ordering now also use C89.

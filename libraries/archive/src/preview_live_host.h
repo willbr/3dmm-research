@@ -72,19 +72,9 @@ struct Preview::Impl::LiveHost
             auto &h = *static_cast<LiveHost *>(v);
             try
             {
-                PreviewPropDefinition d;
-                d.scene = p->scene;
-                d.number = p->number;
-                d.templateNumber = p->template_number;
-                d.source = p->source;
-                d.actorId = p->actor_id;
-                d.first = p->first;
-                d.last = p->last;
-                std::copy(p->point, p->point + 3, d.point);
                 auto impl = h.impl;
                 return static_cast<Internal::PreviewActor *>(a)->Create(
-                    d, [impl](const TAGOnFile &tag) { return impl->Resolve(tag); },
-                    [impl](PTemplate value) { impl->BindTemplate(value); }, impl->live.draw_clock);
+                    *p, impl->ActorResources(), impl->live.draw_clock);
             }
             catch (...)
             {

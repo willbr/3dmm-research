@@ -12,7 +12,6 @@
 #include <cmath>
 #include <cstring>
 #include <exception>
-#include <functional>
 #include <limits>
 #include <map>
 #include <utility>
@@ -163,6 +162,18 @@ struct Preview::Impl
     }
     MMResourceCache *Resolve(const TAGOnFile &tag);
     bool ResolveGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph);
+    Internal::PreviewActor::Resources ActorResources()
+    {
+        return {
+            this,
+            [](void *p, MMI32 source, MMU32 type, MMU32 number) {
+                return static_cast<Impl *>(p)->Resolve({source, 0, type, number});
+            },
+            [](void *p, const MMTag &tag, MMMovieSessionGraph &graph) {
+                return static_cast<Impl *>(p)->ResolveGraph({tag.sid, 0, tag.type, tag.number}, graph);
+            },
+            [](void *p, MMTemplateOwner *tmpl) { static_cast<Impl *>(p)->BindTemplate(tmpl); }};
+    }
     void DescribeMissingResource(const TAGOnFile &tag);
     void PublishGeometry()
     {
@@ -348,11 +359,8 @@ bool Preview::WriteObjectAnimationRequest(int object, const MMActorAnimation &ed
                                           int &lastActorFrame, int &lastEditedFrame, Error &error)
 {
     error = {};
-    const auto resolveSound = [this](const TAGOnFile &tag, MMMovieSessionGraph &out) {
-        return _impl->ResolveGraph(tag, out);
-    };
     return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() &&
-            _impl->actors[object]->WriteAnimation(edit, path, lastActorFrame, lastEditedFrame, resolveSound)) ||
+            _impl->actors[object]->WriteAnimation(edit, path, lastActorFrame, lastEditedFrame)) ||
         Fail(error, ErrorCode::decode_failed, "Cannot apply the animation edit. Check the action and path bounds.");
 }
 bool Preview::WriteObjectCostumes(int object, const std::vector<PreviewCostume> &values, const std::string &path, Error &error)
@@ -441,7 +449,7 @@ bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32
 {
     error = {};
     return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() &&
-        _impl->actors[object]->SetTextTemplate(source, number, [this](PTemplate value) { _impl->BindTemplate(value); })) ||
+        _impl->actors[object]->SetTextTemplate(source, number)) ||
         Fail(error, ErrorCode::decode_failed, "Cannot change this 3D text template.");
 }
 

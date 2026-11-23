@@ -10,8 +10,8 @@
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
 #include "handle_services.h"
-#include "mm/preview_actor_edit.h"
-#include "mm/preview_metadata.h"
+#include "mm/preview_live.h"
+#include "preview_actor_renderer.h"
 #include "preview_draft_host.h"
 #undef size
 ASSERTNAME
@@ -21,7 +21,79 @@ namespace MM
 {
 namespace Internal
 {
-#include "preview_actor_host.h"
+// Adapt document-specific resource resolution and diagnostics to the C binding.
+struct PreviewActor::Host
+{
+    PreviewActor *actor;
+    const MMMovieSessionGraph *graph = nullptr;
+    std::exception_ptr exception;
+    int failure = 0;
+    MMStorageAllocator trackAllocator = CollectionAllocator();
+    MMBRenderPreviewActor binding = {};
+
+    template <class F> int Guard(F f)
+    {
+        try
+        {
+            return f();
+        }
+        catch (const std::bad_alloc &)
+        {
+            exception = std::current_exception();
+            return failure = -1;
+        }
+        catch (...)
+        {
+            exception = std::current_exception();
+            return failure = -2;
+        }
+    }
+    bool Result(int result)
+    {
+        if (exception)
+            std::rethrow_exception(exception);
+        if (result == -1)
+            throw std::bad_alloc();
+        return result > 0;
+    }
+    MMBRenderPreviewActor *Binding()
+    {
+        binding.actor = &actor->core;
+        binding.graph = graph;
+        binding.track_allocator = &trackAllocator;
+        binding.trash_unused = DebugShip(1, 0);
+        binding.context = this;
+        binding.resolve = [](void *p, MMI32 source, MMU32 type, MMU32 number) -> MMResourceCache * {
+            auto &h = *static_cast<Host *>(p);
+            MMResourceCache *cache = nullptr;
+            h.Guard([&] {
+                const auto &resources = h.actor->resources;
+                cache = resources.resolve(resources.context, source, type, number);
+                return cache != nullptr;
+            });
+            return cache;
+        };
+        if (actor->resources.bind)
+            binding.bind = [](void *p, MMTemplateOwner *tmpl) -> int {
+                auto &h = *static_cast<Host *>(p);
+                return h.Guard([&] {
+                    const auto &resources = h.actor->resources;
+                    resources.bind(resources.context, tmpl);
+                    return 1;
+                });
+            };
+        binding.fault = [](void *p) { return static_cast<Host *>(p)->failure; };
+        binding.diagnostic = EngineActorTimeline::Diagnostic;
+        return &binding;
+    }
+    MMPreviewActorServices Services()
+    {
+        MMPreviewActorServices services;
+        mm_brender_preview_actor_services(Binding(), &services);
+        return services;
+    }
+};
+
 #include "preview_timeline_host.h"
 PreviewActor::~PreviewActor()
 {
@@ -30,37 +102,17 @@ PreviewActor::~PreviewActor()
     mm_preview_actor_dispose(&core, &services);
 }
 bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
-                        std::function<MMResourceCache *(const TAGOnFile &)> resolver,
-                        std::function<void(PTemplate)> bindTemplate, MMWide &drawClock)
+                        const Resources &provider, MMWide &drawClock)
 {
-    core.draw_clock = &drawClock;
-    resolve = resolver;
-    Host host = {this, &graph, &bindTemplate};
-    auto services = host.Services();
-    MMChunkAccess chunks;
-    graph.access(graph.context, &chunks);
-    return host.Result(mm_preview_actor_load(&core, number, &chunks, 0, &services));
+    resources = provider;
+    Host host = {this, &graph};
+    return host.Result(mm_brender_preview_actor_load(&core, number, &drawClock, host.Binding()));
 }
-bool PreviewActor::Create(const PreviewPropDefinition &definition,
-                          std::function<MMResourceCache *(const TAGOnFile &)> resolver,
-                          std::function<void(PTemplate)> bindTemplate, MMWide &drawClock)
+bool PreviewActor::Create(const MMPreviewLiveProp &definition, const Resources &provider, MMWide &drawClock)
 {
-    resolve = std::move(resolver);
-    core.draw_clock = &drawClock;
-    MMPreviewActorDefinition d = {};
-    d.number = definition.number;
-    d.header.order = kboCur;
-    d.header.system = koskCur;
-    d.header.actor_id = definition.actorId;
-    d.header.first_frame = definition.first;
-    d.header.last_frame = definition.last;
-    d.header.source_id = definition.source;
-    d.header.template_type = kctgTmpl;
-    d.header.template_number = definition.templateNumber;
-    std::copy(definition.point, definition.point + 3, d.point);
-    Host host = {this, nullptr, &bindTemplate};
-    auto services = host.Services();
-    return host.Result(mm_preview_actor_create(&core, &d, &services));
+    resources = provider;
+    Host host = {this};
+    return host.Result(mm_brender_preview_prop_create(&core, &definition, kboCur, koskCur, &drawClock, host.Binding()));
 }
 
 bool PreviewActor::Text(PreviewObjectText &out) const
@@ -87,17 +139,11 @@ bool PreviewActor::SetTextMaterial(std::int32_t source, std::uint32_t number)
     const auto services = host.Services();
     return host.Result(mm_preview_actor_set_material(&core, source, number, &services));
 }
-bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate)
+bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number)
 {
-    Host host = {this, nullptr, &bindTemplate};
+    Host host = {this};
     const auto services = host.Services();
     return host.Result(mm_preview_actor_replace_template(&core, source, number, &services));
-}
-
-static MMPreviewCostumeCatalog CostumeCatalog()
-{
-    return {&mm_kauai_body_renderer()->edit.runtime, mm_brender_template_costume_count,
-            mm_brender_template_costume_id, mm_brender_template_costume, mm_brender_template_is_accessory};
 }
 
 static MMPreviewCostumeEdits CostumeEdits(const std::vector<PreviewCostume> &values)
@@ -116,7 +162,7 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
         std::exception_ptr exception;
     } host = {out, {}};
     out.clear();
-    const auto catalog = CostumeCatalog();
+    const auto catalog = mm_brender_preview_actor_costumes();
     const int result = mm_preview_actor_costumes(&core, &catalog, &host,
         [](void *context, const MMPreviewCostumeEntry *entry) -> int {
             auto &h = *static_cast<Host *>(context);
@@ -179,7 +225,7 @@ int PreviewActor::RenderCostumes(const std::vector<PreviewCostume> &values, MMI3
 {
     Host host = {this};
     const auto services = host.Services();
-    const auto catalog = CostumeCatalog();
+    const auto catalog = mm_brender_preview_actor_costumes();
     const auto edits = CostumeEdits(values);
     const int result = mm_preview_actor_costume_render(&core, set, &edits, &catalog, &services, &view);
     if (host.exception)
@@ -189,10 +235,10 @@ int PreviewActor::RenderCostumes(const std::vector<PreviewCostume> &values, MMI3
 struct PreviewActor::DraftHost : PreviewActor::Host
 {
     const std::string &path;
-    const SoundGraphResolver *resolveSound;
+    bool readSound;
 
-    DraftHost(PreviewActor *actor, const std::string &path, const SoundGraphResolver *resolveSound = nullptr)
-        : Host{actor}, path(path), resolveSound(resolveSound) {}
+    DraftHost(PreviewActor *actor, const std::string &path, bool readSound = false)
+        : Host{actor}, path(path), readSound(readSound) {}
 
     MMPreviewActorEditServices EditServices(const MMPreviewActorServices &playback)
     {
@@ -210,15 +256,15 @@ struct PreviewActor::DraftHost : PreviewActor::Host
                                                      &profile, kctgSoc, track, withRoute) != 0;
             });
         };
-        if (resolveSound)
+        if (readSound)
             s.sound_graph = [](void *p, const MMTag *tag, MMMovieSessionGraph *out) -> int {
                 auto &h = *static_cast<DraftHost *>(p);
                 return h.Guard([&] {
-                    return (*h.resolveSound)({tag->sid, 0, tag->type, tag->number}, *out);
+                    const auto &resources = h.actor->resources;
+                    return resources.graph(resources.context, *tag, *out);
                 });
             };
-        s.template_sound = mm_brender_template_sound;
-        s.distance = [](const MMActorPoint *point) -> MMI32 { return BR_LENGTH3(point->dxr, point->dyr, point->dzr); };
+        mm_brender_preview_actor_edit_services(&s);
         return s;
     }
 };
@@ -228,15 +274,15 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
     DraftHost host(this, path);
     const auto playback = host.Services();
     const auto services = host.EditServices(playback);
-    const auto catalog = CostumeCatalog();
+    const auto catalog = mm_brender_preview_actor_costumes();
     const auto edits = CostumeEdits(values);
     return host.Result(mm_preview_actor_write_costumes(&core, &edits, &catalog, &services));
 }
 
 bool PreviewActor::WriteAnimation(const MMActorAnimation &edit, const std::string &path,
-                                  int &lastActorFrame, int &lastEditedFrame, const SoundGraphResolver &resolveSound)
+                                  int &lastActorFrame, int &lastEditedFrame)
 {
-    DraftHost host(this, path, &resolveSound);
+    DraftHost host(this, path, true);
     const auto playback = host.Services();
     const auto services = host.EditServices(playback);
     MMActorAnimationRange range;
@@ -250,22 +296,7 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
 {
     Host host = {this};
     const auto services = host.Services();
-    const MMPreviewEventReplacement edit = {
-        &host,
-        [](void *p, MMI32 source, MMU32 type, MMU32 number, MMResourceCache **out) -> int {
-            auto &input = *static_cast<Host *>(p);
-            return input.Guard([&] {
-                const TAGOnFile tag = {source, 0, type, number};
-                auto cache = input.actor->resolve(tag);
-                if (!cache)
-                    return false;
-                *out = cache;
-                return true;
-            });
-        },
-        nullptr,
-        KauaiDecodeBlockHandle};
-    return host.Result(mm_preview_actor_replace_track(&core, source, &edit, &services));
+    return host.Result(mm_brender_preview_actor_replace_events(&core, source, KauaiDecodeBlockHandle, &services));
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {

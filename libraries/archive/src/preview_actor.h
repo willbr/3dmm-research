@@ -1,10 +1,11 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_PREVIEW_ACTOR_H
 #define MM_PREVIEW_ACTOR_H
-#include <functional>
 #include "mm/preview.h"
 #include "soc_core.h"
 #include "mm/preview_actor.h"
+
+struct MMPreviewLiveProp;
 
 namespace MM
 {
@@ -13,13 +14,23 @@ namespace Internal
 // Engine adapter for the pure frame/pose evaluators. No Studio, World or audio.
 class PreviewActor
 {
+  public:
+    struct Resources
+    {
+        void *context;
+        MMResourceCache *(*resolve)(void *, MMI32 source, MMU32 type, MMU32 number);
+        bool (*graph)(void *, const MMTag &, MMMovieSessionGraph &);
+        void (*bind)(void *, MMTemplateOwner *);
+    };
+
+  private:
     struct Host;
     struct TimelineHost;
     struct DraftHost;
     MMPreviewActor core;
     MMActorTrack Track() const { return mm_preview_actor_track(&core); }
     PTemplate Ptmpl() const { return static_cast<PTemplate>(core.tmpl); }
-    std::function<MMResourceCache *(const TAGOnFile &)> resolve;
+    Resources resources = {};
     std::string ActionName(LegacyLong action) const;
 
   public:
@@ -33,11 +44,8 @@ class PreviewActor
         return &static_cast<const PreviewActor *>(handle)->core;
     }
     ~PreviewActor();
-    bool Load(const MMMovieSessionGraph &, ChunkNumber number,
-              std::function<MMResourceCache *(const TAGOnFile &)> resolver,
-              std::function<void(PTemplate)> bindTemplate, MMWide &drawClock);
-    bool Create(const PreviewPropDefinition &, std::function<MMResourceCache *(const TAGOnFile &)> resolver,
-                std::function<void(PTemplate)> bindTemplate, MMWide &drawClock);
+    bool Load(const MMMovieSessionGraph &, ChunkNumber number, const Resources &, MMWide &drawClock);
+    bool Create(const MMPreviewLiveProp &, const Resources &, MMWide &drawClock);
     bool Seek(LegacyLong frame);
     bool Translate(const float delta[3], MMPreviewOrbit &, MMI32 object);
     bool SetOffset(const float offset[3], MMPreviewOrbit &, MMI32 object);
@@ -50,13 +58,12 @@ class PreviewActor
     LegacyLong ActionCelCount(LegacyLong action) const;
     int RenderAction(LegacyLong action, LegacyLong cel, float *clip, int *clipValid, const MMPreviewIsolatedView &);
     int RenderCostumes(const std::vector<PreviewCostume> &, MMI32 set, const MMPreviewIsolatedView &);
-    using SoundGraphResolver = std::function<bool(const TAGOnFile &, MMMovieSessionGraph &)>;
     bool WriteAnimation(const MMActorAnimation &, const std::string &path, int &lastActorFrame,
-                        int &lastEditedFrame, const SoundGraphResolver &);
+                        int &lastEditedFrame);
     bool WriteCostumes(const std::vector<PreviewCostume> &, const std::string &path);
     bool SetEventTrack(std::int32_t source);
     bool SetTextMaterial(std::int32_t source, std::uint32_t number);
-    bool SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate);
+    bool SetTextTemplate(std::int32_t source, std::uint32_t number);
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;
     bool Visible() const
     {
