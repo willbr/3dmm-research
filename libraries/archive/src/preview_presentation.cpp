@@ -1,4 +1,5 @@
 #include <codecvt>
+#include <cstring>
 #include <locale>
 #include <memory>
 #include <utility>
@@ -18,22 +19,6 @@ namespace Internal
 {
 namespace
 {
-std::string FontName(String &name)
-{
-    auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
-    auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
-    std::u16string text(count, 0);
-    if (count)
-        KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding,
-                           reinterpret_cast<std::uint16_t *>(&text[0]), count);
-    return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
-}
-int CaptionUtf16(const void *bytes, MMU32 size, int encoding, unsigned short *out, MMU32 capacity, MMU32 *count)
-{
-    *count = static_cast<MMU32>(
-        KauaiText::ToUtf16(bytes, size, static_cast<KauaiText::Encoding>(encoding), out, capacity));
-    return 1;
-}
 template <class F> int StoreCaption(std::exception_ptr &exception, F effect)
 {
     try { return effect(); }
@@ -41,53 +26,28 @@ template <class F> int StoreCaption(std::exception_ptr &exception, F effect)
 }
 struct CaptionCodec
 {
-    String font;
-    std::string converted;
+    MMPreviewCaptionText text{};
     std::exception_ptr exception;
 
     MMPreviewCaptionCodec Services()
     {
-        return {this,
-            [](void *p, const MMReadStream *stream, MMU32 offset) {
-                auto &host = *static_cast<CaptionCodec *>(p);
-                return StoreCaption(host.exception, [&] {
-                    unsigned char bytes[kcbMaxDataStn];
-                    const auto length = stream->length - offset;
-                    const bool read = length <= sizeof(bytes) && mm_read_exact(stream, offset, bytes, length);
-                    host.font.FSetData(bytes, read ? static_cast<LegacyLong>(length) : 0);
-                    return 1;
-                });
-            },
-            [](void *p, const void *wire, MMU32 bytes, MMCaptionFont *out) {
-                auto &host = *static_cast<CaptionCodec *>(p);
-                return StoreCaption(host.exception, [&] {
-                    if (wire)
-                    {
-                        String property;
-                        if (!property.FSetData(const_cast<void *>(wire), bytes))
-                            return 0;
-                        host.converted = FontName(property);
-                    }
-                    else
-                        host.converted = FontName(host.font);
-                    *out = {host.converted.data(), host.converted.size()};
-                    return 1;
-                });
-            },
-            [](void *p, const void *bytes, MMU32 size, int encoding, unsigned short *out, MMU32 capacity, MMU32 *count) {
-                auto &host = *static_cast<CaptionCodec *>(p);
-                return StoreCaption(host.exception, [&] { return CaptionUtf16(bytes, size, encoding, out, capacity, count); });
-            },
-            [](void *p, const MMMovieTitle *title, MMCaptionFont *out) {
-                auto &host = *static_cast<CaptionCodec *>(p);
-                return StoreCaption(host.exception, [&] {
-                    String font;
-                    font.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(title))), title->count);
-                    host.converted = FontName(font);
-                    *out = {host.converted.data(), host.converted.size()};
-                    return 1;
-                });
-            }};
+        text.context = this;
+        text.bad_string = [](void *) { PushErc(ercStnRead); Warn("bad String data"); };
+        text.malformed_font = [](void *p, const unsigned short *units, std::size_t count, char *out,
+                                  std::size_t capacity, std::size_t *written) {
+            auto &host = *static_cast<CaptionCodec *>(p);
+            return StoreCaption(host.exception, [&] {
+                const std::u16string name(units, units + count);
+                const auto bytes = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(name);
+                if (bytes.size() > capacity)
+                    return 0;
+                std::memcpy(out, bytes.data(), bytes.size());
+                *written = bytes.size();
+                return 1;
+            });
+        };
+        return mm_preview_caption_text_codec(&text, sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac),
+                                             KauaiText::Services());
     }
 };
 

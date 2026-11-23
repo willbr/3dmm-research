@@ -57,7 +57,7 @@ static MMStringWire title_wire(const MMMovieTitle *t, const MMChunkTitleIO *io, 
     wire.convert = io->convert;
     return wire;
 }
-void mm_movie_title_read_wire(MMMovieTitle *t, const void *bytes, MMU32 size, const MMChunkTitleIO *io)
+int mm_movie_title_read_wire(MMMovieTitle *t, const void *bytes, MMU32 size, const MMChunkTitleIO *io)
 {
     unsigned short counted[MM_STRING_MAX + 2];
     MMStringWire wire = title_wire(t, io, counted);
@@ -67,12 +67,12 @@ void mm_movie_title_read_wire(MMMovieTitle *t, const void *bytes, MMU32 size, co
         mm_string_wire_read(&wire, &stream.stream, 0, NULL))
     {
         count = t->unit == 1 ? *(const unsigned char *)counted : counted[0];
-        mm_movie_title_set(t, (const unsigned char *)counted + t->unit, count);
-        return;
+        return mm_movie_title_set(t, (const unsigned char *)counted + t->unit, count);
     }
     if (io->bad_string)
         io->bad_string(io->context);
     mm_movie_title_set(t, NULL, 0);
+    return 0;
 }
 void mm_chunk_title_read(MMMovieTitle *t, void *file, MMU32 type, MMU32 number, const MMChunkTitleIO *io)
 {

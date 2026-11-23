@@ -23500,3 +23500,26 @@ retained retail and V3DMM captures `20261122T033140Z-2abe2197` and
 `20261122T033233Z-5e23a412`. These captures cover authored playback.
 The draft comparison runs through the Marcus player API. Evidence is under
 `tmp/c89-caption-preview`.
+
+## C89 caption text and font codec (23 November 2026)
+
+The C89 codec reads counted font names for authored boxes and inline font
+properties, and encodes the default font of a prepared draft. It preserves
+empty default names and rejects malformed inline name records. The native
+bridge supplies code-page conversion, string diagnostics and the platform's
+existing malformed UTF-16 fallback.
+
+The C89 media test covers alternate stored encodings, empty and invalid
+wire names, supplementary Unicode and the malformed-font callback. The
+1,275-byte native media trace matched the previous build byte for byte,
+including caption text, inline fonts and the failure cases.
+
+All 228 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed. The native suite includes the 13 strict C89 checks. The headless
+Marcus startup image matched the previous build.
+
+Text Acid candidate `20261123T010747Z-01f74be0` matched baseline
+`20261123T005833Z-75e41996` on all 240 seek canvases and caption and camera
+states per port. Seek and continuous playback frame order matched retained
+retail and V3DMM captures `20261122T033140Z-2abe2197` and
+`20261122T033233Z-5e23a412`. Evidence is under `tmp/c89-caption-codec`.

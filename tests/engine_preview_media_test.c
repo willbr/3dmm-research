@@ -368,6 +368,63 @@ static void edited_caption_collections(void)
     }
 }
 
+typedef struct CaptionTextProbe
+{
+    int bad_names, malformed_fonts;
+} CaptionTextProbe;
+
+static void bad_caption_name(void *p)
+{
+    ++((CaptionTextProbe *)p)->bad_names;
+}
+
+static int malformed_caption_font(void *p, const unsigned short *units, size_t count, char *out,
+                                  size_t capacity, size_t *written)
+{
+    assert(count == 1 && units[0] == 0xd83d && capacity);
+    ++((CaptionTextProbe *)p)->malformed_fonts;
+    *out = '?';
+    *written = 1;
+    return 1;
+}
+
+static void caption_text_codec(void)
+{
+    const unsigned char ansi[] = {0, 0, 3, 3, 1, 0xe9, 0};
+    const unsigned char empty[] = {3, 3, 0, 0};
+    const unsigned char utf16[] = {0x3d, 0xd8, 0, 0xde};
+    const unsigned char alternate[] = {5, 5, 1, 0, 0xe9, 0, 0, 0};
+    const unsigned short one = 1;
+    const int swapped = *(const unsigned char *)&one ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE;
+    CaptionTextProbe probe = {0};
+    MMPreviewCaptionText text = {0};
+    MMPreviewCaptionCodec codec;
+    MMMemoryStream stream;
+    MMMovieTitle prepared;
+    MMCaptionFont view;
+    text.context = &probe;
+    text.bad_string = bad_caption_name;
+    text.malformed_font = malformed_caption_font;
+    codec = mm_preview_caption_text_codec(&text, 1, MM_TEXT_WINDOWS, swapped, NULL);
+    assert(mm_memory_stream_init(&stream, ansi, sizeof(ansi)));
+    assert(codec.load_font(codec.context, &stream.stream, 2) == 1);
+    assert(codec.font(codec.context, NULL, 0, &view) == 1 && view.length == 2 && !memcmp(view.name, "\xc3\xa9", 2));
+    assert(codec.font(codec.context, alternate, sizeof(alternate), &view) == 1 && view.length == 2 &&
+           !memcmp(view.name, "\xc3\xa9", 2));
+    assert(codec.font(codec.context, empty, sizeof(empty), &view) == 1 && !view.length && !probe.bad_names);
+    assert(!codec.font(codec.context, empty, sizeof(empty) - 1, &view) && probe.bad_names == 1);
+    assert(codec.font(codec.context, NULL, 0, &view) == 1 && view.length == 2);
+    assert(codec.load_font(codec.context, &stream.stream, sizeof(ansi) + 1) == 1 && probe.bad_names == 2);
+    assert(codec.font(codec.context, NULL, 0, &view) == 1 && !view.length);
+    codec = mm_preview_caption_text_codec(&text, 2, MM_TEXT_UTF16_LE, swapped, NULL);
+    assert(mm_movie_title_init(&prepared, 2) && mm_movie_title_set(&prepared, utf16, 2));
+    assert(codec.body_font(codec.context, &prepared, &view) == 1 && view.length == 4 && !probe.malformed_fonts &&
+           !memcmp(view.name, "\xf0\x9f\x98\x80", 4));
+    assert(mm_movie_title_set(&prepared, utf16, 1));
+    assert(codec.body_font(codec.context, &prepared, &view) == 1 && view.length == 1 && view.name[0] == '?' &&
+           probe.malformed_fonts == 1);
+}
+
 static void caption_tests(void)
 {
     Caption h;
@@ -813,6 +870,7 @@ static void sound_tests(void)
 }
 int main(void)
 {
+    caption_text_codec();
     caption_tests();
     edited_caption_collections();
     audio_tests();

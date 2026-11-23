@@ -1845,7 +1845,10 @@ existing interface.
 The live editor also takes the decoded row directly for draft layout and
 caret placement. The shared C89 engine reads the authored box, applies its
 draft edits, selects stored or replacement text and publishes a complete
-decoded row. The host supplies native text and font conversion.
+decoded row. Stored captions and drafts now use the C89 string-wire decoder
+and text codec for default and inline fonts. The host supplies native code
+pages and diagnostics, including the existing platform behavior when a font
+contains malformed UTF-16.
 Timing analysis measures captions and reads pauses from
 the C playback records. It orders the raw cue rows through the shared
 sorter before adding them to the sound schedule.

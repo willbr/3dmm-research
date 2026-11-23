@@ -68,6 +68,22 @@ extern "C"
          * Without it, font(NULL) still reads the caller's loaded default. */
         int (*body_font)(void *, const MMMovieTitle *, MMCaptionFont *);
     } MMPreviewCaptionCodec;
+    typedef struct MMPreviewCaptionText
+    {
+        const MMTextHost *encoding;
+        void *context;
+        void (*bad_string)(void *);
+        /* Optional fallback for legacy platform behavior on malformed UTF-16. */
+        int (*malformed_font)(void *, const unsigned short *, size_t, char *, size_t, size_t *);
+        MMMovieTitle font;
+        int system, swapped_unicode;
+        char utf8[MM_STRING_MAX * 3];
+    } MMPreviewCaptionText;
+    /* Binds the caller's scratch state for the duration of a decode. Set the
+     * optional diagnostics before binding. Returned font views expire at the
+     * next font conversion. The encoding host supplies native code pages. */
+    MMPreviewCaptionCodec mm_preview_caption_text_codec(MMPreviewCaptionText *, unsigned unit, int system,
+                                                        int swapped_unicode, const MMTextHost *);
     typedef struct MMPreviewOwnedPresentationOutput
     {
         void *context;

@@ -492,6 +492,7 @@ target_link_libraries(engine-text-store-test PRIVATE mm-engine-c89)
 set_target_properties(engine-text-store-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-text-store COMMAND engine-text-store-test)
 target_sources(mm-engine-c89 PRIVATE src/preview_geometry.c src/preview_render.c src/preview_pick.c src/preview_camera.c src/preview_live.c src/preview_admission.c src/preview_actor.c src/preview_session.c src/preview_metadata.c src/preview_media.c)
+target_sources(mm-engine-c89 PRIVATE src/preview_caption_text.c)
 get_filename_component(engine_preview_media_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_preview_media_test.c" ABSOLUTE)
 add_executable(engine-preview-media-test EXCLUDE_FROM_ALL "${engine_preview_media_test_source}")
 target_link_libraries(engine-preview-media-test PRIVATE mm-engine-c89)
@@ -1356,6 +1357,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_session.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_metadata.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_media.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/preview_caption_text.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_store.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_live.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_document.c"
