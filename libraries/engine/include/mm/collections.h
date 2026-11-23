@@ -41,6 +41,8 @@ extern "C"
     int mm_array_delete(MMArray *, MMU32 index, MMU32 count);
     int mm_array_set_count(MMArray *, MMU32 count);
     int mm_array_move(MMArray *, MMU32 source, MMU32 target);
+    /* Rotate a dense array so the item at split becomes the first item. */
+    int mm_array_rotate_left(MMArray *, MMU32 split);
     int mm_array_add(MMArray *, const void *, MMU32 *index);
     int mm_array_pop(MMArray *, void *output);
     int mm_group_reserve(MMGroup *, MMU32 additional, MMU32 variable_bytes, int shrink);

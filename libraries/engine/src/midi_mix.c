@@ -66,6 +66,32 @@ void mm_midi_queue_notify(const MMMidiQueueServices *s, void *sound)
     }
     q->leave(q->context);
 }
+int mm_midi_mix_init(MMMidiMixState *m, const MMStorageAllocator *allocator, MMI32 full_volume, int trash_unused)
+{
+    memset(m, 0, sizeof(*m));
+    if (mm_storage_init(&m->storage, allocator) != MM_STORAGE_OK)
+        return 0;
+    m->storage.min_grow[0] = sizeof(MMMidiMixVoice);
+    m->voices.storage = &m->storage;
+    m->voices.width = sizeof(MMMidiMixVoice);
+    m->voices.trash_unused = trash_unused;
+    m->base_volume = m->sound_volume = full_volume;
+    return 1;
+}
+void mm_midi_mix_dispose(MMMidiMixState *m)
+{
+    if (m->voices.storage)
+        mm_storage_dispose(&m->storage);
+    memset(m, 0, sizeof(*m));
+}
+const MMMidiMixVoice *mm_midi_mix_voice_at(const MMMidiMixState *m, MMU32 index)
+{
+    return (const MMMidiMixVoice *)m->storage.buffers[0].data + index;
+}
+static void put_voice(MMMidiMixState *m, MMU32 index, const MMMidiMixVoice *voice)
+{
+    memcpy(m->storage.buffers[0].data + index * sizeof(*voice), voice, sizeof(*voice));
+}
 void mm_midi_mix_stop(MMMidiMixState *m, const MMMidiMixServices *s)
 {
     if (!m->playing)
@@ -95,26 +121,26 @@ void mm_midi_mix_suspend(MMMidiMixState *m, const MMMidiMixServices *s, int susp
 int mm_midi_mix_play(MMMidiMixState *m, const MMMidiMixServices *s, const MMMidiMixVoice *input)
 {
     MMMidiMixVoice v;
-    MMI32 i;
+    MMU32 i;
     int fresh = 0, result = 1;
     if (input->sound && !s->duration(s->context, input->sound))
         return 0;
-    for (i = s->count(s->context); i-- > 0;)
+    for (i = m->voices.count; i-- > 0;)
     {
-        s->get(s->context, i, &v);
+        v = *mm_midi_mix_voice_at(m, i);
         if (v.queue == input->queue)
         {
             if (i == 0)
                 mm_midi_mix_stop(m, s);
-            s->erase(s->context, i);
+            mm_array_delete(&m->voices, i, 1);
             break;
         }
     }
     if (input->sound)
     {
-        for (i = 0; i < s->count(s->context); ++i)
+        for (i = 0; i < m->voices.count; ++i)
         {
-            s->get(s->context, i, &v);
+            v = *mm_midi_mix_voice_at(m, i);
             if (v.priority < input->priority || (v.priority == input->priority && v.id < input->id))
                 break;
         }
@@ -126,7 +152,7 @@ int mm_midi_mix_play(MMMidiMixState *m, const MMMidiMixServices *s, const MMMidi
         v = *input;
         v.duration = s->duration(s->context, input->sound);
         v.start = s->clock(s->context) - v.offset;
-        if (!s->insert(s->context, i, &v))
+        if (mm_array_insert(&m->voices, i, &v, 1) != MM_STORAGE_OK)
         {
             result = 0;
             fresh = 0;
@@ -139,14 +165,14 @@ void mm_midi_mix_restart(MMMidiMixState *m, const MMMidiMixServices *s, int fres
 {
     MMMidiMixVoice v;
     MMU32 now;
-    if (s->active(s->context) && !m->playing && s->count(s->context) > 0)
+    if (s->active(s->context) && !m->playing && m->voices.count > 0)
     {
         now = s->clock(s->context);
         if (fresh)
         {
-            s->get(s->context, 0, &v);
+            v = *mm_midi_mix_voice_at(m, 0);
             v.start = now - v.offset;
-            s->put(s->context, 0, &v);
+            put_voice(m, 0, &v);
         }
         mm_midi_mix_submit(m, s, now);
     }
@@ -155,12 +181,13 @@ void mm_midi_mix_restart(MMMidiMixState *m, const MMMidiMixServices *s, int fres
 void mm_midi_mix_submit(MMMidiMixState *m, const MMMidiMixServices *s, MMU32 now)
 {
     MMMidiMixVoice v;
-    MMI32 i, skip, bytes, loops;
+    MMU32 i;
+    MMI32 skip, bytes, loops;
     MMU32 seek;
     void *data;
-    for (i = 0; i < s->count(s->context); ++i)
+    for (i = 0; i < m->voices.count; ++i)
     {
-        s->get(s->context, i, &v);
+        v = *mm_midi_mix_voice_at(m, i);
         loops = mm_signed_word((now - v.start) / v.duration);
         if (loops > 0)
         {
@@ -172,7 +199,7 @@ void mm_midi_mix_submit(MMMidiMixState *m, const MMMidiMixServices *s, MMU32 now
             }
             seek = (now - v.start) % v.duration;
             v.start = now - seek;
-            s->put(s->context, i, &v);
+            put_voice(m, i, &v);
         }
         m->sound_volume = v.volume;
         mm_midi_mix_volume(m, s, m->base_volume);
@@ -207,10 +234,10 @@ void mm_midi_mix_submit(MMMidiMixState *m, const MMMidiMixServices *s, MMU32 now
         v.start = now - v.offset;
         v.plays = 1;
         v.id = v.priority = MINIMUM;
-        s->put(s->context, i, &v);
+        put_voice(m, i, &v);
     }
     if (m->playing && i > 0)
-        s->rotate(s->context, i);
+        mm_array_rotate_left(&m->voices, i);
 }
 void mm_midi_mix_return(MMMidiMixState *m, const MMMidiMixServices *s, void *sound)
 {
@@ -227,31 +254,32 @@ void mm_midi_mix_return(MMMidiMixState *m, const MMMidiMixServices *s, void *sou
     if (!m->outstanding)
     {
         m->playing = 0;
-        if (s->count(s->context) > 0)
+        if (m->voices.count > 0)
         {
-            s->get(s->context, 0, &v);
-            s->erase(s->context, 0);
+            v = *mm_midi_mix_voice_at(m, 0);
+            mm_array_delete(&m->voices, 0, 1);
             s->leave(s->context);
             s->notify(s->context, v.queue, v.sound);
             s->enter(s->context);
         }
-        if (s->count(s->context) > 0)
+        if (m->voices.count > 0)
             mm_midi_mix_restart(m, s, 0);
     }
 }
 MMU32 mm_midi_mix_expire(MMMidiMixState *m, const MMMidiMixServices *s)
 {
     MMU32 now, next = 0xffffffffUL, seek, wait;
-    MMI32 i, loops;
+    MMU32 i;
+    MMI32 loops;
     MMMidiMixVoice v;
     if (m->waiting)
         return 1;
     now = s->clock(s->context);
-    for (i = s->count(s->context); i-- > 0;)
+    for (i = m->voices.count; i-- > 0;)
     {
         if (!i && m->playing)
             break;
-        s->get(s->context, i, &v);
+        v = *mm_midi_mix_voice_at(m, i);
         loops = mm_signed_word((now - v.start) / v.duration);
         if (loops > 0)
         {
@@ -260,7 +288,7 @@ MMU32 mm_midi_mix_expire(MMMidiMixState *m, const MMMidiMixServices *s)
                 v.plays = mm_signed_word((MMU32)v.plays - (MMU32)loops);
                 if (v.plays <= 0)
                 {
-                    s->erase(s->context, i);
+                    mm_array_delete(&m->voices, i, 1);
                     s->leave(s->context);
                     s->notify(s->context, v.queue, v.sound);
                     s->enter(s->context);
@@ -269,7 +297,7 @@ MMU32 mm_midi_mix_expire(MMMidiMixState *m, const MMMidiMixServices *s)
             }
             seek = (now - v.start) % v.duration;
             v.start = now - seek;
-            s->put(s->context, i, &v);
+            put_voice(m, i, &v);
         }
         wait = v.duration - (now - v.start);
         if (wait < next)

@@ -7,11 +7,8 @@
 #ifdef _WIN32
 #define NOMINMAX
 #include <windows.h>
-typedef HANDLE Thread;
 #else
-#include <pthread.h>
 #include <time.h>
-typedef pthread_t Thread;
 #endif
 typedef struct Shared {
     MMNativeRuntime *runtime;
@@ -20,8 +17,9 @@ typedef struct Shared {
     unsigned count, ready, released;
 } Shared;
 typedef struct Work { Shared *shared; MMU32 token; int wait; } Work;
-static void run(Work *work)
+static void run(void *context)
 {
+    Work *work = context;
     Shared *s;
     MMU32 repeated;
     unsigned i;
@@ -40,16 +38,24 @@ static void run(Work *work)
     }
 }
 #ifdef _WIN32
-static DWORD WINAPI start(void *work) { run((Work *)work); return 0; }
-static void spawn(Thread *thread, Work *work) { *thread = CreateThread(NULL, 0, start, work, 0, NULL); assert(*thread); }
-static void join(Thread thread) { assert(WaitForSingleObject(thread, 3000) == WAIT_OBJECT_0); CloseHandle(thread); }
 static void pause_thread(void) { Sleep(1); }
 #else
-static void *start(void *work) { run((Work *)work); return NULL; }
-static void spawn(Thread *thread, Work *work) { assert(!pthread_create(thread, NULL, start, work)); }
-static void join(Thread thread) { assert(!pthread_join(thread, NULL)); }
 static void pause_thread(void) { struct timespec delay; delay.tv_sec = 0; delay.tv_nsec = 1000000; nanosleep(&delay, NULL); }
 #endif
+typedef struct SelfJoin
+{
+    MMNativeThread *thread;
+    MMNativeEvent *published, *done;
+    int status;
+} SelfJoin;
+static void reject_self_join(void *context)
+{
+    SelfJoin *job = context;
+    int signaled;
+    assert(!mm_native_event_wait(job->published, 2000, &signaled) && signaled);
+    job->status = mm_native_thread_join(job->thread);
+    assert(!mm_native_event_signal(job->done));
+}
 static MMU32 ticks, calls;
 static MMNativeRuntime *reentrant;
 static MMU32 fake(void) { ++calls; return ticks; }
@@ -66,7 +72,8 @@ int main(void)
 {
     Shared s;
     Work work[4];
-    Thread threads[4];
+    MMNativeThread *threads[4];
+    SelfJoin self;
     MMNativeRuntime *second;
     MMNativeTickSource previous;
     MMU32 token, value, before, after;
@@ -84,21 +91,37 @@ int main(void)
     assert(!mm_native_runtime_ticks(s.runtime, &before, NULL, NULL));
     assert(!mm_native_event_wait(s.event, 10, &signaled) && !signaled);
     assert(!mm_native_runtime_ticks(s.runtime, &after, NULL, NULL) && (MMU32)(after - before) >= 9);
-    for (i = 0; i < 4; ++i) { work[i].shared = &s; work[i].wait = 0; spawn(&threads[i], &work[i]); }
-    for (i = 0; i < 4; ++i) join(threads[i]);
+    for (i = 0; i < 4; ++i) {
+        work[i].shared = &s; work[i].wait = 0;
+        threads[i] = mm_native_thread_start(run, &work[i], &error);
+        assert(threads[i] && !error);
+    }
+    for (i = 0; i < 4; ++i) assert(!mm_native_thread_join(threads[i]));
     assert(s.count == 4000);
     for (i = 0; i < 4; ++i) {
         assert(work[i].token != token);
         for (j = 0; j < i; ++j) assert(work[i].token != work[j].token);
     }
-    for (i = 0; i < 2; ++i) { work[i].wait = 1; spawn(&threads[i], &work[i]); }
+    for (i = 0; i < 2; ++i) {
+        work[i].wait = 1;
+        threads[i] = mm_native_thread_start(run, &work[i], &error);
+        assert(threads[i] && !error);
+    }
     ready = 0;
     for (i = 0; i < 3000 && ready != 2; ++i) {
         assert(!mm_native_mutex_enter(s.mutex)); ready = s.ready; assert(!mm_native_mutex_leave(s.mutex));
         if (ready != 2) pause_thread();
     }
     assert(ready == 2 && !mm_native_event_signal(s.event));
-    join(threads[0]); join(threads[1]); assert(s.released == 1);
+    assert(!mm_native_thread_join(threads[0]) && !mm_native_thread_join(threads[1]) && s.released == 1);
+    self.published = mm_native_event_create(NULL);
+    self.done = mm_native_event_create(NULL);
+    assert(self.published && self.done);
+    self.thread = mm_native_thread_start(reject_self_join, &self, &error);
+    assert(self.thread && !error && !mm_native_event_signal(self.published));
+    assert(!mm_native_event_wait(self.done, 2000, &signaled) && signaled);
+    assert(self.status && !mm_native_thread_join(self.thread));
+    mm_native_event_destroy(self.published); mm_native_event_destroy(self.done);
     second = mm_native_runtime_create(&error); assert(second && !error);
     assert(!mm_native_runtime_thread_token(second, &value) && value == 1);
     assert(!mm_native_runtime_thread_token(s.runtime, &value) && value == token);

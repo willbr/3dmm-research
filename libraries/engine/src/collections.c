@@ -48,6 +48,14 @@ static int array_shape(const MMArray *a)
            a->count * a->width <= a->storage->buffers[0].capacity &&
            (!a->allocated || bitmap(a->count) <= a->storage->buffers[1].capacity);
 }
+int mm_array_rotate_left(MMArray *a, MMU32 split)
+{
+    if (!array_shape(a) || a->allocated || split > a->count)
+        return BAD;
+    if (split && split < a->count)
+        blocks(a->storage->buffers[0].data, split * a->width, (a->count - split) * a->width);
+    return OK;
+}
 int mm_array_reserve(MMArray *a, MMU32 additional, int shrink)
 {
     MMU32 needed = additional, free_count;

@@ -10,6 +10,11 @@
 #include <time.h>
 
 struct MMNativeMutex { pthread_mutex_t lock; };
+struct MMNativeThread {
+    pthread_t handle;
+    MMNativeThreadEntry entry;
+    void *context;
+};
 struct MMNativeEvent { pthread_mutex_t lock; pthread_cond_t changed; int signaled; };
 struct MMNativeRuntime {
     pthread_mutex_t lock;
@@ -129,6 +134,38 @@ done:
     unlock = pthread_mutex_unlock(&event->lock);
     if (!status) status = unlock;
     if (!status) *signaled = consumed;
+    return status;
+}
+static void *run_thread(void *context)
+{
+    MMNativeThread *thread = context;
+    thread->entry(thread->context);
+    return NULL;
+}
+MMNativeThread *mm_native_thread_start(MMNativeThreadEntry entry, void *context, int *error)
+{
+    MMNativeThread *thread = NULL;
+    int status = EINVAL;
+    if (entry) {
+        thread = malloc(sizeof(*thread));
+        status = thread ? 0 : ENOMEM;
+    }
+    if (thread) {
+        thread->entry = entry;
+        thread->context = context;
+        status = pthread_create(&thread->handle, NULL, run_thread, thread);
+        if (status) { free(thread); thread = NULL; }
+    }
+    if (error) *error = status;
+    return thread;
+}
+int mm_native_thread_join(MMNativeThread *thread)
+{
+    int status;
+    if (!thread) return EINVAL;
+    if (pthread_equal(pthread_self(), thread->handle)) return EDEADLK;
+    status = pthread_join(thread->handle, NULL);
+    if (!status) free(thread);
     return status;
 }
 MMNativeRuntime *mm_native_runtime_create(int *error)

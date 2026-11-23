@@ -6,10 +6,18 @@
 #define NOMINMAX
 #include "mm/native_runtime.h"
 #include "mm/runtime_math.h"
+#include <errno.h>
+#include <process.h>
 #include <stdlib.h>
 #include <windows.h>
 
 struct MMNativeMutex { CRITICAL_SECTION lock; };
+struct MMNativeThread {
+    HANDLE handle;
+    unsigned id;
+    MMNativeThreadEntry entry;
+    void *context;
+};
 struct MMNativeEvent {
     CRITICAL_SECTION lock;
     CONDITION_VARIABLE changed;
@@ -113,6 +121,45 @@ done:
     LeaveCriticalSection(&event->lock);
     if (!status) *signaled = consumed;
     return status;
+}
+static unsigned __stdcall run_thread(void *context)
+{
+    MMNativeThread *thread = context;
+    thread->entry(thread->context);
+    return 0;
+}
+MMNativeThread *mm_native_thread_start(MMNativeThreadEntry entry, void *context, int *error)
+{
+    MMNativeThread *thread = NULL;
+    int status = EINVAL;
+    if (entry) {
+        thread = malloc(sizeof(*thread));
+        status = thread ? 0 : ENOMEM;
+    }
+    if (thread) {
+        thread->entry = entry;
+        thread->context = context;
+        thread->handle = (HANDLE)_beginthreadex(NULL, 0, run_thread, thread, 0, &thread->id);
+        if (!thread->handle) {
+            status = errno ? errno : EAGAIN;
+            free(thread); thread = NULL;
+        }
+    }
+    if (error) *error = status;
+    return thread;
+}
+int mm_native_thread_join(MMNativeThread *thread)
+{
+    DWORD result;
+    if (!thread) return EINVAL;
+    /* A terminated thread's id may already have been recycled. */
+    if (GetCurrentThreadId() == thread->id && WaitForSingleObject(thread->handle, 0) == WAIT_TIMEOUT)
+        return EDEADLK;
+    result = WaitForSingleObject(thread->handle, INFINITE);
+    if (result != WAIT_OBJECT_0) return native_error();
+    if (!CloseHandle(thread->handle)) return native_error();
+    free(thread);
+    return 0;
 }
 MMNativeRuntime *mm_native_runtime_create(int *error)
 {

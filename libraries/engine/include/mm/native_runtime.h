@@ -6,6 +6,7 @@ extern "C" {
 #endif
 typedef struct MMNativeMutex MMNativeMutex;
 typedef struct MMNativeEvent MMNativeEvent;
+typedef struct MMNativeThread MMNativeThread;
 typedef struct MMNativeRuntime MMNativeRuntime;
 /* Factories return NULL and optionally publish a native error. Other integer
  * results are zero on success, native error otherwise. Owners are independent
@@ -23,6 +24,11 @@ int mm_native_event_signal(MMNativeEvent *);
  * consumes only a true latch. UINT32_MAX waits indefinitely. Timed waits retain
  * their deadline across spurious wakeups. Error leaves signaled untouched. */
 int mm_native_event_wait(MMNativeEvent *, MMU32 milliseconds, int *signaled);
+/* The entry borrows its context until join and must return normally. The
+ * owner joins once from another thread. Successful join consumes the owner. */
+typedef void (*MMNativeThreadEntry)(void *context);
+MMNativeThread *mm_native_thread_start(MMNativeThreadEntry, void *context, int *error);
+int mm_native_thread_join(MMNativeThread *);
 typedef MMU32 (*MMNativeTickSource)(void);
 typedef int (*MMNativeTickInvoke)(void *context, MMNativeTickSource, MMU32 *ticks);
 MMNativeRuntime *mm_native_runtime_create(int *error);

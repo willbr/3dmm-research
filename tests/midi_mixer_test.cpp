@@ -52,6 +52,7 @@ class TestHost : public KauaiMidi::StreamHost
 
   public:
     std::atomic<int> stops{0}, returned{0};
+    std::atomic<bool> rejectNext{false};
     TestHost(KauaiMidi::Completion complete, std::uintptr_t user) : complete(complete), user(user)
     {
     }
@@ -84,6 +85,8 @@ class TestHost : public KauaiMidi::StreamHost
     bool FQueueBuffer(void *data, LegacyLong bytes, LegacyLong offset, LegacyLong repeats, std::uintptr_t tag) override
     {
         CHECK(active && bytes > offset && offset >= 0 && bytes % 12 == 0 && offset % 12 == 0);
+        if (rejectNext.exchange(false))
+            return false;
         std::lock_guard<std::mutex> lock(mutex);
         pending.push_back({data, bytes, offset, repeats, tag});
         return true;
@@ -104,8 +107,8 @@ class TestHost : public KauaiMidi::StreamHost
     {
         for (const auto &buffer : buffers)
         {
-            complete(user, buffer.data, buffer.tag);
             ++returned;
+            complete(user, buffer.data, buffer.tag);
         }
     }
     void StopPlaying() override
@@ -157,7 +160,7 @@ class MixerProbe : public MidiStreamMixer
     LegacyLong Voices()
     {
         _mutx.Enter();
-        const auto count = _pglmsos->IvMac();
+        const auto count = static_cast<LegacyLong>(_mix.voices.count);
         _mutx.Leave();
         return count;
     }
@@ -276,6 +279,19 @@ int main()
           restored[1].tag == reinterpret_cast<std::uintptr_t>(a) && restored[1].offset > 0);
     CHECK(mixer->FPlay(first) && mixer->Voices() == 0 && host->Pending().empty());
     mixer->Suspend(true);
+    CHECK(mixer->FPlay(first, a, 10, 10));
+    CHECK(mixer->FPlay(second, c, 11, 5));
+    host->rejectNext = true;
+    mixer->Suspend(false);
+    auto fallback = host->Take();
+    CHECK(mixer->Voices() == 2 && fallback.size() == 1 &&
+          fallback[0].tag == reinterpret_cast<std::uintptr_t>(c));
+    host->Return(fallback);
+    auto retry = host->Take();
+    CHECK(mixer->Voices() == 1 && retry.size() == 1 && retry[0].tag == reinterpret_cast<std::uintptr_t>(a));
+    host->Return(retry);
+    CHECK(mixer->Voices() == 0);
+    mixer->Suspend(true);
     ReleasePpo(&wake);
     ReleasePpo(&second);
     ReleasePpo(&first);
@@ -285,5 +301,5 @@ int main()
     ReleasePpo(&mixer);
     KauaiPlatform::SetTickSource(previousClock);
     std::puts("MIDI core: raw cache events, factory injection, priority/tie-break, background expiry, preemption, "
-              "seek/resume and asynchronous stop passed.");
+              "seek/resume, asynchronous stop and submission fallback passed.");
 }

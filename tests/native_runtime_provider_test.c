@@ -8,16 +8,18 @@
 #endif
 #define NOMINMAX
 #include <windows.h>
+#include <process.h>
 #else
-#include <errno.h>
 #include <pthread.h>
 #include <time.h>
 #endif
 #include "mm/native_runtime.h"
 #include <assert.h>
+#include <errno.h>
 #include <stdlib.h>
 static int allocation_fail, allocations, keys, key_calls, key_fail, locks, lock_calls, lock_fail;
 static int clock_fail, clock_fake, clock_calls, spurious, wait_calls;
+static int thread_fail;
 static void *allocate(size_t bytes)
 {
     void *value;
@@ -65,6 +67,12 @@ static BOOL wait_changed(CONDITION_VARIABLE *changed, CRITICAL_SECTION *lock, DW
     if (spurious) { --spurious; return TRUE; }
     return SleepConditionVariableCS(changed, lock, timeout);
 }
+static size_t start_thread(void *security, unsigned stack, unsigned (__stdcall *entry)(void *),
+                           void *context, unsigned flags, unsigned *id)
+{
+    if (thread_fail) { errno = EAGAIN; return 0; }
+    return _beginthreadex(security, stack, entry, context, flags, id);
+}
 #define malloc allocate
 #define free release
 #define InitializeCriticalSectionEx initialize
@@ -73,6 +81,7 @@ static BOOL wait_changed(CONDITION_VARIABLE *changed, CRITICAL_SECTION *lock, DW
 #define TlsFree delete_key
 #define QueryPerformanceCounter now_counter
 #define SleepConditionVariableCS wait_changed
+#define _beginthreadex start_thread
 #include "../libraries/engine/src/native_runtime_win.c"
 #undef malloc
 #undef free
@@ -82,6 +91,7 @@ static BOOL wait_changed(CONDITION_VARIABLE *changed, CRITICAL_SECTION *lock, DW
 #undef TlsFree
 #undef QueryPerformanceCounter
 #undef SleepConditionVariableCS
+#undef _beginthreadex
 static DWORD WINAPI zero_token(void *opaque)
 {
     MMU32 value;
@@ -131,6 +141,10 @@ static int wait_changed(pthread_cond_t *changed, pthread_mutex_t *lock, const st
     return pthread_cond_timedwait(changed, lock, timeout);
 #endif
 }
+static int start_thread(pthread_t *thread, const pthread_attr_t *attributes, void *(*entry)(void *), void *context)
+{
+    return thread_fail ? EAGAIN : pthread_create(thread, attributes, entry, context);
+}
 #define malloc allocate
 #define free release
 #define pthread_mutex_init initialize
@@ -138,6 +152,7 @@ static int wait_changed(pthread_cond_t *changed, pthread_mutex_t *lock, const st
 #define pthread_key_create create_key
 #define pthread_key_delete delete_key
 #define clock_gettime now_counter
+#define pthread_create start_thread
 #ifdef __APPLE__
 #define pthread_cond_timedwait_relative_np wait_changed
 #else
@@ -151,6 +166,7 @@ static int wait_changed(pthread_cond_t *changed, pthread_mutex_t *lock, const st
 #undef pthread_key_create
 #undef pthread_key_delete
 #undef clock_gettime
+#undef pthread_create
 #ifdef __APPLE__
 #undef pthread_cond_timedwait_relative_np
 #else
@@ -164,6 +180,11 @@ static void *zero_token(void *opaque)
     return NULL;
 }
 #endif
+static void unexpected_thread(void *context)
+{
+    (void)context;
+    abort();
+}
 int main(void)
 {
     MMNativeRuntime *runtime;
@@ -180,8 +201,13 @@ int main(void)
     assert(!mm_native_runtime_create(&error) && error);
     assert(!mm_native_mutex_create(&error) && error);
     assert(!mm_native_event_create(&error) && error);
+    assert(!mm_native_thread_start(unexpected_thread, NULL, &error) && error == ENOMEM);
     assert(!allocations && !keys && !locks);
     allocation_fail = 0; lock_calls = 0; lock_fail = 1;
+    assert(!mm_native_thread_start(NULL, NULL, &error) && error == EINVAL);
+    thread_fail = 1;
+    assert(!mm_native_thread_start(unexpected_thread, NULL, &error) && error == EAGAIN && !allocations);
+    thread_fail = 0;
     assert(!mm_native_mutex_create(&error) && error && !allocations && !locks);
     lock_calls = 0;
     assert(!mm_native_runtime_create(&error) && error && !allocations && !locks);

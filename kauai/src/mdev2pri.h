@@ -19,6 +19,7 @@
 #include "midi_stream_host.h"
 #include "midi_worker.h"
 #include "mm/midi_mix.h"
+#include "mm/native_runtime.h"
 using MEV = KauaiMidi::StreamEvent;
 typedef MEV *PMEV;
 
@@ -108,30 +109,16 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
     MARKMEM
 
   protected:
-    struct MSOS
-    {
-        PMidiStreamQueue pmsque; // the "channel" or queue that the sound is on
-        PMidiStreamCached pmdws; // the sound
-        LegacyLong sii;          // its sound id (for a priority tie breaker)
-        LegacyLong spr;          // its priority
-        LegacyLong cactPlay;     // how many times to play the sound
-        LegacyUlong dts;         // length of this sound
-        LegacyUlong dtsStart;    // position to start at
-        LegacyLong vlm;          // volume to play at
-        LegacyUlong tsStart;     // when we "started" the sound (minus dtsStart)
-    };
-
     // Mutex to protect our member variables
     Mutex _mutx;
-    KauaiMidi::Worker _worker;
-    KauaiPlatform::AutoResetEvent _buffersReturned;
+    MMMidiWorker *_worker = nullptr;
+    MMNativeEvent *_buffersReturned = nullptr;
 
     PMidiStreamInterface _pmisi; // the midi stream interface
-    PDynamicArray _pglmsos;      // the list of current sounds, in priority order
 
     PDynamicArray _pglmevKey; // to accumulate state events for seeking
 
-    MMMidiMixState _mix;
+    MMMidiMixState _mix = {};
     MMMidiMixServices _Services();
     MidiStreamMixer(void);
     bool _FInit(KauaiMidi::HostFactory factory);
@@ -144,7 +131,7 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
     static void _MidiProc(std::uintptr_t luUser, void *pvData, std::uintptr_t lUserDataa);
     void _Notify(void *pvData, PMidiStreamCached pmdws);
 
-    static std::uint32_t _ThreadProc(void *pv);
+    static MMU32 _ThreadProc(void *pv) noexcept;
     std::uint32_t _ExpireSounds(void);
 
   public:

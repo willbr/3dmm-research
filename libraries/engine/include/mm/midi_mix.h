@@ -31,18 +31,14 @@ extern "C"
     } MMMidiMixVoice;
     typedef struct MMMidiMixState
     {
+        MMCollectionStorage storage;
+        MMArray voices; /* Dense, in arbitration order. Voice objects are borrowed. */
         int playing, waiting;
         MMI32 outstanding, base_volume, sound_volume;
     } MMMidiMixState;
     typedef struct MMMidiMixServices
     {
         void *context;
-        MMI32 (*count)(void *);
-        void (*get)(void *, MMI32, MMMidiMixVoice *);
-        void (*put)(void *, MMI32, const MMMidiMixVoice *);
-        int (*insert)(void *, MMI32, const MMMidiMixVoice *);
-        void (*erase)(void *, MMI32);
-        void (*rotate)(void *, MMI32 skipped);
         MMU32 (*clock)(void *), (*duration)(void *, void *sound);
         void (*enter)(void *), (*leave)(void *), (*stop_device)(void *), (*wait_return)(void *),
             (*signal_return)(void *);
@@ -57,6 +53,11 @@ extern "C"
         int (*submit)(void *, void *data, MMI32 bytes, MMI32 skip, MMI32 repeats, void *sound);
         void (*notify)(void *, void *queue, void *sound);
     } MMMidiMixServices;
+    /* Initialize the owner in place. Dispose after all worker and device callbacks have stopped. */
+    int mm_midi_mix_init(MMMidiMixState *, const MMStorageAllocator *, MMI32 full_volume, int trash_unused);
+    void mm_midi_mix_dispose(MMMidiMixState *);
+    /* Requires a live index. The pointer is borrowed until the next mutation. */
+    const MMMidiMixVoice *mm_midi_mix_voice_at(const MMMidiMixState *, MMU32 index);
     /* Caller holds its recursive mutex; notify temporarily leaves it. Device Stop
      * returns all submitted buffers, potentially from another thread. */
     void mm_midi_mix_stop(MMMidiMixState *, const MMMidiMixServices *);

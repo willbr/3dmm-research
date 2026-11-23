@@ -2304,6 +2304,11 @@ and reopen. C89 owns the SoundFont synthesizer and the locked MIDI sequencer.
 Marcus creates its movie MIDI voices through the same C89 bank loader and
 synthesizer. The Studio binding returns borrowed buffers on its completion
 worker after releasing the sequencer lock.
+C89 owns the workers that return SDL MIDI buffers and expire queued voices.
+The shared native runtime starts and joins those workers and provides the
+return latch for interrupted buffers. The mixer stores its priority list in
+C89 and rotates past rejected buffers before applying completion to the
+active voice.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

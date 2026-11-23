@@ -1,28 +1,24 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef KAUAI_MIDI_WORKER_H
 #define KAUAI_MIDI_WORKER_H
-#include <cstdint>
-namespace KauaiMidi
-{
-class Worker
-{
-    struct State;
-    State *state = nullptr;
+#include "mm/types.h"
 
-  public:
-    using Work = std::uint32_t (*)(void *user);
-    Worker() = default;
-    ~Worker();
-    Worker(const Worker &) = delete;
-    Worker &operator=(const Worker &) = delete;
-    // Starts once, initially waiting indefinitely. Work returns the next wait
-    // in milliseconds (UINT32_MAX means indefinite). Signals coalesce and are
-    // retained while Work runs. Start/Stop belong to the owner thread; Work
-    // must not stop/destroy its own worker. Signal may race with Stop.
-    bool Start(Work work, void *user);
-    void Signal();
-    bool Running() const;
-    void Stop(); // Wakes and joins, including an in-flight Work invocation.
-};
-} // namespace KauaiMidi
+#ifdef __cplusplus
+extern "C" {
+#endif
+typedef struct MMMidiWorker MMMidiWorker;
+typedef MMU32 (*MMMidiWork)(void *context);
+/* The worker starts idle. Work returns the next wait in milliseconds, with
+ * UINT32_MAX meaning indefinite. Callbacks must return normally. Signals
+ * coalesce, including those sent during work. Stop/Destroy belong to the
+ * owner thread. Stop joins any in-flight callback. Signal and Running may
+ * race with Stop. Stop all callers before Destroy. */
+MMMidiWorker *mm_midi_worker_start(MMMidiWork, void *context);
+void mm_midi_worker_signal(MMMidiWorker *);
+int mm_midi_worker_running(MMMidiWorker *);
+void mm_midi_worker_stop(MMMidiWorker *);
+void mm_midi_worker_destroy(MMMidiWorker *);
+#ifdef __cplusplus
+}
+#endif
 #endif

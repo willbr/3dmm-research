@@ -25122,3 +25122,38 @@ port's retained 100 ms WAVE cue and first 400 ms of MIDI sample for sample.
 
 Evidence is under `tmp/c89-midi-host`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 MIDI workers and priority storage (23 November 2026)
+
+The SDL buffer-return worker and the mixer's expiration worker share a C89
+implementation. The native runtime owns thread creation and join. The mixer
+uses a C event for asynchronous buffer returns and owns its ordered voice list
+in a dense C collection. It releases its lock while waiting for the device to
+return an interrupted buffer and joins the expiration worker during teardown.
+
+The native fixtures cover thread startup failures, self-join rejection,
+coalesced signals, and shutdown with a callback in flight. The mixer fixture
+forces the device to reject a high-priority submission. It checks that the
+fallback voice plays and completes first and that the rejected voice can
+then play. The packed stream construction and seek trace retained `6B4B5C94`.
+The MIDI scheduling trace retained `28316524` on x64 and `E9E77564` on x86.
+The worker and mixer fixtures each passed 25 consecutive runs, and the
+SDL MIDI fixture passed 15.
+
+On Windows, 228 selected native, 48 selected SDL, five focused SDL audio,
+and 27 standalone C89 checks passed, along with the 17 strict syntax checks.
+Classic Studio rebuilt and the external consumer passed. The 19 native
+save and edit traces, eight native scene traces, four SDL save traces,
+eight VMM outputs, and the headless Marcus startup canvas matched their
+baselines. POSIX thread runtime verification remains pending.
+
+Fresh suite `20261123T180503Z-e0d1d7b7` completed eight captures. Replay suite
+`20261123T180611Z-294e1cad` completed four. All input hashes were verified.
+Both ports matched the retained retail and V3DMM frame order and camera
+indices for all 60 Actor Audio frames, and matched 59 of the 60 seek canvases.
+Both ports reproduced the PCM16 peak of 4,081 for Actor Audio and 6,642 for
+embedded MIDI. The embedded MIDI fixture matched each port's previous
+100 ms WAVE cue and first 400 ms of MIDI sample for sample.
+
+Evidence is under `tmp/c89-midi-worker`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

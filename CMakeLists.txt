@@ -967,7 +967,7 @@ target_sources(kauai-core
     # WinMM output remains on the gui target in midi_stream_win.cpp.
     "${PROJECT_SOURCE_DIR}/kauai/src/midi.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/mididev2.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/midi_worker.cpp"
+    "${PROJECT_SOURCE_DIR}/kauai/src/midi_worker.c"
     # Fixed picture envelope and opaque payload; native decoding is on kauai.
     "${PROJECT_SOURCE_DIR}/kauai/src/picture_data.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/dialog_resource.cpp"
@@ -1183,6 +1183,10 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
       -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/movie_sound.c")
+  add_test(NAME kauai-midi-worker-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -I "${PROJECT_SOURCE_DIR}/kauai/src"
+      -fsyntax-only "${PROJECT_SOURCE_DIR}/kauai/src/midi_worker.c")
   add_test(NAME kauai-audio-mixer-c89-syntax
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"

@@ -15,6 +15,7 @@
 #include "mididev2.h"
 #include "mdev2pri.h"
 #include "handle_services.h"
+#include <cstdlib>
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error The MIDI mixer must not import the Windows SDK
 #endif
@@ -395,8 +396,6 @@ void MidiStreamQueue::Notify(PMidiStreamCached pmdws)
 ***************************************************************************/
 MidiStreamMixer::MidiStreamMixer(void)
 {
-    _mix.base_volume = kvlmFull;
-    _mix.sound_volume = kvlmFull;
 }
 
 /***************************************************************************
@@ -406,15 +405,13 @@ MidiStreamMixer::~MidiStreamMixer(void)
 {
     Assert(pvNil == _pmisi || !_pmisi->FActive(), "MidiStreamInterface still active!");
 
-    _worker.Stop();
-
-    if (pvNil != _pglmsos)
-    {
-        Assert(_pglmsos->IvMac() == 0, "MidiStreamMixer still has active sounds");
-        ReleasePpo(&_pglmsos);
-    }
+    mm_midi_worker_stop(_worker);
+    Assert(!_mix.voices.count, "MidiStreamMixer still has active sounds");
     ReleasePpo(&_pmisi);
     ReleasePpo(&_pglmevKey);
+    mm_midi_mix_dispose(&_mix);
+    mm_native_event_destroy(_buffersReturned);
+    mm_midi_worker_destroy(_worker);
 }
 
 /***************************************************************************
@@ -435,8 +432,7 @@ PMidiStreamMixer MidiStreamMixer::PmsmixNew(KauaiMidi::HostFactory factory)
 }
 
 /***************************************************************************
-    Initialize the MidiStreamMixer - allocate the pglmsos and the midi stream api
-    object.
+    Initialize the voice state, return event and MIDI stream device.
 ***************************************************************************/
 bool MidiStreamMixer::_FInit(KauaiMidi::HostFactory factory)
 {
@@ -444,16 +440,20 @@ bool MidiStreamMixer::_FInit(KauaiMidi::HostFactory factory)
     if (!factory)
         return fFalse;
 
-    if (pvNil == (_pglmsos = DynamicArray::PglNew(size(MSOS))))
+    const auto allocator = Group::CollectionAllocator();
+    if (!mm_midi_mix_init(&_mix, &allocator, kvlmFull, DebugShip(1, 0)))
         return fFalse;
-    _pglmsos->SetMinGrow(1);
+    _buffersReturned = mm_native_event_create(nullptr);
+    if (!_buffersReturned)
+        return fFalse;
 
     if (pvNil == (_pmisi = factory(_MidiProc, reinterpret_cast<std::uintptr_t>(this))))
     {
         return fFalse;
     }
 
-    return _worker.Start(_ThreadProc, this);
+    _worker = mm_midi_worker_start(_ThreadProc, this);
+    return _worker != nullptr;
 }
 
 #ifdef DEBUG
@@ -464,8 +464,8 @@ void MidiStreamMixer::AssertValid(LegacyUlong grf)
 {
     MidiStreamMixer_PAR::AssertValid(0);
     _mutx.Enter();
-    Assert(_worker.Running(), "no MIDI expiration worker");
-    AssertPo(_pglmsos, 0);
+    Assert(mm_midi_worker_running(_worker), "no MIDI expiration worker");
+    Assert(_mix.voices.storage == &_mix.storage, "MIDI voice state uninitialized");
     AssertPo(_pmisi, 0);
     AssertNilOrPo(_pglmevKey, 0);
     _mutx.Leave();
@@ -481,7 +481,7 @@ void MidiStreamMixer::MarkMem(void)
     MidiStreamMixer_PAR::MarkMem();
 
     _mutx.Enter();
-    MarkMemObj(_pglmsos);
+    MarkPv(_mix.storage.buffers[0].data);
     MarkMemObj(_pmisi);
     MarkMemObj(_pglmevKey);
     _mutx.Leave();
@@ -557,7 +557,7 @@ void MidiStreamMixer::_Restart(bool fNew)
 }
 
 /***************************************************************************
-    Submit the buffer(s) for the current MSOS. Assumes the mutx is already
+    Submit the buffer(s) for the current voice. Assumes the mutx is already
     checked out.
 ***************************************************************************/
 void MidiStreamMixer::_SubmitBuffers(LegacyUlong tsCur)
@@ -624,7 +624,7 @@ void MidiStreamMixer::_Notify(void *pvData, PMidiStreamCached pmdws)
     _mutx.Enter();
     Assert(_mix.outstanding > 0, "what buffer is this?");
     Assert(pmdws || (_pglmevKey && pvData == _pglmevKey->QvGet(0)), "Bad pvData/pmdws combo");
-    Assert(!pmdws || (_pglmsos->IvMac() > 0 && static_cast<MSOS *>(_pglmsos->QvGet(0))->pmdws == pmdws), "Wrong pmdws");
+    Assert(!pmdws || (_mix.voices.count && mm_midi_mix_voice_at(&_mix, 0)->sound == pmdws), "Wrong pmdws");
     auto s = _Services();
     mm_midi_mix_return(&_mix, &s, pmdws);
     _mutx.Leave();
@@ -633,7 +633,7 @@ void MidiStreamMixer::_Notify(void *pvData, PMidiStreamCached pmdws)
 /***************************************************************************
     AT: Timed worker callback for the MidiStreamMixer object.
 ***************************************************************************/
-std::uint32_t MidiStreamMixer::_ThreadProc(void *pv)
+MMU32 MidiStreamMixer::_ThreadProc(void *pv) noexcept
 {
     PMidiStreamMixer pmsmix = (PMidiStreamMixer)pv;
 
@@ -658,41 +658,6 @@ MMMidiMixServices MidiStreamMixer::_Services()
 {
     MMMidiMixServices s = {};
     s.context = this;
-    s.count = [](void *p) -> MMI32 { return static_cast<MidiStreamMixer *>(p)->_pglmsos->IvMac(); };
-    s.get = [](void *p, MMI32 i, MMMidiMixVoice *out) {
-        MSOS v;
-        static_cast<MidiStreamMixer *>(p)->_pglmsos->Get(i, &v);
-        *out = {v.pmsque, v.pmdws, v.sii, v.spr, v.cactPlay, v.dts, v.dtsStart, v.vlm, v.tsStart};
-    };
-    s.put = [](void *p, MMI32 i, const MMMidiMixVoice *in) {
-        MSOS v = {static_cast<PMidiStreamQueue>(in->queue),
-                  static_cast<PMidiStreamCached>(in->sound),
-                  in->id,
-                  in->priority,
-                  in->plays,
-                  in->duration,
-                  in->offset,
-                  in->volume,
-                  in->start};
-        static_cast<MidiStreamMixer *>(p)->_pglmsos->Put(i, &v);
-    };
-    s.insert = [](void *p, MMI32 i, const MMMidiMixVoice *in) -> int {
-        MSOS v = {static_cast<PMidiStreamQueue>(in->queue),
-                  static_cast<PMidiStreamCached>(in->sound),
-                  in->id,
-                  in->priority,
-                  in->plays,
-                  in->duration,
-                  in->offset,
-                  in->volume,
-                  in->start};
-        return static_cast<MidiStreamMixer *>(p)->_pglmsos->FInsert(i, &v);
-    };
-    s.erase = [](void *p, MMI32 i) { static_cast<MidiStreamMixer *>(p)->_pglmsos->Delete(i); };
-    s.rotate = [](void *p, MMI32 n) {
-        auto list = static_cast<MidiStreamMixer *>(p)->_pglmsos;
-        SwapBlocks(list->QvGet(0), n * sizeof(MSOS), (list->IvMac() - n) * sizeof(MSOS));
-    };
     s.clock = [](void *) -> MMU32 { return TsCurrentSystem(); };
     s.duration = [](void *, void *p) -> MMU32 { return static_cast<PMidiStreamCached>(p)->Dts(); };
     s.enter = [](void *p) { static_cast<MidiStreamMixer *>(p)->_mutx.Enter(); };
@@ -701,11 +666,16 @@ MMMidiMixServices MidiStreamMixer::_Services()
     s.wait_return = [](void *p) {
         auto m = static_cast<MidiStreamMixer *>(p);
         m->_mutx.Leave();
-        m->_buffersReturned.Wait();
+        int signaled;
+        if (mm_native_event_wait(m->_buffersReturned, 0xffffffffUL, &signaled))
+            std::abort();
         m->_mutx.Enter();
     };
-    s.signal_return = [](void *p) { static_cast<MidiStreamMixer *>(p)->_buffersReturned.Signal(); };
-    s.signal_worker = [](void *p) { static_cast<MidiStreamMixer *>(p)->_worker.Signal(); };
+    s.signal_return = [](void *p) {
+        if (mm_native_event_signal(static_cast<MidiStreamMixer *>(p)->_buffersReturned))
+            std::abort();
+    };
+    s.signal_worker = [](void *p) { mm_midi_worker_signal(static_cast<MidiStreamMixer *>(p)->_worker); };
     s.active = [](void *p) -> int { return static_cast<MidiStreamMixer *>(p)->_pmisi->FActive(); };
     s.activate = [](void *p, int a) -> int { return static_cast<MidiStreamMixer *>(p)->_pmisi->FActivate(a != 0); };
     s.busy = [](void *) { PushErc(ercSndMidiDeviceBusy); };

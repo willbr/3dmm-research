@@ -40,8 +40,8 @@ struct Playback
     std::atomic<bool> active{false};
     Completion complete;
     std::uintptr_t user;
-    Worker callbacks;
-    static std::uint32_t ReturnBuffers(void *data)
+    std::unique_ptr<MMMidiWorker, decltype(&mm_midi_worker_destroy)> callbacks{nullptr, mm_midi_worker_destroy};
+    static MMU32 ReturnBuffers(void *data) noexcept
     {
         auto &self = *static_cast<Playback *>(data);
         void *buffer;
@@ -57,7 +57,7 @@ struct Playback
     {
         auto &self = *static_cast<Playback *>(data);
         if (mm_midi_render(RendererLock(self.renderer.get()).Get(), samples, frames))
-            self.callbacks.Signal();
+            mm_midi_worker_signal(self.callbacks.get());
     }
 };
 std::mutex currentMutex;
@@ -78,7 +78,7 @@ class SDLStreamHost : public StreamHost
     {
         mm_sdl_audio_output_close(output.get());
         playback->active.store(false);
-        playback->callbacks.Stop();
+        mm_midi_worker_stop(playback->callbacks.get());
     }
     const char *ProviderName() const override
     {
@@ -127,7 +127,7 @@ class SDLStreamHost : public StreamHost
         // Release the renderer mutex before touching SDL's stream lock. Client
         // callbacks run on their own worker, never on SDL's audio thread.
         mm_sdl_audio_output_clear(output.get());
-        playback->callbacks.Signal();
+        mm_midi_worker_signal(playback->callbacks.get());
     }
 };
 } // namespace
@@ -160,12 +160,13 @@ StreamHost *CreateSDLStreamHost(Completion completion, std::uintptr_t user)
         AudioOutput output(mm_sdl_audio_output_create(state.get(), Playback::Render, 512), mm_sdl_audio_output_destroy);
         if (!output)
             return nullptr;
-        if (!state->callbacks.Start(Playback::ReturnBuffers, state.get()))
+        state->callbacks.reset(mm_midi_worker_start(Playback::ReturnBuffers, state.get()));
+        if (!state->callbacks)
             return nullptr;
         auto host = NewObj SDLStreamHost(state, std::move(output));
         if (!host)
         {
-            state->callbacks.Stop();
+            mm_midi_worker_stop(state->callbacks.get());
             return nullptr;
         }
         std::lock_guard<std::mutex> lock(currentMutex);

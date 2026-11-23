@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <thread>
 #define CHECK(c)                                                                                                       \
     do                                                                                                                 \
@@ -19,7 +20,7 @@ struct WorkState
 {
     KauaiPlatform::AutoResetEvent called, blocked, release;
     std::atomic<int> count{0};
-    static std::uint32_t Run(void *user)
+    static MMU32 Run(void *user)
     {
         auto &self = *static_cast<WorkState *>(user);
         const auto count = ++self.count;
@@ -54,30 +55,30 @@ int main()
     second.join();
     CHECK(signaled == 1);
     WorkState state;
-    KauaiMidi::Worker worker;
-    CHECK(!worker.Running() && !worker.Start(nullptr, nullptr));
-    worker.Signal();
-    CHECK(worker.Start(WorkState::Run, &state) && worker.Running());
-    CHECK(!worker.Start(WorkState::Run, &state));
-    worker.Signal();
+    using Worker = std::unique_ptr<MMMidiWorker, decltype(&mm_midi_worker_destroy)>;
+    CHECK(!mm_midi_worker_running(nullptr) && !mm_midi_worker_start(nullptr, nullptr));
+    mm_midi_worker_signal(nullptr);
+    const Worker worker(mm_midi_worker_start(WorkState::Run, &state), mm_midi_worker_destroy);
+    CHECK(worker && mm_midi_worker_running(worker.get()));
+    mm_midi_worker_signal(worker.get());
     CHECK(state.called.Wait(2000));
     for (int i = 0; i < 200 && state.count < 2; ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     CHECK(state.count == 2); // Timed wake.
-    worker.Signal();
+    mm_midi_worker_signal(worker.get());
     CHECK(state.blocked.Wait(2000));
-    worker.Signal();
-    worker.Signal();
-    worker.Signal(); // Coalesce while work runs.
+    mm_midi_worker_signal(worker.get());
+    mm_midi_worker_signal(worker.get());
+    mm_midi_worker_signal(worker.get()); // Coalesce while work runs.
     state.release.Signal();
     // The callback notification also coalesces, so observe the count directly.
     for (int i = 0; i < 200 && state.count != 4; ++i)
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     CHECK(state.count == 4);
-    worker.Stop();
-    CHECK(!worker.Running());
-    worker.Signal();
-    worker.Stop();
+    mm_midi_worker_stop(worker.get());
+    CHECK(!mm_midi_worker_running(worker.get()));
+    mm_midi_worker_signal(worker.get());
+    mm_midi_worker_stop(worker.get());
     CHECK(state.count == 4);
     // Stop must join in-flight work, not just wake an idle thread.
     AutoResetEvent entered, leave;
@@ -87,24 +88,26 @@ int main()
         AutoResetEvent *entered, *leave;
         std::atomic<bool> *finished;
     } gate{&entered, &leave, &finished};
-    KauaiMidi::Worker blocked;
-    CHECK(blocked.Start(
-        [](void *arg) -> std::uint32_t {
+    const Worker blocked(mm_midi_worker_start(
+        [](void *arg) -> MMU32 {
             auto &gate = *static_cast<Gate *>(arg);
             gate.entered->Signal();
             gate.leave->Wait();
             gate.finished->store(true);
             return UINT32_MAX;
         },
-        &gate));
-    blocked.Signal();
+        &gate), mm_midi_worker_destroy);
+    CHECK(blocked);
+    mm_midi_worker_signal(blocked.get());
     CHECK(entered.Wait(2000));
     std::thread unblock([&] {
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        mm_midi_worker_signal(blocked.get());
+        CHECK(mm_midi_worker_running(blocked.get()));
         leave.Signal();
     });
-    blocked.Stop();
-    CHECK(finished && !blocked.Running());
+    mm_midi_worker_stop(blocked.get());
+    CHECK(finished && !mm_midi_worker_running(blocked.get()));
     unblock.join();
     std::puts(
         "MIDI worker: auto-reset/coalescing, single-waiter wake, timer, pending signals and joined shutdown passed.");
