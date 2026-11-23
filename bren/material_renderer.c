@@ -20,10 +20,15 @@ static void identify(void *context, void *handle, void *owner)
     memcpy(material->identifier, &owner, sizeof(owner));
 }
 
-void *mm_brender_material_owner(const void *handle)
+br_material *mm_brender_material_handle(MMMaterialOwner *owner)
+{
+    return (br_material *)mm_material_owner_resource(owner)->handle;
+}
+
+MMMaterialOwner *mm_brender_material_owner(const void *handle)
 {
     const br_material *material = (const br_material *)handle;
-    void *owner;
+    MMMaterialOwner *owner;
     memcpy(&owner, material->identifier, sizeof(owner));
     return owner;
 }

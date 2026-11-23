@@ -35,7 +35,6 @@ ENGINE_TARGETS =\
     $(TARGET_DIR)body.obj\
     $(TARGET_DIR)movie.obj\
     $(TARGET_DIR)msnd.obj\
-    $(TARGET_DIR)mtrl.obj\
     $(TARGET_DIR)scene.obj\
     $(TARGET_DIR)srec.obj\
     $(TARGET_DIR)tagl.obj\

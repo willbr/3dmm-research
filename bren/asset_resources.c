@@ -181,18 +181,6 @@ void mm_brender_material_mark(MMMaterialOwner *owner)
         mm_material_owner_services()->mark_memory(owner);
 }
 
-void mm_brender_material_read_view(MMMaterialOwner *owner, MMMaterialAppearance *out)
-{
-    mm_material_read_view(mm_material_owner_resource(owner), out, mm_kauai_material_host()->services);
-}
-
-int mm_brender_material_write_view(MMMaterialOwner *owner, const MMArchiveWriter *writer, MMU32 type,
-                                   MMU32 *number, const MMMaterialAppearance *appearance)
-{
-    return mm_material_write_view(mm_material_owner_resource(owner), writer, type, number, appearance,
-                                  mm_kauai_material_host()->services);
-}
-
 const MMMaterialShade *mm_brender_material_shade(void)
 {
     return &shade;

@@ -948,7 +948,7 @@ class TrackTestActor : public Actor
         if (!tmpl) return false;
         auto fixture = TrackTestTemplate::From(tmpl);
         if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl;
-        auto material=EngineMaterial::Fetch(resource, kctgMtrl, materialNumber);
+        auto material = mm_brender_material_fetch(resource->CoreCache(), kctgMtrl, materialNumber);
         PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         short parent=-1,set=0;
         bool ok=material && parents && sets && parents->FAdd(&parent) && sets->FAdd(&set);
@@ -1171,10 +1171,10 @@ class TrackTestActor : public Actor
         auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl,templateNumber, TrackTestTemplate::FReadCostumeFixture, mm_template_owner_services()));
         if (!tmpl) return false;
         if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl;
-        auto a=EngineMaterial::Fetch(resource, kctgMtrl, materials[0]);
-        auto b=EngineMaterial::Fetch(resource, kctgMtrl, materials[1]);
-        auto ca=EngineCostume::Fetch(resource, kctgCmtl, customs[0]);
-        auto cb=EngineCostume::Fetch(resource, kctgCmtl, customs[1]);
+        auto a = mm_brender_material_fetch(resource->CoreCache(), kctgMtrl, materials[0]);
+        auto b = mm_brender_material_fetch(resource->CoreCache(), kctgMtrl, materials[1]);
+        auto ca = mm_brender_costume_fetch(resource->CoreCache(), kctgCmtl, customs[0]);
+        auto cb = mm_brender_costume_fetch(resource->CoreCache(), kctgCmtl, customs[1]);
         if (!a || !b || !ca || !cb) return false;
         PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         short parent=-1,set=0;

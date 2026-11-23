@@ -297,7 +297,7 @@ void EngineBody::SetPartSetMtrl(PBody body, LegacyLong ibset, PMaterial_MTRL pmt
 {
     BODY_VALIDATE(body, 0); AssertIn(ibset, 0, State(body).shape.set_count);
 #ifdef DEBUG
-    EngineMaterial::Validate(pmtrl);
+    mm_kauai_material_validate(pmtrl);
 #endif
     const auto &s = RuntimeServices(); mm_body_set_generic(body, ibset, pmtrl, &s);
 }
@@ -310,7 +310,7 @@ void EngineBody::SetPartSetCmtl(PBody body, PCustomMaterial_CMTL pcmtl)
 {
     BODY_VALIDATE(body, 0);
 #ifdef DEBUG
-    EngineCostume::Validate(pcmtl);
+    mm_kauai_costume_validate(pcmtl);
 #endif
     const auto &s = RuntimeServices(); mm_body_set_custom(body, pcmtl, &s);
 }
@@ -454,15 +454,16 @@ void EngineBody::Validate(PBody body, LegacyUlong grf)
             Assert(binding.material == pbact->material, "body part material binding mismatch");
             if (pvNil != pbact->material)
             {
-                auto material = EngineMaterial::FromHandle(pbact->material);
-                EngineMaterial::Validate(material);
+                auto material = mm_brender_material_owner(pbact->material);
+                Assert(material && mm_brender_material_handle(material) == pbact->material, "Bad Material identifier");
+                mm_kauai_material_validate(material);
                 Assert(!binding.material_owner || binding.material_owner == material, "body part material owner mismatch");
             }
         }
         for (ibset = 0; ibset < State(body).shape.set_count; ibset++)
         {
             if (auto costume = static_cast<PCustomMaterial_CMTL>(State(body).shape.custom_materials[ibset]))
-                EngineCostume::Validate(costume);
+                mm_kauai_costume_validate(costume);
         }
     }
 }
@@ -484,10 +485,10 @@ void EngineBody::Mark(PBody body)
         const auto &binding = State(body).shape.bindings[part+2];
         mm_brender_model_mark(static_cast<PModel>(binding.model_owner));
         if (binding.material_owner)
-            EngineMaterial::Mark(static_cast<PMaterial_MTRL>(binding.material_owner));
+            mm_brender_material_mark(static_cast<PMaterial_MTRL>(binding.material_owner));
     }
     for (LegacyLong set = 0; set < State(body).shape.set_count; ++set)
         if (State(body).shape.custom_materials[set])
-            EngineMaterial::Mark(static_cast<PCustomMaterial_CMTL>(State(body).shape.custom_materials[set]));
+            mm_brender_material_mark(static_cast<PCustomMaterial_CMTL>(State(body).shape.custom_materials[set]));
 }
 #endif // DEBUG

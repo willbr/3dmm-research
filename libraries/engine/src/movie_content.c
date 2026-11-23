@@ -1,17 +1,21 @@
 /* Movie content transactions converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_content.h"
-int mm_movie_insert_material(void *material, MMTag *output, int *written,
+int mm_movie_insert_material(MMMaterialOwner *material, MMTag *output, int *written,
                                    const MMMovieContentServices *s)
 {
-    void *resources;
+    MMResourceCache *resources;
+    MMArchiveWriter archive;
     MMU32 number;
     *written = 0;
-    if (!s->ensure(s->edit.context, &resources) || !s->write_material(material, resources, &number))
+    if (!s->ensure(s->edit.context, &resources))
+        return 0;
+    archive = mm_resource_cache_writer(resources);
+    if (!mm_material_owner_write(material, &archive, MM_MATERIAL_CHUNK, &number))
         return 0;
     output->sid = 0;
     output->cache = 0;
-    output->type = 0x4d54524cU;
+    output->type = MM_MATERIAL_CHUNK;
     output->number = number;
     *written = 1;
     return mm_tag_open(output, s->edit.data->resources, NULL, s->tags);

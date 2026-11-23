@@ -13,10 +13,10 @@ static bool TestBodyRuntime()
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1); face.vertices[1]=1; face.vertices[2]=2;
     auto a = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
     auto b = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
-    auto ma=EngineMaterial::New(),mb=EngineMaterial::New();
+    auto ma = mm_brender_material_new(-1, -1), mb = mm_brender_material_new(-1, -1);
     PMaterial_MTRL parts[]={ma,mb,ma,mb,ma,mb};
-    auto ca=ma && mb?EngineCostume::New(0,6,parts):nullptr;
-    auto cb=ma && mb?EngineCostume::New(1,6,parts):nullptr;
+    auto ca = ma && mb ? mm_custom_material_new(0, 6, parts, mm_kauai_material_host()) : nullptr;
+    auto cb = ma && mb ? mm_custom_material_new(1, 6, parts, mm_kauai_material_host()) : nullptr;
     bool ok=a && b && ma && mb && ca && cb; int captures=0,failed=0;
     if (ok) { SetCostumeModel(ca,0,a); SetCostumeModel(ca,2,b);
         SetCostumeModel(cb,0,b); SetCostumeModel(cb,2,a); }

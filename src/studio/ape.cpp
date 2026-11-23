@@ -570,7 +570,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
 
     if (pgms->fMtrl)
     {
-        pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(&pgms->tagMtrl, EngineMaterial::Read, mm_material_owner_services()));
+        pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(&pgms->tagMtrl, mm_brender_material_read, mm_material_owner_services()));
         if (pvNil == pmtrl)
             return fFalse;
         EngineBody::SetPartSetMtrl(_pbody, ibset, pmtrl);
@@ -750,7 +750,7 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
     PMaterial_MTRL pmtrl;
     GeneralMaterialSpec gms;
 
-    pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(ptagMtrl, EngineMaterial::Read, mm_material_owner_services()));
+    pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(ptagMtrl, mm_brender_material_read, mm_material_owner_services()));
     if (pvNil == pmtrl)
         return fFalse;
     EngineBody::SetPartSetMtrl(_pbody, 0, pmtrl);

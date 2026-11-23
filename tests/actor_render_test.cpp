@@ -17,6 +17,7 @@
  */
 
 #include "soc_core.h"
+#include "texture_renderer.h"
 ASSERTNAME
 
 #include <stdio.h>
@@ -69,10 +70,7 @@ int __cdecl main(int argc, char **argv)
     BrBegin();
     BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
 
-    /* Load the shade table from the main 3dmovie.chk. The engine's
-     * Material_MTRL keeps a static _ptmapShadeTable that every MTRL
-     * load asserts non-nil. The studio sets this at startup via
-     * `EngineMaterial::SetShadeTable(_pcfl, kctgTmap, 0)` (utest.cpp:452). */
+    /* Load the shade table from the main 3dmovie.chk, as Studio does at startup. */
     stnPath.SetSzs(argv[1]);
     if (!fni.FBuildFromPath(&stnPath))
     {
@@ -85,7 +83,7 @@ int __cdecl main(int argc, char **argv)
         fprintf(stderr, "cannot open shade chk '%s'\n", argv[1]);
         goto LDone;
     }
-    if (!EngineMaterial::SetShadeTable(pcflShade, kctgTmap, 0))
+    if (!mm_brender_material_shade_take(mm_brender_texture_from_chunk(pcflShade, kctgTmap, 0)))
     {
         fprintf(stderr, "FSetShadeTable failed\n");
         goto LDone;
@@ -184,7 +182,8 @@ int __cdecl main(int argc, char **argv)
         PCustomMaterial_CMTL costume = EngineTemplate::PcmtlFetch(ptmpl, (LegacyLong)strtol(argv[5], NULL, 0));
         if (costume == pvNil)
             goto LDone;
-        const bool spare = EngineBody::ActorCount(pbody) == 3 && EngineCostume::Set(costume) == 0 && EngineCostume::Count(costume) == 2;
+        const auto custom = mm_material_owner_custom(costume);
+        const bool spare = EngineBody::ActorCount(pbody) == 3 && custom->set == 0 && custom->count == 2;
         if (spare)
         {
             ScopedBodyCostume previous;
@@ -195,8 +194,9 @@ int __cdecl main(int argc, char **argv)
             }
             EngineBody::SetPartSetCmtl(pbody, costume);
             PBody duplicate = EngineBody::Duplicate(pbody);
-            const bool matched = duplicate != pvNil && EngineBody::Part(pbody, 0)->material == EngineCostume::Handle(costume, 0) &&
-                                 EngineBody::Part(duplicate, 0)->material == EngineCostume::Handle(costume, 0);
+            const auto material = mm_custom_material_handle(custom, 0, mm_material_owner_host(costume)->services);
+            const bool matched = duplicate != pvNil && EngineBody::Part(pbody, 0)->material == material &&
+                                 EngineBody::Part(duplicate, 0)->material == material;
             mm_body_owner_release(duplicate);
             previous.Set(pbody);
             if (matched)

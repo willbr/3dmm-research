@@ -830,12 +830,12 @@ static void editable_view(void)
             mm_reference_add(&t.texture.refs);
             map(&t, mm_material_owner_resource(o)->handle, &t.texture_view, NULL);
         }
-        mm_material_read_view(mm_material_owner_resource(o), &read, &t.s);
+        mm_material_owner_read_view(o, &read);
         assert(read.textured == textured && read.index_base == 15 && read.ambient == 6553 / 65535.f);
         requested.textured = !textured;
         writer.edit = author_editor(&t);
         number = 99;
-        assert(mm_material_write_view(mm_material_owner_resource(o), &writer, 3, &number, &requested, &t.s) && number == 0);
+        assert(mm_material_owner_write_view(o, &writer, 3, &number, &requested) && number == 0);
         assert(t.index.count == (textured ? 3U : 1U));
         assert(mm_material_header_read(t.written, 0, 0x0303, &decoded));
         assert(decoded.ambient == 32768 && decoded.diffuse == 16384 && decoded.specular == 65535);

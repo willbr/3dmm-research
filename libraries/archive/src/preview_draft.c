@@ -90,7 +90,7 @@ int mm_preview_read_text_material(const MMPreviewLive *live, const MMPreviewMate
     MMMaterialOwner *material = text_material(live, source, services);
     if (!material)
         return MM_PREVIEW_DRAFT_MATERIAL_READ;
-    mm_brender_material_read_view(material, appearance);
+    mm_material_owner_read_view(material, appearance);
     mm_material_owner_release(material);
     return MM_PREVIEW_DRAFT_OK;
 }
@@ -115,7 +115,7 @@ int mm_preview_store_text_material(const MMPreviewLive *live, const MMPreviewMat
         {
             MMArchiveWriter writer = mm_private_archive_writer(archive);
             MMU32 chunk = 0;
-            if (mm_brender_material_write_view(material, &writer, MM_MATERIAL_CHUNK, &chunk, appearance) && chunk == 0)
+            if (mm_material_owner_write_view(material, &writer, MM_MATERIAL_CHUNK, &chunk, appearance) && chunk == 0)
                 status = mm_private_archive_save(archive, services->creator) ? MM_PREVIEW_DRAFT_OK :
                     MM_PREVIEW_DRAFT_MATERIAL_SAVE;
             mm_private_archive_close(archive);

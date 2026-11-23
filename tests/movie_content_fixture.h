@@ -64,7 +64,7 @@ static bool TestMovieContentCore()
     {
         auto client = NewObj MovieEditClient();
         auto movie = client ? Movie::PmvieNew(false, client) : nullptr;
-        auto material = EngineMaterial::New(mode + 1, 8);
+        auto material = mm_brender_material_new(mode + 1, 8);
         MMResourceCache *resource = nullptr;
         ok = movie && material && movie->FNewScenInsCore(0) && movie->FEnsureAutosave(&resource);
         auto state = [&](int operation) {

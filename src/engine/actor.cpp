@@ -472,7 +472,7 @@ bool Actor::_FDoAevCore(long iaev)
     hooks.fetch_material = [](void *, const MMTag *value) -> MMMaterialOwner * {
         TAG tag;
         TagFromCore(&tag, *value);
-        return static_cast<MMMaterialOwner *>(vptagm->FetchResource(&tag, EngineMaterial::Read, mm_material_owner_services()));
+        return static_cast<MMMaterialOwner *>(vptagm->FetchResource(&tag, mm_brender_material_read, mm_material_owner_services()));
     };
     hooks.enqueue_sound = [](void *p, MMI32 index) -> int {
         return static_cast<Actor *>(p)->_FEnqueueSnd(index);
@@ -1255,10 +1255,12 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
     };
     services.fetch_material=[](void *,const MMTag *value)->void * {
         TAG tag; std::memcpy(&tag,value,sizeof(tag));
-        return vptagm->FetchResource(&tag, EngineMaterial::Read, mm_material_owner_services());
+        return vptagm->FetchResource(&tag, mm_brender_material_read, mm_material_owner_services());
     };
     services.fetch_custom=[](void *p,MMI32 costume)->void * { return EngineTemplate::PcmtlFetch(static_cast<Actor *>(p)->_Template(), costume); };
-    services.body_set=[](void *,void *resource)->MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(resource)); };
+    services.body_set = [](void *, void *resource) -> MMI32 {
+        return mm_material_owner_custom(static_cast<MMMaterialOwner *>(resource))->set;
+    };
     services.release=[](void *,void *resource) { mm_material_owner_release(static_cast<MMMaterialOwner *>(resource)); };
     return services;
 }

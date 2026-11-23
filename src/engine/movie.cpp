@@ -248,7 +248,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         else
             Bug("Bad event in frame event list");
     };
-    s.material_reader = EngineMaterial::Read;
+    s.material_reader = mm_brender_material_read;
     s.template_reader = EngineTemplate::Read;
     s.purge_sounds = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->Pmcc()->FQueryPurgeSounds(); };
     s.bad_child = [](void *) { Bug("ChunkyFile returned bogus Ckid()"); };
@@ -1201,21 +1201,9 @@ MMMovieContentServices Movie::_ContentServices()
 {
     MMMovieContentServices s = {};
     s.edit = _EditServices();
-    s.ensure = [](void *p, void **out) -> int {
-        MMResourceCache *resources = nullptr;
-        bool ok = static_cast<PMovie>(p)->FEnsureAutosave(&resources);
-        if (ok) *out = resources;
-        return ok;
-    };
+    s.ensure = [](void *p, MMResourceCache **out) -> int { return static_cast<PMovie>(p)->FEnsureAutosave(out); };
     s.make_valid = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
     s.use_temp = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
-    s.write_material = [](void *p, void *resources, MMU32 *out) -> int {
-        const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(resources));
-        ChunkNumber number;
-        bool ok = EngineMaterial::Write(static_cast<PMaterial_MTRL>(p), writer, kctgMtrl, &number);
-        if (ok) *out = number;
-        return ok;
-    };
     s.text_host = mm_kauai_template_host();
     mm_brender_text_generation_services(&s.text_generation);
     s.tags = &TagManager::CoreServices();

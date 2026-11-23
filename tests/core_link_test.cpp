@@ -3,6 +3,7 @@
 // A real host supplies assertion reporting; no GUI/application replacements.
 #if defined(TEST_ENGINE_CORE)
 #include "soc_core.h"
+#include "texture_renderer.h"
 #include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 #include "handle_services.h"
@@ -4729,18 +4730,19 @@ static void TestMaterialHeaders()
         }
         ChunkNumber number;
         Check(file->FAddPv(bytes, sizeof(bytes) - (index == 6 ? 1 : 0), kctgMtrl, &number));
-        PMaterial_MTRL material = EngineMaterial::Fetch(resource, kctgMtrl, number);
+        PMaterial_MTRL material = mm_brender_material_fetch(resource->CoreCache(), kctgMtrl, number);
         if (index < 3)
         {
             Check(material != pvNil);
-            PBMTL rendered = EngineMaterial::Handle(material);
+            PBMTL rendered = mm_brender_material_handle(material);
             Check(rendered->index_base == 21 && rendered->index_range == 7 && rendered->power == BR_SCALAR(50));
             Check(rendered->colour == (index == 0 ? 0 : 0x00112233));
             Check(rendered->ka == (index == 0 ? 0 : (br_ufraction)0x2000));
             Check(rendered->kd == (index == 0 ? (br_ufraction)0xffff : (br_ufraction)0xa000));
             Check(rendered->ks == (index == 0 ? 0 : (br_ufraction)0x1000));
             ChunkNumber written;
-            Check(EngineMaterial::Write(material, file, kctgMtrl, &written));
+            const auto writer = file->WriteIndex();
+            Check(mm_material_owner_write(material, &writer, kctgMtrl, &written));
             MaterialOnFile header;
             DataBlock block;
             Check(file->FFind(kctgMtrl, written, &block) && block.FReadRgb(&header, sizeof(header), 0));
@@ -4973,7 +4975,7 @@ static void TestEngineServices()
     Check(shade != pvNil && fixture != pvNil);
     ChunkNumber shadeNumber;
     Check(EngineTexture::Write(shade, fixture, kctgTmap, &shadeNumber));
-    Check(EngineMaterial::SetShadeTable(fixture, kctgTmap, shadeNumber));
+    Check(mm_brender_material_shade_take(mm_brender_texture_from_chunk(fixture, kctgTmap, shadeNumber)));
     mm_texture_owner_release(shade);
     ReleasePpo(&fixture);
     TestMaterialHeaders();
@@ -4987,7 +4989,7 @@ static void TestEngineServices()
     Check(parents->FAdd(&parent) && sets->FAdd(&set));
     PBody body = EngineBody::Create(parents, sets);
     Check(body != pvNil);
-    PMaterial_MTRL material = EngineMaterial::New();
+    PMaterial_MTRL material = mm_brender_material_new(ivNil, ivNil);
     Check(material != pvNil);
     EngineBody::SetPartSetMtrl(body, 0, material);
     mm_material_owner_release(material);
@@ -5031,7 +5033,7 @@ static void TestEngineServices()
     Check(EngineBody::Root(body)->parent == second.root);
     Check(EngineBody::ChangeShape(body, parents, sets));
     Check(EngineBody::Root(body)->parent == second.root);
-    material = EngineMaterial::New();
+    material = mm_brender_material_new(ivNil, ivNil);
     Check(material != pvNil);
     EngineBody::SetPartSetMtrl(body, 0, material);
     mm_material_owner_release(material);

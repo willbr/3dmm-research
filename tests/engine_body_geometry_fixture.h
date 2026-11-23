@@ -85,7 +85,7 @@ static bool TestBodyGeometry()
     faces[1].vertices[1] = 2;
     faces[1].vertices[2] = 3;
     auto model = mm_model_new(4, vertices, 2, faces, mm_kauai_model_host());
-    auto material = EngineMaterial::New();
+    auto material = mm_brender_material_new(-1, -1);
     ok = model && material;
     for (int shape = 0; ok && shape < 3; ++shape)
         for (int matrix = 0; ok && matrix < 6; ++matrix)

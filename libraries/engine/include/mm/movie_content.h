@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MOVIE_CONTENT_H
 #define MM_ENGINE_MOVIE_CONTENT_H
+#include "material_resource.h"
 #include "movie_edit.h"
 #include "text_resource.h"
 #ifdef __cplusplus
@@ -11,8 +12,8 @@ extern "C"
     typedef struct MMMovieContentServices
     {
         MMMovieEditServices edit;
-        int (*ensure)(void *, void **resources), (*make_valid)(void *), (*use_temp)(void *);
-        int (*write_material)(void *material, void *resources, MMU32 *number);
+        int (*ensure)(void *, MMResourceCache **resources);
+        int (*make_valid)(void *), (*use_temp)(void *);
         const MMTemplateOwnerHost *text_host;
         MMTextGenerationServices text_generation;
         const MMTagServices *tags;
@@ -43,7 +44,7 @@ extern "C"
      * limit increment, so the consumed ID is not reused.
      * Indexed caption selection scans visible captions in storage order and leaves
      * selection unchanged for negative/out-of-range indexes. */
-    int mm_movie_insert_material(void *material, MMTag *output, int *written,
+    int mm_movie_insert_material(MMMaterialOwner *material, MMTag *output, int *written,
                                        const MMMovieContentServices *);
     int mm_movie_insert_text(const MMStringValue *name, MMI32 shape, const MMTag *font,
                                    const MMMovieContentServices *);

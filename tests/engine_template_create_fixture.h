@@ -43,8 +43,11 @@ struct TemplateCreateFixtureAccess
         if (ok && variant!=2) ok=table(kctgGgcm,wireCosts);
         byte action=0; ChunkNumber child;
         ok=ok && file->FAddChildPv(kctgTmpl,*number,0,&action,1,kctgActn,&child) && file->FAddChildPv(kctgTmpl,*number,2,&action,1,kctgActn,&child);
-        auto material=EngineMaterial::New(); ChunkNumber materialNumber=0;
-        ok=ok && material && EngineMaterial::Write(material, file,kctgMtrl,&materialNumber); mm_material_owner_release(material);
+        auto material = mm_brender_material_new(ivNil, ivNil);
+        ChunkNumber materialNumber = 0;
+        const auto writer = file->WriteIndex();
+        ok = ok && material && mm_material_owner_write(material, &writer, kctgMtrl, &materialNumber);
+        mm_material_owner_release(material);
         for (int i=0;ok && i<(parts?4:0);++i)
         {
             CustomMaterialOnFile costume={kboCur,koskCur,i%2};

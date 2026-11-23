@@ -476,13 +476,14 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
     {
         ThumbnailDescriptor descriptor;
         catalog->GetThd(i, &descriptor);
-        auto existing = static_cast<PMaterial_MTRL>(vptagm->FetchResource(&descriptor.tag, EngineMaterial::Read, mm_material_owner_services()));
+        auto existing = static_cast<PMaterial_MTRL>(vptagm->FetchResource(&descriptor.tag, mm_brender_material_read, mm_material_owner_services()));
         if (!existing)
             continue;
-        const auto material = EngineMaterial::Handle(existing);
-        if (!material->colour_map && int(material->index_base) + material->index_range < 256)
+        MMMaterialAppearance material;
+        mm_material_owner_read_view(existing, &material);
+        if (!material.textured && material.index_base + material.index_range < 256)
         {
-            const auto &color = colors[material->index_base + material->index_range];
+            const auto &color = colors[material.index_base + material.index_range];
             const long r = long((rgb >> 16) & 255) - color.bRed;
             const long g = long((rgb >> 8) & 255) - color.bGreen;
             const long b = long(rgb & 255) - color.bBlue;
@@ -490,8 +491,8 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
             if (distance < rampDistance)
             {
                 rampDistance = distance;
-                base = material->index_base;
-                range = material->index_range;
+                base = material.index_base;
+                range = material.index_range;
             }
         }
         mm_material_owner_release(existing);
@@ -508,11 +509,15 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
     if (!movie->FEnsureAutosave(&resources))
         return false;
     ChunkNumber materialNumber;
-    MaterialOnFile material{kboCur, koskCur,    rgb,         BR_UFRACTION(.35), BR_UFRACTION(.65),
-                            0,      byte(base), byte(range), BR_SCALAR(50)};
+    MMMaterialDescription material = {};
+    material.colour = rgb;
+    material.ambient = BR_UFRACTION(.35);
+    material.diffuse = BR_UFRACTION(.65);
+    material.index_base = base;
+    material.index_range = range;
+    material.power = BR_SCALAR(50);
     const auto writer = mm_resource_cache_writer(resources);
-    if (mm_chunk_add_bytes(&writer.edit, writer.payloads->files, kctgMtrl, &material, sizeof(material),
-                           &materialNumber) != MM_CHUNK_OK)
+    if (!mm_material_archive_add(&writer, &material, &materialNumber))
         return false;
     TAG tag{0, resources, kctgMtrl, materialNumber};
     for (long set = 0; set < EngineBody::SetCount(actor->Pbody()); ++set)

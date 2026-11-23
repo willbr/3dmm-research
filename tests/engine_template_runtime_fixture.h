@@ -37,7 +37,7 @@ static bool TestTemplateRuntime()
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1); face.vertices[1]=1; face.vertices[2]=2;
     auto a = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
     auto b = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
-    auto material = EngineMaterial::New();
+    auto material = mm_brender_material_new(ivNil, ivNil);
     bool ok=a && b && material; int successes=0,failures=0;
     const int counts[]={0,2,6},cels[]={-7,-1,0,2,7};
     for (int shape=0;ok && shape<3;++shape) for (int mode=0;ok && mode<3;++mode) for (int cn=0;ok && cn<5;++cn)
@@ -111,9 +111,12 @@ static bool TestTemplateRuntime()
             LegacyLong values[]={variant,set,has,found,accessory,EngineTemplate::CcmidOfBset(t, set),EngineTemplate::CmidOfBset(t, set,0),EngineTemplate::CmidOfBset(t, set,1)};
             ok=record(values,sizeof(values));
         }
+        const auto graph = file ? file->ReadChunkAccess() : MMChunkAccess{};
         for (int i=0;ok && i<4;++i) for (int j=0;ok && j<4;++j)
         {
-            LegacyLong values[]={variant,i,j,EngineTemplate::FSameAccCmids(t, i,j),EngineCostume::HasModels(file,kctgCmtl,costumes[i].cki.cno),EngineCostume::EqualModels(file,costumes[i].cki.cno,costumes[j].cki.cno)};
+            LegacyLong values[] = {variant, i, j, EngineTemplate::FSameAccCmids(t, i, j),
+                                   mm_template_has_models(&graph, kctgCmtl, costumes[i].cki.cno),
+                                   mm_template_equal_models(&graph, costumes[i].cki.cno, costumes[j].cki.cno)};
             ok=record(values,sizeof(values));
         }
         String name,expectedName; expectedName.SetSzs(PszLit("Runtime action")); ChildChunkIdentification actionChild;

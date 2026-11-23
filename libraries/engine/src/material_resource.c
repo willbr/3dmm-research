@@ -204,6 +204,10 @@ void *mm_material_texture(const MMMaterialResource *m, const MMMaterialServices 
 {
     return m->handle ? s->texture(s->context, m->handle) : NULL;
 }
+void *mm_material_owner_texture(MMMaterialOwner *owner)
+{
+    return mm_material_texture(mm_material_owner_resource(owner), owner->host->services);
+}
 static void release_texture(void *texture, const MMMaterialServices *s)
 {
     if (s->texture_objects)
@@ -490,6 +494,32 @@ int mm_material_write(const MMMaterialResource *m, const MMChunkEdit *edit, cons
                       MMU32 type, MMU32 *number, const MMMaterialServices *s)
 {
     return mm_material_write_appearance(m, edit, files, type, number, NULL, NULL, s);
+}
+int mm_material_owner_write(MMMaterialOwner *owner, const MMArchiveWriter *archive, MMU32 type, MMU32 *number)
+{
+    return owner->kind == MM_MATERIAL && archive->payloads &&
+           mm_material_write(mm_material_owner_resource(owner), &archive->edit, archive->payloads->files,
+                             type, number, owner->host->services);
+}
+void mm_material_owner_read_view(MMMaterialOwner *owner, MMMaterialAppearance *out)
+{
+    mm_material_read_view(mm_material_owner_resource(owner), out, owner->host->services);
+}
+int mm_material_owner_write_view(MMMaterialOwner *owner, const MMArchiveWriter *archive, MMU32 type, MMU32 *number,
+                                 const MMMaterialAppearance *appearance)
+{
+    return owner->kind == MM_MATERIAL && archive->payloads &&
+           mm_material_write_view(mm_material_owner_resource(owner), archive, type, number, appearance,
+                                  owner->host->services);
+}
+int mm_material_archive_add(const MMArchiveWriter *archive, const MMMaterialDescription *material, MMU32 *number)
+{
+    unsigned char bytes[20];
+    if (!archive->payloads)
+        return 0;
+    mm_material_header_write(bytes, archive->big_endian, archive->system, material);
+    return mm_chunk_add_bytes(&archive->edit, archive->payloads->files, MM_MATERIAL_CHUNK, bytes, sizeof(bytes),
+                              number) == MM_CHUNK_OK;
 }
 int mm_material_shade_set(MMMaterialShade *m, void *replacement, const MMMaterialServices *s)
 {

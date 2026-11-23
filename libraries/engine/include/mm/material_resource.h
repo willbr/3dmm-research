@@ -115,6 +115,11 @@ extern "C"
     MMCustomMaterial *mm_material_owner_custom(MMMaterialOwner *);
     void mm_material_owner_retain(MMMaterialOwner *);
     void mm_material_owner_release(MMMaterialOwner *);
+    void *mm_material_owner_texture(MMMaterialOwner *);
+    int mm_material_owner_write(MMMaterialOwner *, const MMArchiveWriter *, MMU32 type, MMU32 *number);
+    void mm_material_owner_read_view(MMMaterialOwner *, MMMaterialAppearance *);
+    int mm_material_owner_write_view(MMMaterialOwner *, const MMArchiveWriter *, MMU32 type, MMU32 *number,
+                                     const MMMaterialAppearance *);
     /* Direct read failure keeps partial ownership, except on transform failure
      * which releases both texture and renderer material. Input blocks are
      * borrowed and can be unpacked in place. Without a block, the reader binds
@@ -148,6 +153,8 @@ extern "C"
                                       MMMaterialDescription *);
     void mm_material_header_write(unsigned char[20], int host_big, MMU32 system,
                                         const MMMaterialDescription *);
+    /* Author a solid material using the archive writer's wire format. */
+    int mm_material_archive_add(const MMArchiveWriter *, const MMMaterialDescription *, MMU32 *number);
     MMMaterialOwner *mm_custom_material_new(MMI32 set, MMI32 count, const void *materials,
                                              const MMMaterialOwnerHost *);
     int mm_custom_material_fetch(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **object,

@@ -18,7 +18,7 @@ int main()
     auto parents = DynamicArray::PglNew(sizeof(short));
     auto sets = DynamicArray::PglNew(sizeof(short));
     auto costumes = GeneralGroup::PggNew(sizeof(int32_t));
-    auto material = EngineMaterial::New();
+    auto material = mm_brender_material_new(ivNil, ivNil);
     short parent = -1, set = 0;
     int32_t ids[] = {0, 2}, count = 2;
     TemplateOnFile header = {};
@@ -36,8 +36,9 @@ int main()
         return file->FAddChild(kctgTmpl, number, 0, data->CbOnFile(), type, &child, &block) && data->FWrite(&block);
     };
     CustomMaterialOnFile custom = {kboCur, koskCur, 0};
+    const auto writer = file ? file->WriteIndex() : MMArchiveWriter{};
     ok = ok && table(kctgGlpi, parents) && table(kctgGlbs, sets) && table(kctgGgcm, costumes) &&
-         EngineMaterial::Write(material, file, kctgMtrl, &materialNumber) &&
+         mm_material_owner_write(material, &writer, kctgMtrl, &materialNumber) &&
          file->FAddChildPv(kctgTmpl, number, 0, &custom, sizeof(custom), kctgCmtl, &customNumber) &&
          file->FAdoptChild(kctgCmtl, customNumber, kctgMtrl, materialNumber, 0) &&
          file->FAdoptChild(kctgTmpl, number, kctgCmtl, customNumber, 2);
@@ -49,7 +50,7 @@ int main()
     auto sparse = tmpl ? EngineTemplate::PcmtlFetch(tmpl, 2) : nullptr;
     auto missing = tmpl ? EngineTemplate::PcmtlFetch(tmpl, 1) : nullptr;
     if (!body || !sparse || missing) std::fputs("Sparse costume lookup/application failed.\n", stderr);
-    ok = ok && body && sparse && !missing && EngineCostume::Set(sparse) == 0;
+    ok = ok && body && sparse && !missing && mm_material_owner_custom(sparse)->set == 0;
     if (body && sparse) EngineBody::SetPartSetCmtl(body, sparse);
     mm_material_owner_release(missing); mm_material_owner_release(sparse); mm_body_owner_release(body); mm_template_owner_release(tmpl);
     ReleasePpo(&cache); mm_material_owner_release(material); ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&costumes);

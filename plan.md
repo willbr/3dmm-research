@@ -2109,6 +2109,10 @@ including nested dependency references, material appearance edits and the
 shade table. The C texture binding supplies the common cache reader and
 dispatches material bitmap imports, pixelmap wrapping and texture chunk
 writes. Studio loads its shade table through the same binding as Preview.
+The C89 material owner supplies its renderer for archive writes and appearance
+views. Studio's movie transaction writes the material through the document cache,
+and authoring tools encode solid materials through the shared MTRL writer.
+The C++ material and costume module is out of the engine build.
 Both hosts use these owners for body costume snapshots, actor effects, 3D text
 material edits and archive writes. Kauai provides native memory, codec, file
 and diagnostic callbacks. The x64 Marcus, Preview helper and regression runner

@@ -88,7 +88,7 @@ struct Test
     MMStorageAllocator text_allocator;
     Actor actor, copy, inserted;
     Caption captions[3], *selected;
-    int fail, events[128], n, refs, opened, closed, textRefs, writes, chunks;
+    int fail, events[128], n, refs, opened, closed, textRefs, writes;
     int dirty, invalidates, bars, releases, restored, removeActor, nuked, cacheBegin, cacheEnd;
     int captionCount, attached, missing, hidden, removed, queries, query[8];
     void *writtenResources, *openedResources;
@@ -97,11 +97,11 @@ static void note(Test *t, int e)
 {
     t->events[t->n++] = e;
 }
-static int ensure(void *p, void **out)
+static int ensure(void *p, MMResourceCache **out)
 {
     Test *t = p;
     note(t, ENSURE);
-    *out = &t->before;
+    *out = &t->before.cache;
     return t->fail != FAIL_ENSURE;
 }
 static int valid(void *p)
@@ -117,15 +117,48 @@ static int temp(void *p)
     t->data.resources = &t->after;
     return t->fail != FAIL_TEMP;
 }
-static int write_asset(void *p, void *resources, MMU32 *number)
+static int material_extent(void *p, MMU32 bytes, MMChunkLocation *location)
 {
-    Test *t = p;
+    Test *t = ((ChunkIndexFixture *)p)->observer;
+    assert(bytes == 20);
+    location->file = &t->archive.archive;
+    location->offset = 128;
+    location->bytes = bytes;
+    location->flags = 0;
+    return 1;
+}
+static int material_write(void *p, void *file, MMU32 offset, const void *data, size_t size)
+{
+    const ChunkWriterFixture *fixture = p;
+    Test *t = fixture->context;
+    assert(file == p && offset == 128 && size == 20);
+    if (t->fail == FAIL_WRITE)
+        return 0;
+    memcpy(t->archive.descriptor, data, size);
+    return 1;
+}
+static MMArchiveWriter material_writer(void *p)
+{
+    Resource *resource = p;
+    Test *t = resource->test;
     note(t, WRITE);
     ++t->writes;
-    t->writtenResources = resources;
-    ++t->chunks;
-    *number = 27;
-    return t->fail != FAIL_WRITE;
+    t->writtenResources = &resource->cache;
+    return chunk_writer_fixture(&t->archive.archive, t, material_extent, material_write);
+}
+static void describe_material(void *p, void *handle, MMMaterialDescription *description)
+{
+    (void)p;
+    (void)handle;
+    memset(description, 0, sizeof(*description));
+    description->colour = 0x123456;
+    description->index_base = 32;
+    description->index_range = 7;
+}
+static void invalidate_number(void *p, void *number, size_t bytes)
+{
+    (void)p;
+    memset(number, 0xff, bytes);
 }
 static MMArchiveWriter text_writer(void *p)
 {
@@ -492,7 +525,6 @@ static void init(Test *t)
     s->ensure = ensure;
     s->make_valid = valid;
     s->use_temp = temp;
-    s->write_material = write_asset;
     t->text_allocator.context = t;
     t->text_allocator.resize = allocate_text;
     t->text_allocator.release = release_text;
@@ -530,18 +562,33 @@ static int material(void)
 {
     Test t;
     MMTag output;
+    MMMaterialServices services = {0};
+    MMMaterialOwnerHost host = {0};
+    MMMaterialOwner *owner;
+    MMMaterialDescription stored;
     int written, fault;
+    services.system = services.windows_system = MM_TEXT_WINDOWS;
+    services.describe = describe_material;
+    services.invalidate = invalidate_number;
+    host.services = &services;
+    owner = mm_material_owner_create(&host, MM_MATERIAL);
+    CHECK(owner);
     for (fault = 0; fault < 3; ++fault)
     {
         init(&t);
+        t.before.cache.services.live_writer = material_writer;
         t.fail = fault == 1 ? FAIL_ENSURE : fault == 2 ? FAIL_WRITE : 0;
         memset(&output, 0, sizeof(output));
         output.number = 999;
-        CHECK(mm_movie_insert_material(&t, &output, &written, &t.s) == !fault);
+        CHECK(mm_movie_insert_material(owner, &output, &written, &t.s) == !fault);
         CHECK(written == !fault);
-        CHECK(t.writes == (fault != 1) && t.chunks == (fault != 1) && !t.dirty && !t.invalidates);
+        CHECK(t.writes == (fault != 1) && t.archive.archive.index.count == (unsigned)!fault && !t.dirty && !t.invalidates);
         if (written)
-            CHECK(output.sid == 0 && output.type == 0x4d54524cU && output.number == 27);
+        {
+            CHECK(output.sid == 0 && output.type == MM_MATERIAL_CHUNK && output.number == 0);
+            CHECK(mm_material_header_read(t.archive.descriptor, 0, MM_TEXT_WINDOWS, &stored));
+            CHECK(stored.colour == 0x123456 && stored.index_base == 32 && stored.index_range == 7);
+        }
         else
             CHECK(output.number == 999);
         if (!fault)
@@ -551,6 +598,7 @@ static int material(void)
         }
         CHECK(!t.refs);
     }
+    mm_material_owner_release(owner);
     return 0;
 }
 static int inserting(void)

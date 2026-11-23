@@ -62,6 +62,7 @@
 #include "private_archive_host.h"
 #include "resource_archive_host.h"
 #include "template_renderer.h"
+#include "texture_renderer.h"
 #include "socres.h"
 #ifdef WIN
 #include "mminstal.h"
@@ -544,7 +545,7 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!EngineMaterial::SetShadeTable(_bootResources, kctgTmap, 0))
+    if (!mm_brender_material_shade_chunk(_bootResources, kctgTmap, 0))
     {
         _FGenericError(PszLit("FSetShadeTable"));
         _fDontReportInitFailure = fTrue;
@@ -5833,7 +5834,7 @@ void Application::MarkMem(void)
     MarkMemObj(_pgptStudioSnapshot);
 #endif
     MarkMemObj(vptagm);
-    EngineMaterial::MarkShadeTable();
+    mm_brender_texture_mark(static_cast<MMTextureOwner *>(mm_brender_material_shade()->texture));
     MarkMemObj(_pstdio);
     MarkMemObj(_ptatr);
     MarkMemObj(_pmvieHandoff);

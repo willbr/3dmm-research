@@ -19,6 +19,7 @@ const MMModelOwnerHost *mm_kauai_model_host(void);
 void mm_kauai_model_validate(const MMModelOwner *);
 const MMMaterialOwnerHost *mm_kauai_material_host(void);
 void mm_kauai_material_validate(MMMaterialOwner *);
+void mm_kauai_costume_validate(MMMaterialOwner *);
 
 /* Bind the cache readers and renderer operations before exposing a host. */
 void mm_brender_asset_model_bind(MMModelServices *);
@@ -37,9 +38,6 @@ int mm_brender_material_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, vo
 MMMaterialOwner *mm_brender_material_fetch(MMResourceCache *, MMU32 type, MMU32 number);
 MMMaterialOwner *mm_brender_material_new(MMI32 base, MMI32 range);
 void mm_brender_material_mark(MMMaterialOwner *);
-void mm_brender_material_read_view(MMMaterialOwner *, MMMaterialAppearance *);
-int mm_brender_material_write_view(MMMaterialOwner *, const MMArchiveWriter *, MMU32 type, MMU32 *number,
-                                   const MMMaterialAppearance *);
 
 const MMMaterialShade *mm_brender_material_shade(void);
 int mm_brender_material_shade_take(MMTextureOwner *);

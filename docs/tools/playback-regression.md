@@ -24424,3 +24424,37 @@ playback observations per port. Its authored frame order and settled
 canvas matched retail and V3DMM.
 
 Evidence is under `tmp/c89-body-render-binding`.
+
+## C89 material and costume ownership (23 November 2026)
+
+Studio writes an owned material directly through the C89 movie transaction
+and the document cache. Material saves and appearance edits use the source
+owner's renderer. Solid colour authoring uses the shared MTRL wire encoder.
+Studio and Preview use the same C material and costume cache readers. The
+C++ material and costume module is out of the engine build.
+
+The C movie-content fixture uses a real material owner and archive writer.
+It verifies the stored colour and palette ramp, the output tag on success,
+and an unchanged tag and index after a failed write. The 102,316-byte
+material trace, body and template traces, and both movie save traces matched
+the previous build. The native spare-material and sparse-costume fixtures
+passed. Studio played, sought and reopened a movie with costume changes and
+two embedded checkerboard textures. Studio's 27,056-byte authored movie
+matched the previous build byte for byte.
+
+The 227 native suite checks, 17 SDL checks and three x86 worker fixtures
+passed. All ten Preview fingerprints and all eight native scene traces
+matched. Marcus relaunched headlessly with the same startup image. The
+existing `scene-load` debug assertion repeated with the 63,224-byte trace
+and fingerprint `0D666753`.
+
+Candidate `20261123T135803Z-c6f9cc91` completed eight headless port runs.
+Actor Audio matched all 60 previous seek canvases and scene states per
+port. Studio's actor appearance hashes matched. Both ports matched all 60
+camera indices and the authored frame order against retail and V3DMM.
+The existing seek canvas difference at scene 0, frame 4, reproduced.
+The dissolve case matched 60 previous seek canvases and 59 steady playback
+observations per port. Its authored frame order and settled canvas matched
+retail and V3DMM.
+
+Evidence is under `tmp/c89-material-owner-bindings`.

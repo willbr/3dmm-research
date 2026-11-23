@@ -6,6 +6,7 @@
 #include <crtdbg.h>
 #endif
 #include "soc_core.h"
+#include "texture_renderer.h"
 #include "mm/codec.h"
 #undef size
 ASSERTNAME
@@ -68,7 +69,7 @@ static void State(PMaterial_MTRL m, bool complete)
     Value(m != nullptr);
     if (!m)
         return;
-    auto b = EngineMaterial::Handle(m);
+    auto b = mm_brender_material_handle(m);
     Value(b != nullptr);
     if (!b)
         return;
@@ -83,7 +84,7 @@ static void State(PMaterial_MTRL m, bool complete)
                       static_cast<LegacyLong>(b->flags),
                       b->colour_map != nullptr,
                       b->index_shade != nullptr,
-                      EngineMaterial::FromHandle(b) == m};
+                      mm_brender_material_owner(b) == m};
     Record(v, sizeof(v));
     Record(&b->map_transform, sizeof(b->map_transform));
     if (complete)
@@ -91,7 +92,8 @@ static void State(PMaterial_MTRL m, bool complete)
         auto f = ChunkyFile::PcflCreateTemp();
         CHECK(f);
         ChunkNumber n;
-        CHECK(EngineMaterial::Write(m, f, kctgMtrl, &n));
+        const auto writer = f->WriteIndex();
+        CHECK(mm_material_owner_write(m, &writer, kctgMtrl, &n));
         Chunk(f, kctgMtrl, n);
         ChildChunkIdentification child;
         bool texture = f->FGetKidChidCtg(kctgMtrl, n, 0, kctgTmap, &child);
@@ -192,14 +194,14 @@ static void MaterialLoads()
                     CHECK(cache);
                     DataBlock block;
                     CHECK(file->FFind(kctgMtrl, n, &block));
-                    PMaterial_MTRL m = factory ? nullptr : mm_material_owner_create(&EngineMaterial::Host(), MM_MATERIAL);
+                    PMaterial_MTRL m = factory ? nullptr : mm_material_owner_create(mm_kauai_material_host(), MM_MATERIAL);
                     CHECK(factory || m);
                     MMI32 estimate = -1;
-                    CHECK(EngineMaterial::Read(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), nullptr, &estimate));
+                    CHECK(mm_brender_material_read(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
                     Inject(kind, failure);
                     void *output = nullptr;
-                    bool ok = factory ? EngineMaterial::Read(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), &output,
+                    bool ok = factory ? mm_brender_material_read(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), &output,
                                                                  &estimate)
                                       : mm_material_read(m, cache->CoreCache(), kctgMtrl, n, nullptr);
                     Inject(kind, 0);
@@ -220,9 +222,9 @@ static void CachedTextureOwnership()
     ChunkNumber number;
     auto file = MaterialFile(6, &number);
     auto cache = ChunkyResourceFile::PcrfNew(file, 1024);
-    auto material = mm_material_owner_create(&EngineMaterial::Host(), MM_MATERIAL);
+    auto material = mm_material_owner_create(mm_kauai_material_host(), MM_MATERIAL);
     CHECK(cache && material && mm_material_read(material, cache->CoreCache(), kctgMtrl, number, nullptr));
-    auto texture = EngineMaterial::Texture(material);
+    auto texture = static_cast<PTextureMap>(mm_material_owner_texture(material));
     CHECK(texture && texture->binding.cache == cache->CoreCache() && texture->binding.attached);
 
     const auto child = texture->binding.number;
@@ -248,10 +250,11 @@ static PChunkyFile CustomFile(int variant, ChunkNumber *number)
     CHECK(f->FAddPv(&h, sizeof(h), kctgCmtl, number));
     for (int i = 0; i < 3; ++i)
     {
-        auto m = EngineMaterial::New(i + 1, 12);
+        auto m = mm_brender_material_new(i + 1, 12);
         CHECK(m);
         ChunkNumber child;
-        CHECK(EngineMaterial::Write(m, f, kctgMtrl, &child) && f->FAdoptChild(kctgCmtl, *number, kctgMtrl, child, i));
+        const auto writer = f->WriteIndex();
+        CHECK(mm_material_owner_write(m, &writer, kctgMtrl, &child) && f->FAdoptChild(kctgCmtl, *number, kctgMtrl, child, i));
         mm_material_owner_release(m);
         if (variant >= 2 && i == 1)
         {
@@ -297,14 +300,14 @@ static void CustomLoads()
                     CHECK(cache);
                     DataBlock block;
                     CHECK(file->FFind(kctgCmtl, n, &block));
-                    PCustomMaterial_CMTL c = factory ? nullptr : mm_material_owner_create(&EngineMaterial::Host(), MM_CUSTOM_MATERIAL);
+                    PCustomMaterial_CMTL c = factory ? nullptr : mm_material_owner_create(mm_kauai_material_host(), MM_CUSTOM_MATERIAL);
                     CHECK(factory || c);
                     MMI32 estimate = -1;
-                    CHECK(EngineCostume::Read(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(), nullptr, &estimate));
+                    CHECK(mm_brender_costume_read(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
                     Inject(kind, failure);
                     void *output = nullptr;
-                    bool ok = factory ? EngineCostume::Read(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(),
+                    bool ok = factory ? mm_brender_costume_read(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(),
                                                                        &output, &estimate)
                                       : mm_custom_material_read(c, cache->CoreCache(), kctgCmtl, n, nullptr);
                     Inject(kind, 0);
@@ -314,11 +317,12 @@ static void CustomLoads()
                     Value(c != nullptr);
                     if (c)
                     {
-                        Value(EngineCostume::Set(c));
-                        Value(EngineCostume::Count(c));
+                        const auto costume = mm_material_owner_custom(c);
+                        Value(costume->set);
+                        Value(costume->count);
                         if (factory && ok)
                             Value(estimate);
-                        for (int i = 0; i < EngineCostume::Count(c); ++i)
+                        for (int i = 0; i < costume->count; ++i)
                         {
                             auto m = MaterialAt(c, i);
                             auto model = ModelAt(c, i);
@@ -328,7 +332,7 @@ static void CustomLoads()
                                 State(m, true);
                         }
                         if (ok)
-                            Value(EngineCostume::HasModels(c));
+                            Value(mm_custom_material_has_models(costume));
                     }
                     mm_material_owner_release(c);
                     block.Free();
@@ -338,23 +342,24 @@ static void CustomLoads()
 }
 static void MoreCases()
 {
-    auto a = EngineMaterial::New(), b = EngineMaterial::New(3, 5);
+    auto a = mm_brender_material_new(-1, -1), b = mm_brender_material_new(3, 5);
     CHECK(a && b);
     PMaterial_MTRL materials[] = {a, b, a};
     for (int kind = 0; kind < 2; ++kind)
         for (int failure = 0; failure < 7; ++failure)
         {
             Inject(kind, failure);
-            auto c = EngineCostume::New(-3, 3, materials);
+            auto c = mm_custom_material_new(-3, 3, materials, mm_kauai_material_host());
             Inject(kind, 0);
             Value(c != nullptr);
             Value(mm_material_owner_references(a));
             Value(mm_material_owner_references(b));
             if (c)
             {
-                Value(EngineCostume::Set(c));
-                Value(EngineCostume::Count(c));
-                Value(EngineCostume::HasModels(c));
+                const auto costume = mm_material_owner_custom(c);
+                Value(costume->set);
+                Value(costume->count);
+                Value(mm_custom_material_has_models(costume));
             }
             mm_material_owner_release(c);
             Value(mm_material_owner_references(a));
@@ -366,7 +371,7 @@ static void MoreCases()
     auto source = MaterialFile(7, &n);
     auto cache = ChunkyResourceFile::PcrfNew(source, 0);
     CHECK(cache);
-    auto m = EngineMaterial::Fetch(cache, kctgMtrl, n);
+    auto m = mm_brender_material_fetch(cache->CoreCache(), kctgMtrl, n);
     CHECK(m);
     for (int kind = 0; kind < 2; ++kind)
         for (int failure = 0; failure < 18; ++failure)
@@ -375,7 +380,8 @@ static void MoreCases()
             CHECK(f);
             ChunkNumber output = 0;
             Inject(kind, failure);
-            bool ok = EngineMaterial::Write(m, f, kctgMtrl, &output);
+            const auto writer = f->WriteIndex();
+            bool ok = mm_material_owner_write(m, &writer, kctgMtrl, &output);
             Inject(kind, 0);
             Value(ok);
             Value(output);
@@ -408,12 +414,12 @@ static void MoreCases()
     path.GetStnPath(&text);
     CHECK(BrPixelmapSave(text.Psz(), raw));
     BrPixelmapFree(raw);
-    m = EngineMaterial::FromPix(&path);
+    m = mm_material_import(text.Psz(), nullptr, 0, mm_kauai_material_host());
     CHECK(m);
     State(m, true);
     // The original texture wrapper needed this explicit SDK-owner cleanup.
     // The C-owned texture releases it during material disposal.
-    raw = EngineMaterial::Handle(m)->colour_map;
+    raw = mm_brender_material_handle(m)->colour_map;
     mm_material_owner_release(m);
 #ifndef MM_ENGINE_TEXTURE_RESOURCE_H
     BrPixelmapFree(raw);
@@ -445,12 +451,13 @@ int main()
     auto file = ChunkyFile::PcflCreateTemp();
     CHECK(file);
     ChunkNumber number;
-    CHECK(EngineTexture::Write(shade, file, kctgTmap, &number) && EngineMaterial::SetShadeTable(file, kctgTmap, number));
+    CHECK(EngineTexture::Write(shade, file, kctgTmap, &number) &&
+          mm_brender_material_shade_take(mm_brender_texture_from_chunk(file, kctgTmap, number)));
     mm_texture_owner_release(shade);
     ReleasePpo(&file);
     for (int i = 0; i < 6; ++i)
     {
-        auto m = EngineMaterial::New(i % 2 ? -1 : 14, i % 3 ? -1 : 10);
+        auto m = mm_brender_material_new(i % 2 ? -1 : 14, i % 3 ? -1 : 10);
         CHECK(m);
         State(m, true);
         mm_material_owner_release(m);
@@ -459,7 +466,7 @@ int main()
     CachedTextureOwnership();
     CustomLoads();
     MoreCases();
-    EngineMaterial::ReleaseShadeTable();
+    mm_brender_material_shade_clear();
     BrZbEnd();
     BrEnd();
     if (snapshot)

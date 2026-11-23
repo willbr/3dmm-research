@@ -379,11 +379,33 @@ void mm_kauai_material_validate(MMMaterialOwner *owner)
     const bool valid = owner && mm_material_owner_kind(owner) == MM_MATERIAL;
     Assert(valid, "Expected a material owner");
     if (valid)
-        if (auto texture = mm_material_texture(mm_material_owner_resource(owner), mm_kauai_material_host()->services))
+        if (auto texture = mm_material_owner_texture(owner))
         {
             mm_kauai_texture_validate(static_cast<MMTextureOwner *>(texture));
             Assert(mm_brender_material_shade()->texture != nullptr, "Textured material needs a shade table");
         }
+#else
+    (void)owner;
+#endif
+}
+
+void mm_kauai_costume_validate(MMMaterialOwner *owner)
+{
+#ifdef DEBUG
+    const bool valid = owner && mm_material_owner_kind(owner) == MM_CUSTOM_MATERIAL;
+    Assert(valid, "Expected a costume owner");
+    if (!valid)
+        return;
+    const auto &costume = *mm_material_owner_custom(owner);
+    AssertPvCb(costume.materials, costume.count * sizeof(void *));
+    AssertPvCb(costume.models, costume.count * sizeof(void *));
+    for (MMI32 part = 0; part < costume.count; ++part)
+    {
+        if (costume.materials[part])
+            mm_kauai_material_validate(static_cast<MMMaterialOwner *>(costume.materials[part]));
+        if (costume.models[part])
+            mm_kauai_model_validate(static_cast<MMModelOwner *>(costume.models[part]));
+    }
 #else
     (void)owner;
 #endif

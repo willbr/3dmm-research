@@ -44,9 +44,9 @@ static bool TestBodyEditing()
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1);
     face.vertices[1]=1; face.vertices[2]=2;
     auto model = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
-    auto generic=EngineMaterial::New(),material=EngineMaterial::New();
+    auto generic = mm_brender_material_new(-1, -1), material = mm_brender_material_new(-1, -1);
     PMaterial_MTRL customParts[6]={material,material,material,material,material,material};
-    auto custom=material?EngineCostume::New(1,6,customParts):nullptr;
+    auto custom = material ? mm_custom_material_new(1, 6, customParts, mm_kauai_material_host()) : nullptr;
     bool ok=model && generic && material && custom; int successes=0,failures=0;
     const int sourceCounts[]={0,1,6},targetCounts[]={0,1,4,8};
     for (int shape=0;ok && shape<3;++shape) for (int visibility=0;ok && visibility<3;++visibility)
