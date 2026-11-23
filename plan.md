@@ -1774,8 +1774,11 @@ the movie roll call during insertion and paste. 3D text renames use
 the same roll-call writer and keep existing reference counts. Clipboard
 copy and paste select actors by authored ID, decode and rewrite event
 tracks with the shared C89 actor codecs, and register external source
-IDs on first use through a C89 map. The native adapter still opens the
-writable archive and clones or copies chunk graphs. Movie
+IDs on first use through a C89 map. The clipboard owns the movie
+source names and actor name in C89. Copy and paste open, edit and save
+their private archives in C89. Each paste stages its own source map for
+the destination. Marcus supplies the file leases and publishes the
+installed movie through its existing undo path. Movie
 content-source registration also uses C89 for VFS alias matching,
 fallback and new IDs, and the source table's native encoding and link.
 C89 also creates movie roots for scene-only archives, links the existing

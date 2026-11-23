@@ -2,15 +2,13 @@
 #define MARCUS_SCENE_EDIT_H
 #include "movie_input.h"
 #include "live_edits.h"
+#include "archive_file.h"
 
 struct MarcusObjectClipboard
 {
     std::shared_ptr<MarcusMovieFile> file;
-    std::vector<MM::MovieSourceEntry> sources;
-    std::uint32_t actor, sounds;
-    long frame;
-    std::string name;
-    int browserFlags;
+    std::unique_ptr<MarcusArchiveClipboard, decltype(&marcus_archive_clipboard_destroy)>
+        track{nullptr, marcus_archive_clipboard_destroy};
 };
 std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::path &movie, unsigned long scene,
     long frame, const MarcusObject &object);

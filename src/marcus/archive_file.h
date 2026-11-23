@@ -42,6 +42,29 @@ size_t marcus_archive_name_utf8(MMArchiveReader *, MMU32 position, const MMPriva
  * a character boundary. On invalid UTF-16, written stays unchanged. */
 int marcus_archive_text_utf8(const struct MMTextHost *, const void *text, size_t bytes, int encoding,
                              char *output, size_t capacity, size_t *written);
+int marcus_archive_source_utf8(const MMMovieSourceName *, const MMPrivateArchiveProfile *,
+                               const struct MMTextHost *, char output[MM_MOVIE_SOURCE_NAME_BYTES], size_t *written);
+const char *marcus_archive_directory_error(int status, int payload);
+
+struct MarcusObject;
+typedef struct MarcusArchiveClipboard MarcusArchiveClipboard;
+typedef struct MarcusClipboardError
+{
+    const char *message;
+    int actor, source, scene, registration;
+} MarcusClipboardError;
+
+/* Copy into a fresh private archive. Publish the clipboard only after saving
+ * its track and retained assets. The host owns both the file and clipboard. */
+MarcusArchiveClipboard *marcus_archive_copy_object(const char *movie, const char *candidate,
+    MMU32 scene, MMI32 frame, const struct MarcusObject *, const MMPrivateArchiveProfile *,
+    const struct MMTextHost *, MMU32 creator, MarcusClipboardError *);
+/* Paste into a disposable working copy. The retained track and source rows
+ * are immutable, so the same clipboard can be used in different movies. */
+int marcus_archive_paste_object(const MarcusArchiveClipboard *, const char *track, const char *candidate,
+    MMU32 scene, MMI32 frame, MMI32 id, const MMPrivateArchiveProfile *, const struct MMTextHost *,
+    MMU32 creator, MarcusClipboardError *);
+void marcus_archive_clipboard_destroy(MarcusArchiveClipboard *);
 
 struct MMMovieActorTextEdit;
 struct MMMoviePoseJournal;

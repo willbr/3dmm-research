@@ -23669,3 +23669,29 @@ Text Acid candidate `20261123T092322Z-b3e80016` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-preview-transport`.
+
+## C89 Marcus object clipboard (23 November 2026)
+
+The clipboard reads source names from the same C archive owner used to
+copy the actor track. C89 owns the retained metadata and performs the
+private archive copy, paste and save. The application keeps the file lease,
+installs the edited movie and records undo. Each paste maps sources against
+its current destination.
+
+The headless actor, costume, 3D text and embedded-sound paste fixtures
+passed. The saved 3D text and costumed prop movies matched the previous
+build byte for byte. A C consumer linked through the Marcus C archive
+operations and the shared C engine and content libraries. It rejected an
+out-of-range paste, retained an accented roll-call name and reused the
+same clipboard in movies with retail source IDs 2 and 1. It also copied
+from a rootless source and resolved its implicit ID 1 in a rooted movie.
+
+All 228 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks. The headless
+Marcus startup image matched the previous build.
+
+Text Acid candidate `20261123T093505Z-b6827fa3` matched baseline
+`20261123T092322Z-b3e80016` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-object-clipboard`.

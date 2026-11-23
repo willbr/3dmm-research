@@ -77,12 +77,8 @@ static int read_source(void *context, const MMMovieSourceName *source)
     const MMPrivateArchiveProfile *profile = read->profile;
     MMArray array = {0};
     MarcusMovieSource row;
-    unsigned short text[MM_STRING_MAX];
     char name[MM_MOVIE_SOURCE_NAME_BYTES], key[MM_MOVIE_SOURCE_NAME_BYTES];
-    const MMU32 units = mm_movie_source_name_text(source, profile->encoding, profile->unit, profile->convert,
-                                                  NULL, text, MM_STRING_MAX);
-    if (!marcus_archive_text_utf8(read->text, text, units * profile->unit, profile->encoding,
-                                 name, sizeof(name), &row.name_bytes))
+    if (!marcus_archive_source_utf8(source, profile, read->text, name, &row.name_bytes))
         return 0;
     if (mm_movie_source_ids_add(read->source_ids, source->id, NULL) == MM_MOVIE_SOURCE_ID_MEMORY ||
         !(row.name = malloc(row.name_bytes + 1)))
@@ -128,39 +124,6 @@ static int read_actor(void *context, MMI32 actor, const void *text, MMU32 units)
     return 0;
 }
 
-static const char *read_error(int status, int payload)
-{
-    switch (status)
-    {
-    case MM_ARCHIVE_DIRECTORY_ROOT: return "Invalid or unsupported record header.";
-    case MM_ARCHIVE_DIRECTORY_SCENE: return "The movie has an invalid scene link or header.";
-    case MM_ARCHIVE_DIRECTORY_SOURCE_LINK: return "The movie has an invalid source table link.";
-    case MM_ARCHIVE_DIRECTORY_SOURCE_LIMIT: return "Source table exceeds this session's preview budget.";
-    case MM_ARCHIVE_DIRECTORY_SOURCE_TABLE: return "Invalid movie source table.";
-    case MM_ARCHIVE_DIRECTORY_SOURCE_ROW: return "Cannot read a movie source name.";
-    case MM_ARCHIVE_DIRECTORY_INDEX: return "Cannot read the movie chunk index.";
-    case MM_ARCHIVE_DIRECTORY_NO_SCENES: return "This document contains no movie scenes.";
-    case MM_ARCHIVE_DIRECTORY_ROLLCALL: return "The movie roll-call record is invalid.";
-    case MM_ARCHIVE_DIRECTORY_ROLLCALL_LIMIT: return "The movie roll-call table has too many entries.";
-    case MM_ARCHIVE_DIRECTORY_PAYLOAD:
-        switch (payload)
-        {
-        case MM_ARCHIVE_INVALID_POSITION: return "Chunk index is out of range.";
-        case MM_ARCHIVE_MISSING_PAYLOAD: return "Cannot read this chunk.";
-        case MM_ARCHIVE_BAD_PACKED_HEADER: return "Invalid compressed payload header.";
-        case MM_ARCHIVE_PACKED_LIMIT: return "Packed payload exceeds this session's decode budget.";
-        case MM_ARCHIVE_DECODE_FAILED: return "Cannot decode this payload.";
-        case MM_ARCHIVE_INVALID_RECORD: return "Invalid or unsupported record header.";
-        case MM_ARCHIVE_WRONG_TYPE: return "This chunk is not a General String Table.";
-        case MM_ARCHIVE_STRING_LIMIT: return "String table exceeds this session's preview budget.";
-        case MM_ARCHIVE_INVALID_STRINGS: return "Invalid or unsupported General String Table.";
-        case MM_ARCHIVE_MEMORY: return "Insufficient memory to read the movie directory.";
-        default: return "The legacy reader rejected this payload.";
-        }
-    default: return "Movie source names cannot be decoded.";
-    }
-}
-
 const char *marcus_movie_open_read(MarcusMovieOpen *movie, MMArchiveReader *reader, MarcusSceneRows *scenes,
                                   MMMovieSourceIds *source_ids, const MMPrivateArchiveProfile *profile,
                                   const struct MMTextHost *text, MarcusActorNames *names)
@@ -186,7 +149,7 @@ const char *marcus_movie_open_read(MarcusMovieOpen *movie, MMArchiveReader *read
     if (read.memory || status == MM_ARCHIVE_DIRECTORY_MEMORY)
         return "Insufficient memory to read the movie directory.";
     if (status != MM_ARCHIVE_DIRECTORY_OK)
-        return read_error(status, detail.payload_status);
+        return marcus_archive_directory_error(status, detail.payload_status);
     if (!movie->retail_prepared && !mm_movie_source_ids_retail_alias(source_ids, &movie->retail_source))
         return "No retail source ID is available.";
     rows = (MarcusScene *)scenes->storage.buffers[0].data;

@@ -55,13 +55,6 @@ static void CheckMovieSource(int status)
     Require(status == MM_MOVIE_SOURCE_EDIT_OK, messages[status]);
 }
 
-static LegacyLong RetailSource(const MMMovieArchiveEditor &editor, ChunkNumber movie, LegacyLong fallbackSource)
-{
-    MMI32 id;
-    CheckMovieSource(mm_movie_archive_register_source(&editor, KauaiText::Services(), movie, fallbackSource, nullptr, &id));
-    return id;
-}
-
 static void CheckSceneArchive(int status)
 {
     static const char *const messages[] = {
@@ -74,13 +67,6 @@ static void CheckSceneArchive(int status)
     };
     static_assert(sizeof(messages) / sizeof(messages[0]) == MM_MOVIE_SCENE_ARCHIVE_LINK + 1, "scene diagnostics");
     Require(status == MM_MOVIE_SCENE_ARCHIVE_OK, messages[status]);
-}
-
-static MMMovieArchiveRoot EnsureMovieRoot(const MMMovieArchiveEditor &editor)
-{
-    MMMovieArchiveRoot root;
-    CheckSceneArchive(mm_movie_archive_ensure_root(&editor, &root));
-    return root;
 }
 
 static void CheckSceneFrameEdit(int status)
@@ -174,26 +160,6 @@ static void CheckActorAuthor(int status, int detail)
     }
 }
 
-namespace
-{
-struct ActorArchiveFiles
-{
-    MMPrivateArchive *source, *destination;
-
-    static int Copy(void *value, MMU32 type, MMU32 number, MMU32 *copied)
-    {
-        const auto &io = *static_cast<ActorArchiveFiles *>(value);
-        return mm_private_archive_copy(io.source, io.destination, type, number, 0, copied);
-    }
-
-    static int Clone(void *value, MMU32 actor, MMU32 *copied)
-    {
-        const auto &io = *static_cast<ActorArchiveFiles *>(value);
-        return mm_private_archive_copy(io.source, io.destination, kctgActr, actor, 1, copied);
-    }
-};
-}
-
 static void CheckTextName(int status)
 {
     static const char *const messages[] = {
@@ -235,15 +201,9 @@ std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::filesystem::path &pa
     const std::shared_ptr<MarcusMovieFile> &source)
 { return WorkingCopy(path, source); }
 
-namespace
-{
-ChunkNumber TransferObject(ActorArchiveFiles files, const MMMovieArchiveEditor &source, const MMMovieArchiveEditor &destination,
-                           const MMActorArchiveRequest &request, MMMovieArchiveSourceMap *sources,
-                           MMActorHeader *header)
+static void CheckClipboard(const MarcusClipboardError &error)
 {
     static_assert(knfrmInvalid == 2147483647, "actor invalid frame");
-    const MMActorArchiveHost host{&files, &source, &destination, ActorArchiveFiles::Clone, ActorArchiveFiles::Copy,
-                                  sources, sources ? mm_movie_archive_map_source : nullptr};
 
     static const char *const messages[] = {
         nullptr,
@@ -264,50 +224,25 @@ ChunkNumber TransferObject(ActorArchiveFiles files, const MMMovieArchiveEditor &
         "Cannot allocate the copied sound links."
     };
     static_assert(sizeof(messages) / sizeof(messages[0]) == MM_ACTOR_ARCHIVE_MEMORY + 1, "archive diagnostics");
-    ChunkNumber copied;
-    const int status = mm_actor_archive_transfer(&request, &host, &copied, header);
-    if (sources) CheckMovieSource(sources->result);
-    Require(status == MM_ACTOR_ARCHIVE_OK, messages[status]);
-    return copied;
-}
+    Require(!error.message, error.message);
+    CheckSceneArchive(error.scene);
+    CheckMovieSource(error.source);
+    Require(error.actor == MM_ACTOR_ARCHIVE_OK, messages[error.actor]);
+    CheckActorRegistration(error.registration);
 }
 
 std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::path &movie, unsigned long scene,
     long frame, const MarcusObject &object)
 {
-    MM::Archive archive;
-    MM::MovieDirectory catalogue;
-    MM::Error error;
-    if (!archive.OpenForInspection(movie.u8string(), error) || !archive.ReadMovieDirectory(catalogue, error))
-        throw std::runtime_error(error.message);
     auto result = std::make_unique<MarcusObjectClipboard>();
-    result->sources = std::move(catalogue.sources);
-    if (!catalogue.hasRoot) result->sources.push_back({1, "3D Movie Maker/3DMOVIE"});
-    result->frame = frame;
-    unsigned short name[sizeof(object.name)];
-    std::size_t units;
-    Require(mm_text_read_utf8(object.name, std::strlen(object.name), name, sizeof(name) / sizeof(name[0]), &units) == 1,
-            "Cannot decode the object name.");
-    char ansi[sizeof(object.name)];
-    const auto bytes = mm_text_ansi_from_units(nullptr, name, units, ansi, sizeof(ansi), 0);
-    Require(!units || bytes, "Cannot encode the object name.");
-    result->name.assign(ansi, bytes);
-    result->browserFlags = object.text ? 2 : object.prop ? 1 : 0;
     result->file = MarcusCreateEventFile();
-    auto source = MarcusOpenArchive(movie, MM_PRIVATE_ARCHIVE_READ);
-    auto destination = MarcusOpenArchive(result->file->path, MM_PRIVATE_ARCHIVE_CREATE);
-    Require(source && destination, "Cannot create the object clipboard.");
-    const auto sourceEditor = mm_private_archive_editor(source.get());
-    const auto destinationEditor = mm_private_archive_editor(destination.get());
-    Require(destinationEditor.add(destinationEditor.context, kctgScen, 0, &result->sounds, nullptr),
-            "Cannot create the object clipboard.");
-    const auto sceneNumber = static_cast<MMU32>(scene);
-    ChunkNumber actor;
-    Require(mm_actor_archive_find(&sourceEditor, sceneNumber, object.actor_id, &actor),
-            "Cannot find the selected object in the movie.");
-    const MMActorArchiveRequest request{actor, sceneNumber, result->sounds, object.actor_id, 0, 0};
-    result->actor = TransferObject({source.get(), destination.get()}, sourceEditor, destinationEditor, request, nullptr, nullptr);
-    Require(mm_private_archive_save(destination.get(), kctgSoc), "Cannot save the object clipboard.");
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto path = movie.u8string(), track = result->file->path.u8string();
+    MarcusClipboardError error;
+    result->track.reset(marcus_archive_copy_object(path.c_str(), track.c_str(), static_cast<MMU32>(scene),
+        static_cast<MMI32>(frame), &object, &profile, KauaiText::Services(), kctgSoc, &error));
+    if (!result->track)
+        CheckClipboard(error);
     return result;
 }
 
@@ -316,40 +251,13 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     unsigned long sceneNumber, long frame, std::int32_t actorId)
 {
     auto result = WorkingCopy(movie, origin);
-    auto source = MarcusOpenArchive(clipboard.file->path, MM_PRIVATE_ARCHIVE_READ);
-    auto destination = MarcusOpenArchive(result->path, MM_PRIVATE_ARCHIVE_EDIT);
-    Require(source && destination, "Cannot open the movie or object working copy.");
-    const auto sourceEditor = mm_private_archive_editor(source.get());
-    const auto destinationEditor = mm_private_archive_editor(destination.get());
-    const auto targetScene = static_cast<MMU32>(sceneNumber);
-    MMSceneState scene;
-    Require(mm_scene_archive_read_header(&destinationEditor, targetScene, &scene) &&
-                frame >= scene.firstFrame && frame <= scene.lastFrame,
-            "The paste frame is outside the scene.");
-    const auto root = EnsureMovieRoot(destinationEditor);
-    // Headless scene-only movies rely on an implicit retail source.
-    if (root.created) RetailSource(destinationEditor, root.number, 1);
-    std::vector<MMMovieArchiveSource> sources;
-    sources.reserve(clipboard.sources.size());
-    for (const auto &sourceEntry : clipboard.sources)
-        sources.push_back({sourceEntry.id, sourceEntry.name.c_str(), 0, 0});
-    MMMovieArchiveSourceMap sourceMap{&destinationEditor, KauaiText::Services(), sources.data(), sources.size(),
-                                     root.number, root.created ? 1 : 2, MM_MOVIE_SOURCE_EDIT_OK};
-    mm_movie_archive_prepare_source_map(&sourceMap);
-
-    const MMActorArchiveRequest request{clipboard.actor, clipboard.sounds, targetScene, actorId,
-                                        static_cast<MMI32>(clipboard.frame), static_cast<MMI32>(frame)};
-    MMActorHeader header;
-    const auto actor = TransferObject({source.get(), destination.get()}, sourceEditor, destinationEditor, request, &sourceMap, &header);
-    const MMActorArchivePlacement placement{targetScene, actor, scene.firstFrame, true};
-    String caption;
-    caption.SetSzs(const_cast<char *>(clipboard.name.c_str()));
-    const MMActorArchiveName entry{
-        {header.actor_id, 1, header.source_id, static_cast<MMU32>(clipboard.browserFlags),
-         header.template_type, header.template_number},
-        caption.Prgch(), static_cast<MMU32>(caption.Cch()), 0};
-    CheckActorRegistration(mm_actor_archive_register(&destinationEditor, root.number, &placement, &entry));
-    Require(mm_private_archive_save(destination.get(), kctgSoc), "Cannot save the pasted object.");
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto track = clipboard.file->path.u8string(), path = result->path.u8string();
+    MarcusClipboardError error;
+    if (!marcus_archive_paste_object(clipboard.track.get(), track.c_str(), path.c_str(),
+        static_cast<MMU32>(sceneNumber), static_cast<MMI32>(frame), actorId, &profile, KauaiText::Services(),
+        kctgSoc, &error))
+        CheckClipboard(error);
     return result;
 }
 

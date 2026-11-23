@@ -1,12 +1,15 @@
 #include "archive_file.h"
+#include "player.h"
 #include "storyboard_store.h"
 #include "mm/actor_archive.h"
+#include "mm/collections.h"
 #include "mm/movie_scene_journal.h"
 #include "mm/movie_title.h"
 #include "mm/scene_data.h"
 #include "mm/string_ops.h"
 #include "mm/text.h"
 #include <SDL3/SDL.h>
+#include <stdlib.h>
 #include <string.h>
 
 int marcus_archive_stage_working_file(int kind, const char *stamp, int copy_source, const MarcusWorkingFiles *files)
@@ -182,7 +185,7 @@ void marcus_archive_input_close(MarcusArchiveInput *input)
     input->reader = NULL;
 }
 
-int marcus_archive_input_open_profile(MarcusArchiveInput *input, const char *path, const MMPrivateArchiveProfile *profile)
+static MMArchiveReaderOptions archive_options(const MMPrivateArchiveProfile *profile)
 {
     MMArchiveReaderOptions options = {0};
     options.max_packed_bytes = 0x7fffffffUL;
@@ -190,6 +193,12 @@ int marcus_archive_input_open_profile(MarcusArchiveInput *input, const char *pat
     options.encoding = profile->encoding;
     options.convert = profile->convert;
     options.legacy_name = profile->legacy_name;
+    return options;
+}
+
+int marcus_archive_input_open_profile(MarcusArchiveInput *input, const char *path, const MMPrivateArchiveProfile *profile)
+{
+    const MMArchiveReaderOptions options = archive_options(profile);
     return marcus_archive_input_open(input, path, &options, profile->expanded);
 }
 
@@ -288,6 +297,50 @@ int marcus_archive_text_utf8(const MMTextHost *host, const void *text, size_t by
     return 1;
 }
 
+int marcus_archive_source_utf8(const MMMovieSourceName *source, const MMPrivateArchiveProfile *profile,
+                               const MMTextHost *text, char output[MM_MOVIE_SOURCE_NAME_BYTES], size_t *written)
+{
+    unsigned short native[MM_STRING_MAX];
+    const MMU32 units = mm_movie_source_name_text(source, profile->encoding, profile->unit, profile->convert,
+                                                  NULL, native, MM_STRING_MAX);
+    return marcus_archive_text_utf8(text, native, units * profile->unit, profile->encoding,
+                                   output, MM_MOVIE_SOURCE_NAME_BYTES, written);
+}
+
+const char *marcus_archive_directory_error(int status, int payload)
+{
+    switch (status)
+    {
+    case MM_ARCHIVE_DIRECTORY_ROOT: return "Invalid or unsupported record header.";
+    case MM_ARCHIVE_DIRECTORY_SCENE: return "The movie has an invalid scene link or header.";
+    case MM_ARCHIVE_DIRECTORY_SOURCE_LINK: return "The movie has an invalid source table link.";
+    case MM_ARCHIVE_DIRECTORY_SOURCE_LIMIT: return "Source table exceeds this session's preview budget.";
+    case MM_ARCHIVE_DIRECTORY_SOURCE_TABLE: return "Invalid movie source table.";
+    case MM_ARCHIVE_DIRECTORY_SOURCE_ROW: return "Cannot read a movie source name.";
+    case MM_ARCHIVE_DIRECTORY_MEMORY: return "Insufficient memory to read the movie directory.";
+    case MM_ARCHIVE_DIRECTORY_INDEX: return "Cannot read the movie chunk index.";
+    case MM_ARCHIVE_DIRECTORY_NO_SCENES: return "This document contains no movie scenes.";
+    case MM_ARCHIVE_DIRECTORY_ROLLCALL: return "The movie roll-call record is invalid.";
+    case MM_ARCHIVE_DIRECTORY_ROLLCALL_LIMIT: return "The movie roll-call table has too many entries.";
+    case MM_ARCHIVE_DIRECTORY_PAYLOAD:
+        switch (payload)
+        {
+        case MM_ARCHIVE_INVALID_POSITION: return "Chunk index is out of range.";
+        case MM_ARCHIVE_MISSING_PAYLOAD: return "Cannot read this chunk.";
+        case MM_ARCHIVE_BAD_PACKED_HEADER: return "Invalid compressed payload header.";
+        case MM_ARCHIVE_PACKED_LIMIT: return "Packed payload exceeds this session's decode budget.";
+        case MM_ARCHIVE_DECODE_FAILED: return "Cannot decode this payload.";
+        case MM_ARCHIVE_INVALID_RECORD: return "Invalid or unsupported record header.";
+        case MM_ARCHIVE_WRONG_TYPE: return "This chunk is not a General String Table.";
+        case MM_ARCHIVE_STRING_LIMIT: return "String table exceeds this session's preview budget.";
+        case MM_ARCHIVE_INVALID_STRINGS: return "Invalid or unsupported General String Table.";
+        case MM_ARCHIVE_MEMORY: return "Insufficient memory to read the movie directory.";
+        default: return "The legacy reader rejected this payload.";
+        }
+    default: return "Movie source names cannot be decoded.";
+    }
+}
+
 typedef struct ActorArchives
 {
     MMPrivateArchive *source, *destination;
@@ -299,6 +352,12 @@ static int copy_actor_asset(void *p, MMU32 type, MMU32 number, MMU32 *copied)
     return mm_private_archive_copy(archives->source, archives->destination, type, number, 0, copied);
 }
 
+static int clone_actor_track(void *p, MMU32 actor, MMU32 *copied)
+{
+    const ActorArchives *archives = p;
+    return mm_private_archive_copy(archives->source, archives->destination, MM_ACTOR_CHUNK, actor, 1, copied);
+}
+
 static MMU32 actor_name(unsigned short *units, unsigned width, const MMTextHost *text, const char *ansi)
 {
     MMStringValue name = {0};
@@ -306,6 +365,293 @@ static MMU32 actor_name(unsigned short *units, unsigned width, const MMTextHost 
     name.unit = width;
     mm_string_from_ansi(&name, text, ansi, strlen(ansi));
     return width == 1 ? *(const unsigned char *)units : units[0];
+}
+
+struct MarcusArchiveClipboard
+{
+    MMCollectionStorage sources;
+    MMU32 source_count, actor, sounds;
+    MMI32 frame;
+    char name[MM_STRING_MAX + 1];
+    int browser_flags;
+};
+
+void marcus_archive_clipboard_destroy(MarcusArchiveClipboard *clipboard)
+{
+    const MMMovieArchiveSource *sources;
+    MMU32 i;
+    if (!clipboard)
+        return;
+    sources = (const MMMovieArchiveSource *)clipboard->sources.buffers[0].data;
+    for (i = 0; i < clipboard->source_count; ++i)
+        free((void *)sources[i].name);
+    mm_storage_dispose(&clipboard->sources);
+    free(clipboard);
+}
+
+static int clipboard_source_append(MarcusArchiveClipboard *clipboard, MMI32 id, const char *name, size_t bytes)
+{
+    MMArray array = {0};
+    MMMovieArchiveSource row = {0};
+    char *owned = malloc(bytes + 1);
+    if (!owned)
+        return 0;
+    memcpy(owned, name, bytes + 1);
+    row.id = id;
+    row.name = owned;
+    array.storage = &clipboard->sources;
+    array.width = sizeof(row);
+    array.count = clipboard->source_count;
+    array.free_count = -1;
+    clipboard->sources.min_grow[0] = clipboard->sources.buffers[0].capacity / 2;
+    if (mm_array_add(&array, &row, NULL) != MM_STORAGE_OK)
+    {
+        free(owned);
+        return 0;
+    }
+    clipboard->source_count = array.count;
+    return 1;
+}
+
+typedef struct ClipboardSourceReader
+{
+    MarcusArchiveClipboard *clipboard;
+    const MMPrivateArchiveProfile *profile;
+    const MMTextHost *text;
+    int out_of_memory;
+} ClipboardSourceReader;
+
+static int clipboard_root(void *p, MMU32 number)
+{
+    (void)p;
+    (void)number;
+    return 1;
+}
+
+static int clipboard_scene(void *p, MMU32 slot, const MMMovieSessionScene *scene)
+{
+    (void)p;
+    (void)slot;
+    (void)scene;
+    return 1;
+}
+
+static int clipboard_source(void *p, const MMMovieSourceName *source)
+{
+    ClipboardSourceReader *input = p;
+    char name[MM_MOVIE_SOURCE_NAME_BYTES];
+    size_t count;
+    if (!marcus_archive_source_utf8(source, input->profile, input->text, name, &count))
+        return 0;
+    if (!clipboard_source_append(input->clipboard, source->id, name, count))
+    {
+        input->out_of_memory = 1;
+        return 0;
+    }
+    return 1;
+}
+
+static const char *read_clipboard_sources(MarcusArchiveClipboard *clipboard, MMPrivateArchive *archive,
+                                         const MMPrivateArchiveProfile *profile, const MMTextHost *text)
+{
+    static const char rootless_source[] = "3D Movie Maker/3DMOVIE";
+    const MMArchiveReaderOptions options = archive_options(profile);
+    ClipboardSourceReader input;
+    MMArchiveDirectorySink sink = {NULL, clipboard_root, clipboard_scene, clipboard_source};
+    MMArchiveDirectoryError detail;
+    MMArchiveReader *reader;
+    int status = mm_archive_reader_open_owner(mm_private_archive_reader(archive), &options, &reader);
+    if (status != MM_ARCHIVE_READ_OK)
+        return status == MM_ARCHIVE_MEMORY ? "Insufficient memory to open archive." : "Cannot read the chunk index.";
+    input.clipboard = clipboard;
+    input.profile = profile;
+    input.text = text;
+    input.out_of_memory = 0;
+    sink.context = &input;
+    status = mm_archive_reader_directory(reader, &sink, &detail);
+    if (status == MM_ARCHIVE_DIRECTORY_OK && !mm_archive_reader_movie(reader) &&
+        !clipboard_source_append(clipboard, 1, rootless_source, sizeof(rootless_source) - 1))
+        input.out_of_memory = 1;
+    mm_archive_reader_close(reader);
+    if (input.out_of_memory)
+        status = MM_ARCHIVE_DIRECTORY_MEMORY;
+    return status == MM_ARCHIVE_DIRECTORY_OK ? NULL : marcus_archive_directory_error(status, detail.payload_status);
+}
+
+static MMActorArchiveHost clipboard_host(ActorArchives *archives, const MMMovieArchiveEditor *source,
+    const MMMovieArchiveEditor *destination, MMMovieArchiveSourceMap *map)
+{
+    MMActorArchiveHost host = {NULL, NULL, NULL, clone_actor_track, copy_actor_asset, NULL, NULL};
+    host.context = archives;
+    host.source = source;
+    host.destination = destination;
+    host.source_map = map;
+    host.map_source = map ? mm_movie_archive_map_source : NULL;
+    return host;
+}
+
+static const char *copy_clipboard_track(MarcusArchiveClipboard *clipboard, ActorArchives *archives, MMU32 scene,
+                                         const MarcusObject *object, MMU32 creator, int *transfer)
+{
+    const MMMovieArchiveEditor source = mm_private_archive_editor(archives->source);
+    const MMMovieArchiveEditor destination = mm_private_archive_editor(archives->destination);
+    const MMActorArchiveHost host = clipboard_host(archives, &source, &destination, NULL);
+    MMActorArchiveRequest request = {0};
+    unsigned short units[sizeof(object->name)];
+    size_t count, bytes;
+    if (mm_text_read_utf8(object->name, strlen(object->name), units, sizeof(units) / sizeof(*units), &count) != 1)
+        return "Cannot decode the object name.";
+    bytes = mm_text_ansi_from_units(NULL, units, count, clipboard->name, sizeof(object->name), 0);
+    if (count && !bytes)
+        return "Cannot encode the object name.";
+    clipboard->name[bytes] = '\0';
+    clipboard->browser_flags = object->text ? 2 : object->prop ? 1 : 0;
+    if (!destination.add(destination.context, MM_SCENE_CHUNK, 0, &clipboard->sounds, NULL))
+        return "Cannot create the object clipboard.";
+    request.source_scene = scene;
+    request.destination_scene = clipboard->sounds;
+    request.actor_id = (MMI32)object->actor_id;
+    if (!mm_actor_archive_find(&source, scene, request.actor_id, &request.actor))
+        return "Cannot find the selected object in the movie.";
+    *transfer = mm_actor_archive_transfer(&request, &host, &clipboard->actor, NULL);
+    if (*transfer == MM_ACTOR_ARCHIVE_OK && !mm_private_archive_save(archives->destination, creator))
+        return "Cannot save the object clipboard.";
+    return NULL;
+}
+
+MarcusArchiveClipboard *marcus_archive_copy_object(const char *movie, const char *candidate,
+    MMU32 scene, MMI32 frame, const MarcusObject *object, const MMPrivateArchiveProfile *profile,
+    const MMTextHost *text, MMU32 creator, MarcusClipboardError *error)
+{
+    MarcusArchiveClipboard *clipboard;
+    ActorArchives archives = {NULL, NULL};
+    memset(error, 0, sizeof(*error));
+    clipboard = calloc(1, sizeof(*clipboard));
+    if (!clipboard)
+    {
+        error->message = "Insufficient memory to read the movie directory.";
+        return NULL;
+    }
+    mm_storage_init(&clipboard->sources, NULL);
+    clipboard->frame = frame;
+    archives.source = marcus_archive_open(movie, MM_PRIVATE_ARCHIVE_READ, profile);
+    if (!archives.source)
+        error->message = "Cannot open this file as a chunky archive.";
+    else
+        error->message = read_clipboard_sources(clipboard, archives.source, profile, text);
+    if (!error->message)
+    {
+        archives.destination = marcus_archive_open(candidate, MM_PRIVATE_ARCHIVE_CREATE, profile);
+        error->message = archives.destination ?
+            copy_clipboard_track(clipboard, &archives, scene, object, creator, &error->actor) :
+            "Cannot create the object clipboard.";
+    }
+    mm_private_archive_close(archives.destination);
+    mm_private_archive_close(archives.source);
+    if (error->message || error->actor != MM_ACTOR_ARCHIVE_OK)
+    {
+        marcus_archive_clipboard_destroy(clipboard);
+        return NULL;
+    }
+    return clipboard;
+}
+
+static int paste_error(MarcusClipboardError *error, const char *message)
+{
+    error->message = message;
+    return 0;
+}
+
+static int paste_clipboard_track(const MarcusArchiveClipboard *clipboard, ActorArchives *archives,
+    MMU32 scene, MMI32 frame, MMI32 id, const MMTextHost *text, MarcusClipboardError *error)
+{
+    const MMMovieArchiveEditor source = mm_private_archive_editor(archives->source);
+    const MMMovieArchiveEditor destination = mm_private_archive_editor(archives->destination);
+    MMActorArchiveRequest request;
+    MMMovieArchiveSourceMap map = {0};
+    const MMActorArchiveHost host = clipboard_host(archives, &source, &destination, &map);
+    MMSceneState scene_state;
+    MMMovieArchiveRoot root;
+    MMActorHeader header;
+    MMActorArchivePlacement placement;
+    MMActorArchiveName name = {0};
+    unsigned short units[MM_STRING_MAX + 2];
+    MMU32 actor;
+    if (!mm_scene_archive_read_header(&destination, scene, &scene_state) ||
+        frame < scene_state.firstFrame || frame > scene_state.lastFrame)
+        return paste_error(error, "The paste frame is outside the scene.");
+    error->scene = mm_movie_archive_ensure_root(&destination, &root);
+    if (error->scene != MM_MOVIE_SCENE_ARCHIVE_OK)
+        return 0;
+    map.fallback_retail = MM_MOVIE_RETAIL_SOURCE_ID;
+    if (root.created)
+    {
+        MMI32 assigned;
+        error->source = mm_movie_archive_register_source(&destination, text, root.number, 1, NULL, &assigned);
+        if (error->source != MM_MOVIE_SOURCE_EDIT_OK)
+            return 0;
+        map.fallback_retail = 1;
+    }
+    map.destination = &destination;
+    map.text = text;
+    map.movie = root.number;
+    map.count = clipboard->source_count;
+    if (map.count)
+    {
+        const size_t bytes = map.count * sizeof(*map.sources);
+        map.sources = malloc(bytes);
+        if (!map.sources)
+            return paste_error(error, "Cannot allocate the movie content sources.");
+        memcpy(map.sources, clipboard->sources.buffers[0].data, bytes);
+    }
+    mm_movie_archive_prepare_source_map(&map);
+    request.actor = clipboard->actor;
+    request.source_scene = clipboard->sounds;
+    request.destination_scene = scene;
+    request.actor_id = id;
+    request.source_frame = clipboard->frame;
+    request.destination_frame = frame;
+    error->actor = mm_actor_archive_transfer(&request, &host, &actor, &header);
+    error->source = map.result;
+    free(map.sources);
+    if (error->actor != MM_ACTOR_ARCHIVE_OK || error->source != MM_MOVIE_SOURCE_EDIT_OK)
+        return 0;
+    placement.scene = scene;
+    placement.actor = actor;
+    placement.first_frame = scene_state.firstFrame;
+    placement.invalidate_thumbnail = 1;
+    name.actor.actor_id = header.actor_id;
+    name.actor.reference_count = 1;
+    name.actor.source_id = header.source_id;
+    name.actor.browser_flags = (MMU32)clipboard->browser_flags;
+    name.actor.template_type = header.template_type;
+    name.actor.template_number = header.template_number;
+    name.text = (const unsigned char *)units + destination.text_unit;
+    name.characters = actor_name(units, destination.text_unit, text, clipboard->name);
+    error->registration = mm_actor_archive_register(&destination, root.number, &placement, &name);
+    return error->registration == MM_ACTOR_REGISTER_OK;
+}
+
+int marcus_archive_paste_object(const MarcusArchiveClipboard *clipboard, const char *track, const char *candidate,
+    MMU32 scene, MMI32 frame, MMI32 id, const MMPrivateArchiveProfile *profile, const MMTextHost *text,
+    MMU32 creator, MarcusClipboardError *error)
+{
+    ActorArchives archives;
+    int pasted = 0;
+    memset(error, 0, sizeof(*error));
+    archives.source = marcus_archive_open(track, MM_PRIVATE_ARCHIVE_READ, profile);
+    archives.destination = marcus_archive_open(candidate, MM_PRIVATE_ARCHIVE_EDIT, profile);
+    if (!archives.source || !archives.destination)
+        error->message = "Cannot open the movie or object working copy.";
+    else
+    {
+        pasted = paste_clipboard_track(clipboard, &archives, scene, frame, id, text, error);
+        if (pasted && !mm_private_archive_save(archives.destination, creator))
+            pasted = paste_error(error, "Cannot save the pasted object.");
+    }
+    mm_private_archive_close(archives.destination);
+    mm_private_archive_close(archives.source);
+    return pasted;
 }
 
 static int replace_text(MMPrivateArchive *file, MMU32 actor, const MMMovieActorTextEdit *edit,
