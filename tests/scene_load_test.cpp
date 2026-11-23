@@ -42,15 +42,28 @@ class Client : public MovieClientCallbacks
             std::exit(1);                                                                                              \
         }                                                                                                              \
     } while (0)
+struct Fingerprint
+{
+    unsigned hash = 2166136261U, bytes = 0;
+
+    void Add(const void *data, size_t count)
+    {
+        auto b = static_cast<const byte *>(data);
+        for (size_t i = 0; i < count; ++i)
+            hash = (hash ^ b[i]) * 16777619U;
+        bytes += unsigned(count);
+    }
+};
 static FILE *snapshot;
-static unsigned hash = 2166136261U, recorded;
+static Fingerprint trace, attempt, unfaulted;
+static bool faultRequested;
 static PChunkyResourceFile observed;
 static void Record(const void *p, size_t n)
 {
-    auto b = static_cast<const byte *>(p);
-    for (size_t i = 0; i < n; ++i)
-        hash = (hash ^ b[i]) * 16777619U;
-    recorded += unsigned(n);
+    trace.Add(p, n);
+    attempt.Add(p, n);
+    if (!faultRequested)
+        unfaulted.Add(p, n);
     if (snapshot)
         CHECK(std::fwrite(p, 1, n, snapshot) == n);
 }
@@ -262,13 +275,20 @@ int main()
     CHECK(file);
     observed = ChunkyResourceFile::PcrfNew(file, 1 << 20);
     CHECK(observed);
+#ifdef DEBUG
+    unsigned allocationFailures[3] = {};
+#endif
     for (int swap = 0; swap < 2; ++swap)
         for (int scenario = 0; scenario < 7; ++scenario)
         {
             auto number = Fixture(file, scenario, swap != 0);
+            const bool wellFormed = scenario == 0 || scenario == 6;
+            Fingerprint expected;
             for (int kind = 0; kind < 3; ++kind)
                 for (int failure = 0; failure <= 22; ++failure)
                 {
+                    attempt = {};
+                    faultRequested = failure != 0;
 #ifdef DEBUG
                     vmutxMem.Enter();
                     auto &a = kind == 0 ? vdmglob.dmaglBase : kind == 1 ? vdmglob.dmaglHq : vdmglob.dmaglPv;
@@ -281,12 +301,21 @@ int main()
                     vmutxMem.Enter();
                     a.cactDo = a.cactFail = 0;
                     vmutxMem.Leave();
+                    if (wellFormed && faultRequested && !scene)
+                        ++allocationFailures[kind];
+                    const bool canFail = faultRequested;
+#else
+                    const bool canFail = false;
 #endif
+                    CHECK(scene ? wellFormed : !wellFormed || canFail);
                     Value(scene != nullptr);
                     Value(observed->CactRef());
                     if (scene)
                     {
                         Access::State(scene);
+                        if (kind == 0 && failure == 0)
+                            expected = attempt;
+                        CHECK(attempt.bytes == expected.bytes && attempt.hash == expected.hash);
                         ReleasePpo(&scene);
                     }
                     CHECK(observed->CactRef() == 1);
@@ -294,6 +323,10 @@ int main()
                 }
             file->Delete(kctgScen, number);
         }
+#ifdef DEBUG
+    for (auto failures : allocationFailures)
+        CHECK(failures > 0);
+#endif
 #ifdef MM_ENGINE_SCENE_LOAD_H
     // Corrected resolution-failure lock cleanup is outside the frozen trace.
     CHECK(movie->FNewScenInsCore(0));
@@ -320,12 +353,14 @@ int main()
     delete app;
     if (snapshot)
         CHECK(!std::fclose(snapshot));
-    std::printf("Scene load: bytes=%u fingerprint=%08X\n", recorded, hash);
+    std::printf("Scene load: bytes=%u fingerprint=%08X\n", trace.bytes, trace.hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one) && sizeof(void *) == 8 && sizeof(achar) == 1)
-#ifdef DEBUG
-        CHECK(recorded == 62784 && hash == 0x2B38A1BDU);
-#else
-        CHECK(recorded == 66240 && hash == 0x8940A7C9U);
+    {
+        // Allocator fault ordinals shift as the loader changes storage owners.
+        CHECK(unfaulted.bytes == 2880 && unfaulted.hash == 0x5E2C69F1U);
+#ifndef DEBUG
+        CHECK(trace.bytes == 66240 && trace.hash == 0x8940A7C9U);
 #endif
+    }
 }

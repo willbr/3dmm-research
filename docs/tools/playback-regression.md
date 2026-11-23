@@ -24836,3 +24836,19 @@ observations in each port and the settled canvas in retail and V3DMM.
 
 Evidence is under `tmp/c89-media-working-save`. The playback suite is in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## Scene-load allocation-failure fixture (23 November 2026)
+
+The native fixture now checks the expected outcome of each unfaulted load,
+compares every successful fault-injected load with the corresponding unfaulted
+scene, and checks that all three debug allocation families exercise rejection
+and cache reference cleanup. The x64 guard fingerprints the 2,880 unfaulted
+bytes shared by native Debug and SDL Release. SDL Release also retains its
+full 66,240-byte fingerprint.
+
+Native x64 and x86 Debug and SDL x64 Release passed. Native x64 still
+emitted the 63,224-byte trace with fingerprint `0D666753`, byte-identical
+to `9e1c2a69`. SDL Release emitted its original 66,240 bytes with fingerprint
+`8940A7C9`. The corresponding standalone C89 scene-load checks passed.
+All eight native scene fixtures passed and reproduced their earlier traces.
+Evidence is under `tmp/c89-scene-load-fixture`.
