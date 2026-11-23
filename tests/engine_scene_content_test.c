@@ -1,6 +1,7 @@
 #include "mm/scene_content.h"
 #include "mm/actor_clipboard.h"
 #include "mm/movie_edit.h"
+#include "mm/movie_content.h"
 #include "actor_stage_owner_fixture.h"
 #include "scene_member_fixture.h"
 #include <stdio.h>
@@ -593,6 +594,66 @@ static void test_actor_clipboard(void)
         clean(&t);
     }
 }
+static void *new_caption(void *scene, const void *bounds, int story)
+{
+    CHECK(bounds && story);
+    return new_obj(scene, 1);
+}
+static MMI32 default_caption_font(void *p)
+{
+    CHECK(p);
+    return 20;
+}
+static void set_caption_font(void *p, MMI32 font)
+{
+    CHECK(((Obj *)p)->text && font == 20);
+}
+static void attach_caption(void *p)
+{
+    Obj *object = p;
+    CHECK(object->test->owner.selected_text == object);
+    ++object->test->placement;
+}
+static void release_caption(void *p)
+{
+    release(((Obj *)p)->test, p);
+}
+static int visible_caption(void *p)
+{
+    return !((Obj *)p)->hidden;
+}
+static void test_movie_caption(void)
+{
+    Test t;
+    MMMovieScenes scenes = {0};
+    MMMovieContentServices content = {0};
+    Obj *first, *second;
+    init(&t);
+    scenes.open = &t;
+    content.edit.context = &t;
+    content.edit.scenes = &scenes;
+    content.caption_scene = &t.s;
+    content.new_caption = new_caption;
+    content.default_font = default_caption_font;
+    content.caption_font = set_caption_font;
+    content.attach_caption = attach_caption;
+    content.release_caption = release_caption;
+    content.visible_caption = visible_caption;
+    CHECK(mm_movie_insert_caption(&t, 1, &content) && t.live == 1 && t.placement == 1);
+    first = t.owner.selected_text;
+    first->hidden = 1;
+    clear(&t);
+    CHECK(mm_movie_insert_caption(&t, 1, &content) && t.live == 2 && t.placement == 2);
+    second = t.owner.selected_text;
+    CHECK(second != first);
+    mm_scene_select_text(NULL, &t.s.selection);
+    mm_movie_select_caption(0, &content);
+    CHECK(t.owner.selected_text == second);
+    clear(&t);
+    CHECK(mm_movie_remove_caption(0, &content));
+    CHECK(!t.owner.selected_text && mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) == 1);
+    clean(&t);
+}
 static void test_actor(void)
 {
     Test t;
@@ -945,6 +1006,7 @@ int main(void)
 {
     test_actor();
     test_actor_clipboard();
+    test_movie_caption();
     test_text();
     test_public();
     test_actor_undo();

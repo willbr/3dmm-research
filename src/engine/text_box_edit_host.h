@@ -30,6 +30,7 @@ struct TextBoxEditHost
     }
     static RC Bounds(const MMTextBoxBounds &b) { return RC(b.left, b.top, b.right, b.bottom); }
     static MMTextBoxBounds Bounds(const RC &b) { return {b.xpLeft, b.ypTop, b.xpRight, b.ypBottom}; }
+    static const MMSceneOwner *SceneOwner(PScene scene) { return scene ? &scene->_owner : nullptr; }
     static MMTextBoxUndo *Undo(void *, void *object)
     {
         auto p = static_cast<PMovieUndo>(object);
@@ -45,6 +46,7 @@ struct TextBoxEditHost
         s.context = this; s.call = Call;
         s.state = [](void *, void *p) { return &static_cast<PTBOX>(p)->_data; };
         s.runtime = [](void *, void *p) { return &static_cast<PTBOX>(p)->_runtime; };
+        s.scene_owner = [](void *, void *p) { return SceneOwner(static_cast<PTBOX>(p)->Pscen()); };
         s.undo = Undo;
         s.clipboard = [](void *, void *p) { return &static_cast<PTextBoxClipboard>(p)->_clipboard; };
         s.black = static_cast<MMU32>(kacrBlack.LwGet()); s.clear = static_cast<MMU32>(kacrClear.LwGet());
@@ -130,8 +132,6 @@ struct TextBoxEditHost
             case MM_BOX_SHOW: return static_cast<PTBOX>(q->object)->FShowCore();
             case MM_BOX_HIDE: static_cast<PTBOX>(q->object)->HideCore(); break;
             case MM_BOX_REMOVE: return static_cast<PTBOX>(q->object)->Pscen()->FRemTbox(static_cast<PTBOX>(q->object));
-            case MM_BOX_SCENE_BOX:
-                q->object = static_cast<PTBOX>(q->other)->Pscen()->PtboxFromItbox(q->value); break;
             case MM_BOX_VIEW:
                 q->object = static_cast<PTextBoxGobject>(static_cast<PTBOX>(q->object)->PddgGet(0));
                 AssertNilOrPo(static_cast<PTextBoxGobject>(q->object), 0); break;
@@ -161,12 +161,6 @@ struct TextBoxEditHost
             case MM_BOX_ALLOCATE_CLIPBOARD: q->object = NewObj TextBoxClipboard; break;
             case MM_BOX_WORKSPACE:
                 q->value = h.scene->Pmvie()->Pmcc()->Dxp(); q->second = h.scene->Pmvie()->Pmcc()->Dyp(); break;
-            case MM_BOX_DUPLICATE:
-            {
-                PTBOX result = nullptr;
-                bool success = static_cast<PTBOX>(q->object)->FDup(&result);
-                q->object = result; return success;
-            }
             case MM_BOX_GET_BOUNDS:
             {
                 RC bounds; static_cast<PTBOX>(q->object)->GetRc(&bounds); q->bounds = Bounds(bounds); break;
@@ -192,6 +186,10 @@ struct TextBoxUndoHost : TextBoxEditHost
     MMTextBoxEditServices Services()
     {
         auto services = TextBoxEditHost::Services(); services.context = this; services.call = Call;
+        services.scene_owner = [](void *context, void *) {
+            auto movie = static_cast<TextBoxUndoHost *>(context)->owner->Pmvie();
+            return SceneOwner(movie ? movie->Pscen() : nullptr);
+        };
         return services;
     }
     static int Call(void *context, MMTextBoxEditOperation op, MMTextBoxEditRequest *q)
@@ -206,7 +204,6 @@ struct TextBoxUndoHost : TextBoxEditHost
             case MM_BOX_CURRENT_SCENE: q->value = h.owner->Pmvie()->Iscen(); break;
             case MM_BOX_SWITCH_SCENE: return h.owner->Pmvie()->FSwitchScen(q->value);
             case MM_BOX_SEEK_SCENE: return h.owner->Pmvie()->Pscen()->FGotoFrm(q->value);
-            case MM_BOX_SCENE_BOX: q->object = h.owner->Pmvie()->Pscen()->PtboxFromItbox(q->value); break;
             case MM_BOX_SELECT: h.owner->Pmvie()->Pscen()->SelectTbox(static_cast<PTBOX>(q->object)); break;
             case MM_BOX_FLUSH: mm_frame_sound_queue_clear(h.owner->Pmvie()->SoundQueue()); break;
             case MM_BOX_CLEAR_UNDO: h.owner->Pmvie()->ClearUndo(); break;

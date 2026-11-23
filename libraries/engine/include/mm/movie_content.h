@@ -29,6 +29,7 @@ extern "C"
         void *(*selected_caption)(void *scene), *(*caption_at)(void *scene, MMI32 index);
         int (*hide_caption)(void *caption), (*visible_caption)(void *caption);
         void (*missing_caption)(void *);
+        const struct MMSceneContentServices *caption_scene;
     } MMMovieContentServices;
     /* Initialized synchronous services and stable Movie/Scene owners are required.
      * Counted names, caption bounds and font tags are borrowed. New captions
@@ -44,6 +45,7 @@ extern "C"
      * blank deletion does not inspect the font input.
      * Failed new roll-call insertion restores the actor but keeps the Movie ID
      * limit increment, so the consumed ID is not reused.
+     * Caption scene edits and selection use the live scene binding when supplied.
      * Indexed caption selection scans visible captions in storage order and leaves
      * selection unchanged for negative/out-of-range indexes. */
     int mm_movie_insert_material(MMMaterialOwner *material, MMTag *output, int *written,

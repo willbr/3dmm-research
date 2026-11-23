@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/text_box_edit.h"
+#include "mm/scene_owner.h"
 #include "mm/wide.h"
 #include <string.h>
 #define TRY(e) do { int status_ = (e); if (status_ < 0) return status_; } while (0)
@@ -64,7 +65,14 @@ int mm_text_box_read_document(void *scene, MMU32 number, const struct MMMovieArc
     *p->state(p->context, box) = metadata;
     return publish(box, p);
 }
-int mm_text_box_duplicate(void *source, const MMTextBoxEditServices *p)
+static int publish_copy(void **output, void *copy, const MMTextBoxEditServices *p)
+{
+    if (!output)
+        return publish(copy, p);
+    *output = copy;
+    return 1;
+}
+static int duplicate(void *source, void **output, const MMTextBoxEditServices *p)
 {
     MMTextBoxEditRequest q;
     MMTextBoxState *state = p->state(p->context, source);
@@ -74,14 +82,14 @@ int mm_text_box_duplicate(void *source, const MMTextBoxEditServices *p)
     q.bounds.left = state->left; q.bounds.top = state->top;
     q.bounds.right = state->right; q.bounds.bottom = state->bottom;
     TRY(CALL(MM_BOX_NEW_COPY)); copy = q.object;
-    TRY(publish(copy, p));
+    TRY(publish_copy(output, copy, p));
     if (!copy) return 0;
     q.object = copy; TRY(CALL(MM_BOX_SUSPEND_UNDO));
     q.object = source; TRY(CALL(MM_BOX_CHARACTERS)); characters = q.value;
     q.object = copy; TRY(CALL(MM_BOX_CHARACTERS));
     q.second = q.value; q.value = characters; q.other = source;
     result = CALL(MM_BOX_REPLACE); TRY(result);
-    if (!result) { TRY(release(copy, p)); TRY(publish(NULL, p)); return 0; }
+    if (!result) { TRY(release(copy, p)); TRY(publish_copy(output, NULL, p)); return 0; }
     q.object = source; TRY(CALL(MM_BOX_DEFAULTS));
     q.object = copy; TRY(CALL(MM_BOX_SET_DEFAULTS));
     TRY(CALL(MM_BOX_RESUME_UNDO));
@@ -90,13 +98,31 @@ int mm_text_box_duplicate(void *source, const MMTextBoxEditServices *p)
     q.value = p->state(p->context, source)->story != 0; TRY(CALL(MM_BOX_SET_TYPE));
     return 1;
 }
+int mm_text_box_duplicate(void *source, const MMTextBoxEditServices *p)
+{
+    return duplicate(source, NULL, p);
+}
 int mm_text_box_index(void *text, MMI32 *out, const MMTextBoxEditServices *p)
 {
     MMTextBoxEditRequest q;
     MMI32 index = 0;
+    if (p->scene_owner)
+    {
+        const MMSceneOwner *owner = p->scene_owner(p->context, text);
+        if (!owner)
+            return 0;
+        for (index = 0; index < mm_scene_member_count(owner, MM_SCENE_TEXTS); ++index)
+            if (mm_scene_member_at(owner, MM_SCENE_TEXTS, index) == text)
+            {
+                *out = index;
+                return 1;
+            }
+        return 0;
+    }
     for (;;)
     {
         q.other = text; q.value = index; TRY(CALL(MM_BOX_SCENE_BOX));
+        if (!q.object) return 0;
         if (q.object == text) { *out = index; return 1; }
         index = mm_signed_word((MMU32)index + 1U);
     }
@@ -107,6 +133,8 @@ static int record(void *text, int kind, MMU32 value, void **out, const MMTextBox
     MMTextBoxUndo *undo;
     MMTextBoxState *state;
     MMI32 index;
+    int found = mm_text_box_index(text, &index, p);
+    if (found <= 0) return found;
     q.value = kind; TRY(CALL(MM_BOX_ALLOCATE_UNDO)); *out = q.object;
     if (!q.object) return 0;
     undo = p->undo(p->context, q.object);
@@ -116,7 +144,7 @@ static int record(void *text, int kind, MMU32 value, void **out, const MMTextBox
     {
         state = p->state(p->context, text); undo->end = state->end; undo->first = state->first;
     }
-    TRY(mm_text_box_index(text, &index, p)); undo->index = index;
+    undo->index = index;
     if (kind == MM_BOX_UNDO_COLOR)
     {
         q.object = text; TRY(CALL(MM_BOX_BACKGROUND)); undo->color = q.word;
@@ -179,11 +207,13 @@ int mm_text_box_add_edit_undo(void *text, void *edit, const MMTextBoxEditService
     void *record;
     MMI32 index;
     int result;
+    result = mm_text_box_index(text, &index, p);
+    if (result <= 0) return result;
     q.value = MM_BOX_UNDO_EDIT; TRY(CALL(MM_BOX_ALLOCATE_UNDO)); record = q.object;
     if (!record) return 0;
     undo = p->undo(p->context, record); undo->kind = MM_BOX_UNDO_EDIT; undo->edit = edit;
     q.object = edit; TRY(CALL(MM_BOX_RETAIN));
-    TRY(mm_text_box_index(text, &index, p)); undo->index = index;
+    undo->index = index;
     q.object = record; q.other = text; result = CALL(MM_BOX_ADD_UNDO); TRY(result);
     if (!result)
     {
@@ -274,7 +304,7 @@ int mm_text_box_clipboard_paste(const MMTextBoxClipboard *clipboard, const MMTex
     MMI32 right, bottom;
     int result;
     TRY(CALL(MM_BOX_WORKSPACE)); right = q.value; bottom = q.second;
-    q.object = clipboard->text; result = CALL(MM_BOX_DUPLICATE); TRY(result); text = q.object;
+    result = duplicate(clipboard->text, &text, p); TRY(result);
     if (!result) { TRY(CALL(MM_BOX_CLEAR_UNDO)); return 0; }
     q.object = text; TRY(CALL(MM_BOX_GET_BOUNDS)); bounds = q.bounds;
     bounds.right = mm_signed_word((MMU32)bounds.right - (MMU32)bounds.left + 177U);

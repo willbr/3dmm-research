@@ -129,6 +129,7 @@ class Scene : public Scene_PAR
     friend class SceneUndoTitle;
     friend class SceneUndoTransition;
     friend struct SceneEditUndoHost;
+    friend struct TextBoxEditHost;
     RTCLASS_DEC
     MARKMEM
     ASSERT

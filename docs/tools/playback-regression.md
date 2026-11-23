@@ -24885,3 +24885,35 @@ each port and the settled canvas in retail and V3DMM.
 
 Evidence is under `tmp/c89-actor-paste-save`. The playback suite is in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 caption editing and clipboard bindings (23 November 2026)
+
+Studio caption edit and undo lookups read the C89 scene roster. A detached
+or unregistered caption returns an ordinary failure before allocating undo.
+Movie caption insertion, removal and visible-index selection use the C89 scene
+controller. Caption clipboard paste calls the same C89 duplication routine as
+standalone caption copy and retains its bounds, placement and undo cleanup.
+
+All 228 selected native checks and twenty standalone C89 checks passed,
+including strict syntax. The fixtures cover detached caption lookup, live
+roster indices, copy and paste failure prefixes, and insertion, visible
+selection and removal through the scene controller. The x86 fixtures and
+external consumer passed. All eighteen native
+save/load traces matched, including 1,244 bytes for caption editing and 4,480
+for caption runtime. The eight scene traces, ten preview fingerprints and
+headless startup canvas also matched.
+
+SDL Studio passed 39 selected checks. Save/load traces and the styled-caption
+`.3mm` matched byte for byte. The VMM workflow passed all eight checks and
+matched the ordinary `.3mm`, five `.vmm` files and two canvas captures.
+
+Text Acid suite `20261123T162903Z-50917574` completed four captures, and
+styled-caption suite `20261123T163203Z-b5f4e054` completed two seek captures.
+Input hashes were verified. The ports matched their earlier seek canvases and
+scene states across all 240 Text Acid frames and all 11 styled-caption frames.
+Both ports matched the retained retail and V3DMM frame order. The existing
+pixel differences recurred on all Text Acid seek frames and on three of the
+eleven styled-caption seek frames in each port.
+
+Evidence is under `tmp/c89-caption-edit-bindings`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

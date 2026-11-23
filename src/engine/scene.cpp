@@ -1721,8 +1721,7 @@ bool Scene::FRemTbox(PTBOX text)
 TextBox *Scene::PtboxFromItbox(long i)
 {
     AssertThis(0);
-    auto s = _ContentServices();
-    return static_cast<PTBOX>(mm_scene_text_at(i, &s));
+    return static_cast<PTBOX>(mm_scene_member_at(&_owner, MM_SCENE_TEXTS, i));
 }
 
 /****************************************************

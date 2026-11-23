@@ -2376,7 +2376,7 @@ long TextBox::Itbox(void)
     AssertThis(0);
     TextBoxEditHost host; host.box = this;
     auto services = host.Services();
-    MMI32 index = 0;
+    MMI32 index = -1;
     host.Check(mm_text_box_index(this, &index, &services));
     return index;
 }

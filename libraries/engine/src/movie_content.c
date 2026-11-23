@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_content.h"
 #include "mm/movie_save.h"
+#include "mm/scene_content.h"
 
 int mm_movie_insert_material(MMMaterialOwner *material, MMTag *output, int *written,
                                    const MMMovieContentServices *s)
@@ -111,31 +112,43 @@ int mm_movie_change_text(void *actor, const MMStringValue *name, MMI32 shape, co
         s->edit.dirty(s->edit.context);
     return ok;
 }
+static void select_caption(void *caption, const MMMovieContentServices *s)
+{
+    if (s->caption_scene)
+        mm_scene_select_text(caption, &s->caption_scene->selection);
+    else
+        s->select_caption(s->edit.scenes->open, caption);
+}
 int mm_movie_insert_caption(const void *bounds, int story, const MMMovieContentServices *s)
 {
     void *caption = s->new_caption(s->edit.scenes->open, bounds, story);
     if (!caption)
         return 0;
     s->caption_font(caption, s->default_font(s->edit.context));
-    if (!s->add_caption(s->edit.scenes->open, caption))
+    if (!(s->caption_scene ? mm_scene_text_add_undo(caption, s->caption_scene)
+                           : s->add_caption(s->edit.scenes->open, caption)))
     {
         s->release_caption(caption);
         return 0;
     }
-    s->select_caption(s->edit.scenes->open, caption);
+    select_caption(caption, s);
     s->attach_caption(caption);
     s->release_caption(caption);
     return 1;
 }
 int mm_movie_remove_caption(int hide, const MMMovieContentServices *s)
 {
-    void *caption = s->selected_caption(s->edit.scenes->open);
+    void *caption = s->caption_scene ? s->caption_scene->events.owner->selected_text
+                                    : s->selected_caption(s->edit.scenes->open);
     if (!caption)
     {
         s->missing_caption(s->edit.context);
         return 0;
     }
-    return hide ? s->hide_caption(caption) : s->remove_caption(s->edit.scenes->open, caption);
+    if (hide)
+        return s->hide_caption(caption);
+    return s->caption_scene ? mm_scene_text_remove_undo(caption, s->caption_scene)
+                            : s->remove_caption(s->edit.scenes->open, caption);
 }
 void mm_movie_select_caption(MMI32 index, const MMMovieContentServices *s)
 {
@@ -143,13 +156,15 @@ void mm_movie_select_caption(MMI32 index, const MMMovieContentServices *s)
     void *caption;
     if (index < 0)
         return;
-    while ((caption = s->caption_at(s->edit.scenes->open, i)) != 0)
+    for (;; ++i)
     {
+        caption = s->caption_scene ? mm_scene_text_at(i, s->caption_scene) : s->caption_at(s->edit.scenes->open, i);
+        if (!caption)
+            return;
         if (s->visible_caption(caption) && visible++ == index)
         {
-            s->select_caption(s->edit.scenes->open, caption);
+            select_caption(caption, s);
             return;
         }
-        ++i;
     }
 }

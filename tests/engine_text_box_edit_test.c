@@ -1,5 +1,6 @@
 #include "text_box_edit_test_host.h"
 #include "mm/movie_archive_edit.h"
+#include "scene_member_fixture.h"
 
 enum { BOX_TEST_READ_HEADER = -2 };
 typedef struct BoxInput
@@ -207,6 +208,31 @@ static int clipboard_view(void)
     return 0;
 }
 
+static const MMSceneOwner *box_scene_owner(void *context, void *text)
+{
+    (void)context;
+    return ((TestBox *)text)->runtime.scene;
+}
+
+static int live_roster(void)
+{
+    BoxTestHost h;
+    MMTextBoxEditServices p = box_setup(&h);
+    MMSceneOwner owner;
+    SceneMemberMemory memory = {0};
+    MMI32 index = -1;
+    p.scene_owner = box_scene_owner;
+    CHECK(!mm_text_box_index(&h.objects[0], &index, &p) && index == -1 && !h.calls);
+    init_scene_members(&owner, &memory);
+    h.objects[0].runtime.scene = &owner;
+    CHECK(mm_scene_member_append(&owner, MM_SCENE_TEXTS, &h.objects[3]));
+    CHECK(!invoke(3, &h, &p) && !invoke(8, &h, &p) && !h.calls);
+    CHECK(mm_scene_member_append(&owner, MM_SCENE_TEXTS, &h.objects[0]));
+    CHECK(mm_text_box_index(&h.objects[0], &index, &p) == 1 && index == 1);
+    CHECK(invoke(3, &h, &p) == 1 && h.objects[2].undo.index == 1 && h.objects[0].state.story);
+    return 0;
+}
+
 int main(void)
 {
     BoxTestHost h, reference;
@@ -291,16 +317,17 @@ int main(void)
     }
     for (i = 0; i < 2; ++i)
     {
-        p = box_setup(&h); h.falseOp = i ? MM_BOX_ADD : MM_BOX_DUPLICATE;
+        p = box_setup(&h); h.falseOp = i ? MM_BOX_ADD : MM_BOX_REPLACE;
         CHECK(!invoke(14, &h, &p));
         CHECK(h.events[h.calls - (i ? 2 : 1)].op == MM_BOX_CLEAR_UNDO);
-        if (i) CHECK(!h.objects[1].refs);
+        CHECK(!h.objects[1].refs);
     }
     p = box_setup(&h); h.objects[1].state.left = (-2147483647L - 1); h.objects[1].state.right = 2147483647L;
     CHECK(invoke(14, &h, &p) == 1 && !h.objects[1].state.right);
     p = box_setup(&h); h.objects[1].state.left = 2147483647L; h.objects[1].state.right = (-2147483647L - 1);
     CHECK(invoke(14, &h, &p) == 1 && h.objects[1].state.left == 177 && h.objects[1].state.right == 178);
     CHECK(!clipboard_view());
+    CHECK(!live_roster());
     puts("C89 text-box factories, transactions, property selection, clipboard commands and failures passed");
     return 0;
 }

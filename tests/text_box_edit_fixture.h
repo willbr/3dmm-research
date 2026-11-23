@@ -48,9 +48,10 @@ static bool TestTextBoxEdit(PScene scene, PChunkyFile file)
         auto source = TextBox::PtboxNew(nullptr, &bounds, variant % 2 != 0);
         PTBOX copy = nullptr;
         if (!source) return false;
+        ok = source->Itbox() == -1 && !source->FSetType(!source->FStory());
         source->SuspendUndo();
         achar text[] = {'A', achar(0xe9), 0, '\r', '\n', 'V'};
-        ok = source->FReplaceRgch(text, variant + 2, 0, 0);
+        ok = ok && source->FReplaceRgch(text, variant + 2, 0, 0);
         source->ResumeUndo();
         source->SetDypFontDef(17 + variant);
         source->SetAcrBack(variant % 2 ? kacrYellow : kacrBlue, fdocNil);

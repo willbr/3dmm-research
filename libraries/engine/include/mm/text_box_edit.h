@@ -29,7 +29,7 @@ typedef enum MMTextBoxEditOperation
     MM_BOX_CLEAR_UNDO, MM_BOX_PARENT_CLEAR_UNDO, MM_BOX_SHOW, MM_BOX_HIDE, MM_BOX_REMOVE,
     MM_BOX_SCENE_BOX, MM_BOX_VIEW, MM_BOX_CHECK_TEXT_VIEW, MM_BOX_APPLY_CHARACTER,
     MM_BOX_ACTIVE_VIEW, MM_BOX_SELECTION, MM_BOX_FETCH_CHARACTER, MM_BOX_PUBLISH_CHARACTER,
-    MM_BOX_PUBLISH_MASK, MM_BOX_ALLOCATE_CLIPBOARD, MM_BOX_WORKSPACE, MM_BOX_DUPLICATE,
+    MM_BOX_PUBLISH_MASK, MM_BOX_ALLOCATE_CLIPBOARD, MM_BOX_WORKSPACE,
     MM_BOX_SET_BOUNDS, MM_BOX_ADD, MM_BOX_SELECT, MM_BOX_ATTACH_MOUSE,
     MM_BOX_UNDO_SCENE, MM_BOX_UNDO_FRAME, MM_BOX_CURRENT_SCENE, MM_BOX_SWITCH_SCENE,
     MM_BOX_SEEK_SCENE, MM_BOX_STORY, MM_BOX_GET_BOUNDS, MM_BOX_POSITION_VIEW,
@@ -79,6 +79,8 @@ typedef struct MMTextBoxEditServices
     MMTextBoxUndo *(*undo)(void *, void *);
     MMTextBoxClipboard *(*clipboard)(void *, void *);
     MMU32 black, clear, update;
+    /* Borrow the scene of a caption, or the current scene for undo when text is null. */
+    const struct MMSceneOwner *(*scene_owner)(void *, void *text);
 } MMTextBoxEditServices;
 /* Factory bounds are read through INPUT_BOUNDS after initialization. All
  * constructors publish null first, then the completed owner. Duplicate instead
@@ -88,6 +90,7 @@ int mm_text_box_create(void *scene, int story, const MMTextBoxEditServices *);
 int mm_text_box_read_document(void *scene, MMU32 number, const struct MMMovieArchiveEditor *,
                               const MMTextBoxEditServices *);
 int mm_text_box_duplicate(void *source, const MMTextBoxEditServices *);
+/* A detached or unregistered caption leaves the output untouched. */
 int mm_text_box_index(void *text, MMI32 *index, const MMTextBoxEditServices *);
 /* Change kind is UNDO_TYPE or UNDO_COLOR. Register the matching record before
  * applying; selection kinds below are TEXT_COLOR/HEIGHT/STYLE/FONT.

@@ -2278,6 +2278,9 @@ Actor clipboard paste calls the C89 scene and movie edit controllers directly.
 It uses the working save for local 3D text and the live C89 sound bindings
 for source resolution and destination adoption. The clipboard controller also
 handles roll-call naming and removes the pasted actor on rename failure.
+Studio caption edits and undo resolve captions from the live C89 scene roster.
+Movie caption insertion, removal, and selection bind the C89 scene controller,
+and clipboard paste uses the shared C89 caption duplication routine.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

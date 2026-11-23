@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/text_box_undo.h"
+#include "mm/scene_owner.h"
 #define TRY(e) do { int status_ = (e); if (status_ < 0) return status_; } while (0)
 #define CALL(op) p->call(p->context, op, &q)
 static int failed(const MMTextBoxEditServices *p)
@@ -7,6 +8,21 @@ static int failed(const MMTextBoxEditServices *p)
     MMTextBoxEditRequest q;
     TRY(CALL(MM_BOX_FLUSH)); TRY(CALL(MM_BOX_CLEAR_UNDO));
     return 0; /* clear may have destroyed the undo record */
+}
+static int find_caption(MMI32 index, void **text, const MMTextBoxEditServices *p)
+{
+    MMTextBoxEditRequest q;
+    if (p->scene_owner)
+    {
+        const MMSceneOwner *scene = p->scene_owner(p->context, NULL);
+        *text = scene ? mm_scene_member_at(scene, MM_SCENE_TEXTS, index) : NULL;
+        return 1;
+    }
+    q.value = index;
+    q.other = NULL;
+    TRY(CALL(MM_BOX_SCENE_BOX));
+    *text = q.object;
+    return 1;
 }
 int mm_text_box_undo_replay(MMTextBoxUndo *u, int undo, const MMTextBoxEditServices *p)
 {
@@ -21,8 +37,9 @@ int mm_text_box_undo_replay(MMTextBoxUndo *u, int undo, const MMTextBoxEditServi
     if (!result) return failed(p);
     TRY(CALL(MM_BOX_UNDO_FRAME)); result = CALL(MM_BOX_SEEK_SCENE); TRY(result);
     if (!result) return failed(p);
-    q.value = u->index; q.other = NULL; TRY(CALL(MM_BOX_SCENE_BOX)); text = q.object;
+    TRY(find_caption(u->index, &text, p));
     if (!text) return failed(p);
+    q.object = text;
     switch (kind)
     {
     case MM_BOX_UNDO_TYPE:
@@ -67,7 +84,7 @@ int mm_text_box_undo_dispose(MMTextBoxUndo *u, const MMTextBoxEditServices *p)
     TRY(CALL(MM_BOX_CURRENT_SCENE));
     if (q.value == scene)
     {
-        q.value = u->index; q.other = NULL; TRY(CALL(MM_BOX_SCENE_BOX));
+        TRY(find_caption(u->index, &q.object, p));
         if (q.object) TRY(CALL(MM_BOX_PARENT_CLEAR_UNDO));
     }
     q.object = u->edit;

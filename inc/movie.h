@@ -612,7 +612,8 @@ class Movie : public Movie_PAR
     MMMovieUndoServices _UndoServices();
     MMMovieEditServices _EditServices();
     bool _FPasteActorClipboard(const struct MMActorClipboard &);
-    MMMovieContentServices _ContentServices(const MMMovieSaveServices * = nullptr);
+    MMMovieContentServices _ContentServices(const MMMovieSaveServices * = nullptr,
+                                            const struct MMSceneContentServices * = nullptr);
     MMMovieComposeServices _ComposeServices(const MMMovieSceneServices &);
     struct SaveHost
     {

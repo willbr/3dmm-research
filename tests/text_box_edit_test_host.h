@@ -105,7 +105,6 @@ static int box_call(void *context, MMTextBoxEditOperation op, MMTextBoxEditReque
     case MM_BOX_PUBLISH_CHARACTER: h->character = q->character; break;
     case MM_BOX_PUBLISH_MASK: h->mask = q->word; break;
     case MM_BOX_WORKSPACE: q->value = h->workspaceWidth; q->second = h->workspaceHeight; break;
-    case MM_BOX_DUPLICATE: q->object = &h->objects[1]; break;
     case MM_BOX_GET_BOUNDS:
         b = (TestBox *)q->object; q->bounds.left = b->state.left; q->bounds.top = b->state.top;
         q->bounds.right = b->state.right; q->bounds.bottom = b->state.bottom; break;

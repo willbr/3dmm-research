@@ -1158,11 +1158,12 @@ bool Movie::FRemScen(long iscen)
  *  fTrue if success, fFalse if couldn't add the material
  *
  ****************************************************/
-MMMovieContentServices Movie::_ContentServices(const MMMovieSaveServices *save)
+MMMovieContentServices Movie::_ContentServices(const MMMovieSaveServices *save, const MMSceneContentServices *scene)
 {
     MMMovieContentServices s = {};
     s.edit = _EditServices();
     s.working_save = save;
+    s.caption_scene = scene;
     s.text_host = mm_kauai_template_host();
     mm_brender_text_generation_services(&s.text_generation);
     s.tags = &TagManager::CoreServices();
@@ -1177,13 +1178,8 @@ MMMovieContentServices Movie::_ContentServices(const MMMovieSaveServices *save)
     };
     s.default_font = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->Pmcc()->DypTboxDef(); };
     s.caption_font = [](void *p, MMI32 font) { static_cast<PTBOX>(p)->SetDypFontDef(font); };
-    s.add_caption = [](void *p, void *caption) -> int { return static_cast<PScene>(p)->FAddTbox(static_cast<PTBOX>(caption)); };
-    s.remove_caption = [](void *p, void *caption) -> int { return static_cast<PScene>(p)->FRemTbox(static_cast<PTBOX>(caption)); };
-    s.select_caption = [](void *p, void *caption) { static_cast<PScene>(p)->SelectTbox(static_cast<PTBOX>(caption)); };
     s.attach_caption = [](void *p) { static_cast<PTBOX>(p)->AttachToMouse(); };
     s.release_caption = [](void *p) { auto caption = static_cast<PTBOX>(p); ReleasePpo(&caption); };
-    s.selected_caption = [](void *p) -> void * { return static_cast<PScene>(p)->PtboxSelected(); };
-    s.caption_at = [](void *p, MMI32 i) -> void * { return static_cast<PScene>(p)->PtboxFromItbox(i); };
     s.hide_caption = [](void *p) -> int { return static_cast<PTBOX>(p)->FHide(); };
     s.visible_caption = [](void *p) -> int { return static_cast<PTBOX>(p)->FIsVisible(); };
     s.missing_caption = [](void *) { PushErc(ercSocNoTboxSelected); };
@@ -1512,7 +1508,8 @@ bool Movie::FChangeCam(long icam)
 bool Movie::FInsTbox(RC *prc, bool fStory)
 {
     AssertThis(0); AssertPvCb(prc, size(RC)); AssertPo(Pscen(), 0);
-    const auto services = _ContentServices();
+    const auto scene = Pscen()->_ContentServices();
+    const auto services = _ContentServices(nullptr, &scene);
     return mm_movie_insert_caption(prc, fStory, &services) != 0;
 }
 
@@ -1530,7 +1527,8 @@ bool Movie::FInsTbox(RC *prc, bool fStory)
 bool Movie::FNukeTbox(void)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
-    const auto services = _ContentServices();
+    const auto scene = Pscen()->_ContentServices();
+    const auto services = _ContentServices(nullptr, &scene);
     return mm_movie_remove_caption(0, &services) != 0;
 }
 
@@ -1548,7 +1546,8 @@ bool Movie::FNukeTbox(void)
 bool Movie::FHideTbox(void)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
-    const auto services = _ContentServices();
+    const auto scene = Pscen()->_ContentServices();
+    const auto services = _ContentServices(nullptr, &scene);
     return mm_movie_remove_caption(1, &services) != 0;
 }
 
@@ -1566,7 +1565,8 @@ bool Movie::FHideTbox(void)
 void Movie::SelectTbox(long itbox)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
-    const auto services = _ContentServices();
+    const auto scene = Pscen()->_ContentServices();
+    const auto services = _ContentServices(nullptr, &scene);
     mm_movie_select_caption(itbox, &services);
 }
 
