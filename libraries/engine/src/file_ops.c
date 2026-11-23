@@ -78,7 +78,7 @@ static int open_owner(MMRegisteredFile *file, int create, MMU32 flags)
     const MMFileOwnerHost host = file_host(file);
     return mm_file_owner_open(file->owner, &host, create, flags);
 }
-static int set_flags(MMRegisteredFile *file, MMU32 flags, MMU32 mask)
+int mm_registered_file_set_flags(const MMRegisteredFile *file, MMU32 flags, MMU32 mask)
 {
     const MMFileOwnerHost host = file_host(file);
     return mm_file_owner_set_flags(file->owner, &host, flags, mask);
@@ -109,7 +109,7 @@ MMRegisteredFile *mm_file_ops_open(const MMFileOpsHost *h, void *name, MMU32 fla
     if (flags & MM_FILE_TEMP) assertion(h, MM_FILE_OP_TEMP_OPEN);
     p = mm_file_ops_find(h, name);
     if (p) {
-        if (!set_flags(p, flags, 0xffffffffUL)) return NULL;
+        if (!mm_registered_file_set_flags(p, flags, 0xffffffffUL)) return NULL;
         h->retain(h->context, p->object); return p;
     }
     p = h->construct(h->context, name, flags);
@@ -132,15 +132,17 @@ MMRegisteredFile *mm_file_ops_create(const MMFileOpsHost *h, void *name, MMU32 f
 fail:
     issue(h, MM_FILE_OP_CREATE); return NULL;
 }
+int mm_file_ops_temp_name(const MMFileOpsHost *h, void *basis, void *scratch)
+{
+    if (!basis) return h->temp_name(h->context, scratch);
+    validate_name(h, basis);
+    h->copy_name(h->context, scratch, basis);
+    return h->unique_name(h->context, scratch);
+}
 MMRegisteredFile *mm_file_ops_temp(const MMFileOpsHost *h, void *basis, void *scratch)
 {
-    if (basis) {
-        validate_name(h, basis);
-        h->copy_name(h->context, scratch, basis);
-        if (!h->unique_name(h->context, scratch)) goto fail;
-    } else if (!h->temp_name(h->context, scratch)) goto fail;
-    return mm_file_ops_create(h, scratch, MM_FILE_TEMP | MM_FILE_WRITE | MM_FILE_DENY_WRITE);
-fail:
+    if (mm_file_ops_temp_name(h, basis, scratch))
+        return mm_file_ops_create(h, scratch, MM_FILE_TEMP | MM_FILE_WRITE | MM_FILE_DENY_WRITE);
     issue(h, MM_FILE_OP_CREATE); return NULL;
 }
 int mm_file_ops_swap(const MMFileOpsHost *h, MMRegisteredFile *a, MMRegisteredFile *b, void *scratch)
@@ -221,7 +223,7 @@ void mm_file_ops_clear_marks(const MMFileOpsHost *h)
     MMRegisteredFile *p;
     enter_registry(h->registry);
     for (p = mm_file_registry_first(h->registry); p; p = mm_file_registry_next(p)) {
-        validate(h, p); set_flags(p, 0, MM_FILE_MARK);
+        validate(h, p); mm_registered_file_set_flags(p, 0, MM_FILE_MARK);
     }
     leave_registry(h->registry);
 }

@@ -78,6 +78,9 @@ extern "C"
     /* Apply archive options to the current main file and load a pending free map
      * if the options enable writes. The callbacks operate on physical files. */
     int mm_chunk_owner_file_options(MMChunkOwnerStorage *, const MMChunkOwnerFileFlags *, MMU32 flags, MMU32 mask);
+    struct MMRegisteredFile;
+    int mm_chunk_owner_registered_options(MMChunkOwnerStorage *, const struct MMRegisteredFile *,
+                                          MMU32 flags, MMU32 mask);
     /* Bind once at a stable address to an initialized owner. Editing and
      * payload lookup require a live table.
      * write_at is required for saves. Relocating saves also require release and
@@ -130,6 +133,7 @@ extern "C"
         MMChunkWriteOptions write;
     } MMChunkOwnerRead;
     MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *, const MMChunkPayloadServices *, MMU32 max_name_bytes);
+    int mm_chunk_reader_create_index(const MMChunkOwnerRead *);
     int mm_chunk_reader_read_index(const MMChunkOwnerRead *);
     int mm_chunk_reader_validate_index(const MMChunkOwnerRead *);
     /* Reload an attached archive, consulting physical write state if available.
@@ -166,7 +170,6 @@ extern "C"
     int mm_chunk_owner_save(MMChunkOwnerStorage *, const MMChunkOwnerSavePaths *,
                             void *path, MMU32 creator, int system);
     struct MMFileOpsHost;
-    struct MMRegisteredFile;
     /* Bind save publication to the file registry. Registration maps each
      * backing token to its record, whose object is that same token. Scratch
      * is an initialized name separate from the destination and file names. */

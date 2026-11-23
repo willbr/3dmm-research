@@ -6868,20 +6868,28 @@ The shared resource-cache open resolves the file name once, then uses that file
 record to check both contexts in working-first order. Native class allocation,
 validation, and destruction remain host services.
 
-`mm_chunk_construct_forest` owns destination construction. Copied imports
-create a temporary file and reserve the 128-byte prefix. Borrowed imports retain
-the source file, publish offset+length as the logical end and set invalid-main /
-add-to-extra before reading. Every failure releases the partial owner, including
-resources left by a failed reader. Native callbacks provide object/index/file
-primitives and adapt the existing C forest reader; no parallel construction
-policy remains. Invalid signed file extents are rejected before allocation.
+`mm_chunk_construct` resolves a named file and its live archive through the C
+registries. A cached open applies options through the registered file before
+retaining the archive. Fresh creation allocates the reader's index before
+opening the file and reserving its 128-byte prefix. Fresh open loads and
+validates the index through the same reader. The C file registry chooses named
+temporary destinations while the archive constructor applies archive permissions.
+
+`mm_chunk_construct_forest` uses the same index allocator. Copied imports create
+a temporary file and reserve the 128-byte prefix. Borrowed imports retain the
+source file, publish offset+length as the logical end, and set invalid-main and
+add-to-extra before reading. Every failure releases the partial archive,
+including resources left by a failed importer. The constructor rejects invalid
+signed file extents before allocation. Kauai supplies the object factory,
+diagnostics, and forest import visitor.
 
 `engine-container-test` checks independent registries, head/middle/tail removal,
-repeated detach, cross-context transfer, duplicate attachment and corrupt-link
-guards. Forest checks cover allocation/index/temp/resize/read failure and borrowed
-source references, partial maps/runtime storage and cleanup order. The same checks
-pass under MSVC AddressSanitizer. The native registry test preserves all 120 frozen
-bytes across insertion, removal, marked zero-reference retention and cleanup.
+repeated detach, cross-context transfer, duplicate attachment, disposal order,
+and corrupt-link guards. The `engine-chunk-owner-test` constructor fixture uses
+real C archive, file, and table records to check cached reopen, temporary names,
+failed allocation/open/resize/read/validation, and forest reference and partial
+owner cleanup. The native registry test preserves all 120 frozen bytes across
+insertion, removal, marked zero-reference retention, and cleanup.
 
 ### Resource caches, object lifetime and manager lookup
 

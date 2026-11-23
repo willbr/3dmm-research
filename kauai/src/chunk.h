@@ -129,10 +129,9 @@ class ChunkyFile : public ChunkyFile_PAR
     explicit ChunkyFile(MMChunkArchive *);
     ~ChunkyFile(void);
 
-    static MMChunkConstruction _ConstructionServices(Filename *);
-    static PChunkyFile _PcflNew();
+    static MMChunkConstruction _ConstructionServices(const MMFileOpsHost &);
+    static MMChunkLink *_NewArchiveLink(void *);
     void _SetChunkFlag(ChunkTagOrType, ChunkNumber, MMU32, bool);
-    bool _FReadIndex(void);
     MMChunkAccess _ChunkAccess();
     MMChunkEdit _PayloadEdit(void *context);
     tribool _TValidIndex(void);

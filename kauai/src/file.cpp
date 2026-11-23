@@ -234,8 +234,7 @@ PFileObject FileObject::PfilFromFni(Filename *pfni)
 ***************************************************************************/
 bool FileObject::FSetGrffil(LegacyUlong grffil, LegacyUlong grffilMask)
 {
-    const auto host = _OwnerHost();
-    return mm_file_owner_set_flags(&_file.state, &host, grffil, grffilMask) != 0;
+    return mm_registered_file_set_flags(&_registration, grffil, grffilMask) != 0;
 }
 
 /***************************************************************************

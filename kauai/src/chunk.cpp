@@ -164,12 +164,6 @@ constexpr LegacyLong kckidMax = ksuMax;
 #endif
 using PChunkTable = MMChunkTable *;
 namespace {
-PChunkTable NewChunkTable(LegacyLong width, LegacyLong reserve = 0)
-{
-    PChunkTable table = nullptr; int trash = 0; Debug(trash = 1;)
-    const auto allocator = CollectionAllocator();
-    mm_chunk_table_create(&allocator, width, reserve, trash, &table); return table;
-}
 void *ChunkFixed(PChunkTable table, LegacyLong i, LegacyLong *bytes = nullptr)
 {
     MMU32 count = 0; auto p = mm_chunk_table_fixed(table, i, &count);
@@ -306,8 +300,11 @@ MMPrivateArchive *KauaiWorkingArchive(Filename *name, bool create)
     return mm_private_archive_open_named(KauaiNamedArchiveServices(), name, create);
 }
 
-PChunkyFile ChunkyFile::_PcflNew()
+MMChunkLink *ChunkyFile::_NewArchiveLink(void *)
 {
+    static_assert(kcvnCur == MM_CHUNK_CURRENT_VERSION && kcvnBack == MM_CHUNK_BACKWARD_VERSION &&
+                  kcvnMin == 1 && sizeof(ChunkyFilePrefix) == MM_CHUNK_PREFIX_BYTES &&
+                  sizeof(ChildChunkIdentification) == sizeof(MMChunkChild), "Chunk C89 wire contract");
     static const auto tableAllocator = CollectionAllocator();
     MMChunkIndexOptions index = {&tableAllocator, KauaiEncodeLegacyChunkName, nullptr, DebugShip(1, 0), 0};
 #ifdef DEBUG
@@ -334,7 +331,7 @@ PChunkyFile ChunkyFile::_PcflNew()
     auto file = NewObj ChunkyFile(archive);
     if (!file)
         mm_chunk_archive_close(archive);
-    return file;
+    return file ? &file->_link : nullptr;
 }
 
 ChunkyFile::ChunkyFile(MMChunkArchive *archive)
@@ -380,9 +377,9 @@ PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, LegacyUlong grfcfl)
 {
     AssertPo(pfni, ffniFile);
     Assert(!(grfcfl & fcflTemp), "can't open a file as temp");
-    const auto services = _ConstructionServices(pfni);
-    auto owner = static_cast<PChunkyFile>(mm_chunk_construct(&services, grfcfl, 0));
-    return owner;
+    const auto files = FileObject::CoreFileOps();
+    const auto services = _ConstructionServices(files);
+    return static_cast<PChunkyFile>(mm_chunk_construct(&services, pfni, grfcfl, 0));
 }
 
 /***************************************************************************
@@ -396,28 +393,15 @@ bool ChunkyFile::FReopen(void)
     AssertThis(0); return ok;
 }
 /***************************************************************************
-    Native object, file and collection primitives for the shared C
-    construction policy.
+    Native object lifetime and diagnostics for shared archive construction.
 ***************************************************************************/
-MMChunkConstruction ChunkyFile::_ConstructionServices(Filename *name)
+MMChunkConstruction ChunkyFile::_ConstructionServices(const MMFileOpsHost &files)
 {
     static_assert(ffilWriteEnable == 1 && ffilDenyWrite == 2 && ffilDenyRead == 4 && ffilTemp == 16, "file flag encoding");
-    return {name,
-        [](void *c) -> void * { return PcflFromFni(static_cast<Filename *>(c)); },
-        [](void *) -> void * { return _PcflNew(); },
+    return {nullptr, &files, &_context, _NewArchiveLink,
         [](void *, void *owner) { static_cast<PChunkyFile>(owner)->AddRef(); },
         [](void *, void *owner) { static_cast<PChunkyFile>(owner)->Release(); },
-        [](void *c, int create, MMU32 flags) -> void * {
-            return create ? FileObject::PfilCreate(static_cast<Filename *>(c), flags) : FileObject::PfilOpen(static_cast<Filename *>(c), flags);
-        },
-        [](void *) -> void * { return NewChunkTable(sizeof(ChunkRepresentation)); },
-        [](void *, void *owner, void *file) { static_cast<PChunkyFile>(owner)->_owner.files.main_file = static_cast<PFileObject>(file); },
-        [](void *, void *owner, void *index) { static_cast<PChunkyFile>(owner)->_owner.files.index = static_cast<PChunkTable>(index); },
-        [](void *, void *owner, MMU32 end) { static_cast<PChunkyFile>(owner)->_owner.files.main_end = end; },
-        [](void *, void *file, MMU32 end) -> int { return static_cast<PFileObject>(file)->FSetFpMac(end); },
-        [](void *, void *owner) -> int { return static_cast<PChunkyFile>(owner)->_FReadIndex(); },
-        [](void *, void *owner) -> int { return static_cast<PChunkyFile>(owner)->_TValidIndex() == tYes; },
-        [](void *, void *owner, MMU32 flags) -> int { return static_cast<PChunkyFile>(owner)->FSetGrfcfl(flags); },
+        DiagnoseExtraFile,
         [](void *, int issue) {
             if (issue == MM_CONTAINER_ALREADY_OPEN) Bug("trying to create an open file");
             else if (issue == MM_CONTAINER_INITIAL_OPTIONS) Bug("initial container options failed");
@@ -433,9 +417,9 @@ MMChunkConstruction ChunkyFile::_ConstructionServices(Filename *name)
 PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, LegacyUlong grfcfl)
 {
     AssertPo(pfni, ffniFile);
-    const auto services = _ConstructionServices(pfni);
-    auto owner = static_cast<PChunkyFile>(mm_chunk_construct(&services, grfcfl, 1));
-    return owner;
+    const auto files = FileObject::CoreFileOps();
+    const auto services = _ConstructionServices(files);
+    return static_cast<PChunkyFile>(mm_chunk_construct(&services, pfni, grfcfl, 1));
 }
 /***************************************************************************
     Static method to create a temporary chunky file in the same directory as
@@ -445,22 +429,10 @@ PChunkyFile ChunkyFile::PcflCreate(Filename *pfni, LegacyUlong grfcfl)
 PChunkyFile ChunkyFile::PcflCreateTemp(Filename *pfni)
 {
     AssertNilOrPo(pfni, ffniFile);
-    Filename fni;
-
-    if (pvNil != pfni)
-    {
-        fni = *pfni;
-        if (!fni.FGetUnique(pfni->Ftg()))
-            goto LFail;
-    }
-    else if (!fni.FGetTemp())
-    {
-    LFail:
-        PushErc(ercCflCreate);
-        return pvNil;
-    }
-
-    return PcflCreate(&fni, fcflTemp);
+    Filename scratch;
+    const auto files = FileObject::CoreFileOps();
+    const auto services = _ConstructionServices(files);
+    return static_cast<PChunkyFile>(mm_chunk_construct_temp(&services, pfni, &scratch));
 }
 
 /***************************************************************************
@@ -536,25 +508,8 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
     AssertVarMem(pflo);
     AssertPo(pflo->pfil, 0);
     const MMForestConstruction construction = {
-        nullptr,
-        [](void *) -> void * { return _PcflNew(); },
+        nullptr, _NewArchiveLink,
         [](void *, void *owner) { static_cast<PChunkyFile>(owner)->Release(); },
-        [](void *) -> void * { return NewChunkTable(sizeof(ChunkRepresentation)); },
-        [](void *, void *owner, void *index) {
-            static_cast<PChunkyFile>(owner)->_owner.files.index = static_cast<PChunkTable>(index);
-        },
-        [](void *) -> void * { return FileObject::PfilCreateTemp(); },
-        [](void *, void *file) { static_cast<PFileObject>(file)->AddRef(); },
-        [](void *, void *owner, void *file) {
-            static_cast<PChunkyFile>(owner)->_owner.files.main_file = static_cast<PFileObject>(file);
-        },
-        [](void *, void *file, MMU32 end) -> int { return static_cast<PFileObject>(file)->FSetFpMac(end); },
-        [](void *, void *owner, MMU32 end, int borrowed) {
-            auto file = static_cast<PChunkyFile>(owner);
-            file->_owner.files.main_end = end;
-            file->_owner.files.invalid_main = borrowed != 0;
-            file->_owner.add_to_extra = borrowed != 0;
-        },
         [](void *, void *owner, void *source, MMU32 offset, MMU32 bytes, int copy) -> int {
             struct ImportHost
             {
@@ -694,7 +649,9 @@ bool KauaiSetChunkOwnerOptions(MMChunkOwnerStorage *storage, LegacyUlong flags, 
     static_assert(fcflWriteEnable == MM_CHUNK_WRITE && fcflTemp == MM_CHUNK_TEMP &&
         fcflMark == MM_CHUNK_MARK && fcflAddToExtra == MM_CHUNK_ADD_EXTRA &&
         fcflReadFromExtra == MM_CHUNK_READ_EXTRA, "container flag encoding");
-    return mm_chunk_owner_file_options(storage, KauaiChunkOwnerFileFlags(), flags, mask) == MM_CHUNK_OK;
+    const auto main = storage->owner->files.main_file;
+    const auto file = main ? FileObject::CoreFileRegistration(main) : nullptr;
+    return mm_chunk_owner_registered_options(storage, file, flags, mask) == MM_CHUNK_OK;
 }
 
 const MMChunkOwnerFileFlags *KauaiChunkOwnerFileFlags()
@@ -951,25 +908,6 @@ tribool ChunkyFile::_TValidIndex(void)
 {
     const int result = mm_chunk_reader_validate_index(&_reader);
     return result == MM_CHUNK_OK ? tYes : result == MM_CHUNK_MEMORY ? tMaybe : tNo;
-}
-
-/***************************************************************************
-    Verifies that this is a chunky file and reads the index into memory.
-    Sets the _owner.map_offset and _owner.map_bytes fields and sets the _owner.files.free_map_unread
-    flag. The free map is read separately by _ReadFreeMap. This is to avoid
-    hogging memory for the free map when we may never need it.
-***************************************************************************/
-bool ChunkyFile::_FReadIndex(void)
-{
-    AssertBaseThis(0);
-    AssertPo(_MainFile(), 0);
-    Assert(!_owner.files.invalid_main, 0);
-    Assert(_Index() == pvNil && _owner.files.main_map == pvNil && _ExtraFile() == pvNil && _owner.files.extra_map == pvNil,
-           "cfl has wrong non-nil entries");
-    static_assert(kcvnCur == MM_CHUNK_CURRENT_VERSION && kcvnBack == MM_CHUNK_BACKWARD_VERSION &&
-                  kcvnMin == 1 && sizeof(ChunkyFilePrefix) == MM_CHUNK_PREFIX_BYTES &&
-                  sizeof(ChildChunkIdentification) == sizeof(MMChunkChild), "Chunk C89 wire contract");
-    return mm_chunk_reader_read_index(&_reader) == MM_CHUNK_OK;
 }
 
 int KauaiEncodeLegacyChunkName(void *, const char *text, void *wire, MMU32 capacity, MMU32 *bytes)

@@ -14,50 +14,41 @@ extern "C"
         MM_CONTAINER_ALREADY_OPEN,
         MM_CONTAINER_INITIAL_OPTIONS
     };
+    struct MMChunkContext;
+    struct MMChunkLink;
+    struct MMFileOpsHost;
     typedef struct MMChunkConstruction
     {
         void *context;
-        void *(*find)(void *);
-        void *(*allocate)(void *);
+        const struct MMFileOpsHost *files;
+        const struct MMChunkContext *archives;
+        struct MMChunkLink *(*allocate)(void *);
         void (*retain)(void *, void *owner);
         void (*release)(void *, void *owner);
-        void *(*file)(void *, int create, MMU32 flags);
-        void *(*index)(void *);
-        void (*attach_file)(void *, void *owner, void *file);
-        void (*attach_index)(void *, void *owner, void *index);
-        void (*set_end)(void *, void *owner, MMU32 end);
-        int (*resize)(void *, void *file, MMU32 end);
-        int (*read_index)(void *, void *owner);
-        int (*validate)(void *, void *owner);
-        int (*options)(void *, void *owner, MMU32 flags);
+        void (*extra_collision)(void *owner);
         void (*issue)(void *, int kind);
         void (*finish)(void *, void *owner, int create); /* Optional new-owner diagnostics. */
     } MMChunkConstruction;
-    /* find returns a borrowed owner. allocate returns a new reference. Attach
-     * callbacks consume file/index references, even for partial construction.
-     * release destroys a failed new owner and all attached resources. Successful
+    /* Allocate returns the link of a new, registered archive with one reference
+     * and an empty reader. Release disposes a failed archive and its attachments.
+     * The file provider and archive reader must use the same file tokens. Successful
      * existing opens apply options before retaining. Creation rejects existing
      * owners and forces write-enable, then creates index/file and reserves 128 bytes.
      * A newly created/opened owner's initial option failure is diagnostic only, as
      * in legacy release builds; an existing owner's option failure returns NULL
      * without an open-error diagnostic. Callbacks are synchronous and may not re-enter. */
-    void *mm_chunk_construct(const MMChunkConstruction *, MMU32 flags, int create);
+    void *mm_chunk_construct(const MMChunkConstruction *, void *name, MMU32 flags, int create);
+    /* Name scratch is initialized and distinct from the optional basis. */
+    void *mm_chunk_construct_temp(const MMChunkConstruction *, void *basis, void *scratch);
     typedef struct MMForestConstruction
     {
         void *context;
-        void *(*allocate)(void *);
+        struct MMChunkLink *(*allocate)(void *);
         void (*release)(void *, void *owner);
-        void *(*index)(void *);
-        void (*attach_index)(void *, void *owner, void *index);
-        void *(*temporary)(void *);
-        void (*retain_file)(void *, void *file);
-        void (*attach_file)(void *, void *owner, void *file);
-        int (*resize)(void *, void *file, MMU32 end);
-        void (*destination)(void *, void *owner, MMU32 end, int borrowed);
         int (*read)(void *, void *owner, void *source, MMU32 offset, MMU32 bytes, int copy);
         void (*finish)(void *, void *owner); /* Optional successful-owner diagnostics. */
     } MMForestConstruction;
-    /* Attach callbacks consume references, including partial construction. Copy
+    /* Allocate returns the link of a new archive with an empty reader. Copy
      * imports create a temporary file and reserve its 128-byte prefix; borrowed
      * imports retain source, publish offset+bytes as end, and mark invalid-main /
      * add-to-extra before reading. Failure releases the owner and all attachments.

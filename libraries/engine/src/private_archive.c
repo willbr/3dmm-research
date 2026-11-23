@@ -172,16 +172,6 @@ static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *
     return archive;
 }
 
-static int create_index(MMPrivateArchive *archive)
-{
-    MMChunkTable *table;
-    const MMU32 width = archive->profile.expanded ? sizeof(MMChunkRecordBig) : sizeof(MMChunkRecordSmall);
-    if (mm_chunk_table_create(NULL, width, 0, archive->profile.trash_unused, &table) != MM_STORAGE_OK)
-        return 0;
-    mm_private_archive_reader(archive)->storage->owner->files.index = table;
-    return 1;
-}
-
 static int bind_editor(MMPrivateArchive *archive)
 {
     MMChunkOwnerRead *reader = mm_private_archive_reader(archive);
@@ -213,7 +203,7 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
     archive->writable = mode != MM_PRIVATE_ARCHIVE_READ;
     if (mode == MM_PRIVATE_ARCHIVE_CREATE)
     {
-        if (!create_index(archive) || !io->resize(file, MM_CHUNK_PREFIX_BYTES))
+        if (mm_chunk_reader_create_index(reader) != MM_CHUNK_OK || !io->resize(file, MM_CHUNK_PREFIX_BYTES))
             goto fail;
         reader->storage->owner->files.main_end = MM_CHUNK_PREFIX_BYTES;
     }
@@ -277,7 +267,7 @@ MMPrivateArchive *mm_private_archive_open_forest(const MMBlockFile *extent, cons
     reader = mm_private_archive_reader(archive);
     storage = reader->storage;
     stream = io->read_stream(extent->file);
-    if (create_index(archive))
+    if (mm_chunk_reader_create_index(reader) == MM_CHUNK_OK)
     {
         storage->owner->files.invalid_main = 1;
         edit = mm_chunk_owner_editor(storage, max_references(archive), profile->trash_unused);

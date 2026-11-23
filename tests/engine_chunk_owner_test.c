@@ -823,6 +823,317 @@ static int write_block(void *context, void *file, MMU32 offset, const void *byte
     (void)context;
     return write_file(file, offset, bytes, count);
 }
+
+typedef struct ConstructionHost
+{
+    StorageHost storage;
+    MMChunkContext archives;
+    MMFileRegistry files;
+    MMFileOpsHost file_ops;
+    MMRegisteredFile file;
+    MMFileOwner physical;
+    MMReference file_refs, archive_refs;
+    MMChunkLink link;
+    MMChunkArchive *archive;
+    MMStorageAllocator table;
+    MMBlockFileServices blocks;
+    int name, fail, tables, finishes, issues[4];
+    MMU32 opened_flags;
+} ConstructionHost;
+
+enum { FACTORY_ALLOC = 1, FACTORY_TABLE, FACTORY_OPEN, FACTORY_RESIZE, FACTORY_READ, FACTORY_NAME, FACTORY_UPGRADE };
+
+static void *construction_table(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
+{
+    ConstructionHost *h = p;
+    int fresh = old == NULL;
+    void *memory;
+    (void)before;
+    (void)priority;
+    if (h->fail == FACTORY_TABLE)
+        return NULL;
+    memory = realloc(old, bytes);
+    if (memory && fresh)
+        ++h->tables;
+    return memory;
+}
+
+static void construction_free(void *p, void *memory, MMU32 bytes)
+{
+    ConstructionHost *h = p;
+    (void)bytes;
+    CHECK(h->tables > 0);
+    --h->tables;
+    free(memory);
+}
+
+static MMChunkLink *construction_allocate(void *p)
+{
+    ConstructionHost *h = p;
+    MMChunkOwnerFileIO io = storage_io(&h->storage);
+    MMChunkPayloadServices payloads = {0};
+    MMChunkIndexOptions index = {0};
+    const MMChunkWriteOptions write = {65535, MM_TEXT_WINDOWS, 1, NULL};
+    CHECK(!h->archive);
+    if (h->fail == FACTORY_ALLOC)
+        return NULL;
+    io.trace = NULL;
+    payloads.handles = mm_chunk_handle_services();
+    payloads.files = &h->blocks;
+    index.table_allocator = &h->table;
+    h->archive = mm_chunk_archive_new(0, NULL, &io, &payloads, 32, &index, &write);
+    CHECK(h->archive != NULL);
+    mm_reference_init(&h->archive_refs);
+    mm_chunk_link_init(&h->link, h, mm_chunk_archive_reader(h->archive), &h->archive_refs);
+    CHECK(mm_chunk_context_attach(&h->archives, &h->link) == MM_CHUNK_OK);
+    return &h->link;
+}
+
+static void construction_retain(void *p, void *owner)
+{
+    ConstructionHost *h = p;
+    CHECK(p == owner && h->archive);
+    mm_reference_add(&h->archive_refs);
+}
+
+static void construction_release(void *p, void *owner)
+{
+    ConstructionHost *h = p;
+    const int registered = h->link.reader->storage->owner->files.main_file == &h->storage.main && h->files.head;
+    CHECK(p == owner && h->archive && h->archive_refs.count > 0);
+    if (mm_reference_drop(&h->archive_refs))
+        return;
+    CHECK(mm_chunk_context_detach(&h->link) == MM_CHUNK_OK);
+    CHECK(mm_chunk_archive_close(h->archive) == MM_CHUNK_OK);
+    h->archive = NULL;
+    if (registered && !mm_reference_drop(&h->file_refs))
+        mm_file_registry_detach(&h->files, &h->file);
+}
+
+static void construction_issue(void *p, int kind)
+{
+    ConstructionHost *h = p;
+    CHECK(kind >= 0 && kind < 4);
+    ++h->issues[kind];
+}
+
+static void construction_finish(void *p, void *owner, int create)
+{
+    ConstructionHost *h = p;
+    const MMChunkReopenState *files = &h->link.reader->storage->owner->files;
+    CHECK(p == owner && files->main_file == &h->storage.main && files->index);
+    CHECK(files->main_end >= MM_CHUNK_PREFIX_BYTES && (!create || files->main_end == MM_CHUNK_PREFIX_BYTES));
+    ++h->finishes;
+}
+
+static void *construction_open_file(void *p, int create, MMU32 flags)
+{
+    ConstructionHost *h = p;
+    h->opened_flags = flags;
+    if (h->fail == FACTORY_OPEN || (h->fail == FACTORY_UPGRADE && (flags & MM_FILE_WRITE)))
+        return NULL;
+    if (create)
+        h->storage.main.length = 0;
+    return &h->storage.main;
+}
+
+static void construction_close_file(void *p, void *handle)
+{
+    CHECK(handle == &((ConstructionHost *)p)->storage.main);
+}
+
+static MMFileOwnerHost construction_file_host(void *p)
+{
+    MMFileOwnerHost host = {0};
+    host.context = p;
+    host.open = construction_open_file;
+    host.close = construction_close_file;
+    return host;
+}
+
+static MMRegisteredFile *construction_new_file(void *p, void *name, MMU32 flags)
+{
+    ConstructionHost *h = p;
+    CHECK(!h->files.head);
+    h->name = *(int *)name;
+    mm_reference_init(&h->file_refs);
+    mm_file_owner_init(&h->physical, flags);
+    mm_registered_file_init(&h->file, &h->storage.main, &h->name, &h->physical, &h->file_refs,
+                            h, construction_file_host);
+    mm_file_registry_attach(&h->files, &h->file);
+    return &h->file;
+}
+
+static void construction_drop_file(void *p, void *file)
+{
+    ConstructionHost *h = p;
+    CHECK(file == h->file.object && mm_reference_drop(&h->file_refs) == 0);
+    mm_file_registry_detach(&h->files, &h->file);
+}
+
+static void construction_retain_file(void *p, void *file)
+{
+    ConstructionHost *h = p;
+    CHECK(file == h->file.object);
+    mm_reference_add(&h->file_refs);
+}
+
+static int construction_equal(void *p, void *a, void *b)
+{
+    (void)p;
+    return *(int *)a == *(int *)b;
+}
+
+static void construction_copy_name(void *p, void *dest, const void *source)
+{
+    (void)p;
+    *(int *)dest = *(const int *)source;
+}
+
+static int construction_unique(void *p, void *name)
+{
+    ++*(int *)name;
+    return ((ConstructionHost *)p)->fail != FACTORY_NAME;
+}
+
+static int construction_temp(void *p, void *name)
+{
+    *(int *)name = 99;
+    return ((ConstructionHost *)p)->fail != FACTORY_NAME;
+}
+
+static MMChunkConstruction construction_setup(ConstructionHost *h)
+{
+    MMChunkConstruction services = {0};
+    memset(h, 0, sizeof(*h));
+    mm_file_registry_init(&h->files, NULL, NULL, NULL);
+    h->file_ops.context = h;
+    h->file_ops.registry = &h->files;
+    h->file_ops.equal_names = construction_equal;
+    h->file_ops.copy_name = construction_copy_name;
+    h->file_ops.unique_name = construction_unique;
+    h->file_ops.temp_name = construction_temp;
+    h->file_ops.construct = construction_new_file;
+    h->file_ops.retain = construction_retain_file;
+    h->file_ops.destroy = construction_drop_file;
+    h->blocks.context = &h->storage;
+    h->blocks.retain = retain_block;
+    h->blocks.release = release_block;
+    h->blocks.read = read_block;
+    h->blocks.write = write_block;
+    h->table.context = h;
+    h->table.resize = construction_table;
+    h->table.release = construction_free;
+    services.context = h;
+    services.files = &h->file_ops;
+    services.archives = &h->archives;
+    services.allocate = construction_allocate;
+    services.retain = construction_retain;
+    services.release = construction_release;
+    services.issue = construction_issue;
+    services.finish = construction_finish;
+    return services;
+}
+
+static void check_construction_closed(const ConstructionHost *h)
+{
+    CHECK(!h->archive && !h->archives.first && !h->files.head && !h->file_refs.count && !h->tables);
+}
+
+static int construction_read_forest(void *p, void *archive, void *source, MMU32 offset, MMU32 bytes, int copy)
+{
+    ConstructionHost *h = p;
+    MMChunkOwner *owner = h->link.reader->storage->owner;
+    CHECK(archive == h && source == &h->storage.main && offset == 60 && bytes == 100);
+    CHECK(owner->files.index && owner->files.main_file == (copy ? (void *)&h->storage.extra : source));
+    CHECK(owner->files.main_end == (copy ? MM_CHUNK_PREFIX_BYTES : 160) && owner->files.invalid_main == !copy &&
+          owner->add_to_extra == !copy);
+    CHECK(mm_free_map_create(NULL, 1, &owner->files.main_map) == MM_CHUNK_OK);
+    CHECK(mm_chunk_runtime_set(&owner->runtime, 1, 0, 12) == MM_CHUNK_OK);
+    return h->fail != FACTORY_READ;
+}
+
+static void archive_construction_cases(void)
+{
+    ConstructionHost h;
+    MMChunkConstruction named;
+    MMForestConstruction forest = {NULL, construction_allocate, construction_release, construction_read_forest, NULL};
+    MMArchiveWriter writer;
+    MMChunkEntry entry;
+    int name = 41, scratch, copy, fail, created;
+    for (fail = FACTORY_ALLOC; fail <= FACTORY_READ; ++fail)
+    {
+        named = construction_setup(&h);
+        h.fail = fail;
+        h.storage.main.resize_fails = fail == FACTORY_RESIZE;
+        created = fail != FACTORY_READ;
+        CHECK(!mm_chunk_construct(&named, &name, 0, created));
+        CHECK(h.issues[created ? MM_CONTAINER_CREATE_FAILED : MM_CONTAINER_OPEN_FAILED] == 1);
+        CHECK(h.storage.main.releases == (fail >= FACTORY_RESIZE));
+        check_construction_closed(&h);
+    }
+
+    named = construction_setup(&h);
+    CHECK(mm_chunk_construct(&named, &name, 0, 1) == &h && h.opened_flags == 7);
+    CHECK(!mm_chunk_construct(&named, &name, 0, 1) && h.issues[MM_CONTAINER_ALREADY_OPEN] == 1 &&
+          h.issues[MM_CONTAINER_CREATE_FAILED] == 1 && h.archive_refs.count == 1);
+    writer = mm_chunk_owner_writer(h.link.reader);
+    CHECK(mm_chunk_add(&writer.edit, 1, 0, 0, 0, NULL) == MM_CHUNK_OK);
+    CHECK(mm_chunk_owner_save(h.link.reader->storage, NULL, NULL, 0, MM_TEXT_WINDOWS) == MM_CHUNK_OK);
+    construction_release(&h, &h);
+    check_construction_closed(&h);
+    CHECK(mm_chunk_construct(&named, &name, 0, 0) == &h && h.opened_flags == MM_FILE_DENY_WRITE);
+    h.fail = FACTORY_UPGRADE;
+    CHECK(!mm_chunk_construct(&named, &name, MM_CHUNK_WRITE, 0) && h.archive_refs.count == 1 &&
+          !h.issues[MM_CONTAINER_OPEN_FAILED] && h.physical.open && !(h.physical.flags & MM_FILE_WRITE));
+    h.fail = 0;
+    CHECK(mm_chunk_construct(&named, &name, MM_CHUNK_READ_EXTRA, 0) == &h && h.archive_refs.count == 2 &&
+          h.link.reader->storage->owner->read_from_extra && h.finishes == 2);
+    construction_release(&h, &h);
+    construction_release(&h, &h);
+    check_construction_closed(&h);
+
+    CHECK(mm_chunk_construct(&named, &name, MM_CHUNK_WRITE, 0) == &h);
+    writer = mm_chunk_owner_writer(h.link.reader);
+    CHECK(writer.edit.entry(writer.edit.context, 0, &entry));
+    entry.parent_count = 1;
+    writer.edit.store(writer.edit.context, 0, &entry, 0);
+    CHECK(mm_chunk_owner_save(h.link.reader->storage, NULL, NULL, 0, MM_TEXT_WINDOWS) == MM_CHUNK_OK);
+    construction_release(&h, &h);
+    CHECK(!mm_chunk_construct(&named, &name, 0, 0) && h.issues[MM_CONTAINER_OPEN_FAILED] == 1);
+    check_construction_closed(&h);
+
+    named = construction_setup(&h);
+    h.fail = FACTORY_NAME;
+    CHECK(!mm_chunk_construct_temp(&named, &name, &scratch) && h.issues[MM_CONTAINER_CREATE_FAILED] == 1);
+    check_construction_closed(&h);
+    h.fail = 0;
+    CHECK(mm_chunk_construct_temp(&named, &name, &scratch) == &h && name == 41 && scratch == 42 && h.name == 42 &&
+          h.opened_flags == 23);
+    construction_release(&h, &h);
+    CHECK(mm_chunk_construct_temp(&named, NULL, &scratch) == &h && scratch == 99 && h.name == 99);
+    construction_release(&h, &h);
+    check_construction_closed(&h);
+
+    forest.context = &h;
+    for (copy = 0; copy <= 1; ++copy)
+        for (fail = 0; fail <= FACTORY_READ; ++fail)
+        {
+            construction_setup(&h);
+            h.fail = fail;
+            h.storage.create_fails = fail == FACTORY_OPEN;
+            h.storage.extra.resize_fails = fail == FACTORY_RESIZE;
+            CHECK(!mm_chunk_construct_forest(&forest, &h.storage.main, 0x7fffffffUL, 1, copy));
+            created = !fail || (!copy && (fail == FACTORY_OPEN || fail == FACTORY_RESIZE));
+            CHECK((mm_chunk_construct_forest(&forest, &h.storage.main, 60, 100, copy) != NULL) == created);
+            if (created)
+                construction_release(&h, &h);
+            CHECK(h.storage.main.retains == h.storage.main.releases);
+            CHECK(h.storage.extra.releases == (copy && (!fail || fail >= FACTORY_RESIZE)));
+            check_construction_closed(&h);
+        }
+}
+
 static size_t convert_text(void *context, const void *bytes, size_t count, int encoding, void *out, size_t capacity)
 {
     (void)context;
@@ -1124,6 +1435,7 @@ int main(void)
     persistence_cases(0);
     persistence_cases(1);
     reader_cases();
+    archive_construction_cases();
     private_archive_cases();
     private_forest_cases();
     puts("chunk owner C89 checks passed");

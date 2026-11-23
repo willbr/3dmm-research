@@ -87,7 +87,10 @@ typedef struct MMFileOpsHost {
 MMRegisteredFile *mm_file_ops_find(const MMFileOpsHost *, void *name);
 MMRegisteredFile *mm_file_ops_open(const MMFileOpsHost *, void *name, MMU32 flags);
 MMRegisteredFile *mm_file_ops_create(const MMFileOpsHost *, void *name, MMU32 flags);
+/* Choose an unused name in the basis directory or the default temp directory. */
+int mm_file_ops_temp_name(const MMFileOpsHost *, void *basis, void *scratch);
 MMRegisteredFile *mm_file_ops_temp(const MMFileOpsHost *, void *basis, void *scratch);
+int mm_registered_file_set_flags(const MMRegisteredFile *, MMU32 flags, MMU32 mask);
 int mm_file_ops_matches(const MMFileOpsHost *, const MMRegisteredFile *, void *name);
 int mm_file_ops_swap(const MMFileOpsHost *, MMRegisteredFile *a, MMRegisteredFile *b, void *scratch);
 int mm_file_ops_rename(const MMFileOpsHost *, MMRegisteredFile *, void *name);

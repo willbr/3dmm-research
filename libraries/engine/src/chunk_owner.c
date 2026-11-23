@@ -50,17 +50,22 @@ typedef struct ChunkFileOptions
 {
     MMChunkOwnerStorage *storage;
     const MMChunkOwnerFileFlags *files;
+    const MMRegisteredFile *registered;
 } ChunkFileOptions;
 
 static MMU32 option_file_flags(void *context)
 {
     const ChunkFileOptions *options = context;
+    if (options->registered)
+        return options->registered->owner->flags;
     return options->files->get(options->storage->owner->files.main_file);
 }
 
 static int set_option_file_flags(void *context, MMU32 flags, MMU32 mask)
 {
     const ChunkFileOptions *options = context;
+    if (options->registered)
+        return mm_registered_file_set_flags(options->registered, flags, mask);
     return options->files->set(options->storage->owner->files.main_file, flags, mask);
 }
 
@@ -69,15 +74,33 @@ static void read_option_free_map(void *context)
     mm_chunk_owner_read_free_map(((ChunkFileOptions *)context)->storage);
 }
 
+static int file_options(ChunkFileOptions *options, MMU32 flags, MMU32 mask)
+{
+    MMChunkOptionServices services = {NULL, option_file_flags, set_option_file_flags, read_option_free_map};
+    services.context = options;
+    return mm_chunk_owner_options(options->storage->owner, &services, flags, mask);
+}
+
 int mm_chunk_owner_file_options(MMChunkOwnerStorage *storage, const MMChunkOwnerFileFlags *files,
                                 MMU32 flags, MMU32 mask)
 {
     ChunkFileOptions options;
-    MMChunkOptionServices services = {NULL, option_file_flags, set_option_file_flags, read_option_free_map};
     options.storage = storage;
     options.files = files;
-    services.context = &options;
-    return mm_chunk_owner_options(storage->owner, &services, flags, mask);
+    options.registered = NULL;
+    return file_options(&options, flags, mask);
+}
+
+int mm_chunk_owner_registered_options(MMChunkOwnerStorage *storage, const MMRegisteredFile *file,
+                                      MMU32 flags, MMU32 mask)
+{
+    ChunkFileOptions options;
+    if (!file || file->object != storage->owner->files.main_file)
+        return MM_CHUNK_BAD_FILE;
+    options.storage = storage;
+    options.files = NULL;
+    options.registered = file;
+    return file_options(&options, flags, mask);
 }
 
 MMChunkSaveState mm_chunk_owner_save_state(const MMChunkOwner *o)
@@ -510,6 +533,20 @@ MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *storage, const MMChu
     reader.payloads.locate = reader_locate;
     reader.max_name_bytes = max_name_bytes;
     return reader;
+}
+
+int mm_chunk_reader_create_index(const MMChunkOwnerRead *reader)
+{
+    MMChunkOwner *owner = reader->storage->owner;
+    const MMU32 width = owner->expanded_runtime ? sizeof(MMChunkRecordBig) : sizeof(MMChunkRecordSmall);
+    MMChunkTable *table;
+    if (owner->files.index)
+        return MM_CHUNK_BAD_FILE;
+    if (mm_chunk_table_create(reader->index.table_allocator, width, 0, reader->index.trash_unused, &table) !=
+        MM_STORAGE_OK)
+        return MM_CHUNK_MEMORY;
+    owner->files.index = table;
+    return MM_CHUNK_OK;
 }
 
 int mm_chunk_reader_read_index(const MMChunkOwnerRead *reader)
