@@ -699,6 +699,63 @@ failed:
     return ok && !scene.mask_bytes && probe.available == probe.released;
 }
 
+static MMU32 caption_identity_colour(const void *p, MMU32 colour)
+{
+    (void)p;
+    return colour;
+}
+
+static int check_caption_paint(MarcusPlayer *player)
+{
+    static const unsigned short text[] = {'A', '\r', 'B'};
+    const MarcusCaptionSource source = {{{0, 0, 180, 20}, text, 3, 12, {"Test", 4}, 0, NULL, NULL},
+                                        1, 10, 42, 0x01010203UL, 0};
+    CaptionRunProbe probe = {255, 0, 0, 0, 0};
+    MarcusCaptionFonts fonts = {NULL, caption_run_face, caption_run_measure, caption_run_mask};
+    MarcusCaptionScene scene = {0};
+    MarcusCaptionRasterCache rasters = {0};
+    MarcusCaptionScenePaint paint = {NULL, NULL, NULL, caption_identity_colour};
+    MMCaptionOutput image = {0};
+    const MMU32 hidden = source.chunk;
+    const size_t pixel = (8 * MM_CAPTION_WIDTH + 8) * 4;
+    int needs_scroll, stops, scroll, ok = 0;
+    fonts.context = &probe;
+    paint.fonts = &fonts;
+    paint.rasters = &rasters;
+    image.width = MM_CAPTION_WIDTH;
+    image.height = MM_CAPTION_HEIGHT;
+    image.rgba_bytes = (size_t)image.width * image.height * 4;
+    image.rgba = calloc(4, image.rgba_bytes);
+    image.authored = 1;
+    CHECK(image.rgba && marcus_caption_scene_init(&scene));
+    CHECK(marcus_caption_scene_load(&scene, 1, &source, caption_scene_source) == 0);
+    CHECK(marcus_caption_scene_measure_scroll(&scene, 0, &fonts, &needs_scroll) == 0 && !needs_scroll && !probe.calls);
+    CHECK(marcus_caption_scene_paint(&scene, 1, &hidden, 1, &image, &paint) == 0 && !probe.calls);
+    probe.fail_at = 1;
+    CHECK(marcus_caption_scene_measure_scroll(&scene, 1, &fonts, &needs_scroll) == MARCUS_CAPTION_RUNS_RASTER);
+    CHECK(!scene.rows[0].runs.ready);
+    CHECK(marcus_caption_scene_measure_scroll(&scene, 1, &fonts, &needs_scroll) == 0 && needs_scroll);
+    CHECK(marcus_caption_scene_paint(&scene, 1, NULL, 0, &image, &paint) == 0);
+    CHECK(image.rgba[pixel] == 1 && image.rgba[pixel + 1] == 2 && image.rgba[pixel + 2] == 3 &&
+          image.rgba[pixel + 3] == 255 && !rasters.count);
+    CHECK(!marcus_caption_scene_stops(&scene, &stops, &scroll) && !stops && !scroll);
+    CHECK(marcus_caption_scene_draft(&scene, &source, &fonts) == 0);
+    CHECK(marcus_caption_scene_stops(&scene, &stops, &scroll) && stops > 1 && !scroll);
+    CHECK(marcus_caption_scene_caret(&scene, 3));
+    CHECK(marcus_caption_scene_stops(&scene, &stops, &scroll) && scroll > 0);
+    image.width *= 2;
+    image.height *= 2;
+    image.rgba_bytes *= 4;
+    CHECK(marcus_caption_scene_paint(&scene, 1, &hidden, 1, &image, &paint) == MARCUS_CAPTION_SCENE_RASTER_METRICS);
+    CHECK(!rasters.count);
+    ok = 1;
+failed:
+    free(image.rgba);
+    marcus_caption_raster_clear(&rasters);
+    marcus_caption_scene_dispose(&scene);
+    return ok && probe.available == probe.released;
+}
+
 static const char *caption_font_name(const void *p, size_t index, size_t *bytes)
 {
     const char *name = ((const char *const *)p)[index];
@@ -863,6 +920,7 @@ int main(int argc, char **argv)
     CHECK(check_caption_rasters(player));
     CHECK(check_caption_faces(player));
     CHECK(check_caption_scene(player));
+    CHECK(check_caption_paint(player));
     CHECK(check_caption_catalog(player));
     CHECK(check_playback_scene(player));
     CHECK(!marcus_info(player, &info));

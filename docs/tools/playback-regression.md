@@ -23523,3 +23523,25 @@ Text Acid candidate `20261123T010747Z-01f74be0` matched baseline
 states per port. Seek and continuous playback frame order matched retained
 retail and V3DMM captures `20261122T033140Z-2abe2197` and
 `20261122T033233Z-5e23a412`. Evidence is under `tmp/c89-caption-codec`.
+
+## C89 Marcus caption compositing (23 November 2026)
+
+The C89 scene owner lays out visible caption rows, measures the scrolling
+credit on its opening frame and supplies high-resolution masks to the common
+painter. The same owner exposes the draft's caret stops and clamps the scroll
+position when the caret moves. Marcus binds the target image, palette and
+font services.
+
+The headless player fixture covers hidden rows, layout retry, draft caret
+scrolling and high-resolution raster errors. All 228 selected native checks
+passed, including the corrected player fixture. The 12 SDL checks and three
+x86 worker fixtures passed. Four 1088-by-612 Text Acid frames and the headless
+Marcus startup image matched the previous build byte for byte.
+
+Text Acid candidate `20261123T083054Z-8bf360cc` matched baseline
+`20261123T010747Z-01f74be0` on all 240 seek canvases and caption and camera
+states per port. After removing consecutive duplicate samples, the 371
+continuous playback presentations per port matched in order, pixels and
+recorded state, including the scrolling credit. Both ports matched the
+retained retail and V3DMM authored frame order in seek and playback.
+Evidence is under `tmp/c89-caption-paint`.

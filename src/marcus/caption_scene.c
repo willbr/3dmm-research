@@ -1,9 +1,11 @@
 #include "caption_scene.h"
+#include "caption_raster.h"
 #include "mm/preview_media.h"
 #include <stdlib.h>
 #include <string.h>
 
 enum { CAPTION_SCENE_BUDGET = 128UL * 1024UL * 1024UL };
+enum { CAPTION_RASTER_BUDGET = 64UL * 1024UL * 1024UL };
 
 static void clear_caption(MarcusStoredCaption *caption)
 {
@@ -262,4 +264,108 @@ int marcus_caption_scene_measure(const MarcusCaptionSource *source, const Marcus
 MarcusStoredCaption *marcus_caption_scene_row(MarcusCaptionScene *scene, size_t row)
 {
     return row ? scene->rows + row - 1 : scene->draft;
+}
+
+typedef struct CaptionMeasurePass
+{
+    MarcusCaptionScene *scene;
+    const MarcusCaptionFonts *fonts;
+    int status;
+} CaptionMeasurePass;
+
+static int measure_row(void *p, size_t row, MMI32 *height)
+{
+    CaptionMeasurePass *pass = p;
+    MarcusStoredCaption *caption = marcus_caption_scene_row(pass->scene, row);
+    pass->status = marcus_caption_scene_layout(pass->scene, caption, pass->fonts);
+    if (pass->status)
+        return 0;
+    *height = caption->runs.height;
+    return 1;
+}
+
+int marcus_caption_scene_measure_scroll(MarcusCaptionScene *scene, MMI32 frame, const MarcusCaptionFonts *fonts,
+                                        int *needs_scroll)
+{
+    CaptionMeasurePass pass;
+    pass.scene = scene;
+    pass.fonts = fonts;
+    pass.status = MM_CAPTION_LAYOUT_FAILED;
+    if (!mm_caption_presentation_measure(&scene->presentation, frame, needs_scroll, &pass, measure_row))
+        return pass.status;
+    return 0;
+}
+
+const MarcusCaptionStop *marcus_caption_scene_stops(const MarcusCaptionScene *scene, int *count, int *scroll)
+{
+    const MarcusStoredCaption *draft = scene->draft;
+    *scroll = scene->presentation.draft_scroll;
+    *count = draft ? (int)draft->runs.stop_count : 0;
+    return *count ? marcus_caption_runs_stops(&draft->runs) : NULL;
+}
+
+int marcus_caption_scene_caret(MarcusCaptionScene *scene, MMI32 offset)
+{
+    const MarcusStoredCaption *draft = scene->draft;
+    return draft && marcus_caption_runs_caret(&draft->runs, &scene->presentation, offset,
+                                              draft->source.layout.box.top, draft->source.layout.box.bottom);
+}
+
+typedef struct CaptionPaintPass
+{
+    MarcusCaptionScene *scene;
+    const MarcusCaptionScenePaint *paint;
+    int status;
+} CaptionPaintPass;
+
+static MMU32 paint_colour(void *p, MMU32 colour)
+{
+    const MarcusCaptionScenePaint *paint = ((const CaptionPaintPass *)p)->paint;
+    return paint->colour(paint->palette, colour);
+}
+
+static int paint_raster(void *p, const MarcusCaptionRun *run, int scale, MarcusCaptionRaster *out)
+{
+    CaptionPaintPass *pass = p;
+    const int status = marcus_caption_raster_get(pass->paint->rasters, run, scale, CAPTION_RASTER_BUDGET,
+                                                  pass->paint->fonts, out);
+    switch (status)
+    {
+    case MARCUS_CAPTION_RASTER_OK: return 1;
+    case MARCUS_CAPTION_RASTER_MEMORY: pass->status = MARCUS_CAPTION_RUNS_MEMORY; break;
+    case MARCUS_CAPTION_RASTER_METRICS: pass->status = MARCUS_CAPTION_SCENE_RASTER_METRICS; break;
+    case MARCUS_CAPTION_RASTER_SOURCE: pass->status = MARCUS_CAPTION_SCENE_RASTER_SOURCE; break;
+    default: pass->status = MM_CAPTION_LAYOUT_FAILED; break;
+    }
+    return 0;
+}
+
+static int paint_row(void *p, size_t row, MMI32 scroll, MMCaptionCanvas *canvas)
+{
+    CaptionPaintPass *pass = p;
+    MarcusStoredCaption *caption = marcus_caption_scene_row(pass->scene, row);
+    const MMTextBoxBounds *box = &caption->source.layout.box;
+    MarcusCaptionPaintServices services = {NULL, paint_colour, paint_raster};
+    if (!mm_caption_box_visible(box))
+        return 1;
+    pass->status = marcus_caption_scene_layout(pass->scene, caption, pass->paint->fonts);
+    if (pass->status)
+        return 0;
+    services.context = pass;
+    return marcus_caption_runs_paint(&caption->runs, canvas, box, scroll, caption->source.background, &services);
+}
+
+int marcus_caption_scene_paint(MarcusCaptionScene *scene, MMI32 frame, const MMU32 *hidden, int edit_draft,
+                               const MMCaptionOutput *output, const MarcusCaptionScenePaint *paint)
+{
+    CaptionPaintPass pass;
+    int status;
+    pass.scene = scene;
+    pass.paint = paint;
+    pass.status = MM_CAPTION_LAYOUT_FAILED;
+    status = mm_caption_presentation_paint(&scene->presentation, frame, hidden, edit_draft && scene->draft,
+                                          output, &pass, paint_row);
+    if (status == MM_CAPTION_PAINT_MEMORY)
+        return MARCUS_CAPTION_RUNS_MEMORY;
+    return status == MM_CAPTION_PAINT_OK ? 0 : pass.status;
 }

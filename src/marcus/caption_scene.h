@@ -52,6 +52,26 @@ int marcus_caption_scene_layout(MarcusCaptionScene *, MarcusStoredCaption *, con
 int marcus_caption_scene_measure(const MarcusCaptionSource *, const MarcusCaptionFonts *, MMI32 *height);
 MarcusStoredCaption *marcus_caption_scene_row(MarcusCaptionScene *, size_t row);
 
+/* Return the layout status. Cache the layout of each active scrolling row. */
+int marcus_caption_scene_measure_scroll(MarcusCaptionScene *, MMI32 frame, const MarcusCaptionFonts *, int *needs_scroll);
+const MarcusCaptionStop *marcus_caption_scene_stops(const MarcusCaptionScene *, int *count, int *scroll);
+int marcus_caption_scene_caret(MarcusCaptionScene *, MMI32 offset);
+
+struct MarcusCaptionRasterCache;
+typedef struct MarcusCaptionScenePaint
+{
+    const MarcusCaptionFonts *fonts;
+    struct MarcusCaptionRasterCache *rasters;
+    const void *palette;
+    MMU32 (*colour)(const void *, MMU32);
+} MarcusCaptionScenePaint;
+
+enum { MARCUS_CAPTION_SCENE_RASTER_METRICS = -10, MARCUS_CAPTION_SCENE_RASTER_SOURCE = -11 };
+/* The palette and fonts are borrowed through the draw. Return zero on success,
+ * a layout error, or a high-resolution raster error. */
+int marcus_caption_scene_paint(MarcusCaptionScene *, MMI32 frame, const MMU32 *hidden, int edit_draft,
+                               const MMCaptionOutput *, const MarcusCaptionScenePaint *);
+
 #ifdef __cplusplus
 }
 #endif
