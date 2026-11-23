@@ -230,10 +230,14 @@ endif()
 if(STUDIO_SDL3 OR BUILD_MARCUS)
   include(SDL3Dependency)
   include(CompressedAudioDependency)
+  add_library(kauai-sdl-wave STATIC kauai/src/sdl_wave.c)
+  set_target_properties(kauai-sdl-wave PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+  target_include_directories(kauai-sdl-wave PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
+  target_link_libraries(kauai-sdl-wave PUBLIC kauai-audio-mixer PRIVATE kauai-compressed-wave-decoder SDL3::SDL3-static)
   add_library(kauai-sdl-audio STATIC kauai/src/sdl_audio.cpp kauai/src/sdl_recording.cpp)
   target_include_directories(kauai-sdl-audio PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
-  target_link_libraries(kauai-sdl-audio PUBLIC kauai-sdl-output kauai-wave-codec kauai-recording-data
-    PRIVATE SDL3::SDL3-static kauai-compressed-wave)
+  target_link_libraries(kauai-sdl-audio PUBLIC kauai-sdl-wave kauai-sdl-output kauai-wave-codec kauai-recording-data
+    PRIVATE SDL3::SDL3-static)
 endif()
 if(STUDIO_SDL3)
   add_executable(recording-sdl-test EXCLUDE_FROM_ALL tests/recording_sdl_test.cpp)
@@ -1215,6 +1219,14 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
         -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"
         -isystem "${PROJECT_SOURCE_DIR}/vendor/SDL3/include" -fsyntax-only
         "${PROJECT_SOURCE_DIR}/kauai/src/midi_sdl_device.c" "${PROJECT_SOURCE_DIR}/tests/midi_sdl_device_test.c")
+  endif()
+  if(TARGET kauai-sdl-wave)
+    add_test(NAME kauai-sdl-wave-c89-syntax
+      COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+        -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -I "${PROJECT_SOURCE_DIR}/kauai/src"
+        -isystem "${PROJECT_SOURCE_DIR}/vendor/SDL3/include" -isystem "${libgsm_SOURCE_DIR}/inc"
+        -isystem "${dr_libs_SOURCE_DIR}" -fsyntax-only
+        "${PROJECT_SOURCE_DIR}/kauai/src/sdl_wave.c" "${PROJECT_SOURCE_DIR}/kauai/src/compressed_wave_decode.c")
   endif()
   if(TARGET kauai-midi-synth)
     add_test(NAME kauai-midi-synth-c89-syntax

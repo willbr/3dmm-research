@@ -2319,6 +2319,9 @@ device messages, and wake event.
 The SDL MIDI device now builds as a C89 library with the bank loader,
 output stream, sequencer, and completion worker. Studio's host forwards
 device calls and publishes the current device's diagnostic counters.
+Studio and Marcus use one C89 SDL WAVE decoder for PCM playback, duration,
+and import. It owns GSM and MP3 decode buffers, trims authored fact frames,
+and adopts the converted stereo sample into the shared audio owner.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

@@ -1,111 +1,18 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "sdl_audio.h"
-#include "wave_codec.h"
-#include "mm/wave.h"
-#include "mm/collection_storage.h"
-#include "compressed_wave.h"
-#include <SDL3/SDL.h>
-#include <climits>
+#include "sdl_wave.h"
 #include <new>
+
 namespace KauaiAudio
 {
-namespace
-{
-void TrimFact(const void *data, std::size_t bytes, const SDL_AudioSpec &spec, Uint32 &decodedBytes)
-{
-    std::uint32_t frames;
-    const auto frameBytes = SDL_AUDIO_BYTESIZE(spec.format) * spec.channels;
-    if (frameBytes > 0 && WaveFactFrames(data, bytes, frames) &&
-        frames < decodedBytes / static_cast<unsigned>(frameBytes))
-        decodedBytes = frames * static_cast<unsigned>(frameBytes);
-}
-struct WavePCM
-{
-    SDL_AudioSpec source = {};
-    Uint8 *sdlData = nullptr;
-    Uint32 bytes = 0;
-    DecodedWave compressed;
-    ~WavePCM()
-    {
-        SDL_free(sdlData);
-    }
-    const Uint8 *Data() const
-    {
-        return sdlData ? sdlData : reinterpret_cast<const Uint8 *>(compressed.samples.data());
-    }
-    bool Load(const void *data, std::size_t count)
-    {
-        switch (DecodeCompressedWave(data, count, compressed))
-        {
-        case CompressedWaveResult::Invalid:
-            return SDL_SetError("Invalid compressed WAVE audio");
-        case CompressedWaveResult::Decoded:
-            source = {SDL_AUDIO_S16, compressed.channels, compressed.sampleRate};
-            bytes = static_cast<Uint32>(compressed.samples.size() * sizeof(std::int16_t));
-            return true;
-        case CompressedWaveResult::NotHandled:
-            if (!SDL_LoadWAV_IO(SDL_IOFromConstMem(data, count), true, &source, &sdlData, &bytes))
-                return false;
-            TrimFact(data, count, source, bytes);
-            return true;
-        }
-        return false;
-    }
-};
-
-MMWaveImportServices WaveImportServices(WavePCM &pcm)
-{
-    MMWaveImportServices services = {};
-    services.context = &pcm;
-    services.load = [](void *context, const void *data, MMU32 bytes, MMU32 *decoded) -> int {
-        auto &pcm = *static_cast<WavePCM *>(context);
-        try
-        {
-            if (!pcm.Load(data, bytes))
-                return 0;
-            *decoded = pcm.bytes;
-            return 1;
-        }
-        catch (const std::bad_alloc &)
-        {
-            return 0;
-        }
-    };
-    services.convert_u8 = [](void *context, MMI32 rate, unsigned char **samples, MMI32 *count) -> int {
-        auto &pcm = *static_cast<WavePCM *>(context);
-        const SDL_AudioSpec destination = {SDL_AUDIO_U8, 1, rate};
-        int bytes = 0;
-        const bool ok = SDL_ConvertAudioSamples(&pcm.source, pcm.Data(), static_cast<int>(pcm.bytes), &destination,
-                                                samples, &bytes);
-        *count = bytes;
-        return ok;
-    };
-    services.release_samples = [](void *, unsigned char *samples) { SDL_free(samples); };
-    return services;
-}
-} // namespace
-
-int ImportWave(void *, const MMReadStream *source, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
+int ImportWave(void *context, const MMReadStream *source, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
                const MMArchiveWriter *writer)
 {
-    try
-    {
-        WavePCM pcm;
-        const auto services = WaveImportServices(pcm);
-        return mm_wave_decode_import(source, style, name, number, &services, writer);
-    }
-    catch (...)
-    {
-        return MM_WAVE_BAD_AUDIO;
-    }
+    return mm_sdl_wave_import(context, source, style, name, number, writer);
 }
 
 bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uint8_t> &wave)
 {
-    if (bytes > INT_MAX)
-        return false;
-    WavePCM pcm;
-    const auto services = WaveImportServices(pcm);
     MMWaveBuffer scratch;
     mm_wave_buffer_init(&scratch, nullptr);
     bool ok = false;
@@ -113,7 +20,7 @@ bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uin
     {
         const unsigned char *selected;
         MMU32 count;
-        if (mm_wave_prepare(data, static_cast<MMU32>(bytes), &services, &scratch, &selected, &count))
+        if (mm_sdl_wave_prepare(data, bytes, &scratch, &selected, &count))
         {
             std::vector<std::uint8_t> result(selected, selected + count);
             wave.swap(result);
@@ -129,53 +36,14 @@ bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uin
 
 bool WaveSeconds(const void *data, std::size_t bytes, double &seconds)
 {
-    seconds = 0;
-    if (!data || bytes < 12 || bytes > INT_MAX)
-        return false;
-    WavePCM pcm;
-    if (!pcm.Load(data, bytes) || pcm.bytes > INT_MAX)
-        return false;
-    const SDL_AudioSpec destination = {SDL_AUDIO_F32, 2, SampleRate};
-    auto stream = SDL_CreateAudioStream(&pcm.source, &destination);
-    if (!stream)
-        return false;
-    // SDL computes the flushed output length without performing conversion.
-    // Use its accounting so compressed fact trimming and resampler rounding
-    // agree with DecodeWave, including non-integral rate ratios.
-    const bool ready =
-        SDL_PutAudioStreamData(stream, pcm.Data(), static_cast<int>(pcm.bytes)) && SDL_FlushAudioStream(stream);
-    const int available = ready ? SDL_GetAudioStreamAvailable(stream) : -1;
-    SDL_DestroyAudioStream(stream);
-    if (available < 0 || available % (2 * sizeof(float)))
-        return false;
-    seconds = double(available / (2 * sizeof(float))) / SampleRate;
-    return true;
+    return mm_sdl_wave_seconds(data, bytes, &seconds) != 0;
 }
+
 bool DecodeWave(const void *data, std::size_t bytes, Sample &sample)
 {
-    if (!data || bytes < 12 || bytes > INT_MAX)
+    MMAudioSample *owner;
+    if (!mm_sdl_wave_decode(data, bytes, &owner))
         return false;
-    SDL_AudioSpec destination = {SDL_AUDIO_F32, 2, SampleRate};
-    WavePCM pcm;
-    Uint8 *converted = nullptr;
-    int convertedBytes = 0;
-    if (!pcm.Load(data, bytes))
-        return false;
-    const bool success =
-        pcm.bytes <= INT_MAX && SDL_ConvertAudioSamples(&pcm.source, pcm.Data(), static_cast<int>(pcm.bytes),
-                                                        &destination, &converted, &convertedBytes);
-    if (!success || convertedBytes < 0 || convertedBytes % (2 * sizeof(float)))
-    {
-        SDL_free(converted);
-        return false;
-    }
-    auto owner = mm_audio_sample_adopt(reinterpret_cast<float *>(converted), convertedBytes / (2 * sizeof(float)),
-                                       [](void *p) { SDL_free(p); });
-    if (!owner)
-    {
-        SDL_free(converted);
-        return false;
-    }
     sample.reset(owner);
     return true;
 }

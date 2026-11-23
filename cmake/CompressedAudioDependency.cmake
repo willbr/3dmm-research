@@ -34,9 +34,16 @@ file(READ "${dr_libs_SOURCE_DIR}/LICENSE" mp3_license)
 string(APPEND mp3_license "\nIncludes minimp3 (https://github.com/lieff/minimp3), dedicated to the public domain under CC0.\n")
 configure_file("${PROJECT_SOURCE_DIR}/cmake/compressed_audio_licenses.h.in"
   "${PROJECT_BINARY_DIR}/generated/audio-codecs/compressed_audio_licenses.h" @ONLY)
-add_library(kauai-compressed-wave STATIC "${PROJECT_SOURCE_DIR}/kauai/src/compressed_wave.cpp"
+add_library(kauai-compressed-wave-decoder STATIC "${PROJECT_SOURCE_DIR}/kauai/src/compressed_wave_decode.c"
   "${PROJECT_SOURCE_DIR}/kauai/src/mp3_decoder.c")
+target_include_directories(kauai-compressed-wave-decoder PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src"
+  PRIVATE "${dr_libs_SOURCE_DIR}")
+target_link_libraries(kauai-compressed-wave-decoder PUBLIC mm-engine-c89 PRIVATE kauai-gsm)
+set_target_properties(kauai-compressed-wave-decoder PROPERTIES
+  C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF POSITION_INDEPENDENT_CODE ON)
+
+add_library(kauai-compressed-wave STATIC "${PROJECT_SOURCE_DIR}/kauai/src/compressed_wave.cpp")
 target_include_directories(kauai-compressed-wave PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src"
-  PRIVATE "${dr_libs_SOURCE_DIR}" "${PROJECT_BINARY_DIR}/generated/audio-codecs")
-target_link_libraries(kauai-compressed-wave PRIVATE kauai-gsm mm-engine-c89)
+  PRIVATE "${PROJECT_BINARY_DIR}/generated/audio-codecs")
+target_link_libraries(kauai-compressed-wave PRIVATE kauai-compressed-wave-decoder)
 set_target_properties(kauai-compressed-wave PROPERTIES POSITION_INDEPENDENT_CODE ON)

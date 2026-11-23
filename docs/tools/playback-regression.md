@@ -25256,3 +25256,36 @@ the previously recorded later PCM16 peak of 7,609.
 
 Evidence is under `tmp/c89-sdl-midi-device`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 SDL WAVE decoder and import conversion (23 November 2026)
+
+Studio and Marcus share the C89 SDL WAVE decoder for playback and import.
+C89 owns GSM and MP3 PCM buffers, trims the supported fact counts, calls
+SDL's resampler, and adopts stereo samples into the existing sample owner.
+Duration uses the same SDL output-length accounting as decode. The archive
+import controller calls this decoder before writing the existing WAVE format.
+
+A standalone C probe linked the decoder and SDL libraries and compared
+complete payloads against the preceding C++ decoder. The GSM fixture
+produced 9,600 stereo frames and a 1,370-byte import. MP3 produced 12,539
+stereo frames and a 1,626-byte import. Both the PCM and import payloads
+matched byte for byte. The focused codec checks also covered every
+truncation of the fixture inputs, GSM fact trimming, MP3 padding,
+malformed input, and decoding the prepared import.
+
+The 228 selected native, 27 standalone C89, and 18 native strict syntax
+checks passed. The SDL WAVE checks, Studio authoring and save checks, and
+focused x86 fixtures passed. Classic Studio rebuilt and the external
+consumer passed. The headless Marcus startup canvas and VMM outputs matched
+their baselines.
+
+Fresh suite `20261123T184016Z-45a296d3` completed eight captures. Replay suite
+`20261123T184136Z-a406a687` completed four. Both ports matched all 60 Actor
+Audio frame positions and camera indices and 59 of 60 seek canvases against
+retained retail and V3DMM runs. Aligned at each audible onset, the first
+100 ms of all four Actor Audio spans matched each port's retained PCM16
+samples exactly. The embedded MIDI fixture also matched the 100 ms WAVE cue
+and first 400 ms of MIDI sample for sample.
+
+Evidence is under `tmp/c89-c-wave`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.
