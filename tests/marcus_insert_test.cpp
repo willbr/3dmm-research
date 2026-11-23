@@ -263,6 +263,19 @@ int main(int argc, char **argv)
         const auto preview = RunPreviewWorker(previewPath, argv[1], [] { return false; }, "20 -10 1",
             false, {}, false, false, true);
         require(preview.error.empty() && preview.width == 480 && preview.height == 360 && !preview.rgba.empty(), "Text preview renders existing font and material independently");
+        {
+            auto inherited = settings;
+            inherited.appearance = {};
+            inherited.appearance.preset = 1;
+            inherited.appearance.chunk = 0xffffffffUL;
+            const auto draft = MarcusPrepareTextPreview(player.get(), editIndex, inherited);
+            require(bool(draft), "Prepare the current object's material with the appearance override disabled");
+            const auto rendered = RunPreviewWorker(draft->path.u8string(), argv[1], [] { return false; },
+                "20 -10 1", false, {}, false, false, true);
+            require(rendered.error.empty() && rendered.width == preview.width && rendered.height == preview.height &&
+                rendered.rgba == preview.rgba && marcus_document(player.get()) == previewDocument,
+                "A disabled appearance retains the live material and document");
+        }
         // Exercise the C worker boundary without creating a dialog or UI context.
         auto textPreview = std::unique_ptr<MarcusTextPreview, decltype(&text_preview_destroy)>(
             text_preview_create(), text_preview_destroy);

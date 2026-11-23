@@ -55,7 +55,6 @@ class PreviewActor
                         int &lastEditedFrame, const SoundGraphResolver &);
     bool WriteCostumes(const std::vector<PreviewCostume> &, const std::string &path);
     bool SetEventTrack(std::int32_t source);
-    PMaterial_MTRL TextMaterial() const;
     bool SetTextMaterial(std::int32_t source, std::uint32_t number);
     bool SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate);
     bool ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const;

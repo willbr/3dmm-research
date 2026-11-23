@@ -597,6 +597,17 @@ int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destinat
            mm_chunk_copy(&source_end, &destination_end, type, number, clone, copy) == MM_CHUNK_OK;
 }
 
+int mm_private_archive_store_text_draft(MMPrivateArchive *archive, const MMChunkNameValue *name,
+                                        const MMTextDescriptor *text, MMU32 creator)
+{
+    MMArchiveWriter writer;
+    MMU32 number;
+    if (!archive->writable)
+        return 0;
+    writer = mm_private_archive_writer(archive);
+    return mm_text_write_draft(name, text, &number, &writer) && number == 0 && mm_private_archive_save(archive, creator);
+}
+
 int mm_private_archive_bind_font(MMPrivateArchive *archive, const MMChunkEndpoint *source, MMU32 tmpl, MMU32 font)
 {
     MMChunkFileCopy binding;

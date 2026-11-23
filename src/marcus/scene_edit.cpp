@@ -222,12 +222,9 @@ std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(MMTextAuthorName textN
     auto file = MarcusOpenArchive(result->path, MM_PRIVATE_ARCHIVE_CREATE);
     Require(bool(file), "Cannot create the 3D text template.");
     const MMTextDescriptor draft{shape, {source, nullptr, kctgTdf, font}};
-    const auto writer = mm_private_archive_writer(file.get());
     byte wire[kcbMaxDataStn];
     const auto name = MarcusArchiveName(text, wire);
-    ChunkNumber number;
-    Require(mm_text_write_draft(&name, &draft, &number, &writer) && number == 0 &&
-                mm_private_archive_save(file.get(), kctgSoc),
+    Require(mm_private_archive_store_text_draft(file.get(), &name, &draft, kctgSoc),
         "Cannot create the 3D text template.");
     return result;
 }

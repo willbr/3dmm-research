@@ -57,6 +57,7 @@ struct Preview::Impl
 {
     struct RenderHost;
     struct IsolatedActorHost;
+    struct TextDraftHost;
     struct LiveHost;
     struct AdmissionHost;
     struct SessionHost;
@@ -159,20 +160,6 @@ struct Preview::Impl
         return true;
     }
     MMResourceCache *Resolve(const TAGOnFile &tag);
-    PMaterial_MTRL FetchTextMaterial(int object, bool preset, MMI32 source, MMU32 number)
-    {
-        if (preset)
-        {
-            auto file = Resolve({source, 0, kctgMtrl, number});
-            return file ? mm_brender_material_fetch(file, kctgMtrl, number) : nullptr;
-        }
-        if (object < 0 || std::size_t(object) >= actors.size())
-            return mm_brender_material_new(-1, -1);
-        auto material = actors[object]->TextMaterial();
-        if (material)
-            mm_material_owner_retain(material);
-        return material;
-    }
     bool ResolveGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph);
     void DescribeMissingResource(const TAGOnFile &tag);
     void PublishGeometry()
@@ -455,13 +442,77 @@ bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32
         _impl->actors[object]->SetTextTemplate(source, number, [this](PTemplate value) { _impl->BindTemplate(value); })) ||
         Fail(error, ErrorCode::decode_failed, "Cannot change this 3D text template.");
 }
+
+struct Preview::Impl::TextDraftHost
+{
+    Impl &owner;
+    const std::string *path;
+    String nativePath;
+    const MMPrivateArchiveProfile profile = KauaiPrivateArchiveProfile();
+    std::exception_ptr exception;
+
+    explicit TextDraftHost(Impl &owner, const std::string *path = nullptr) : owner(owner), path(path) {}
+
+    MMPreviewDraftServices Services()
+    {
+        return {this, &profile, kctgSoc,
+            [](void *p) -> const MMNativePathChar * {
+                auto &host = *static_cast<TextDraftHost *>(p);
+                try
+                {
+                    if (host.path && PreviewDraftPath(*host.path, host.nativePath))
+                        return reinterpret_cast<const MMNativePathChar *>(host.nativePath.Psz());
+                }
+                catch (...) { host.exception = std::current_exception(); }
+                return nullptr;
+            },
+            [](void *p, const MMTag *tag) -> MMResourceCache * {
+                auto &host = *static_cast<TextDraftHost *>(p);
+                try { return host.owner.Resolve({tag->sid, 0, tag->type, tag->number}); }
+                catch (...) { host.exception = std::current_exception(); return nullptr; }
+            }};
+    }
+
+    bool Result(int status, Error &error) const
+    {
+        if (exception) std::rethrow_exception(exception);
+        switch (status)
+        {
+        case MM_PREVIEW_DRAFT_OK: return true;
+        case MM_PREVIEW_DRAFT_MATERIAL_READ: return Fail(error, ErrorCode::decode_failed, "Cannot read the text material.");
+        case MM_PREVIEW_DRAFT_MATERIAL_INVALID: return Fail(error, ErrorCode::invalid_argument, "Material lighting or texture placement is out of range.");
+        case MM_PREVIEW_DRAFT_MATERIAL_FETCH: return Fail(error, ErrorCode::decode_failed, "Cannot copy the text material.");
+        case MM_PREVIEW_DRAFT_MATERIAL_PATH: return Fail(error, ErrorCode::invalid_argument, "Invalid text material path.");
+        case MM_PREVIEW_DRAFT_MATERIAL_WRITE: return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
+        case MM_PREVIEW_DRAFT_MATERIAL_SAVE: return Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
+        case MM_PREVIEW_DRAFT_FONT_SOURCE: return Fail(error, ErrorCode::decode_failed, "Cannot copy the preview font.");
+        case MM_PREVIEW_DRAFT_FONT_MISSING:
+            Bug("chunk not found");
+            return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
+        case MM_PREVIEW_DRAFT_FONT_WRITE: return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
+        case MM_PREVIEW_DRAFT_FONT_SAVE: return Fail(error, ErrorCode::decode_failed, "Cannot link the preview font.");
+        default: return false;
+        }
+    }
+};
+
+static MMMaterialAppearance NativeTextAppearance(const PreviewTextMaterial &value)
+{
+    MMMaterialAppearance appearance = {value.colour, value.indexBase, value.indexRange, value.ambient, value.diffuse,
+                                      value.specular, value.shininess, {}, value.textured};
+    std::copy_n(value.mapping, 6, appearance.mapping);
+    return appearance;
+}
+
 bool Preview::TextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number, PreviewTextMaterial &out, Error &error)
 {
     error = {};
-    auto material = _impl->FetchTextMaterial(object, preset, source, number);
-    if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot read the text material.");
+    Impl::TextDraftHost host(*_impl);
+    const auto services = host.Services();
+    const MMPreviewMaterialSource selection{object, source, number, preset};
     MMMaterialAppearance appearance;
-    mm_brender_material_read_view(material, &appearance);
+    if (!host.Result(mm_preview_read_text_material(&_impl->live, &selection, &appearance, &services), error))
+        return false;
     out.textured = appearance.textured != 0;
     out.colour = appearance.colour;
     out.indexBase = appearance.index_base;
@@ -471,29 +522,17 @@ bool Preview::TextMaterial(int object, bool preset, std::int32_t source, std::ui
     out.specular = appearance.specular;
     out.shininess = appearance.shininess;
     std::copy_n(appearance.mapping, 6, out.mapping);
-    mm_material_owner_release(material); return true;
+    return true;
 }
 bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number,
     const PreviewTextMaterial &value, const std::string &path, Error &error)
 {
     error = {};
-    auto material = _impl->FetchTextMaterial(object, preset, source, number);
-    if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot copy the text material.");
-    std::unique_ptr<MMMaterialOwner, decltype(&mm_material_owner_release)> owner(material, mm_material_owner_release);
-    String nativePath;
-    if (!PreviewDraftPath(path, nativePath))
-        return Fail(error, ErrorCode::invalid_argument, "Invalid text material path.");
-    const auto file = OpenPreviewDraft(nativePath);
-    if (!file)
-        return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
-    const auto writer = mm_private_archive_writer(file.get());
-    MMMaterialAppearance appearance = {value.colour, value.indexBase, value.indexRange, value.ambient, value.diffuse,
-                                      value.specular, value.shininess, {}, value.textured};
-    std::copy_n(value.mapping, 6, appearance.mapping);
-    ChunkNumber chunk = 0;
-    if (!mm_brender_material_write_view(material, &writer, kctgMtrl, &chunk, &appearance) || chunk != 0)
-        return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
-    return mm_private_archive_save(file.get(), kctgSoc) || Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
+    Impl::TextDraftHost host(*_impl, &path);
+    const auto services = host.Services();
+    const MMPreviewMaterialSource selection{object, source, number, preset};
+    const auto appearance = NativeTextAppearance(value);
+    return host.Result(mm_preview_store_text_material(&_impl->live, &selection, &appearance, &services), error);
 }
 bool Preview::SetObjectTextMaterial(int object, std::int32_t source, std::uint32_t number, Error &error)
 {
@@ -502,32 +541,32 @@ bool Preview::SetObjectTextMaterial(int object, std::int32_t source, std::uint32
 }
 bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSource, std::uint32_t font, Error &error)
 {
-    const TAGOnFile tag = {fontSource, 0, kctgTdf, font}; auto source = _impl->Resolve(tag);
-    String nativePath;
-    if (!source || !PreviewDraftPath(path, nativePath))
-        return Fail(error, ErrorCode::decode_failed, "Cannot copy the preview font.");
-    const auto file = OpenPreviewDraft(nativePath);
-    if (!file)
-        return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
-    MMResourceChunkCopy sourceBinding;
-    const auto sourceChunks = mm_resource_cache_copy_source(source, &sourceBinding);
-    const int status = mm_private_archive_bind_font(file.get(), &sourceChunks, 0, font);
-    if (status == MM_CHUNK_NOT_FOUND)
-        Bug("chunk not found");
-    if (status != MM_CHUNK_OK)
-        return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
-    return mm_private_archive_save(file.get(), kctgSoc) ||
-        Fail(error, ErrorCode::decode_failed, "Cannot link the preview font.");
+    Impl::TextDraftHost host(*_impl, &path);
+    const auto services = host.Services();
+    return host.Result(mm_preview_bind_text_font(fontSource, font, &services), error);
 }
+
+bool Preview::WriteTextPreview(int object, bool preset, std::int32_t source, std::uint32_t number,
+                              const PreviewTextMaterial *value, const std::string &path,
+                              std::int32_t fontSource, std::uint32_t font, Error &error)
+{
+    error = {};
+    Impl::TextDraftHost host(*_impl, &path);
+    const auto services = host.Services();
+    const MMPreviewMaterialSource selection{object, source, number, preset && value};
+    MMMaterialAppearance appearance;
+    if (value)
+        appearance = NativeTextAppearance(*value);
+    return host.Result(mm_preview_store_text_preview(&_impl->live, &selection, value ? &appearance : nullptr,
+                                                     fontSource, font, &services), error);
+}
+
 bool Preview::UseTextPreviewMaterial(Error &error)
 {
-    const auto &assets = _impl->live.assets;
-    if (!assets.body || !assets.tmpl || !EngineTemplate::FIsTdt(assets.tmpl)) return false;
-    auto material = mm_brender_material_fetch(_impl->cache, kctgMtrl, 0);
-    if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
-    mm_body_set_generic(assets.body, 0, material, &mm_kauai_body_renderer()->edit.runtime);
-    mm_material_owner_release(material);
-    return true;
+    const int status = mm_preview_use_text_material(&_impl->live.assets, _impl->cache);
+    if (status == MM_PREVIEW_DRAFT_MATERIAL_LOAD)
+        return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
+    return status == MM_PREVIEW_DRAFT_OK;
 }
 bool Preview::ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error)
 try

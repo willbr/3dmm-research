@@ -351,6 +351,11 @@ class Preview
         const PreviewTextMaterial &, const std::string &path, Error &);
     bool SetObjectTextMaterial(int object, std::int32_t source, std::uint32_t number, Error &);
     bool PrepareTextPreview(const std::string &path, std::int32_t fontSource, std::uint32_t font, Error &);
+    // Complete an unpublished text template with its appearance and embedded font.
+    // A null appearance copies the current object's material or the default material.
+    bool WriteTextPreview(int object, bool preset, std::int32_t source, std::uint32_t number,
+                          const PreviewTextMaterial *, const std::string &path,
+                          std::int32_t fontSource, std::uint32_t font, Error &);
     bool UseTextPreviewMaterial(Error &);
     // Current posed bounds in actor-local axes, transformed with the actor.
     // An off-stage actor succeeds with invalid bounds.

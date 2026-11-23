@@ -1450,15 +1450,21 @@ std::shared_ptr<MarcusMovieFile> MarcusPrepareTextPreview(MarcusPlayer *player, 
         const auto source = text.font_source == -1 ? player->retailSource : static_cast<MMI32>(text.font_source);
         const auto name = MarcusPrepareTextName(text.text);
         auto file = MarcusCreateTextTemplate(name, static_cast<MMU32>(text.font), source, text.shape);
-        auto material = text.appearance;
-        if (!material.enabled)
+        const auto &material = text.appearance;
+        MM::PreviewTextMaterial native;
+        MMI32 materialSource = 0;
+        MMU32 materialChunk = 0;
+        bool preset = false;
+        if (material.enabled)
         {
-            MM::PreviewTextMaterial current;
-            if (!player->preview.TextMaterial(object, false, 0, 0, current, error)) return false;
-            material = PublicMaterial(current);
+            native = NativeMaterial(material);
+            materialSource = material.source == -1 ? player->retailSource : material.source;
+            materialChunk = static_cast<MMU32>(material.chunk);
+            preset = material.preset != 0;
         }
-        if (!WriteMaterial(player, object, material, *file, error) ||
-            !player->preview.PrepareTextPreview(file->path.u8string(), source, text.font, error)) return false;
+        if (!player->preview.WriteTextPreview(object, preset, materialSource, materialChunk,
+                material.enabled ? &native : nullptr, file->path.u8string(), source, text.font, error))
+            return false;
         result = file; return true;
     });
     return result;

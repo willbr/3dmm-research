@@ -81,13 +81,6 @@ bool PreviewActor::Text(PreviewObjectText &out) const
     out.font = descriptor.font_number;
     return true;
 }
-PMaterial_MTRL PreviewActor::TextMaterial() const
-{
-    if (!Ptmpl() || !EngineTemplate::FIsTdt(Ptmpl()) || !Pbody()) return nullptr;
-    int custom;
-    auto material = mm_brender_body_material(mm_kauai_body_renderer(), Pbody(), 0, &custom);
-    return custom ? nullptr : material;
-}
 bool PreviewActor::SetTextMaterial(std::int32_t source, std::uint32_t number)
 {
     Host host = {this};

@@ -23386,3 +23386,23 @@ Actor Audio candidate `20261123T000512Z-d829b203` matched
 port. Both ports matched the seek and playback frame order in retained
 retail and V3DMM run `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-schedule-owner` and `tmp/c89-aqcap`.
+
+## C89 3D text preview drafts (23 November 2026)
+
+The C89 archive path writes template zero, copies the live, default or
+preset material, saves material zero and embeds the selected font. The
+Preview helper uses the C89 material reader and body binding. Marcus
+publishes a private draft after the material and font saves succeed.
+
+Five complete preview drafts and their rendered replies matched the
+previous build byte for byte. The inheritance check reproduced the live
+material's exact pixels with the appearance override disabled. Seven
+native saves and the headless startup image also matched byte for byte.
+All 228 selected native checks and 12 SDL checks passed. The rebuilt x86
+worker passed the scene and frame protocol, placement and shape fixtures.
+
+The copied-text save matched the stored movie hash from
+`20261122T081740Z-bd0becfc`. In candidate `20261123T001608Z-ef88f4f5`,
+both Studio and Marcus reopened it with the same seek canvas and playback
+frame as the retained retail and V3DMM captures. Evidence is under
+`tmp/c89-text-draft`.

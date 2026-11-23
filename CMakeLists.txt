@@ -1163,7 +1163,8 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
         "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/asset_resources.c"
         "${PROJECT_SOURCE_DIR}/bren/template_renderer.c"
-        "${PROJECT_SOURCE_DIR}/bren/background_renderer.c")
+        "${PROJECT_SOURCE_DIR}/bren/background_renderer.c"
+        "${PROJECT_SOURCE_DIR}/libraries/archive/src/preview_draft.c")
   add_test(NAME kauai-movie-sound-c89-syntax
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/kauai/src"

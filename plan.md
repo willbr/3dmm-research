@@ -1263,6 +1263,10 @@ replaced and whether an edit needs to write or retain an appearance override.
 Preview, undo, animation commits and native save read those records. C89
 combines pose, text and costume edits for export and visits each affected
 actor once in scene and actor number order.
+C89 also writes the initial text template in a private archive, selects the
+current, default or preset material, saves its appearance, and embeds the
+font before Marcus publishes the draft. The isolated Preview reads and
+applies the saved material through the same C89 code.
 Preview picking uses C89 for validation, coordinates, camera ownership, stable
 body copying, nearest-hit and texture policy, and authored-background
 occlusion. Native adapters supply typed SDK primitives.
