@@ -520,21 +520,8 @@ SoundQueue::SoundQueue(void)
 SoundQueue::~SoundQueue(void)
 {
     AssertBaseThis(0);
-
-    _Enter();
-    if (pvNil != _pglsndin)
-    {
-        LegacyLong isndin;
-        SNDIN sndin;
-
-        for (isndin = _pglsndin->IvMac(); isndin-- > 0;)
-        {
-            _pglsndin->Get(isndin, &sndin);
-            ReleasePpo(&sndin.pbaco);
-        }
-        ReleasePpo(&_pglsndin);
-    }
-    _Leave();
+    const auto services = _Services();
+    mm_sound_queue_dispose(&services);
 }
 
 #ifdef DEBUG
@@ -546,8 +533,8 @@ void SoundQueue::AssertValid(LegacyUlong grf)
     SoundQueue_PAR::AssertValid(0);
 
     _Enter();
-    AssertPo(_pglsndin, 0);
-    AssertIn(_isndinCur, 0, _pglsndin->IvMac() + 1);
+    Assert(_entries.rows.storage == &_entries.storage, "sound queue uninitialized");
+    AssertIn(_entries.current, 0, mm_sound_queue_count(&_entries) + 1);
     _Leave();
 }
 
@@ -557,30 +544,28 @@ void SoundQueue::AssertValid(LegacyUlong grf)
 void SoundQueue::MarkMem(void)
 {
     AssertValid(0);
-    LegacyLong isndin;
-    SNDIN sndin;
-
     SoundQueue_PAR::MarkMem();
 
     _Enter();
-    MarkMemObj(_pglsndin);
-    for (isndin = 0; isndin < _pglsndin->IvMac(); isndin++)
+    MarkPv(_entries.storage.buffers[0].data);
+    for (MMI32 i = 0; i < mm_sound_queue_count(&_entries); ++i)
     {
-        _pglsndin->Get(isndin, &sndin);
-        MarkMemObj(sndin.pbaco);
+        const auto entry = mm_sound_queue_get(&_entries, i);
+        MarkMemObj(static_cast<PBaseCacheableObject>(entry.object));
     }
     _Leave();
 }
 #endif // DEBUG
 
 /***************************************************************************
-    Initialize the sound queue. Allocate the _pglsndin.
+    Initialize the sound queue.
 ***************************************************************************/
 bool SoundQueue::_FInit(void)
 {
     AssertBaseThis(0);
 
-    if (pvNil == (_pglsndin = DynamicArray::PglNew(size(SNDIN))))
+    const auto allocator = Group::CollectionAllocator();
+    if (!mm_sound_queue_init(&_entries, &allocator, 128, DebugShip(1, 0)))
         return fFalse;
 
     AssertThis(0);
@@ -606,7 +591,7 @@ void SoundQueue::_Leave(void)
 }
 
 /***************************************************************************
-    Free any sounds below _isndinCur.
+    Free any sounds below the playback cursor.
 ***************************************************************************/
 void SoundQueue::_Flush(void)
 {
@@ -726,52 +711,14 @@ LegacyUlong LuVolScale(LegacyUlong luVol, LegacyLong vlm)
     return mm_sound_volume_scale(luVol, vlm);
 }
 
-namespace
-{
-MMSoundEntry SoundEntry(const SNDIN &e)
-{
-    return {e.pbaco, e.sii, e.vlm, e.cactPlay, e.dtsStart, e.spr, e.scl, e.cactPause};
-}
-SNDIN NativeEntry(const MMSoundEntry &e)
-{
-    return {static_cast<PBaseCacheableObject>(e.object),
-            e.id,
-            e.volume,
-            e.plays,
-            e.offset,
-            e.priority,
-            e.sound_class,
-            e.pause};
-}
-} // namespace
 MMSoundQueueServices SoundQueue::_Services()
 {
     MMSoundQueueServices s = {};
     s.context = this;
+    s.queue = &_entries;
     s.enter = [](void *p) { static_cast<SoundQueue *>(p)->_Enter(); };
     s.leave = [](void *p) { static_cast<SoundQueue *>(p)->_Leave(); };
     s.flush = [](void *p) { static_cast<SoundQueue *>(p)->_Flush(); };
-    s.count = [](void *p) -> MMI32 { return static_cast<SoundQueue *>(p)->_pglsndin->IvMac(); };
-    s.current = [](void *p) -> MMI32 { return static_cast<SoundQueue *>(p)->_isndinCur; };
-    s.set_current = [](void *p, MMI32 n) { static_cast<SoundQueue *>(p)->_isndinCur = n; };
-    s.get = [](void *p, MMI32 i, MMSoundEntry *out) {
-        SNDIN e;
-        static_cast<SoundQueue *>(p)->_pglsndin->Get(i, &e);
-        *out = SoundEntry(e);
-    };
-    s.put = [](void *p, MMI32 i, const MMSoundEntry *in) {
-        auto e = NativeEntry(*in);
-        static_cast<SoundQueue *>(p)->_pglsndin->Put(i, &e);
-    };
-    s.add = [](void *p, const MMSoundEntry *in, MMI32 *index) -> int {
-        auto e = NativeEntry(*in);
-        LegacyLong native;
-        if (!static_cast<SoundQueue *>(p)->_pglsndin->FAdd(&e, &native))
-            return 0;
-        *index = native;
-        return 1;
-    };
-    s.erase = [](void *p, MMI32 i) { static_cast<SoundQueue *>(p)->_pglsndin->Delete(i); };
     s.release = [](void *, void *object) { static_cast<PBaseCacheableObject>(object)->Release(); };
     s.changed = [](void *p, int op, MMI32 i) {
         auto q = static_cast<SoundQueue *>(p);

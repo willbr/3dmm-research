@@ -184,14 +184,15 @@ static void start_entry(MMU32 *start, const MMSoundEntry *entry, const MMAudioMa
 void mm_audioman_queue_run(MMU32 *start, MMI32 first, const MMAudioManGroup *group, const MMAudioManQueueServices *s)
 {
     const MMSoundQueueServices *q = &s->entries;
+    MMSoundQueue *queue = q->queue;
     void *p = q->context;
     MMSoundEntry entry;
     MMI32 i;
     void *loop;
     q->enter(p);
-    for (i = first; i < q->count(p); ++i)
+    for (i = first; i < mm_sound_queue_count(queue); ++i)
     {
-        q->get(p, i, &entry);
+        entry = mm_sound_queue_get(queue, i);
         if (entry.plays == 1)
             continue;
         loop = s->loop(s->context, entry.object, entry.plays);
@@ -200,20 +201,20 @@ void mm_audioman_queue_run(MMU32 *start, MMI32 first, const MMAudioManGroup *gro
             q->release(p, entry.object);
             entry.object = loop;
             entry.plays = 1;
-            q->put(p, i, &entry);
+            mm_sound_queue_put(queue, i, &entry);
         }
     }
-    if (q->current(p) == first && q->count(p) >= 0)
+    if (queue->current == first && mm_sound_queue_count(queue) >= 0)
     {
         i = first;
-        while (i < q->count(p))
+        while (i < mm_sound_queue_count(queue))
         {
-            q->get(p, i, &entry);
+            entry = mm_sound_queue_get(queue, i);
             if (entry.pause >= 0)
                 break;
-            q->set_current(p, ++i);
+            queue->current = ++i;
         }
-        if (i < q->count(p) && !entry.pause)
+        if (i < mm_sound_queue_count(queue) && !entry.pause)
             start_entry(start, &entry, group, s);
         else
         {
@@ -227,14 +228,15 @@ void mm_audioman_queue_run(MMU32 *start, MMI32 first, const MMAudioManGroup *gro
 void mm_audioman_queue_pause(MMU32 *start, MMI32 first, const MMAudioManGroup *group, const MMAudioManQueueServices *s)
 {
     const MMSoundQueueServices *q = &s->entries;
+    MMSoundQueue *queue = q->queue;
     void *p = q->context;
     MMSoundEntry entry;
     q->enter(p);
-    if (q->current(p) == first && first < q->count(p))
+    if (queue->current == first && first < mm_sound_queue_count(queue))
     {
-        q->get(p, first, &entry);
+        entry = mm_sound_queue_get(queue, first);
         entry.offset = s->clock(s->context) - *start;
-        q->put(p, first, &entry);
+        mm_sound_queue_put(queue, first, &entry);
         mm_audioman_queue_run(start, first, group, s);
     }
     q->leave(p);
@@ -244,25 +246,26 @@ void mm_audioman_queue_notify(MMU32 *start, void *sound, const MMAudioManGroup *
                               const MMAudioManQueueServices *s)
 {
     const MMSoundQueueServices *q = &s->entries;
+    MMSoundQueue *queue = q->queue;
     void *p = q->context;
     MMSoundEntry entry;
     MMI32 i;
     q->enter(p);
-    i = q->current(p);
-    if (i < q->count(p))
+    i = queue->current;
+    if (i < mm_sound_queue_count(queue))
     {
-        q->get(p, i, &entry);
+        entry = mm_sound_queue_get(queue, i);
         if (sound == s->identity(s->context, entry.object))
         {
             entry.plays = mm_signed_word((MMU32)entry.plays - 1U);
             if (!entry.plays)
             {
-                q->set_current(p, ++i);
+                queue->current = ++i;
                 mm_audioman_queue_run(start, i, group, s);
             }
             else
             {
-                q->put(p, i, &entry);
+                mm_sound_queue_put(queue, i, &entry);
                 s->source(s->context, entry.object);
                 *start = s->clock(s->context);
             }

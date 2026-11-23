@@ -446,8 +446,7 @@ PAudioManQueue AudioManQueue::PamqueNew(void)
 }
 
 /***************************************************************************
-    Initialize the audioman queue. Allocate the audioman channel and the
-    _pglsndin.
+    Initialize the audioman channel and queue.
 ***************************************************************************/
 bool AudioManQueue::_FInit(void)
 {
@@ -545,10 +544,6 @@ MMAudioManQueueServices AudioManQueue::_QueueServices()
 {
     MMAudioManQueueServices s = {};
     s.entries = _Services();
-    s.entries.count = [](void *p) -> MMI32 {
-        auto queue = static_cast<AudioManQueue *>(static_cast<SoundQueue *>(p));
-        return queue->_pglsndin ? queue->_pglsndin->IvMac() : -1;
-    };
     s.context = this;
     s.loop = [](void *, void *object, MMI32 plays) -> void * {
         return CachedAudioManSound::PcamsNewLoop(static_cast<PCachedAudioManSound>(object), plays);

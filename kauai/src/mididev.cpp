@@ -546,7 +546,7 @@ void MidiPlayerQueue::_Queue(long isndinMin)
 
     _mutx.Enter();
 
-    if (_isndinCur == isndinMin)
+    if (_entries.current == isndinMin)
     {
         // signal the thread that data changed
         SetEvent(_hevtQueue);
@@ -562,17 +562,15 @@ void MidiPlayerQueue::_Queue(long isndinMin)
 void MidiPlayerQueue::_PauseQueue(long isndinMin)
 {
     AssertThis(0);
-    SNDIN sndin;
-
     _mutx.Enter();
 
-    if (_isndinCur == isndinMin && _pglsndin->IvMac() > _isndinCur)
+    if (_entries.current == isndinMin && _entries.current < mm_sound_queue_count(&_entries))
     {
-        _pglsndin->Get(_isndinCur, &sndin);
-        sndin.dtsStart = TsCurrentSystem() - _tsStart;
-        _pglsndin->Put(_isndinCur, &sndin);
+        auto entry = mm_sound_queue_get(&_entries, _entries.current);
+        entry.offset = TsCurrentSystem() - _tsStart;
+        mm_sound_queue_put(&_entries, _entries.current, &entry);
 
-        _Queue(_isndinCur);
+        _Queue(_entries.current);
     }
 
     _mutx.Leave();
@@ -642,7 +640,7 @@ void MidiPlayerQueue::_DoEvent(bool fRestart, long *pdtsWait)
     else if (!_FGetEvt())
     {
         // we're done playing this tune, so start the next one
-        _isndinCur++;
+        ++_entries.current;
         *pdtsWait = _FStartQueue() ? 0 : klwInfinite;
     }
     else
@@ -670,36 +668,36 @@ void MidiPlayerQueue::_DoEvent(bool fRestart, long *pdtsWait)
 ***************************************************************************/
 bool MidiPlayerQueue::_FStartQueue(void)
 {
-    SNDIN sndin;
+    MMSoundEntry entry;
 
     _mutx.Enter();
 
     // set up the midi stream parser (_mstp).
-    for (; _isndinCur < _pglsndin->IvMac(); _isndinCur++)
+    for (; _entries.current < mm_sound_queue_count(&_entries); ++_entries.current)
     {
-        _pglsndin->Get(_isndinCur, &sndin);
-        AssertPo(sndin.pbaco, 0);
-        if (0 <= sndin.cactPause)
+        entry = mm_sound_queue_get(&_entries, _entries.current);
+        AssertPo(static_cast<PBaseCacheableObject>(entry.object), 0);
+        if (entry.pause >= 0)
             break;
     }
 
-    if (_isndinCur < _pglsndin->IvMac() && 0 == sndin.cactPause)
+    if (_entries.current < mm_sound_queue_count(&_entries) && entry.pause == 0)
     {
         // transition to the new tune
-        _mido.Transition(_sii, sndin.sii, sndin.spr);
+        _mido.Transition(_sii, entry.id, entry.priority);
 
-        _sii = sndin.sii;
-        _spr = sndin.spr;
-        _vlm = sndin.vlm;
-        _tsStart = TsCurrentSystem() - sndin.dtsStart;
-        _mstp.Init((PMidiStream)sndin.pbaco, _tsStart);
-        _dtsSlip = TsCurrentSystem() - sndin.dtsStart - _tsStart;
+        _sii = entry.id;
+        _spr = entry.priority;
+        _vlm = entry.volume;
+        _tsStart = TsCurrentSystem() - entry.offset;
+        _mstp.Init(static_cast<PMidiStream>(static_cast<PBaseCacheableObject>(entry.object)), _tsStart);
+        _dtsSlip = TsCurrentSystem() - entry.offset - _tsStart;
         _grfmido = fmidoNil;
         _fMidevValid = fFalse;
 
-        if (sndin.dtsStart > 0)
+        if (entry.offset > 0)
             _grfmido |= fmidoFastFwd;
-        if (sndin.pbaco != pvNil)
+        if (entry.object != pvNil)
             _grfmido |= fmidoFirst;
     }
     else
@@ -708,14 +706,14 @@ bool MidiPlayerQueue::_FStartQueue(void)
         _mido.Close(_sii);
         _sii = siiNil;
 
-        sndin.pbaco = pvNil;
+        entry.object = pvNil;
         _mstp.Init(pvNil, 0);
         _fMidevValid = fFalse;
     }
 
     _mutx.Leave();
 
-    return sndin.pbaco != pvNil;
+    return entry.object != pvNil;
 }
 
 /***************************************************************************
@@ -725,7 +723,6 @@ bool MidiPlayerQueue::_FGetEvt(void)
 {
     AssertThis(0);
     ulong ts;
-    SNDIN sndin;
 
     if (_fMidevValid)
         return fTrue;
@@ -745,16 +742,16 @@ bool MidiPlayerQueue::_FGetEvt(void)
     }
 
     // see if we should repeat the current midi stream
-    _pglsndin->Get(_isndinCur, &sndin);
-    if (--sndin.cactPlay == 0)
+    auto entry = mm_sound_queue_get(&_entries, _entries.current);
+    if (--entry.plays == 0)
         return fFalse;
-    _pglsndin->Put(_isndinCur, &sndin);
+    mm_sound_queue_put(&_entries, _entries.current, &entry);
 
     _tsStart = TsCurrentSystem();
     if (ts != kluMax && ts > _tsStart)
         _tsStart = ts;
 
-    _mstp.Init((PMidiStream)sndin.pbaco, _tsStart);
+    _mstp.Init(static_cast<PMidiStream>(static_cast<PBaseCacheableObject>(entry.object)), _tsStart);
     _dtsSlip = TsCurrentSystem() - _tsStart;
     if (!_mstp.FGetEvent(&_midev))
     {
@@ -778,10 +775,8 @@ void MidiPlayerQueue::_PlayEvt(void)
     if (!_mido.FPlay(_sii, _spr, &_midev, _vlm, _grfmido))
     {
         // restart the stream in fast forward mode
-        SNDIN sndin;
-
-        _pglsndin->Get(_isndinCur, &sndin);
-        _mstp.Init((PMidiStream)sndin.pbaco, _tsStart);
+        const auto entry = mm_sound_queue_get(&_entries, _entries.current);
+        _mstp.Init(static_cast<PMidiStream>(static_cast<PBaseCacheableObject>(entry.object)), _tsStart);
         _grfmido |= fmidoFastFwd;
     }
     _fMidevValid = fFalse;

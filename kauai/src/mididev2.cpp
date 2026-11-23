@@ -351,7 +351,7 @@ ResourceReader MidiStreamQueue::_Reader()
 ***************************************************************************/
 void MidiStreamQueue::_Queue(LegacyLong isndinMin)
 {
-    if (!_pglsndin)
+    if (!_entries.rows.storage)
         return;
     auto s = _QueueServices();
     mm_midi_queue_run(&s, isndinMin);
@@ -362,7 +362,7 @@ void MidiStreamQueue::_Queue(LegacyLong isndinMin)
 ***************************************************************************/
 void MidiStreamQueue::_PauseQueue(LegacyLong isndinMin)
 {
-    if (!_pglsndin)
+    if (!_entries.rows.storage)
         return;
     auto s = _QueueServices();
     mm_midi_queue_pause(&s, isndinMin);
@@ -384,7 +384,7 @@ void MidiStreamQueue::_ResumeQueue(LegacyLong isndinMin)
 ***************************************************************************/
 void MidiStreamQueue::Notify(PMidiStreamCached pmdws)
 {
-    if (!_pglsndin)
+    if (!_entries.rows.storage)
         return;
     auto s = _QueueServices();
     mm_midi_queue_notify(&s, pmdws);

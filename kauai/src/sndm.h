@@ -206,23 +206,6 @@ class SoundManagerQueue : public SoundManagerQueue_PAR
 };
 
 /***************************************************************************
-    The sound instance structure.
-***************************************************************************/
-struct SNDIN
-{
-    PBaseCacheableObject pbaco; // the sound to play
-    LegacyLong sii;             // the sound instance id
-    LegacyLong vlm;             // volume to play at
-    LegacyLong cactPlay;        // how many times to play
-    LegacyUlong dtsStart;       // offset to start at
-    LegacyLong spr;             // sound priority
-    LegacyLong scl;             // sound class
-
-    // 0 means play, < 0 means skip, > 0 means pause
-    LegacyLong cactPause;
-};
-
-/***************************************************************************
     Sound queue for a SoundManagerQueue
 ***************************************************************************/
 #define SoundQueue_PAR BASE
@@ -234,8 +217,7 @@ class SoundQueue : public SoundQueue_PAR
     MARKMEM
 
   protected:
-    PDynamicArray _pglsndin; // the queue
-    LegacyLong _isndinCur;   // SNDIN that we should be playing
+    MMSoundQueue _entries = {};
 
     SoundQueue(void);
 

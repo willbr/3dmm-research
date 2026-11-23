@@ -2288,6 +2288,9 @@ Studio's audio dispatch stores its device registry and queue descriptors in
 C89 dense collections. The native sound host supplies device calls and retains
 the MIDI suppression record per manager, so replacing the manager starts
 with an empty record.
+Queued sound instances and the playback cursor also live in C89 storage.
+SDL WAVE, AudioMan, and both MIDI adapters use those entries under their
+existing queue locks for playback, pause, completion, and cleanup.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

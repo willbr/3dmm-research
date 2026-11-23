@@ -15,8 +15,8 @@ typedef struct Fixture
 {
     int fail, live, allocations, ready, messages, silences, resets, lock, releases, changed, operation, first;
     MMU32 last;
-    MMSoundEntry entries[12];
-    MMI32 count, current;
+    MMI32 current;
+    MMSoundQueue queue;
 } Fixture;
 static void *allocate(void *p, size_t n)
 {
@@ -425,40 +425,23 @@ static void leave(void *p)
     assert(((Fixture *)p)->lock > 0);
     --((Fixture *)p)->lock;
 }
-static MMI32 count(void *p)
+static void *test_storage_resize(void *p, void *bytes, MMU32 old_size, MMU32 size, int priority)
 {
-    return ((Fixture *)p)->count;
+    (void)old_size;
+    (void)priority;
+    return *(int *)p ? NULL : realloc(bytes, size);
 }
-static MMI32 current(void *p)
+static void test_storage_free(void *p, void *bytes, MMU32 size)
 {
-    return ((Fixture *)p)->current;
+    (void)p;
+    (void)size;
+    free(bytes);
 }
-static void set_current(void *p, MMI32 n)
+static void init_queue(Fixture *f)
 {
-    ((Fixture *)p)->current = n;
-}
-static void get(void *p, MMI32 i, MMSoundEntry *out)
-{
-    *out = ((Fixture *)p)->entries[i];
-}
-static void put(void *p, MMI32 i, const MMSoundEntry *in)
-{
-    ((Fixture *)p)->entries[i] = *in;
-}
-static int add(void *p, const MMSoundEntry *in, MMI32 *index)
-{
-    Fixture *f = (Fixture *)p;
-    if (f->fail)
-        return 0;
-    *index = f->count;
-    f->entries[f->count++] = *in;
-    return 1;
-}
-static void erase(void *p, MMI32 i)
-{
-    Fixture *f = (Fixture *)p;
-    --f->count;
-    memmove(f->entries + i, f->entries + i + 1, (f->count - i) * sizeof(*f->entries));
+    MMStorageAllocator allocator = {NULL, test_storage_resize, test_storage_free};
+    allocator.context = &f->fail;
+    assert(mm_sound_queue_init(&f->queue, &allocator, 0, 1));
 }
 static void object_release(void *p, void *v)
 {
@@ -478,16 +461,10 @@ static MMSoundQueueServices queue_services(Fixture *f)
     MMSoundQueueServices s;
     memset(&s, 0, sizeof(s));
     s.context = f;
+    s.queue = &f->queue;
     s.enter = enter;
     s.leave = leave;
     s.flush = flush;
-    s.count = count;
-    s.current = current;
-    s.set_current = set_current;
-    s.get = get;
-    s.put = put;
-    s.add = add;
-    s.erase = erase;
     s.release = object_release;
     s.changed = changed;
     return s;
@@ -504,39 +481,46 @@ static void queue(void)
     MMSoundEntry e;
     memset(&f, 0, sizeof(f));
     memset(&e, 0, sizeof(e));
+    init_queue(&f);
     s = queue_services(&f);
+    e.object = &f;
     e.id = 1;
     e.sound_class = 2;
     e.priority = 99;
     mm_sound_queue_enqueue(&s, &e);
     e.id = 2;
     mm_sound_queue_enqueue(&s, &e);
-    assert(f.count == 2 && !f.lock && f.changed == 2 && f.first == 1);
+    assert(mm_sound_queue_count(&f.queue) == 2 && !f.lock && f.changed == 2 && f.first == 1);
     assert(mm_sound_queue_priority(&s) == (-2147483647 - 1));
     mm_sound_queue_edit(&s, MM_SOUND_PAUSE, 1, 2, -1);
-    assert(f.first == 0 && f.entries[1].pause == 1);
+    assert(f.first == 0 && mm_sound_queue_get(&f.queue, 1).pause == 1);
     mm_sound_queue_edit(&s, MM_SOUND_PAUSE, 0, 1, -1);
-    assert(f.entries[0].pause == 2);
+    assert(mm_sound_queue_get(&f.queue, 0).pause == 2);
     mm_sound_queue_edit(&s, MM_SOUND_RESUME, 1, -1, -1);
-    assert(f.entries[0].pause == 1 && !f.entries[1].pause);
+    assert(mm_sound_queue_get(&f.queue, 0).pause == 1 && !mm_sound_queue_get(&f.queue, 1).pause);
     assert(mm_sound_queue_playing(&s, 0, 1, -1));
     mm_sound_queue_edit(&s, MM_SOUND_STOP, 0, 2, -1);
     assert(!mm_sound_queue_playing(&s, 0, 2, -1));
     mm_sound_queue_edit(&s, MM_SOUND_RESUME, 0, 2, -1);
-    assert(f.entries[1].pause == -1);
-    f.current = 1;
+    assert(mm_sound_queue_get(&f.queue, 1).pause == -1);
+    f.queue.current = 1;
     mm_sound_queue_flush(&s);
-    assert(f.count == 1 && !f.current && f.releases == 1);
+    assert(mm_sound_queue_count(&f.queue) == 1 && !f.queue.current && f.releases == 1);
+    assert(mm_sound_queue_get(&f.queue, 0).id == 2);
+    e.id = 3;
+    mm_sound_queue_enqueue(&s, &e); /* Reuse the second slot without growing. */
     f.fail = 1;
+    e.id = 4;
     mm_sound_queue_enqueue(&s, &e);
-    assert(f.releases == 2 && f.count == 1);
-    mm_sound_queue_release(&s);
-    assert(f.releases == 3 && !f.lock);
+    assert(f.releases == 2 && mm_sound_queue_count(&f.queue) == 2);
+    assert(mm_sound_queue_get(&f.queue, 1).id == 3 && f.first == 1);
+    mm_sound_queue_dispose(&s);
+    assert(f.releases == 4 && !f.lock && mm_sound_queue_count(&f.queue) == -1);
 }
 
 typedef struct AudioManFixture
 {
-    Fixture queue;
+    Fixture host;
     char trace[16];
     size_t steps;
     int looping, original, filtered, streamed, filter_id, stream_id;
@@ -552,7 +536,7 @@ static void audio_trace(AudioManFixture *f, char code)
 
 static void audio_expect(AudioManFixture *f, const char *expected)
 {
-    assert(f->steps == strlen(expected) && !memcmp(f->trace, expected, f->steps) && !f->queue.lock);
+    assert(f->steps == strlen(expected) && !memcmp(f->trace, expected, f->steps) && !f->host.lock);
     f->steps = 0;
 }
 
@@ -569,7 +553,7 @@ static void group_release(void *p, MMU32 id) { assert(id == 42); audio_trace(p, 
 static void *audio_loop(void *p, void *object, MMI32 plays)
 {
     AudioManFixture *f = p;
-    assert(f->queue.lock && (object == &f->original || object == &f->streamed));
+    assert(f->host.lock && (object == &f->original || object == &f->streamed));
     f->looping = plays;
     audio_trace(f, 'W');
     return f->fail_loop ? NULL : &f->filtered;
@@ -577,12 +561,12 @@ static void *audio_loop(void *p, void *object, MMI32 plays)
 static void *audio_identity(void *p, void *object)
 {
     AudioManFixture *f = p;
-    assert(f->queue.lock && (object == &f->filtered || object == &f->streamed));
+    assert(f->host.lock && (object == &f->filtered || object == &f->streamed));
     return object == &f->filtered ? &f->filter_id : &f->stream_id;
 }
 static int audio_in_memory(void *p, void *object) { return object == &((AudioManFixture *)p)->filtered; }
-static void audio_stop(void *p) { assert(((AudioManFixture *)p)->queue.lock); audio_trace(p, 'X'); }
-static void audio_play(void *p) { assert(((AudioManFixture *)p)->queue.lock); audio_trace(p, 'P'); }
+static void audio_stop(void *p) { assert(((AudioManFixture *)p)->host.lock); audio_trace(p, 'X'); }
+static void audio_play(void *p) { assert(((AudioManFixture *)p)->host.lock); audio_trace(p, 'P'); }
 static void audio_volume(void *p, MMU32 volume)
 {
     AudioManFixture *f = p;
@@ -623,22 +607,25 @@ static MMU32 audio_time(void *p)
 static void audioman_queue(void)
 {
     AudioManFixture f;
+    MMSoundEntry entries[3], entry;
+    MMSoundQueue *queue;
     MMAudioManGroup group = {0, 0, 0};
     MMAudioManGroupServices grouping;
     MMAudioManQueueServices s;
     memset(&f, 0, sizeof(f));
     memset(&s, 0, sizeof(s));
+    memset(entries, 0, sizeof(entries));
     grouping.context = &f;
     grouping.allocate = group_allocate;
     grouping.start = group_start;
     grouping.release = group_release;
-    s.entries = queue_services(&f.queue);
+    s.entries = queue_services(&f.host);
+    queue = s.entries.queue;
     s.context = &f;
     s.loop = audio_loop; s.identity = audio_identity; s.in_memory = audio_in_memory;
     s.stop = audio_stop; s.play = audio_play; s.volume = audio_volume; s.seek = audio_seek;
     s.source = audio_source; s.cached_source = audio_cached_source; s.enlist = audio_enlist; s.clock = audio_time;
 
-    f.queue.count = -1;
     mm_audioman_queue_run(&f.start, 0, &group, &s);
     audio_expect(&f, "");
     mm_audioman_group_begin(&group, &grouping);
@@ -647,30 +634,35 @@ static void audioman_queue(void)
     mm_audioman_group_end(&group, &grouping);
     audio_expect(&f, "A");
 
-    f.queue.count = 3;
-    f.queue.entries[0].plays = 1;
-    f.queue.entries[0].pause = -1;
-    f.queue.entries[1].object = &f.original;
-    f.queue.entries[1].plays = 3;
-    f.queue.entries[1].volume = 32768;
-    f.queue.entries[1].offset = 11;
-    f.queue.entries[2].object = &f.streamed;
-    f.queue.entries[2].plays = 1;
+    init_queue(&f.host);
+    entries[0].plays = 1;
+    entries[0].pause = -1;
+    entries[1].object = &f.original;
+    entries[1].plays = 3;
+    entries[1].volume = 32768;
+    entries[1].offset = 11;
+    entries[2].object = &f.streamed;
+    entries[2].plays = 1;
+    assert(mm_array_insert(&queue->rows, 0, entries, 3) == MM_STORAGE_OK);
     f.now = 5;
     mm_audioman_queue_run(&f.start, 0, &group, &s);
-    assert(f.queue.current == 1 && f.queue.releases == 1 && f.looping == 3 &&
-           f.queue.entries[1].plays == 1 && f.queue.entries[1].object == &f.filtered &&
+    entry = mm_sound_queue_get(queue, 1);
+    assert(queue->current == 1 && f.host.releases == 1 && f.looping == 3 &&
+           entry.plays == 1 && entry.object == &f.filtered &&
            f.offset == 11 && f.volume == 0x7fff7fffUL && f.start == 0xfffffffaUL);
     audio_expect(&f, "WXVSKGT");
 
     mm_audioman_queue_notify(&f.start, &f.stream_id, &group, &s);
     audio_expect(&f, "");
-    f.queue.entries[1].pause = 1;
+    entry.pause = 1;
+    mm_sound_queue_put(queue, 1, &entry);
     f.now = 8;
     mm_audioman_queue_pause(&f.start, 1, &group, &s);
-    assert(f.queue.entries[1].offset == 14 && f.queue.current == 1);
+    entry = mm_sound_queue_get(queue, 1);
+    assert(entry.offset == 14 && queue->current == 1);
     audio_expect(&f, "TXD");
-    f.queue.entries[1].pause = 0;
+    entry.pause = 0;
+    mm_sound_queue_put(queue, 1, &entry);
     f.fail_enlist = 1;
     mm_audioman_queue_run(&f.start, 1, &group, &s);
     audio_expect(&f, "XVSKGPT");
@@ -678,22 +670,102 @@ static void audioman_queue(void)
     audio_expect(&f, "BF");
 
     f.fail_loop = 1;
-    f.queue.entries[2].plays = 2;
+    entry = mm_sound_queue_get(queue, 2);
+    entry.plays = 2;
+    mm_sound_queue_put(queue, 2, &entry);
     mm_audioman_queue_notify(&f.start, &f.filter_id, &group, &s);
-    assert(f.queue.current == 2 && f.queue.entries[2].plays == 2 && f.looping == 2);
+    assert(queue->current == 2 && mm_sound_queue_get(queue, 2).plays == 2 && f.looping == 2);
     audio_expect(&f, "WXVCPT");
     ++f.now;
     mm_audioman_queue_notify(&f.start, &f.stream_id, &group, &s);
-    assert(f.queue.entries[2].plays == 1 && f.start == f.now);
+    assert(mm_sound_queue_get(queue, 2).plays == 1 && f.start == f.now);
     audio_expect(&f, "ST");
     mm_audioman_queue_notify(&f.start, &f.stream_id, &group, &s);
-    assert(f.queue.current == 3);
+    assert(queue->current == 3);
     audio_expect(&f, "XD");
     f.fail_group = 1;
     mm_audioman_group_begin(&group, &grouping);
     assert(!group.active);
     mm_audioman_group_end(&group, &grouping);
     audio_expect(&f, "A");
+    mm_sound_queue_dispose(&s.entries);
+}
+
+typedef struct MidiQueueFixture
+{
+    Fixture host;
+    MMU32 now, start;
+    MMI32 active;
+    int stops;
+} MidiQueueFixture;
+static MMU32 queue_midi_clock(void *p)
+{
+    return ((MidiQueueFixture *)p)->now;
+}
+static MMU32 queue_midi_start(void *p)
+{
+    return ((MidiQueueFixture *)p)->start;
+}
+static void queue_midi_set_start(void *p, MMU32 start)
+{
+    ((MidiQueueFixture *)p)->start = start;
+}
+static int queue_midi_play(void *p, const MMSoundEntry *e)
+{
+    MidiQueueFixture *f = (MidiQueueFixture *)p;
+    assert(f->host.lock > 0);
+    if (!e)
+    {
+        f->active = 0;
+        ++f->stops;
+    }
+    else
+        f->active = e->id;
+    return 1;
+}
+static void midi_queue(void)
+{
+    MidiQueueFixture f;
+    MMMidiQueueServices s;
+    MMSoundEntry entries[3], entry;
+    MMSoundQueue *queue = &f.host.queue;
+    memset(&f, 0, sizeof(f));
+    memset(entries, 0, sizeof(entries));
+    init_queue(&f.host);
+    s.entries = queue_services(&f.host);
+    s.context = &f;
+    s.clock = queue_midi_clock;
+    s.start = queue_midi_start;
+    s.set_start = queue_midi_set_start;
+    s.play = queue_midi_play;
+    entries[0].pause = -1;
+    entries[1].id = 1;
+    entries[1].object = &entries[1];
+    entries[1].offset = 11;
+    entries[2].id = 2;
+    entries[2].object = &entries[2];
+    assert(mm_array_insert(&queue->rows, 0, entries, 3) == MM_STORAGE_OK);
+    f.now = 5;
+    mm_midi_queue_run(&s, 0);
+    assert(f.active == 1 && queue->current == 1 && f.start == 0xfffffffaUL && !f.host.lock);
+    mm_midi_queue_notify(&s, &entries[2]);
+    assert(f.active == 1 && queue->current == 1);
+    entry = mm_sound_queue_get(queue, 1);
+    entry.pause = 1;
+    mm_sound_queue_put(queue, 1, &entry);
+    f.now = 8;
+    mm_midi_queue_pause(&s, 1);
+    entry = mm_sound_queue_get(queue, 1);
+    assert(entry.offset == 14 && f.stops == 1 && queue->current == 1 && !f.host.lock);
+    entry.pause = 0;
+    mm_sound_queue_put(queue, 1, &entry);
+    mm_midi_queue_run(&s, 1);
+    assert(f.active == 1);
+    mm_midi_queue_notify(&s, &entries[1]);
+    assert(f.active == 2 && queue->current == 2);
+    mm_midi_queue_notify(&s, &entries[2]);
+    assert(!f.active && f.stops == 2 && queue->current == 3 && !f.host.lock);
+    mm_sound_queue_dispose(&s.entries);
 }
 typedef struct AudioManDeviceFixture
 {
@@ -905,18 +977,6 @@ typedef struct Dispatch
     MMSoundEndpointList endpoints;
     int calls, retained, released, fail, created, busy[8], last_op, last_first, next_id, clear_on_release;
 } Dispatch;
-static void *endpoint_resize(void *p, void *bytes, MMU32 old_size, MMU32 size, int priority)
-{
-    (void)old_size;
-    (void)priority;
-    return ((Dispatch *)p)->fail ? NULL : realloc(bytes, size);
-}
-static void endpoint_free(void *p, void *bytes, MMU32 size)
-{
-    (void)p;
-    (void)size;
-    free(bytes);
-}
 static void endpoint_retain(void *p, void *o)
 {
     (void)o;
@@ -971,9 +1031,9 @@ static void dispatch(void)
     memset(&f, 0, sizeof(f));
     memset(&s, 0, sizeof(s));
     memset(&p, 0, sizeof(p));
-    allocator.context = &f;
-    allocator.resize = endpoint_resize;
-    allocator.release = endpoint_free;
+    allocator.context = &f.fail;
+    allocator.resize = test_storage_resize;
+    allocator.release = test_storage_free;
     assert(mm_sound_endpoints_init(&f.endpoints, &allocator, 0, 1));
     s.context = &f;
     s.endpoints = &f.endpoints;
@@ -1097,6 +1157,7 @@ int main(void)
     midi();
     queue();
     audioman_queue();
+    midi_queue();
     audioman_device();
     dispatch();
     stream();

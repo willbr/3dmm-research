@@ -67,18 +67,17 @@ class SDLWaveQueue : public SDLWaveQueue_PAR
         try
         {
             std::vector<KauaiAudio::Voice> voices;
-            for (LegacyLong i = _isndinCur; i < _pglsndin->IvMac(); ++i)
+            for (MMI32 i = _entries.current; i < mm_sound_queue_count(&_entries); ++i)
             {
-                SNDIN item;
-                _pglsndin->Get(i, &item);
+                const auto item = mm_sound_queue_get(&_entries, i);
                 KauaiAudio::Voice voice;
-                voice.id = item.sii;
-                voice.sample = static_cast<SDLWave *>(item.pbaco)->sample;
-                voice.volume = std::max<LegacyLong>(0, item.vlm) / float(kvlmFull);
-                voice.plays = std::max<LegacyLong>(0, item.cactPlay);
-                voice.offsetMs = item.dtsStart;
-                voice.paused = item.cactPause > 0;
-                voice.stopped = item.cactPause < 0;
+                voice.id = item.id;
+                voice.sample = static_cast<SDLWave *>(static_cast<PBaseCacheableObject>(item.object))->sample;
+                voice.volume = std::max<LegacyLong>(0, item.volume) / float(kvlmFull);
+                voice.plays = std::max<LegacyLong>(0, item.plays);
+                voice.offsetMs = item.offset;
+                voice.paused = item.pause > 0;
+                voice.stopped = item.pause < 0;
                 voices.push_back(std::move(voice));
             }
             output->Engine().Sync(id, voices);
@@ -92,13 +91,12 @@ class SDLWaveQueue : public SDLWaveQueue_PAR
     void _Enter() override
     {
         output->Engine().Lock();
-        while (_pglsndin && _isndinCur < _pglsndin->IvMac())
+        while (_entries.current < mm_sound_queue_count(&_entries))
         {
-            SNDIN item;
-            _pglsndin->Get(_isndinCur, &item);
-            if (!output->Engine().Done(id, item.sii))
+            const auto item = mm_sound_queue_get(&_entries, _entries.current);
+            if (!output->Engine().Done(id, item.id))
                 break;
-            ++_isndinCur;
+            ++_entries.current;
         }
     }
     void _Leave() override
@@ -107,8 +105,10 @@ class SDLWaveQueue : public SDLWaveQueue_PAR
     }
     void _Flush() override
     {
+        output->Engine().Lock();
         SoundQueue::_Flush();
         Sync();
+        output->Engine().Unlock();
     }
     void _Queue(LegacyLong) override
     {

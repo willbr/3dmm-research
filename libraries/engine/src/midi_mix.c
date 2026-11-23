@@ -7,16 +7,17 @@
 void mm_midi_queue_run(const MMMidiQueueServices *s, MMI32 first)
 {
     const MMSoundQueueServices *q = &s->entries;
+    MMSoundQueue *queue = q->queue;
     MMSoundEntry e;
     MMI32 i;
     q->enter(q->context);
-    i = q->current(q->context);
+    i = queue->current;
     if (i == first)
     {
-        for (; i < q->count(q->context); ++i)
+        for (; i < mm_sound_queue_count(queue); ++i)
         {
-            q->set_current(q->context, i);
-            q->get(q->context, i, &e);
+            queue->current = i;
+            e = mm_sound_queue_get(queue, i);
             if (e.pause > 0)
                 break;
             if (e.pause == 0 && s->play(s->context, &e))
@@ -26,7 +27,7 @@ void mm_midi_queue_run(const MMMidiQueueServices *s, MMI32 first)
                 return;
             }
         }
-        q->set_current(q->context, i);
+        queue->current = i;
         s->play(s->context, NULL);
     }
     q->leave(q->context);
@@ -34,13 +35,14 @@ void mm_midi_queue_run(const MMMidiQueueServices *s, MMI32 first)
 void mm_midi_queue_pause(const MMMidiQueueServices *s, MMI32 first)
 {
     const MMSoundQueueServices *q = &s->entries;
+    MMSoundQueue *queue = q->queue;
     MMSoundEntry e;
     q->enter(q->context);
-    if (q->current(q->context) == first && q->count(q->context) > first)
+    if (queue->current == first && mm_sound_queue_count(queue) > first)
     {
-        q->get(q->context, first, &e);
+        e = mm_sound_queue_get(queue, first);
         e.offset = s->clock(s->context) - s->start(s->context);
-        q->put(q->context, first, &e);
+        mm_sound_queue_put(queue, first, &e);
         mm_midi_queue_run(s, first);
     }
     q->leave(q->context);
@@ -48,16 +50,17 @@ void mm_midi_queue_pause(const MMMidiQueueServices *s, MMI32 first)
 void mm_midi_queue_notify(const MMMidiQueueServices *s, void *sound)
 {
     const MMSoundQueueServices *q = &s->entries;
+    MMSoundQueue *queue = q->queue;
     MMSoundEntry e;
     MMI32 i;
     q->enter(q->context);
-    i = q->current(q->context);
-    if (q->count(q->context) > i)
+    i = queue->current;
+    if (mm_sound_queue_count(queue) > i)
     {
-        q->get(q->context, i, &e);
+        e = mm_sound_queue_get(queue, i);
         if (e.object == sound)
         {
-            q->set_current(q->context, ++i);
+            queue->current = ++i;
             mm_midi_queue_run(s, i);
         }
     }

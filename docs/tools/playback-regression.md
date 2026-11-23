@@ -24989,3 +24989,35 @@ and reopening the movie.
 
 Evidence is under `tmp/c89-sound-manager-state`. The playback suite is in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 live sound queues (23 November 2026)
+
+The C89 sound queue owns sound instances and the playback cursor. SDL WAVE,
+AudioMan, and both legacy MIDI adapters now consume those rows directly.
+Native code supplies the locks and device calls. SDL serializes its flush and
+mixer update under the same lock. The C fixtures exercise failed growth with
+live rows, recursive pause handling, AudioMan fallback, and MIDI completion
+notifications for the playing and waiting instances.
+
+The 228 selected native, 48 SDL, and 23 standalone C89 checks passed, as did
+the 13 syntax checks, focused x86 fixtures, and external consumer. Classic
+Studio rebuilt. All nineteen native save/load traces and eight scene traces
+matched. The headless Marcus startup canvas matched, along with the SDL save
+and sound traces, the 27,056-byte authored movie, and the eight VMM workflow
+outputs.
+
+Fresh suite `20261123T170819Z-3c5a6dd0` completed eight captures, and replay
+suite `20261123T170935Z-0350562d` completed four. Both verified input hashes.
+Actor Audio matched all 60 retail and V3DMM frame positions and camera indices
+and 59 seek canvases. Both ports replayed all four audible spans.
+SDL's replay peak was 4,080 in PCM16, one count below its fresh capture.
+Some sampled spans differed in length by 10 ms. The older SDL build showed
+the same duration variation on replay in suite `20261123T171248Z-5842874b`.
+The embedded MIDI fixture matched the retained port captures sample for
+sample for the 100 ms WAVE cue and the first 400 ms of MIDI in both modes.
+In SDL, the second MIDI loop sometimes started before movie playback ended.
+The older SDL build reproduced both final peaks of 6,642 and 7,609 in
+suite `20261123T171150Z-1c03419f`.
+
+Evidence is under `tmp/c89-sound-queue-state`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.
