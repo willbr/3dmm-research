@@ -101,7 +101,7 @@ static const char *run_helper(MarcusTimingWorker *job)
     args[8] = input->fonts;
     args[9] = input->origin;
     args[10] = NULL;
-    process = marcus_preview_process_start(args, 0);
+    process = marcus_preview_process_start(args, 0, 0);
     if (!process)
         return "Cannot launch marcus-preview for timing.";
     start = SDL_GetTicks();

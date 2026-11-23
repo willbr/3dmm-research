@@ -1499,6 +1499,10 @@ isolated helper and imports its bounded snapshot. It owns cancellation,
 child cleanup and schedule transfer. The browser preview shares the same
 background process binding. Marcus supplies the movie lease and native
 filesystem paths.
+C89 also owns the pipe transfers for browser previews, frame, camera and
+model thumbnails, and live 3D text. It enforces reply limits and deadlines,
+checks cancellation, and publishes a validated packet on successful reads.
+The preview adapters retain their request formats, movie leases and queues.
 Marcus now reads authored caption links, scene pauses, and scene and actor
 cues directly through the C89 movie graph readers used by Studio. The graph
 reader also loads stored caption bounds, text and formatting through the

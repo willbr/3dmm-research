@@ -23643,3 +23643,29 @@ Text Acid candidate `20261123T090926Z-82f40e29` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports also matched the retained retail and V3DMM authored frame order
 in seek and playback. Evidence is under `tmp/c89-timing-worker`.
+
+## C89 Marcus preview transport (23 November 2026)
+
+Browser previews, frame, camera and model thumbnails, and live 3D text
+share the C89 background process and pipe transport. It bounds captured
+replies, validates length-prefixed packets and publishes a reply only after
+validation. The frame and text workers keep their existing timeout and
+cancellation behavior.
+
+The headless pipe fixture checks the different frame and text size limits,
+a truncated packet, cancellation and an oversized browser stream. Failed
+transfers preserve the previous valid reply. Eight before-and-after results
+matched byte for byte across browser metadata, calculated duration, three
+frame thumbnails and three live 3D text views. The duration comparison
+excluded the elapsed analysis time. A separate browser check matched the
+144 by 81 RGBA poster and metadata for 3dMm DIReCTOrS WaR Part 1. The
+headless Marcus startup image also matched the previous build.
+
+All 228 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks.
+
+Text Acid candidate `20261123T092322Z-b3e80016` matched baseline
+`20261123T090926Z-82f40e29` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-preview-transport`.

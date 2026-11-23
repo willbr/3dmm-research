@@ -1,8 +1,62 @@
 #include "preview_worker.h"
 #include "preview_process.h"
-#include <array>
+#include <exception>
 #include <memory>
 #include <stdexcept>
+
+namespace
+{
+enum class PreviewKind { browser, frame, text };
+
+struct Cancellation
+{
+    const std::function<bool()> &test;
+    std::exception_ptr failure;
+
+    static int Check(void *p)
+    {
+        auto &self = *static_cast<Cancellation *>(p);
+        try { return self.test(); }
+        catch (...) { self.failure = std::current_exception(); return 1; }
+    }
+};
+
+const char *TransferError(int status, PreviewKind kind)
+{
+    switch (status)
+    {
+    case MARCUS_PREVIEW_TRANSFER_START: return "Cannot launch marcus-preview. Keep it beside Marcus.";
+    case MARCUS_PREVIEW_TRANSFER_IO:
+        if (kind == PreviewKind::browser) return "Cannot read the preview helper output.";
+        return kind == PreviewKind::text ? "Cannot communicate with the text preview helper."
+                                         : "Cannot communicate with the frame preview helper.";
+    case MARCUS_PREVIEW_TRANSFER_CANCELLED:
+        if (kind == PreviewKind::browser) return "Preview cancelled or timed out.";
+        return kind == PreviewKind::text ? "Text preview cancelled or timed out." : "Frame preview cancelled or timed out.";
+    case MARCUS_PREVIEW_TRANSFER_WRITE:
+        if (kind == PreviewKind::frame) return "Cannot request a frame thumbnail.";
+        return "The text preview helper stopped unexpectedly.";
+    case MARCUS_PREVIEW_TRANSFER_STOPPED:
+        return kind == PreviewKind::text ? "The text preview helper stopped unexpectedly."
+                                         : "The frame preview helper stopped unexpectedly.";
+    case MARCUS_PREVIEW_TRANSFER_LIMIT:
+        if (kind == PreviewKind::browser) return "Preview helper output exceeds its limit.";
+        return kind == PreviewKind::text ? "Text preview response exceeds its limit."
+                                         : "Frame preview response exceeds its limit.";
+    case MARCUS_PREVIEW_TRANSFER_EXIT: return "The movie preview could not be decoded.";
+    case MARCUS_PREVIEW_TRANSFER_PACKET: return "Preview helper response exceeds its limits.";
+    default: return "Invalid preview helper response.";
+    }
+}
+
+BrowserPreview PublishPreview(int status, const MarcusPreviewReply &reply, const Cancellation &cancel, PreviewKind kind)
+{
+    if (cancel.failure) std::rethrow_exception(cancel.failure);
+    if (status == MARCUS_PREVIEW_TRANSFER_MEMORY) throw std::bad_alloc();
+    if (status != MARCUS_PREVIEW_TRANSFER_OK) throw std::runtime_error(TransferError(status, kind));
+    return PreviewFromPacket(reply.packet);
+}
+}
 
 BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &resources,
                                const std::function<bool()> &cancelled, const std::string &content, bool duration,
@@ -12,33 +66,22 @@ BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &res
     if (!executable) throw std::runtime_error("Cannot locate the preview helper.");
     const char *args[] = {executable.get(), movie.c_str(), resources.c_str(), text ? "--text" : prop ? "--prop" : background ? "--background" : duration ? "--duration" : nullptr,
                           content.c_str(), (background || prop || text) ? nullptr : fonts.c_str(), nullptr};
-    auto process = marcus_preview_process_start(args, 1);
-    if (!process) throw std::runtime_error("Cannot launch marcus-preview. Keep it beside Marcus.");
-    std::unique_ptr<SDL_Process, decltype(&marcus_preview_process_close)> owner(process, marcus_preview_process_close);
-    const auto stream = SDL_GetProcessOutput(process);
-    if (!stream) throw std::runtime_error("Cannot read the preview helper output.");
-    const auto deadline = SDL_GetTicks() + (duration ? 300000 : 30000);
-    std::vector<std::uint8_t> bytes;
-    std::array<std::uint8_t, 65536> buffer;
-    for (;;)
-    {
-        if (cancelled() || SDL_GetTicks() >= deadline) throw std::runtime_error("Preview cancelled or timed out.");
-        const auto count = SDL_ReadIO(stream, buffer.data(), buffer.size());
-        if (!count)
-        {
-            if (SDL_GetIOStatus(stream) == SDL_IO_STATUS_NOT_READY) { SDL_Delay(5); continue; }
-            break;
-        }
-        if (bytes.size() + count > 5 * 1024 * 1024) throw std::runtime_error("Preview helper output exceeds its limit.");
-        bytes.insert(bytes.end(), buffer.begin(), buffer.begin() + count);
-    }
-    int status = -1;
-    // A helper can close stdout before exiting; never wait indefinitely here.
-    while (!SDL_WaitProcess(process, false, &status))
-    {
-        if (cancelled() || SDL_GetTicks() >= deadline) throw std::runtime_error("Preview cancelled or timed out.");
-        SDL_Delay(5);
-    }
-    if (status) throw std::runtime_error("The movie preview could not be decoded.");
-    return ReadPreview(bytes);
+    MarcusPreviewReply reply{};
+    const std::unique_ptr<MarcusPreviewReply, decltype(&marcus_preview_reply_dispose)> owner(&reply,
+                                                                                           marcus_preview_reply_dispose);
+    Cancellation cancel{cancelled, {}};
+    const int status = marcus_preview_process_capture(args, duration, &cancel, Cancellation::Check, &reply);
+    return PublishPreview(status, reply, cancel, PreviewKind::browser);
+}
+
+BrowserPreview RequestPreviewWorker(SDL_Process *process, const std::string &request, bool text,
+                                    const std::function<bool()> &cancelled)
+{
+    MarcusPreviewReply reply{};
+    const std::unique_ptr<MarcusPreviewReply, decltype(&marcus_preview_reply_dispose)> owner(&reply,
+                                                                                           marcus_preview_reply_dispose);
+    Cancellation cancel{cancelled, {}};
+    const int status = marcus_preview_process_request(process, request.data(), request.size(), text,
+                                                       &cancel, Cancellation::Check, &reply);
+    return PublishPreview(status, reply, cancel, text ? PreviewKind::text : PreviewKind::frame);
 }

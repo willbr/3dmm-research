@@ -47,6 +47,11 @@ BrowserPreview ReadPreview(const std::vector<std::uint8_t> &bytes)
         throw std::runtime_error("Invalid preview helper response.");
     if (status != MARCUS_PREVIEW_WIRE_OK)
         throw std::runtime_error("Preview helper response exceeds its limits.");
+    return PreviewFromPacket(packet);
+}
+
+BrowserPreview PreviewFromPacket(const MarcusPreviewPacket &packet)
+{
     BrowserPreview result;
     result.width = packet.width;
     result.height = packet.height;

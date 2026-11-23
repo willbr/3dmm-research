@@ -1,4 +1,5 @@
 #include "frame_previews.h"
+#include "preview_process.h"
 #include "preview_worker.h"
 #include <algorithm>
 #include <array>
@@ -10,86 +11,22 @@ bool SamePosition(const MarcusFramePosition &a, const MarcusFramePosition &b)
 {
     return a.scene == b.scene && a.frame == b.frame;
 }
-void ReadExact(SDL_IOStream *stream, void *data, std::size_t size, const std::atomic<bool> &cancel)
-{
-    const auto deadline = SDL_GetTicks() + 60000;
-    auto bytes = static_cast<unsigned char *>(data);
-    while (size)
-    {
-        if (cancel || SDL_GetTicks() >= deadline) throw std::runtime_error("Frame preview cancelled or timed out.");
-        const auto count = SDL_ReadIO(stream, bytes, size);
-        if (!count)
-        {
-            if (SDL_GetIOStatus(stream) != SDL_IO_STATUS_NOT_READY)
-                throw std::runtime_error("The frame preview helper stopped unexpectedly.");
-            SDL_Delay(5);
-            continue;
-        }
-        bytes += count;
-        size -= count;
-    }
-}
-
-BrowserPreview RequestPreview(SDL_Process *process, const std::string &request, const std::atomic<bool> &cancel)
-{
-    const auto input = SDL_GetProcessInput(process), stream = SDL_GetProcessOutput(process);
-    if (!input || !stream) throw std::runtime_error("Cannot communicate with the frame preview helper.");
-    std::size_t sent = 0;
-    const auto deadline = SDL_GetTicks() + 60000;
-    while (sent < request.size())
-    {
-        if (cancel || SDL_GetTicks() >= deadline) throw std::runtime_error("Frame preview cancelled or timed out.");
-        const auto count = SDL_WriteIO(input, request.data() + sent, request.size() - sent);
-        if (!count)
-        {
-            if (SDL_GetIOStatus(input) != SDL_IO_STATUS_NOT_READY)
-                throw std::runtime_error("Cannot request a frame thumbnail.");
-            SDL_Delay(5);
-        }
-        sent += count;
-    }
-    std::array<unsigned char, MARCUS_PREVIEW_PREFIX_BYTES> header;
-    ReadExact(stream, header.data(), header.size(), cancel);
-    const auto size = marcus_preview_wire_frame_size(header.data(), 256 * 1024);
-    if (!size) throw std::runtime_error("Frame preview response exceeds its limit.");
-    std::vector<std::uint8_t> bytes(size);
-    ReadExact(stream, bytes.data(), bytes.size(), cancel);
-    return ReadPreview(bytes);
-}
-
-SDL_Process *StartPreviewProcess(const char **args)
-{
-    const auto properties = SDL_CreateProperties();
-    SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
-    SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
-    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_APP);
-    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
-    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_NULL);
-    auto process = SDL_CreateProcessWithProperties(properties);
-    SDL_DestroyProperties(properties);
-    if (!process) throw std::runtime_error("Cannot launch marcus-preview for frame thumbnails.");
-    return process;
-}
 }
 MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie, std::string resources,
                                        std::string content, int scene, bool cameras, bool models, MarcusPreviewCache cache)
     : sourceScene(scene)
 {
-    const auto base = SDL_GetBasePath();
-    const auto executable = base ? std::string(base) + "marcus-preview"
-#ifdef _WIN32
-        ".exe"
-#endif
-        : std::string();
+    std::unique_ptr<char, decltype(&SDL_free)> executable(marcus_preview_executable(), SDL_free);
     thread = std::thread([this, movie = std::move(movie), resources = std::move(resources),
-                          content = std::move(content), scene, cameras, models, executable, cache = std::move(cache)] {
+                          content = std::move(content), scene, cameras, models,
+                          executable = std::move(executable), cache = std::move(cache)] {
         SDL_Process *process = nullptr;
         try
         {
             const auto path = movie->path.u8string(), sceneText = std::to_string(scene);
             const auto fonts = movie->fontDirectory.u8string();
             const auto origin = movie->contentOrigin.u8string();
-            const char *args[] = {executable.c_str(), path.c_str(), resources.c_str(), models ? "--models" : cameras ? "--cameras" : "--frames", content.c_str(),
+            const char *args[] = {executable.get(), path.c_str(), resources.c_str(), models ? "--models" : cameras ? "--cameras" : "--frames", content.c_str(),
                                   sceneText.c_str(), fonts.c_str(), origin.c_str(), nullptr};
             while (!cancel)
             {
@@ -110,11 +47,13 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
                 {
                     if (!process)
                     {
-                        if (executable.empty()) throw std::runtime_error("Cannot locate the frame preview helper.");
-                        process = StartPreviewProcess(args);
+                        if (!executable) throw std::runtime_error("Cannot locate the frame preview helper.");
+                        process = marcus_preview_process_start(args, 1, 1);
+                        if (!process) throw std::runtime_error("Cannot launch marcus-preview for frame thumbnails.");
                     }
                     const auto frame = models ? std::to_string(chunk) : std::to_string(position.frame);
-                    preview = RequestPreview(process, std::to_string(position.scene) + " " + frame + "\n", cancel);
+                    preview = RequestPreviewWorker(process, std::to_string(position.scene) + " " + frame + "\n",
+                                                   false, [this] { return cancel.load(); });
                     if (preview.width > (models ? 240 : 160) || preview.height > (models ? 180 : 120))
                         throw std::runtime_error("Frame thumbnail dimensions exceed their limit.");
                     if (!models && !preview.error.empty()) throw std::runtime_error(preview.error);
@@ -135,16 +74,7 @@ MarcusFramePreviews::MarcusFramePreviews(std::shared_ptr<MarcusMovieFile> movie,
             failure = e.what();
             busy = false;
         }
-        if (process)
-        {
-            int status;
-            if (!SDL_WaitProcess(process, false, &status))
-            {
-                SDL_KillProcess(process, true);
-                SDL_WaitProcess(process, true, &status);
-            }
-            SDL_DestroyProcess(process);
-        }
+        marcus_preview_process_close(process);
     });
 }
 MarcusFramePreviews::~MarcusFramePreviews()

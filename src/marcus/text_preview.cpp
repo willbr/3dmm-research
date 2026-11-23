@@ -1,9 +1,8 @@
 #include "text_preview.h"
 #include "storyboard.h"
+#include "preview_process.h"
 #include "preview_worker.h"
 #include "colour_picker.h"
-#include <SDL3/SDL.h>
-#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
@@ -53,25 +52,6 @@ struct MarcusTextPreview
         ready = {}; output = {}; error.clear();
         wake.notify_one();
     }
-    void Transfer(SDL_IOStream *stream, void *data, std::size_t size, bool writing,
-                  unsigned long revision, Uint64 deadline)
-    {
-        auto bytes = static_cast<unsigned char *>(data);
-        while (size)
-        {
-            if (exiting || revision != generation || SDL_GetTicks() >= deadline)
-                throw std::runtime_error("Text preview cancelled or timed out.");
-            const auto count = writing ? SDL_WriteIO(stream, bytes, size) : SDL_ReadIO(stream, bytes, size);
-            if (!count)
-            {
-                if (SDL_GetIOStatus(stream) != SDL_IO_STATUS_NOT_READY)
-                    throw std::runtime_error("The text preview helper stopped unexpectedly.");
-                SDL_Delay(1);
-            }
-            bytes += count;
-            size -= count;
-        }
-    }
     void Run()
     {
         SDL_Process *process = nullptr;
@@ -79,14 +59,8 @@ struct MarcusTextPreview
         std::shared_ptr<MarcusMovieFile> activeFile;
         std::string activeResources;
         const auto close = [&] {
-            if (process)
-            {
-                int status;
-                if (!SDL_WaitProcess(process, false, &status))
-                { SDL_KillProcess(process, true); SDL_WaitProcess(process, true, &status); }
-                SDL_DestroyProcess(process);
-                process = nullptr;
-            }
+            marcus_preview_process_close(process);
+            process = nullptr;
             activeFile.reset();
         };
         for (;;)
@@ -108,45 +82,23 @@ struct MarcusTextPreview
                 if (!process || activeResources != request.resources)
                 {
                     close();
-                    const auto base = SDL_GetBasePath();
-                    if (!base) throw std::runtime_error("Cannot locate the text preview helper.");
-                    const auto executable = std::string(base) + "marcus-preview"
-#ifdef _WIN32
-                        ".exe"
-#endif
-                        ;
+                    const std::unique_ptr<char, decltype(&SDL_free)> executable(marcus_preview_executable(), SDL_free);
+                    if (!executable) throw std::runtime_error("Cannot locate the text preview helper.");
                     const auto path = request.file->path.u8string();
-                    const char *args[] = {executable.c_str(), path.c_str(), request.resources.c_str(), "--text-live", nullptr};
-                    const auto properties = SDL_CreateProperties();
-                    SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
-                    SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
-                    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_APP);
-                    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
-                    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_NULL);
-                    process = SDL_CreateProcessWithProperties(properties);
-                    SDL_DestroyProperties(properties);
+                    const char *args[] = {executable.get(), path.c_str(), request.resources.c_str(), "--text-live", nullptr};
+                    process = marcus_preview_process_start(args, 1, 1);
                     if (!process) throw std::runtime_error("Cannot launch the text preview helper.");
                     loaded = request.generation;
                     activeFile = request.file;
                     activeResources = request.resources;
                 }
-                const auto input = SDL_GetProcessInput(process), outputStream = SDL_GetProcessOutput(process);
-                if (!input || !outputStream) throw std::runtime_error("Cannot communicate with the text preview helper.");
                 std::ostringstream camera;
                 if (activeFile != request.file) camera << "load " << std::quoted(request.file->path.u8string()) << ' ';
                 else camera << "view ";
                 camera << request.yaw << ' ' << request.pitch << ' ' << request.zoom << ' '
                        << request.width << ' ' << request.height << '\n';
-                auto command = camera.str();
-                const auto deadline = SDL_GetTicks() + 30000;
-                Transfer(input, command.data(), command.size(), true, request.generation, deadline);
-                std::array<unsigned char, MARCUS_PREVIEW_PREFIX_BYTES> header;
-                Transfer(outputStream, header.data(), header.size(), false, request.generation, deadline);
-                const auto size = marcus_preview_wire_frame_size(header.data(), 5 * 1024 * 1024);
-                if (!size) throw std::runtime_error("Text preview response exceeds its limit.");
-                std::vector<std::uint8_t> bytes(size);
-                Transfer(outputStream, bytes.data(), bytes.size(), false, request.generation, deadline);
-                result = ReadPreview(bytes);
+                result = RequestPreviewWorker(process, camera.str(), true,
+                                               [&] { return exiting || request.generation != generation; });
                 if (result.error.empty() && (result.width != int(request.width) || result.height != int(request.height)))
                     throw std::runtime_error("Invalid text preview dimensions.");
                 if (result.error.empty()) activeFile = request.file;
