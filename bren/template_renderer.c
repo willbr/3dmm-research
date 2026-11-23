@@ -566,6 +566,7 @@ void mm_brender_actor_effect_renderer(MMActorEffectRenderer *s)
     s->action_flags = mm_brender_template_action_flags;
     s->default_costume = mm_brender_template_default_costume;
     s->fetch_custom = mm_brender_template_costume;
+    s->rest = mm_brender_template_rest;
 }
 
 void mm_brender_template_rest(MMTemplateOwner *owner, unsigned short *x, unsigned short *y, unsigned short *z)

@@ -66,8 +66,11 @@ enum MMActorRangeResult
  * retains the partial caches and publishes only the first frame. An unplaced
  * actor leaves both optional outputs alone. */
 int mm_actor_owner_frame_range(MMActorOwner *, MMI32 *first, MMI32 *last, const MMActorTimelineServices *);
+/* Evaluate a live or staged copy of the actor state using its current template. */
+void mm_actor_owner_evaluate_pose(const MMActorOwner *, MMActorState *, const MMActorPoint *, MMActorBodyPose *,
+                                  const MMActorMotionServices *, const MMActorEffectRenderer *);
 /* Seek the live Studio actor. Frame and entrance policy reads from the owner.
- * The host provides template metadata, animation, sound and renderer effects. */
+ * Typed renderer services handle live body effects. The host supplies sound and diagnostics. */
 int mm_actor_owner_seek(MMActorOwner *, MMI32 target, int *sound, const MMActorTimelineServices *,
                         const MMActorPlaybackEffects *);
 int mm_actor_owner_set_action(MMActorOwner *, MMI32 action, MMI32 cel, int frozen, MMU32 external_child,

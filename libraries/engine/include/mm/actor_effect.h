@@ -73,6 +73,7 @@ extern "C"
         int (*action_flags)(struct MMTemplateOwner *, MMI32 action, void *flags);
         int (*default_costume)(struct MMTemplateOwner *, struct MMBodyOwner *);
         struct MMMaterialOwner *(*fetch_custom)(struct MMTemplateOwner *, MMI32 costume);
+        void (*rest)(struct MMTemplateOwner *, unsigned short *x, unsigned short *y, unsigned short *z);
     } MMActorEffectRenderer;
     typedef struct MMActorEffectHooks
     {

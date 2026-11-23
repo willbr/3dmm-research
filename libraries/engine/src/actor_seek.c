@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_owner.h"
 #include "mm/actor_effect.h"
+#include "mm/body_runtime.h"
 enum
 {
     INITIALIZE,
@@ -185,6 +186,7 @@ typedef struct ActorPlayback
 {
     void *route, *events;
     MMActorOwner *owner;
+    const MMActorEffectRenderer *renderer;
     const MMActorTimelineServices *timeline;
     const MMActorPlaybackEffects *effects;
     MMI32 first, last;
@@ -222,6 +224,50 @@ static int playback_event(void *context, const MMActorFrameCommand *command, MMA
     return event.nfrm <= state->frame;
 }
 
+static int playback_motion_sounds(void *context)
+{
+    const MMActorPlaybackEffects *effects = ((const ActorPlayback *)context)->effects;
+    return effects->motion_sounds(effects->context);
+}
+
+static void playback_pose(const ActorPlayback *p, int locate)
+{
+    MMActorRuntime *runtime = &p->owner->runtime;
+    MMActorBodyPose pose;
+    mm_actor_owner_evaluate_pose(p->owner, &runtime->state, &runtime->state.position, &pose,
+                                  &p->timeline->motion, p->renderer);
+    if (locate)
+        mm_body_locate(runtime->body, &pose, p->renderer->body);
+}
+
+static void playback_position(void *context)
+{
+    const ActorPlayback *p = context;
+    if (p->renderer)
+        playback_pose(p, 1);
+    else
+        p->effects->position_body(p->effects->context);
+}
+
+static void playback_update_pose(void *context)
+{
+    const ActorPlayback *p = context;
+    if (p->renderer)
+        playback_pose(p, 0);
+    else
+        p->effects->update_pose(p->effects->context);
+}
+
+static int playback_cel(void *context)
+{
+    const ActorPlayback *p = context;
+    const MMActorRuntime *runtime;
+    if (!p->renderer)
+        return p->effects->select_cel(p->effects->context);
+    runtime = &p->owner->runtime;
+    return p->renderer->pose(runtime->template_object, runtime->body, runtime->state.action, runtime->state.cel, NULL) != 0;
+}
+
 static int playback_frame(ActorPlayback *p, MMActorState *state, int display)
 {
     const MMActorPlaybackEffects *e = p->effects;
@@ -247,27 +293,25 @@ static int playback_frame(ActorPlayback *p, MMActorState *state, int display)
         return result;
     effects.context = p;
     effects.event = playback_event;
-    effects.motion_sounds = e->motion_sounds;
-    effects.position_body = e->position_body;
-    effects.select_cel = e->select_cel;
-    effects.update_pose = e->update_pose;
+    effects.motion_sounds = playback_motion_sounds;
+    effects.position_body = playback_position;
+    effects.select_cel = playback_cel;
+    effects.update_pose = playback_update_pose;
     result = mm_actor_frame_run(state, p->route, p->events, &inputs, p->dirty, &p->timeline->motion, &effects, &frame);
     if (result <= 0)
         return result;
-    /* Event commands use the seek state. Display effects use the host directly. */
-    effects.context = e->context;
     return mm_actor_frame_display(&frame, state, playback_last(p), p->profile,
                                    p->profile == MM_ACTOR_FRAME_STUDIO ? &p->dirty : 0, p->sound, &effects);
 }
 
-static int playback_quick(const ActorPlayback *p, const MMActorState *state)
+static int playback_quick(ActorPlayback *p, const MMActorState *state)
 {
     const MMActorPlaybackEffects *e = p->effects;
     if (p->profile == MM_ACTOR_FRAME_STUDIO && (!e->suppress_sounds || !e->suppress_sounds(e->context)) &&
         state->frame <= playback_last(p) && state->onStage)
         e->motion_sounds(e->context);
-    e->position_body(e->context);
-    return state->onStage ? e->select_cel(e->context) : 1;
+    playback_position(p);
+    return state->onStage ? playback_cel(p) : 1;
 }
 
 static int playback_seek_effect(void *context, const MMActorSeekCommand *command, MMActorState *state)
@@ -277,13 +321,21 @@ static int playback_seek_effect(void *context, const MMActorSeekCommand *command
     switch (command->kind)
     {
     case MM_ACTOR_SEEK_HIDE:
-        e->hide(e->context);
+        if (p->renderer)
+        {
+            if (p->owner->runtime.body)
+                mm_body_hide(p->owner->runtime.body, p->renderer->body);
+        }
+        else
+            e->hide(e->context);
         if (p->owner)
             state->onStage = 0;
         return 1;
     case MM_ACTOR_SEEK_RESET_COSTUME:
         if (p->owner)
             p->owner->runtime.recording.recording = 0;
+        if (p->renderer)
+            return p->renderer->default_costume(p->owner->runtime.template_object, p->owner->runtime.body) != 0;
         return e->reset_costume(e->context);
     case MM_ACTOR_SEEK_QUICK_EFFECTS:
         return playback_quick(p, state);
@@ -312,6 +364,7 @@ int mm_actor_playback_seek(MMActorState *state, void *route, void *events, MMI32
     playback.route = route;
     playback.events = events;
     playback.owner = NULL;
+    playback.renderer = NULL;
     playback.timeline = timeline;
     playback.effects = effects;
     playback.first = first;
@@ -330,6 +383,7 @@ int mm_actor_owner_seek(MMActorOwner *owner, MMI32 target, int *sound, const MMA
     playback.route = owner->track.route;
     playback.events = owner->track.events;
     playback.owner = owner;
+    playback.renderer = effects->renderer.body ? &effects->renderer : NULL;
     playback.timeline = timeline;
     playback.effects = effects;
     playback.first = owner->runtime.first;

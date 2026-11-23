@@ -475,8 +475,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Local/world rotation, normalization, scale/stretch, route tweaks and composed
   movement now execute in C89, including orientation weighting/angular throttling,
   ground clipping, event fill and partial-failure ordering. Sooner/later subroute
-  shifting is C89 too. Native callbacks retain BRender primitives, scene/body
-  operations, cached origin publication and scrollbar notification. Undo,
+  shifting is C89 too. Studio evaluates placement from the live C89 actor and
+  template owners and locates the body through the C89 BRender binding. The
+  same owner path positions seek targets and updates cached orientation on
+  intermediate frames. Preview applies its draft and live placement policy
+  through the shared pose evaluator. Native callbacks retain scene operations,
+  cached origin publication and scrollbar notification. Undo,
   remaining actor/movie/scene integration and final facade removal remain.
 - Actor construction/disposal, duplication, reset and undo restoration
   operate on a live C89 owner with evaluated state, recording state, lifetime,

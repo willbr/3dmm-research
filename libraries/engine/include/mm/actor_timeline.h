@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_ACTOR_TIMELINE_H
 #define MM_ENGINE_ACTOR_TIMELINE_H
 #include "actor_frame.h"
+#include "actor_effect.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -132,6 +133,8 @@ extern "C"
         int (*fault)(void *);
         /* Optional observer of a failed live-owner seek. */
         void (*seek_failed)(void *, MMI32 target);
+        /* An owner seek can supply typed renderer services for body effects. */
+        MMActorEffectRenderer renderer;
     } MMActorPlaybackEffects;
     /* Seek and display the live actor using the given frame profile. Studio
      * accumulates position dirtiness across frames and considers motion sound

@@ -305,32 +305,12 @@ MMActorPlaybackEffects Actor::_PlaybackEffects()
 {
     MMActorPlaybackEffects effects = {};
     effects.context = this;
-    effects.hide = [](void *p) {
-        if (auto body = static_cast<Actor *>(p)->_Body())
-            EngineBody::Hide(body);
-    };
-    effects.reset_costume = [](void *p) -> int {
-        auto actor = static_cast<Actor *>(p);
-        return EngineTemplate::FSetDefaultCost(actor->_Template(), actor->_Body());
-    };
+    mm_brender_actor_effect_renderer(&effects.renderer);
     effects.apply_event = [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); };
     effects.suppress_sounds = [](void *p) -> int {
         return FPure(static_cast<Actor *>(p)->_Scene()->GrfScen() & fscenSounds);
     };
     effects.motion_sounds = [](void *p) -> int { return static_cast<Actor *>(p)->_FEnqueueSmmInMsq(); };
-    effects.position_body = [](void *p) {
-        auto actor = static_cast<Actor *>(p);
-        actor->_PositionBody(&actor->_owner.runtime.state.position);
-    };
-    effects.select_cel = [](void *p) -> int {
-        auto actor = static_cast<Actor *>(p);
-        return EngineTemplate::FSetActnCel(actor->_Template(), actor->_Body(), actor->_owner.runtime.state.action, actor->_owner.runtime.state.cel, pvNil);
-    };
-    effects.update_pose = [](void *p) {
-        auto actor = static_cast<Actor *>(p);
-        BMAT34 matrix;
-        actor->_MatrixRotUpdate(&actor->_owner.runtime.state.position, &matrix);
-    };
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     effects.seek_failed = [](void *p, MMI32 frame) {
         const auto batch = std::getenv("THREEDMM_BATCH_TEST");
@@ -568,13 +548,6 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
     MMActorSubrouteEditServices s={}; s.route=_RouteEditServices(); s.action=_ActionEditServices();
     s.timeline = _TimelineServices();
     s.lifetime = mm_actor_owner_lifetime(&_owner);
-    s.pose_inputs=[](void *p,MMActorPoseInputs *inputs) {
-        auto actor=static_cast<Actor *>(p); EngineTemplate::GetRestOrien(actor->_Template(), &inputs->restX,&inputs->restY,&inputs->restZ);
-        inputs->fixedPathOrientation=EngineTemplate::FIsTdt(actor->_Template());
-    };
-    s.locate_body=[](void *p,const MMActorBodyPose *pose) {
-        EngineBody::ApplyPose(static_cast<Actor *>(p)->_Body(), *pose);
-    };
     s.live = &_owner;
     s.playback = _PlaybackEffects();
     s.diagnostic=[](void *,int fault) {
@@ -1370,36 +1343,6 @@ void Actor::_GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS rFr
 
 /***************************************************************************
 
-    Locate the actor (in Brender terms), first adjusting the location.
-    Post-impose a rotation looking forward along the route
-
-***************************************************************************/
-void Actor::_PositionBody(RoutePoint *pxyz)
-{
-    AssertBaseThis(0); AssertVarMem(pxyz);
-    const auto tables = EngineActorMotion::Services();
-    const auto services = _SubrouteEditServices();
-    const auto position = *pxyz;
-    mm_actor_subroute_position_body(&_owner.runtime.state, _owner.track.route, _owner.track.events, &position, &tables, &services);
-}
-
-/***************************************************************************
-
-    Update the orientation matrices
-    _owner.runtime.state.transform.bmat34Cur must be kept current
-
-***************************************************************************/
-void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
-{
-    AssertBaseThis(0);
-    ActorPoseInputs inputs;
-    EngineTemplate::GetRestOrien(_Template(), &inputs.restX, &inputs.restY, &inputs.restZ);
-    inputs.fixedPathOrientation = EngineTemplate::FIsTdt(_Template());
-    ActorPoseEvaluator::Update(_owner.runtime.state, _owner.track, inputs, pxyz, pbmat34);
-}
-
-/***************************************************************************
-
     Compute the angles of rotation defined by the vector *pxyz
     Apply the rotation to matrix *pbmat34
     Return the angles of rotation in *pxa, *pya, *pza
@@ -1706,7 +1649,11 @@ bool Actor::FChangeTagTmpl(const MMTag &tag)
     services.pose = mm_brender_template_set_cel;
     services.position = [](void *p) {
         auto actor = static_cast<PActor>(p);
-        actor->_PositionBody(&actor->_owner.runtime.state.position);
+        auto &owner = actor->_owner;
+        const auto subroute = actor->_SubrouteEditServices();
+        const auto position = owner.runtime.state.position;
+        mm_actor_subroute_position_body(&owner.runtime.state, owner.track.route, owner.track.events, &position,
+                                       &subroute.timeline.motion, &subroute);
     };
     const auto edits = _EventEditServices();
     return mm_actor_replace_template(&_owner.runtime, _owner.track.events, &tag, &services, &edits) != 0;

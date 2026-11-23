@@ -62,6 +62,17 @@ int mm_actor_owner_frame_range(MMActorOwner *owner, MMI32 *first, MMI32 *last,
     return MM_ACTOR_RANGE_PARTIAL;
 }
 
+void mm_actor_owner_evaluate_pose(const MMActorOwner *owner, MMActorState *state, const MMActorPoint *position,
+                                  MMActorBodyPose *pose, const MMActorMotionServices *motion,
+                                  const MMActorEffectRenderer *renderer)
+{
+    MMActorPoseInputs inputs;
+    MMTemplateOwner *tmpl = owner->runtime.template_object;
+    renderer->rest(tmpl, &inputs.restX, &inputs.restY, &inputs.restZ);
+    inputs.fixedPathOrientation = (mm_template_owner_state(tmpl)->flags & MM_TEMPLATE_TEXT) != 0;
+    mm_actor_pose_evaluate(state, owner->track.route, owner->track.events, &inputs, position, pose, motion);
+}
+
 int mm_actor_owner_set_action(MMActorOwner *owner, MMI32 action, MMI32 cel, int frozen, MMU32 external_child,
                               const MMActorMotionServices *motion, const MMActorActionEditServices *services)
 {

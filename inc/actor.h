@@ -201,8 +201,6 @@ class Actor : public Actor_PAR
     void _AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute);
     void _GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz);
     void _GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS dwrOffset, PRoutePoint pxyz);
-    void _PositionBody(PRoutePoint pxyz);
-    void _MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34);
     void _TruncateSubRte(long irptDelLim);
     bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 

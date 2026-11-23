@@ -43,7 +43,6 @@ inline const MMActorMatrix &RootMatrix(PBody body) { return State(body).shape.bi
 inline MMBodyDrawView DrawView(PBody body) { return {State(body).shape.bindings, State(body).shape.part_count}; }
 
 void LocateOrient(PBody, BRS x, BRS y, BRS z, BMAT34 *);
-void ApplyPose(PBody, const MMActorBodyPose &);
 bool PartSetBounds(PBody, LegacyLong set, MMBodyBounds &);
 void SetPartModel(PBody, LegacyLong part, PModel);
 void SetPartMatrix(PBody, LegacyLong part, BMAT34 *);

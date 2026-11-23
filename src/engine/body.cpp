@@ -250,12 +250,6 @@ void EngineBody::LocateOrient(PBody body, BRS xr, BRS yr, BRS zr, BMAT34 *pbmat3
     MMActorBodyPose pose;
     pose.translation = {static_cast<MMI32>(xr), static_cast<MMI32>(yr), static_cast<MMI32>(zr)};
     std::memcpy(&pose.orientation, pbmat34, sizeof(pose.orientation));
-    ApplyPose(body, pose);
-}
-
-void EngineBody::ApplyPose(PBody body, const MMActorBodyPose &pose)
-{
-    BODY_VALIDATE(body, 0);
     const auto &s = RuntimeServices();
     mm_body_locate(body, &pose, &s);
 }

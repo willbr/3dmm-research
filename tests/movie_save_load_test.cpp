@@ -1764,8 +1764,12 @@ class TrackTestActor : public Actor
         _owner.runtime.state.addEvent = 0;
         _owner.runtime.state.location = {0, BR_SCALAR(2), 0};
         RoutePoint position = {BR_SCALAR(5), rZero, rZero};
-        BMAT34 matrix;
-        _MatrixRotUpdate(&position, &matrix);
+        MMActorBodyPose pose;
+        MMActorEffectRenderer renderer;
+        mm_brender_actor_effect_renderer(&renderer);
+        const auto motion = mm_actor_track_motion_services();
+        mm_actor_owner_evaluate_pose(&_owner, &_owner.runtime.state, &position, &pose, &motion, &renderer);
+        const auto &matrix = pose.orientation;
         // Route yaw is 90 degrees; the template contributes another 90.
         if (_owner.runtime.state.position.dxr != BR_SCALAR(5) || _owner.runtime.state.transform.yaPath != static_cast<BRA>(0x4000) ||
             BrsAbs(BrsAdd(matrix.m[0][0], rOne)) > BR_SCALAR(0.002) || BrsAbs(matrix.m[0][2]) > BR_SCALAR(0.002))

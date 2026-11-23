@@ -3,6 +3,7 @@
 #include "mm/actor_subroute_edit.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_owner.h"
+#include "mm/body_runtime.h"
 #include <string.h>
 #define FLAG(kind) ((MMU32)1 << (kind))
 static void publish(const MMActorState *state,const MMActorSubrouteEditServices *s)
@@ -63,9 +64,19 @@ void mm_actor_subroute_position_body(MMActorState *state,void *route,void *event
 {
     MMActorPoseInputs inputs;
     MMActorBodyPose pose;
-    publish(state,s); s->pose_inputs(s->route.edits.context,&inputs);
+    const MMActorEffectRenderer *renderer = &s->playback.renderer;
+    publish(state,s);
+    if (s->live && renderer->body)
+    {
+        mm_actor_owner_evaluate_pose(s->live,state,position,&pose,m,renderer);
+        publish(state,s);
+        mm_body_locate(s->live->runtime.body,&pose,renderer->body);
+        return;
+    }
+    s->pose_inputs(s->route.edits.context,&inputs);
     mm_actor_pose_evaluate(state,route,events,&inputs,position,&pose,m);
-    publish(state,s); s->locate_body(s->route.edits.context,&pose);
+    publish(state,s);
+    s->locate_body(s->route.edits.context,&pose);
 }
 void mm_actor_subroute_delete_back(MMActorState *state,MMActorSounds *list,void *route,void *events,
     MMI32 actor,int *alive,const MMActorMotionServices *m,const MMActorSubrouteEditServices *s)

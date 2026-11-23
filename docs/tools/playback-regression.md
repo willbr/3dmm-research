@@ -23995,3 +23995,41 @@ Text Acid candidate `20261123T112629Z-66d583bb` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-template-replacement`.
+
+## C89 live actor placement (23 November 2026)
+
+Studio route edits and seek display use the C89 actor, template and body
+owners for rest orientation, body location and cel selection. Intermediate
+seek frames still update the cached orientation. The seek also hides and
+resets the costume through the C89 renderer binding. Preview continues to
+defer body placement during draft edits and uses the shared pose evaluator
+for live display.
+
+The native transform, subroute, recording and stage edit traces matched
+the previous build across 1,032,004, 282,784, 439,824 and 129,568 bytes.
+Native and SDL actor creation and movie-content traces also matched. The
+native save trace and the Studio authoring movie matched byte for byte
+after edit, save and reopen.
+
+All 230 selected native checks, 13 SDL checks and three x86 worker fixtures
+passed, including 13 strict C89 checks in the native selection. Marcus
+relaunched headlessly with a byte-identical startup image.
+
+The edited and copied 3D text archives matched their retained saves.
+The rebuilt ports reopened the copied save in `20261123T113622Z-448467ee`
+and matched the retail and V3DMM frame and canvas captured in
+`20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T113622Z-e02332a1` matched the prior port
+canvases and scene states on all 60 seeks per port. Both ports matched the
+retail and V3DMM frame order in seek and playback. Studio matched all 240
+retail and V3DMM actor snapshots, including root and part matrices and
+route position at the six significant digits recorded by Studio. Both
+ports matched 59 of 60 retail and V3DMM seek canvases. Scene 0, frame 4
+retained its prior canvas difference.
+
+Text Acid candidate `20261123T113622Z-d2d0f79d` matched baseline
+`20261123T112629Z-66d583bb` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched retail and V3DMM frame order in seek and playback.
+Evidence is under `tmp/c89-live-actor-pose`.
