@@ -80,7 +80,7 @@ static bool TestTemplateRuntime()
             ok=record(values,sizeof(values)) && record(fixture.trace,fixture.used*sizeof(int)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
             for (int i=0;i<n;++i) { LegacyLong identity=EngineBody::Part(body, i)->model==EngineModel::Handle(a)?1:EngineBody::Part(body, i)->model==EngineModel::Handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
             LegacyLong count=-77; LegacyUlong flags=0x1357; bool exists=true; TAG tag={123,nullptr,0x12345678,456};
-            BRS d=BR_SCALAR(-99); bool dOk=EngineTemplate::FGetDwrActnCel(t, 0,cels[cn],&d),countOk=EngineTemplate::FGetCcelActn(t, 0,&count),flagsOk=EngineTemplate::FGetGrfactn(t, 0,&flags),soundOk=EngineTemplate::FGetSndActnCel(t, 0,cels[cn],&exists,&tag);
+            MMI32 d=BR_SCALAR(-99); bool dOk=mm_brender_template_distance(t, 0,cels[cn],&d)!=0,countOk=EngineTemplate::FGetCcelActn(t, 0,&count),flagsOk=EngineTemplate::FGetGrfactn(t, 0,&flags),soundOk=EngineTemplate::FGetSndActnCel(t, 0,cels[cn],&exists,&tag);
             LegacyLong queries[]={dOk,d,countOk,count,flagsOk,static_cast<LegacyLong>(flags),soundOk,exists,tag.sid,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)};
             ok=record(queries,sizeof(queries)) && mm_action_resource_references(action)==1 && ok;
         }

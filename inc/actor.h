@@ -45,7 +45,6 @@ using namespace BRender;
 #include "mm/actor_clipboard.h"
 #include "mm/actor_create.h"
 #include "actor_state.h"
-#include "actor_timeline.h"
 
 const long kcrptGrow = 32;                                         // quantum growth for rpt
 const long kctagSndGrow = 2;                                       // quantum growth for tagSnd
@@ -202,7 +201,6 @@ class Actor : public Actor_PAR
     void _GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz);
     void _GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS dwrOffset, PRoutePoint pxyz);
     void _TruncateSubRte(long irptDelLim);
-    bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 
 
   public:

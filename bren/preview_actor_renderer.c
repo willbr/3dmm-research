@@ -169,12 +169,6 @@ static int default_costume(void *p, void *tmpl, void *body)
     return mm_brender_template_default_costume(tmpl, body);
 }
 
-static int template_distance(void *p, MMI32 action, MMI32 cel, MMI32 *out)
-{
-    const MMBRenderPreviewActor *binding = p;
-    return mm_brender_template_distance(binding->actor->tmpl, action, cel, out) > 0;
-}
-
 static void timeline_diagnostic(void *p, int issue)
 {
     const MMBRenderPreviewActor *binding = p;
@@ -184,9 +178,9 @@ static void timeline_diagnostic(void *p, int issue)
 
 static MMActorTimelineServices timeline(MMBRenderPreviewActor *binding)
 {
-    MMActorTimelineServices services = mm_actor_track_timeline_services();
+    MMActorTimelineServices services = mm_actor_template_timeline_services(&binding->actor->tmpl,
+                                                                           mm_brender_template_distance);
     services.context = binding;
-    services.resolve = template_distance;
     services.diagnostic = timeline_diagnostic;
     return services;
 }

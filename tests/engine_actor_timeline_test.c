@@ -1,4 +1,5 @@
 #include "mm/actor_timeline.h"
+#include "mm/text_resource.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -105,7 +106,7 @@ static void diagnostic(void *p, int fault)
 }
 static MMActorTimelineServices services(Tables *t)
 {
-    MMActorTimelineServices s;
+    MMActorTimelineServices s = {0};
     s.motion.route_width = route_width;
     s.motion.route_count = route_count;
     s.motion.route_point = point;
@@ -122,6 +123,46 @@ static MMActorTimelineServices services(Tables *t)
     s.publish_frame = publish_frame;
     return s;
 }
+static int template_step(MMTemplateOwner *owner, MMI32 action, MMI32 cel, MMI32 *step)
+{
+    CHECK(cel == -1 && !*step);
+    if (action != 3)
+        return 0;
+    *step = mm_template_owner_state(owner)->x * ONE;
+    return 1;
+}
+
+static void steps_follow_live_template(void)
+{
+    const MMTemplateOwnerHost host = {NULL, 1, NULL};
+    MMTemplateOwner *initial = mm_template_owner_create(&host, 0);
+    MMTemplateOwner *replacement = mm_template_owner_create(&host, 0);
+    void *slot = NULL;
+    const MMActorTimelineServices timeline = mm_actor_template_timeline_services(&slot, template_step);
+    MMActorState state;
+    MMI32 step = 123;
+    CHECK(initial && replacement);
+    mm_template_owner_state(initial)->x = 2;
+    mm_template_owner_state(replacement)->x = 3;
+    CHECK(!mm_actor_step(3, -1, &step, &timeline) && !step);
+    slot = initial;
+    CHECK(mm_actor_step(3, -1, &step, &timeline) && step == 2 * ONE);
+    slot = replacement;
+    mm_template_owner_release(initial);
+    mm_actor_state_init(&state);
+    state.action = 3;
+    state.cel = -1;
+    state.step = -ONE;
+    state.transform.rScaleStep = 2 * ONE;
+    CHECK(mm_actor_playback_step(&state, &step, &timeline) && step == 6 * ONE);
+    state.action = 4;
+    CHECK(!mm_actor_playback_step(&state, &step, &timeline) && !step);
+    slot = NULL;
+    mm_template_owner_release(replacement);
+    state.step = ONE;
+    CHECK(mm_actor_playback_step(&state, &step, &timeline) && step == 2 * ONE);
+}
+
 static void init(Tables *t)
 {
     memset(t, 0, sizeof(*t));
@@ -649,6 +690,7 @@ static void render_and_world_position(void)
 
 int main(void)
 {
+    steps_follow_live_template();
     steps_and_lifetime();
     backwards();
     seek_protocol_and_forward();

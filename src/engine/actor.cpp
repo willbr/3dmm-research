@@ -393,14 +393,7 @@ bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
 ***************************************************************************/
 MMActorTimelineServices Actor::_TimelineServices()
 {
-    auto services = mm_actor_track_timeline_services();
-    services.context = this;
-    services.resolve = [](void *context, MMI32 action, MMI32 cel, MMI32 *out) -> int {
-        BRS step = *out;
-        const bool ok = EngineTemplate::FGetDwrActnCel(static_cast<Actor *>(context)->_Template(), action, cel, &step);
-        *out = step;
-        return ok;
-    };
+    auto services = mm_actor_template_timeline_services(&_owner.runtime.template_object, mm_brender_template_distance);
     services.diagnostic = EngineActorTimeline::Diagnostic;
     return services;
 }
@@ -1381,27 +1374,6 @@ bool Actor::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
     if (pnfrmLast && result == MM_ACTOR_RANGE_READY)
         *pnfrmLast = last;
     return result != MM_ACTOR_RANGE_UNPLACED;
-}
-
-/***************************************************************************
-
-    An actor is said to be stalled if more route exists, the step size is
-    ever zero with no subsequent nonzero step size to follow.
-
-    Determine whether an actor is stalled on a subroute
-    Input: IaevFirst is	the first event to check on the subroute.
-        *prtel is the route point to test for stalling
-    Return fFalse if not stalled.
-    If stalled, return the last active event.
-***************************************************************************/
-bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
-{
-    AssertBaseThis(0);
-    LegacyLong lastEvent;
-    const bool stalled = ActorTimeline::FIsStalled(_owner.track, iaevFirst, prtel, piaevLast ? &lastEvent : pvNil);
-    if (stalled && piaevLast)
-        *piaevLast = lastEvent;
-    return stalled;
 }
 
 /***************************************************************************

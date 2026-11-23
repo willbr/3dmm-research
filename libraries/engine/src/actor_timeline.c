@@ -15,6 +15,13 @@ MMActorTimelineServices mm_actor_track_timeline_services(void)
     s.put_event = put_track_event;
     return s;
 }
+MMActorTimelineServices mm_actor_template_timeline_services(void *const *slot, MMActorTemplateDistance *distance)
+{
+    MMActorTimelineServices s = mm_actor_track_timeline_services();
+    s.template_slot = slot;
+    s.template_distance = distance;
+    return s;
+}
 static void publish(const MMActorState *state, const MMActorTimelineServices *s)
 {
     if (s->publish)
@@ -33,6 +40,11 @@ static int after(const MMActorLocation *a, const MMActorLocation *b)
 int mm_actor_step(MMI32 action, MMI32 cel, MMI32 *step, const MMActorTimelineServices *s)
 {
     *step = 0;
+    if (s->template_distance)
+    {
+        struct MMTemplateOwner *tmpl = *s->template_slot;
+        return tmpl && s->template_distance(tmpl, action, cel, step) > 0;
+    }
     return s->resolve && s->resolve(s->context, action, cel, step);
 }
 

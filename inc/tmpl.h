@@ -122,7 +122,6 @@ inline LegacyLong Cactn(PTemplate owner) { return State(owner).action_count; }
 bool FGetActnName(PTemplate, LegacyLong, PString);
 bool FSetActnCel(PTemplate, PBody, LegacyLong action, LegacyLong cel, BRS *distance = pvNil);
 bool FGetGrfactn(PTemplate, LegacyLong action, LegacyUlong *flags);
-bool FGetDwrActnCel(PTemplate, LegacyLong action, LegacyLong cel, BRS *distance);
 bool FGetCcelActn(PTemplate, LegacyLong action, LegacyLong *count);
 bool FGetSndActnCel(PTemplate, LegacyLong action, LegacyLong cel, bool *exists, PTAG);
 bool FSetDefaultCost(PTemplate, PBody);

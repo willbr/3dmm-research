@@ -17,6 +17,7 @@ extern "C"
         MM_ACTOR_LIFETIME_BAD_RANGE,
         MM_ACTOR_LIFETIME_INCOMPLETE
     };
+    typedef int MMActorTemplateDistance(struct MMTemplateOwner *, MMI32 action, MMI32 cel, MMI32 *step);
     typedef struct MMActorTimelineServices
     {
         MMActorMotionServices motion;
@@ -29,9 +30,14 @@ extern "C"
          * decremented cel. Publication must not mutate/re-enter the C state. */
         void (*publish)(void *, const MMActorState *);
         void (*publish_frame)(void *, MMI32 last_attempted_frame);
+        void *const *template_slot;
+        MMActorTemplateDistance *template_distance;
     } MMActorTimelineServices;
     /* Default table services for C-owned PATH and GGAE handles. */
     MMActorTimelineServices mm_actor_track_timeline_services(void);
+    /* Borrow a live owner's template slot. Each query reads the current template,
+     * including after load, undo or a text edit. An empty slot fails the query. */
+    MMActorTimelineServices mm_actor_template_timeline_services(void *const *template_slot, MMActorTemplateDistance *);
     /* Resolver output starts at zero. Failure preserves any value written by the
      * resolver. Playback scaling is applied only after successful resolution.
      * Metadata callbacks cannot mutate authored tables or evaluated state. */

@@ -607,15 +607,11 @@ int mm_brender_template_set_cel(MMTemplateOwner *owner, MMBodyOwner *body, MMI32
     return mm_template_set_cel(owner, body, id, cel, distance, &services);
 }
 
-int mm_brender_template_distance(MMTemplateOwner *owner, MMI32 id, MMI32 cel, void *distance)
+int mm_brender_template_distance(MMTemplateOwner *owner, MMI32 id, MMI32 cel, MMI32 *distance)
 {
     MMTemplateRuntimeServices services = {0};
-    MMI32 value;
     runtime_services(&services, owner);
-    if (!mm_template_distance(owner, id, cel, &value, &services))
-        return 0;
-    memcpy(distance, &value, sizeof(value));
-    return 1;
+    return mm_template_distance(owner, id, cel, distance, &services);
 }
 
 int mm_brender_template_cel_count(MMTemplateOwner *owner, MMI32 id, void *count)

@@ -22,7 +22,7 @@
 #include "actor_route.h"
 #include "actor_state.h"
 #include "actor_pose.h"
-#include "actor_timeline.h"
+#include "mm/actor_timeline.h"
 #include "text_box_data.h"
 #include "sound_queue.h"
 #include "mm/playback.h"

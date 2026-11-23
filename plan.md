@@ -398,8 +398,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   partial progress, callback observations and the enabled retail fixes are retained.
   Studio seek reads its first and last frames, recording state and dirty lifetime
   flag directly from the C89 actor owner. Studio and Marcus animation edits bind
-  their lifetime fields to the same C89 updater. Native template metadata,
-  diagnostics and body/audio effects remain.
+  their lifetime fields to the same C89 updater. Studio and Preview resolve
+  action step distances through the current template slot and the C89 BRender
+  action reader. Their resolver follows template replacement and undo. The C++
+  actor timeline translation unit has been removed from the engine build.
 - Actor pose evaluation, weighted route orientation and fixed matrix/angle math
   now use C89. Native pose code supplies table views and copies matrices into
   BRender at the SDK boundary. The C implementation uses fixed-point arithmetic.

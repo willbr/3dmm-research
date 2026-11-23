@@ -123,15 +123,6 @@ bool EngineTemplate::FSetActnCel(PTemplate owner, PBody pbody, LegacyLong anid, 
 }
 
 /***************************************************************************
-    Retrieves the distance travelled by cel celn of action anid.
-***************************************************************************/
-bool EngineTemplate::FGetDwrActnCel(PTemplate owner, LegacyLong anid, LegacyLong celn, BRS *pdwr)
-{
-    AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pdwr);
-    return mm_brender_template_distance(owner, anid, celn, pdwr) != 0;
-}
-
-/***************************************************************************
     Retrieves the number of cels in this action
 ***************************************************************************/
 bool EngineTemplate::FGetCcelActn(PTemplate owner, LegacyLong anid, LegacyLong *pccel)

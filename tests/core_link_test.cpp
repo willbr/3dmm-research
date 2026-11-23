@@ -25,6 +25,7 @@
 #include "stream.h"
 #include "codec.h"
 #if defined(TEST_ENGINE_CORE)
+#include "../src/engine/engine_actor_motion.h"
 #include "../src/engine/engine_actor_timeline.h"
 #include "actor_frame_fixture.h"
 #include "mm/actor_motion.h"
@@ -3529,8 +3530,8 @@ struct StepProbe
     LegacyLong failOn = 0;
     LegacyLong cels[32] = {};
     ActorFrameState *observed = nullptr;
-    LegacyLong *observedLast = nullptr;
-    static bool Resolve(void *context, LegacyLong action, LegacyLong cel, BRS *step)
+    MMI32 *observedLast = nullptr;
+    static int Resolve(void *context, MMI32 action, MMI32 cel, MMI32 *step)
     {
         auto &probe = *(StepProbe *)context;
         Check(action == 0 && probe.calls < 32);
@@ -3547,9 +3548,17 @@ struct StepProbe
         }
         return success;
     }
-    ActorStepSource Source()
+    MMActorTimelineServices Services()
     {
-        return {this, Resolve};
+        auto services = mm_actor_track_timeline_services();
+        services.context = this;
+        services.resolve = Resolve;
+        services.diagnostic = EngineActorTimeline::Diagnostic;
+        if (observedLast)
+            services.publish_frame = [](void *context, MMI32 frame) {
+                *static_cast<StepProbe *>(context)->observedLast = frame;
+            };
+        return services;
     }
 };
 
@@ -3558,18 +3567,19 @@ static void TestActorTimeline()
     if (const char *path=std::getenv("MM_ACTOR_TIMELINE_SNAPSHOT")) { actorTimelineSnapshot=std::fopen(path,"wb"); Check(actorTimelineSnapshot); }
     auto record=[&](const void *p,size_t n) { RecordActorTimelineBytes(actorTimelineSnapshot,p,n); };
     auto cache=[&](const ActorTrack &t) { LegacyLong count=mm_actor_events_count(t.Events()); record(&count,4); for(LegacyLong i=0;i<count;++i) { ActorEvent::Base e; mm_actor_events_get_fixed(t.Events(), i,&e); record(&e,sizeof(e)); } };
-    auto lifetime=[&](const ActorTrack &t,LegacyLong first,bool rejoining,const ActorStepSource &steps,LegacyLong *last,LegacyLong bound=klwMax) {
-        bool ok=ActorTimeline::FComputeLifetime(t.Core(),first,rejoining,steps,last,bound);
+    auto lifetime=[&](const ActorTrack &t,LegacyLong first,bool rejoining,const MMActorTimelineServices &timeline,MMI32 *last,LegacyLong bound=klwMax) {
+        bool ok=mm_actor_lifetime(t.Route(),t.Events(),first,rejoining,last,bound,&timeline)!=0;
         LegacyLong values[]={101,first,rejoining,bound,ok,*last}; record(values,sizeof(values)); cache(t); return ok;
     };
-    auto stalled=[&](const ActorTrack &t,LegacyLong first,RouteLocation *p,LegacyLong *last=nullptr) {
-        bool ok=ActorTimeline::FIsStalled(t.Core(),first,p,last); LegacyLong values[]={102,first,ok,last?*last:-987}; record(values,sizeof(values)); record(p,sizeof(*p)); return ok;
+    auto stalled=[&](const ActorTrack &t,LegacyLong first,RouteLocation *p,MMI32 *last=nullptr) {
+        const auto timeline=mm_actor_track_timeline_services();
+        bool ok=mm_actor_stalled(t.Events(),first,p,last,&timeline)!=0; LegacyLong values[]={102,first,ok,last?*last:-987}; record(values,sizeof(values)); record(p,sizeof(*p)); return ok;
     };
-    auto back=[&](ActorFrameState &state,const ActorTrack &t,const ActorStepSource &steps,RouteLocation *p,bool update) {
-        bool ok=ActorTimeline::FStepBack(state,t.Core(),steps,p,update); LegacyLong values[]={103,ok,update}; record(values,sizeof(values)); record(p,sizeof(*p)); RecordActorFrameState(state,actorTimelineSnapshot); return ok;
+    auto back=[&](ActorFrameState &state,const ActorTrack &t,const MMActorTimelineServices &timeline,RouteLocation *p,bool update) {
+        bool ok=mm_actor_step_back(&state,t.Route(),t.Events(),p,update,&timeline)!=0; LegacyLong values[]={103,ok,update}; record(values,sizeof(values)); record(p,sizeof(*p)); RecordActorFrameState(state,actorTimelineSnapshot); return ok;
     };
-    auto backup=[&](ActorFrameState &state,const ActorTrack &t,LegacyLong last,LegacyLong target,const ActorStepSource &steps) {
-        auto result=ActorTimeline::QuickBackup(state,t.Core(),last,target,steps); LegacyLong values[]={104,last,target,result.success,result.valid,result.applyEffects}; record(values,sizeof(values)); RecordActorFrameState(state,actorTimelineSnapshot); return result;
+    auto backup=[&](ActorFrameState &state,const ActorTrack &t,LegacyLong last,LegacyLong target,const MMActorTimelineServices &timeline) {
+        auto result=mm_actor_quick_backup(&state,t.Route(),t.Events(),last,target,&timeline); LegacyLong values[]={104,last,target,result.success,result.valid,result.applyEffects}; record(values,sizeof(values)); RecordActorFrameState(state,actorTimelineSnapshot); return result;
     };
     ActorTrack track;
     Check(ActorFrameTest::FCreateTrack(track));
@@ -3585,8 +3595,8 @@ static void TestActorTimeline()
             mm_actor_events_set_fixed(track.Events(), index, &event);
         }
     }
-    LegacyLong last = -999;
-    Check(lifetime(track, 1, false, ActorStepSource(), &last) && last == 9);
+    MMI32 last = -999;
+    Check(lifetime(track, 1, false, mm_actor_track_timeline_services(), &last) && last == 9);
     LegacyLong frames[] = {1, 1, 1, 2, 2, 3, 3, 4, 6, 8, 9};
     Check(mm_actor_events_count(track.Events()) == 11);
     for (LegacyLong index = 0; index < 11; ++index)
@@ -3597,28 +3607,28 @@ static void TestActorTimeline()
     }
     ActorTrack empty;
     Check(empty.FCreate());
-    Check(lifetime(empty, -5, false, ActorStepSource(), &last) && last == -5);
+    Check(lifetime(empty, -5, false, mm_actor_track_timeline_services(), &last) && last == -5);
 
     ActorTrack metadata;
     Check(ActorFrameTest::FCreateMetadataTrack(metadata, false));
     StepProbe probe;
-    Check(lifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
+    Check(lifetime(metadata, -2, false, probe.Services(), &last) && last == 0);
     Check(probe.calls == 3 && probe.cels[0] == 1 && probe.cels[1] == 2 && probe.cels[2] == 3);
     Check(ActorFrameTest::FCreateMetadataTrack(metadata, true));
     probe = StepProbe();
-    Check(lifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
+    Check(lifetime(metadata, -2, false, probe.Services(), &last) && last == 0);
     Check(probe.calls == 3 && probe.cels[0] == 1 && probe.cels[1] == 2 && probe.cels[2] == 2);
     Check(ActorFrameTest::FCreateMetadataTrack(metadata, true));
     probe = StepProbe();
     probe.failOn = 2;
-    Check(!lifetime(metadata, -2, false, probe.Source(), &last) && last == 0);
+    Check(!lifetime(metadata, -2, false, probe.Services(), &last) && last == 0);
     ActorEvent::Base event;
     mm_actor_events_get_fixed(metadata.Events(), 1, &event);
     Check(event.nfrm == -2);
     mm_actor_events_get_fixed(metadata.Events(), 4, &event);
     Check(event.nfrm == -1); // Earlier successful frames remain cached after failure.
     RouteLocation stopped = {0, rZero, 0};
-    LegacyLong lastEvent = -99;
+    MMI32 lastEvent = -99;
     Check(!stalled(metadata, 0, &stopped, &lastEvent) && lastEvent == -99);
     Check(stalled(metadata, 3, &stopped, &lastEvent) && lastEvent == 4);
 
@@ -3644,26 +3654,26 @@ static void TestActorTimeline()
     ActorFrameState state = initial;
     RouteLocation output = {99, BR_SCALAR(99), 99};
     probe = StepProbe();
-    Check(back(state, route, probe.Source(), &output, false));
+    Check(back(state, route, probe.Services(), &output, false));
     Check(output.irpt == 1 && output.dwrOffset == rZero && probe.cels[0] == 2);
     Check(ActorFrameTest::SameState(state, initial));
     probe = StepProbe();
     probe.failOn = 1;
     output = {99, BR_SCALAR(99), 99};
-    Check(!back(state, route, probe.Source(), &output, false));
+    Check(!back(state, route, probe.Services(), &output, false));
     Check(output.irpt == 99 && ActorFrameTest::SameState(state, initial));
 
     probe = StepProbe();
     probe.failOn = 2;
-    Check(back(state, route, probe.Source(), &state.location, true));
+    Check(back(state, route, probe.Services(), &state.location, true));
     Check(state.frame == 9 && state.cel == 2 && state.location.irpt == 1 && state.location.dwrOffset == rZero);
     ActorFrameState afterFirst = state;
-    Check(!back(state, route, probe.Source(), &state.location, true));
+    Check(!back(state, route, probe.Services(), &state.location, true));
     Check(ActorFrameTest::SameState(state, afterFirst));
     state = initial;
     probe = StepProbe();
     probe.failOn = 2;
-    ActorQuickSeekResult quick = backup(state, route, 20, 8, probe.Source());
+    MMActorQuickSeekResult quick = backup(state, route, 20, 8, probe.Services());
     Check(!quick.success && !quick.valid && !quick.applyEffects);
     Check(ActorFrameTest::SameState(state, afterFirst)); // Individual steps, not the entire seek, roll back.
 
@@ -3671,13 +3681,13 @@ static void TestActorTimeline()
     state.step = rOne;
     state.transform.rScaleStep = rOne;
     state.cel = 9;
-    quick = backup(state, route, 20, 8, ActorStepSource());
+    quick = backup(state, route, 20, 8, mm_actor_track_timeline_services());
     Check(quick.success && quick.valid && quick.applyEffects && state.frame == 8 && state.cel == 7);
     Check(state.position.dxr == BR_SCALAR(8));
     state = initial;
     state.frame = 13;
     state.location = {3, rZero, 4};
-    quick = backup(state, route, 9, 12, ActorStepSource());
+    quick = backup(state, route, 9, 12, mm_actor_track_timeline_services());
     Check(quick.success && quick.valid && !quick.applyEffects && state.frame == 12 && state.location.dnfrm == 3);
 
     ActorTrack vertical;
@@ -3693,7 +3703,7 @@ static void TestActorTimeline()
     state.transform.rScaleStep = rOne;
     state.location = {1, BR_SCALAR(2), 0};
     state.position = {BR_SCALAR(2), BR_SCALAR(4), rZero};
-    quick = backup(state, vertical, 20, 9, ActorStepSource());
+    quick = backup(state, vertical, 20, 9, mm_actor_track_timeline_services());
     Check(quick.success && !quick.valid && !quick.applyEffects && state.frame == 9);
     Check(state.position.dxr == rZero && state.position.dyr == BR_SCALAR(4));
 
@@ -3701,21 +3711,22 @@ static void TestActorTimeline()
     state.step = rZero;
     probe = StepProbe();
     probe.failOn = 1;
-    Check(back(state, route, probe.Source(), &state.location, true));
+    Check(back(state, route, probe.Services(), &state.location, true));
     Check(probe.calls == 0 && state.frame == 9 && state.location.dnfrm == -1);
     state=initial; probe=StepProbe(); probe.observed=&state;
-    Check(back(state,route,probe.Source(),&output,false)); Check(ActorFrameTest::SameState(state,initial));
+    Check(back(state,route,probe.Services(),&output,false)); Check(ActorFrameTest::SameState(state,initial));
     probe=StepProbe(); probe.observed=&state; probe.failOn=1;
-    Check(!back(state,route,probe.Source(),&state.location,true)); Check(ActorFrameTest::SameState(state,initial));
+    Check(!back(state,route,probe.Services(),&state.location,true)); Check(ActorFrameTest::SameState(state,initial));
     ActorTrack bounded; Check(ActorFrameTest::FCreateMetadataTrack(bounded,false)); probe=StepProbe();
-    Check(!lifetime(bounded,-2,false,probe.Source(),&last,0) && last==-1);
-    Check(!lifetime(bounded,klwMin,false,probe.Source(),&last,-1) && last==klwMin);
-    Check(!lifetime(bounded,klwMax,false,probe.Source(),&last) && last==klwMax);
+    Check(!lifetime(bounded,-2,false,probe.Services(),&last,0) && last==-1);
+    Check(!lifetime(bounded,klwMin,false,probe.Services(),&last,-1) && last==klwMin);
+    Check(!lifetime(bounded,klwMax,false,probe.Services(),&last) && last==klwMax);
     if(actorTimelineSnapshot) Check(std::fclose(actorTimelineSnapshot)==0);
     actorTimelineSnapshot=nullptr;
     ActorTrack observation; Check(ActorFrameTest::FCreateMetadataTrack(observation,false));
     StepProbe publication; publication.observedLast=&last;
-    Check(ActorTimeline::FComputeLifetime(observation.Core(),-2,false,publication.Source(),&last) && last==0);
+    const auto timeline=publication.Services();
+    Check(mm_actor_lifetime(observation.Route(),observation.Events(),-2,0,&last,klwMax,&timeline) && last==0);
 }
 
 struct SeekTrace
@@ -3731,27 +3742,21 @@ struct SeekTrace
 };
 
 static bool RunCoreSeek(ActorFrameState &state, ActorTrack &track, LegacyLong first, LegacyLong last, LegacyLong target,
-                        const ActorStepSource &steps, SeekTrace &trace)
+                        const MMActorTimelineServices &timeline, SeekTrace &trace)
 {
     if (!actorSeekSnapshot) if (const char *path=std::getenv("MM_ACTOR_SEEK_SNAPSHOT")) { actorSeekSnapshot=std::fopen(path,"wb"); Check(actorSeekSnapshot); }
     auto record=[&](const void *p,size_t n) { RecordActorTimelineBytes(actorSeekSnapshot,p,n); };
     LegacyLong inputs[]={201,first,last,target}; record(inputs,sizeof(inputs)); RecordActorFrameState(state,actorSeekSnapshot);
     MMActorSeek seek;
     mm_actor_seek_init(&seek, first, last, target);
-    EngineActorTimeline::Host host = {&steps, &state};
-    const auto timeline = EngineActorTimeline::Services(&host);
     auto complete = [&](bool success) {
-        auto value = EngineActorMotion::Core(state);
-        Check(mm_actor_seek_complete(&seek, &value, success));
-        EngineActorMotion::Publish(state, value);
+        Check(mm_actor_seek_complete(&seek, &state, success));
     };
     bool dirty = false;
     for (;;)
     {
-        auto value = EngineActorMotion::Core(state);
         MMActorSeekCommand command;
-        Check(mm_actor_seek_next(&seek, &value, track.Route(), track.Events(), &command, &timeline));
-        EngineActorMotion::Publish(state, value);
+        Check(mm_actor_seek_next(&seek, &state, track.Route(), track.Events(), &command, &timeline));
         LegacyLong values[]={202,command.kind,command.displayFrame,seek.success}; record(values,sizeof(values)); RecordActorFrameState(state,actorSeekSnapshot);
         if (command.kind == MM_ACTOR_SEEK_FINISHED) {
             LegacyLong effects[]={trace.count,trace.recording,trace.ordinarySounds,trace.motionRegistrations}; record(effects,sizeof(effects));
@@ -3782,9 +3787,7 @@ static bool RunCoreSeek(ActorFrameState &state, ActorTrack &track, LegacyLong fi
             inputs.firstFrame = first;
             inputs.displayFrame = command.displayFrame;
             inputs.recording = trace.recording;
-            BRS step = rZero;
-            inputs.stepSucceeded = steps.FPlaybackStep(state, &step);
-            inputs.step = step;
+            inputs.stepSucceeded = mm_actor_playback_step(&state, &inputs.step, &timeline);
             FrameTrace frameTrace;
             const auto result = RunCoreFrame(state, track, inputs, dirty, frameTrace);
             dirty = result.positionDirty && !result.positionBody;
@@ -3825,46 +3828,46 @@ static void TestActorSeekControl()
     for (LegacyLong target : order)
     {
         SeekTrace trace;
-        Check(RunCoreSeek(seek, track, 1, 9, target, ActorStepSource(), trace));
+        Check(RunCoreSeek(seek, track, 1, 9, target, mm_actor_track_timeline_services(), trace));
         Check(ActorFrameTest::SameState(seek, expected[target]));
         Check(trace.ordinarySounds == (target == 2 ? 1 : 0));
         if (target == 12)
             Check(trace.count == 0); // Beyond-lifetime numeric backup needs no effects.
     }
     SeekTrace unchanged;
-    Check(RunCoreSeek(seek, track, 1, 9, 13, ActorStepSource(), unchanged) && unchanged.count == 0);
+    Check(RunCoreSeek(seek, track, 1, 9, 13, mm_actor_track_timeline_services(), unchanged) && unchanged.count == 0);
     SeekTrace beforeFirst;
     beforeFirst.recording = true;
-    Check(RunCoreSeek(seek, track, 1, 9, -5, ActorStepSource(), beforeFirst));
+    Check(RunCoreSeek(seek, track, 1, 9, -5, mm_actor_track_timeline_services(), beforeFirst));
     Check(beforeFirst.count == 2 && beforeFirst.commands[0].kind == MM_ACTOR_SEEK_HIDE &&
           beforeFirst.commands[1].kind == MM_ACTOR_SEEK_RESET_COSTUME && !beforeFirst.recording &&
           !seek.onStage);
     Check(seek.frame == -5);
     SeekTrace beforeFirstForward;
-    Check(RunCoreSeek(seek, track, 1, 9, -2, ActorStepSource(), beforeFirstForward));
+    Check(RunCoreSeek(seek, track, 1, 9, -2, mm_actor_track_timeline_services(), beforeFirstForward));
     Check(beforeFirstForward.count == 0 && seek.frame == -4); // Pin inherited before-first compatibility behavior.
     ActorTrack empty;
     Check(empty.FCreate());
     ActorFrameState emptyState;
     SeekTrace emptyTrace;
-    Check(RunCoreSeek(emptyState, empty, knfrmInvalid, knfrmInvalid, 5, ActorStepSource(), emptyTrace));
+    Check(RunCoreSeek(emptyState, empty, knfrmInvalid, knfrmInvalid, 5, mm_actor_track_timeline_services(), emptyTrace));
     Check(emptyState.frame == 5 && emptyTrace.count == 1 &&
           emptyTrace.commands[0].kind == MM_ACTOR_SEEK_RESET_COSTUME);
 
     seek = ActorFrameState();
     SeekTrace failedFrame;
     failedFrame.failFrame = 3;
-    Check(!RunCoreSeek(seek, track, 1, 9, 5, ActorStepSource(), failedFrame));
+    Check(!RunCoreSeek(seek, track, 1, 9, 5, mm_actor_track_timeline_services(), failedFrame));
     Check(seek.frame == 5 && failedFrame.count == 6 && failedFrame.frames[failedFrame.count - 1] == 5);
     Check(ActorFrameTest::SameState(seek, expected[5]));
     seek = expected[4];
     SeekTrace recording;
     recording.recording = true;
-    Check(RunCoreSeek(seek, track, 1, 9, 6, ActorStepSource(), recording));
+    Check(RunCoreSeek(seek, track, 1, 9, 6, mm_actor_track_timeline_services(), recording));
     Check(recording.recording && seek.onStage && recording.count == 2); // Forward recording skips removal events.
     SeekTrace rewind;
     rewind.recording = true;
-    Check(RunCoreSeek(seek, track, 1, 9, 3, ActorStepSource(), rewind));
+    Check(RunCoreSeek(seek, track, 1, 9, 3, mm_actor_track_timeline_services(), rewind));
     Check(!rewind.recording && rewind.commands[0].kind == MM_ACTOR_SEEK_RESET_COSTUME);
     Check(ActorFrameTest::SameState(seek, expected[3]));
 
@@ -3889,12 +3892,12 @@ static void TestActorSeekControl()
     quickStart.actionFlags = factnRotateY;
     seek = quickStart;
     SeekTrace quick;
-    Check(RunCoreSeek(seek, straight, 1, 20, 8, ActorStepSource(), quick));
+    Check(RunCoreSeek(seek, straight, 1, 20, 8, mm_actor_track_timeline_services(), quick));
     Check(quick.count == 1 && quick.commands[0].kind == MM_ACTOR_SEEK_QUICK_EFFECTS && seek.frame == 8);
     seek = quickStart;
     SeekTrace failedQuick;
     failedQuick.failQuickEffects = true;
-    Check(!RunCoreSeek(seek, straight, 1, 20, 8, ActorStepSource(), failedQuick));
+    Check(!RunCoreSeek(seek, straight, 1, 20, 8, mm_actor_track_timeline_services(), failedQuick));
     Check(failedQuick.count == 1 && seek.frame == 8); // No replay after host effects fail.
     seek = quickStart;
     seek.step = kdwrNil;
@@ -3902,7 +3905,7 @@ static void TestActorSeekControl()
     StepProbe resolverFailure;
     resolverFailure.failOn = 1;
     SeekTrace numericFailure;
-    Check(!RunCoreSeek(seek, straight, 1, 20, 8, resolverFailure.Source(), numericFailure));
+    Check(!RunCoreSeek(seek, straight, 1, 20, 8, resolverFailure.Services(), numericFailure));
     Check(numericFailure.count == 0 && ActorFrameTest::SameState(seek, beforeFailure));
 
     ActorTrack vertical;
@@ -3925,7 +3928,7 @@ static void TestActorSeekControl()
     seek.position = {BR_SCALAR(2), BR_SCALAR(4), rZero};
     seek.nextEvent = 2;
     SeekTrace fallback;
-    Check(RunCoreSeek(seek, vertical, 1, 20, 3, ActorStepSource(), fallback));
+    Check(RunCoreSeek(seek, vertical, 1, 20, 3, mm_actor_track_timeline_services(), fallback));
     Check(fallback.count == 4 && fallback.commands[0].kind == MM_ACTOR_SEEK_RESET_COSTUME &&
           fallback.commands[1].kind == MM_ACTOR_SEEK_FRAME && fallback.commands[3].displayFrame);
     Check(seek.frame == 3 && seek.position.dxr == rZero && seek.position.dyr == BR_SCALAR(4));

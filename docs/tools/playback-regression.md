@@ -24033,3 +24033,43 @@ Text Acid candidate `20261123T113622Z-d2d0f79d` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched retail and V3DMM frame order in seek and playback.
 Evidence is under `tmp/c89-live-actor-pose`.
+
+## C89 template step lookup (23 November 2026)
+
+Studio and Preview bind the shared C89 timeline evaluator to the actor's
+current template slot. Step, recording and lifetime queries resolve action
+distances through the C89 BRender reader. The fixture switches templates
+under an existing binding and checks empty slots, failed lookups, action
+speed scaling and explicit steps.
+
+The native timeline and seek fixtures exercise the C89 entry points directly.
+Their 4,438-byte and 26,564-byte traces matched the prior build byte for byte.
+The legacy C++ actor timeline translation unit has been removed from the
+native, SDL and x86 worker builds.
+
+All 230 selected native checks, 13 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks. Marcus produced
+a byte-identical startup image after relaunching headlessly.
+
+Native transform, subroute, stage and recording traces matched the prior
+build. Actor creation and movie-content traces matched in the native and
+SDL builds. The native save and the 27,056-byte Studio authoring movie
+also matched after editing, saving and reopening.
+
+The edited and copied 3D text archives matched the retained saves. Both
+rebuilt ports reopened the copied save in `20261123T114806Z-3685917e`
+and matched the frame and canvas captured by retail and V3DMM in
+`20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T114806Z-3d5b2362` matched the prior port
+canvases and scene states on all 60 seeks per port. Both ports matched
+retail and V3DMM frame order in seek and playback. Studio matched all 240
+actor snapshots, including root and part matrices and route positions at
+Studio's recorded precision. Both ports matched 59 of 60 retail and V3DMM
+seek canvases. Scene 0, frame 4 retained its prior canvas difference.
+
+Text Acid candidate `20261123T114806Z-6c182efe` matched baseline
+`20261123T113622Z-d2d0f79d` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched retail and V3DMM frame order in seek and playback.
+Evidence is under `tmp/c89-actor-template-step`.
