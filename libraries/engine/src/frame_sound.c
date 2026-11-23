@@ -236,11 +236,22 @@ int mm_frame_sound_queue_open(MMFrameSoundQueue *queue, const MMStorageAllocator
                               void (*retain)(void *), void (*release)(void *), int trash_unused,
                               const MMFrameSoundOutput *s)
 {
+    if (queue->clock)
+        return 1;
+    queue->output = *s;
     if (!mm_frame_sound_queue_init(queue, allocator, retain, release, trash_unused))
         return 0;
-    if (!queue->clock)
-        queue->clock = s->create_clock(s->context);
+    queue->clock = queue->output.create_clock(queue->output.context);
     return queue->clock != NULL;
+}
+
+static void retain_sound(void *sound) { mm_sound_owner_retain(sound); }
+static void release_sound(void *sound) { mm_sound_owner_release(sound); }
+
+int mm_frame_sound_queue_open_owners(MMFrameSoundQueue *queue, const MMStorageAllocator *allocator,
+                                     int trash_unused, const MMFrameSoundOutput *output)
+{
+    return mm_frame_sound_queue_open(queue, allocator, retain_sound, release_sound, trash_unused, output);
 }
 
 void mm_frame_sound_stop_classes(void *context, void (*stop_class)(void *, MMI32))
@@ -250,23 +261,30 @@ void mm_frame_sound_stop_classes(void *context, void (*stop_class)(void *, MMI32
     stop_class(context, MM_SOUND_CLASS_LOOP_MIDI);
 }
 
-void mm_frame_sound_queue_stop(const MMFrameSoundQueue *queue, const MMFrameSoundOutput *s)
+void mm_frame_sound_queue_stop(const MMFrameSoundQueue *queue)
 {
+    const MMFrameSoundOutput *s = &queue->output;
     if (queue->clock)
         s->stop_clock(s->context, queue->clock);
-    mm_frame_sound_stop_classes(s->context, s->stop_class);
+    if (s->stop_class)
+        mm_frame_sound_stop_classes(s->context, s->stop_class);
 }
 
-void mm_frame_sound_queue_alarm(const MMFrameSoundQueue *queue, const MMFrameSoundOutput *s)
+void mm_frame_sound_queue_alarm(const MMFrameSoundQueue *queue)
 {
+    const MMFrameSoundOutput *s = &queue->output;
     /* Unregister the delivered clock before the legacy StopAll path. */
-    s->stop_clock(s->context, queue->clock);
-    mm_frame_sound_queue_stop(queue, s);
+    if (queue->clock)
+    {
+        s->stop_clock(s->context, queue->clock);
+        mm_frame_sound_queue_stop(queue);
+    }
 }
 
-void mm_frame_sound_queue_close(MMFrameSoundQueue *queue, const MMFrameSoundOutput *s)
+void mm_frame_sound_queue_close(MMFrameSoundQueue *queue)
 {
-    mm_frame_sound_queue_stop(queue, s);
+    const MMFrameSoundOutput *s = &queue->output;
+    mm_frame_sound_queue_stop(queue);
     mm_frame_sound_queue_clear(queue);
     if (queue->clock)
     {
@@ -274,10 +292,12 @@ void mm_frame_sound_queue_close(MMFrameSoundQueue *queue, const MMFrameSoundOutp
         queue->clock = NULL;
     }
     mm_frame_sound_queue_dispose(queue);
+    memset(&queue->output, 0, sizeof(queue->output));
 }
 
-void mm_frame_sound_queue_play(MMFrameSoundQueue *queue, const MMFrameSoundOutput *s)
+void mm_frame_sound_queue_play(MMFrameSoundQueue *queue)
 {
+    const MMFrameSoundOutput *s = &queue->output;
     MMFrameSoundRequest request;
     MMI32 interval;
     int dispatch = mm_frame_sound_queue_dispatch(queue);
@@ -298,12 +318,13 @@ void mm_frame_sound_queue_play(MMFrameSoundQueue *queue, const MMFrameSoundOutpu
     {
         s->start_clock(s->context, queue->clock);
         if (!s->set_alarm(s->context, queue->clock, interval))
-            mm_frame_sound_queue_stop(queue, s);
+            mm_frame_sound_queue_stop(queue);
     }
 }
 
-int mm_frame_sound_playing(int loop, const MMFrameSoundOutput *s)
+int mm_frame_sound_queue_playing(const MMFrameSoundQueue *queue, int loop)
 {
+    const MMFrameSoundOutput *s = &queue->output;
     return loop ? s->playing_class(s->context, MM_SOUND_CLASS_LOOP_MIDI) ||
                   s->playing_class(s->context, MM_SOUND_CLASS_LOOP_WAVE)
                 : s->playing_class(s->context, MM_SOUND_CLASS_NONLOOP);

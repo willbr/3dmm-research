@@ -24279,3 +24279,48 @@ duplicate samples were removed. Both ports matched retail and V3DMM frame
 order in seek and playback.
 
 Evidence is under `tmp/c89-text-box-bindings`.
+
+## C89 movie frame-sound queue (23 November 2026)
+
+Studio's C89 movie runtime owns the frame-sound queue and its output binding.
+Actor, scene, undo and Studio preview callers use the queue directly. The
+C++ `MovieSoundQueue` command-handler object has been removed. The native
+clock delivers a preview alarm to its movie, which routes it to the queue.
+The queue owns teardown of pending requests, sound classes and the clock.
+
+The native regression delivers a preview alarm through the real clock and
+checks that movie transport receives no render command. It also covers mute,
+long playback with a pending preview alarm, and alarm allocation failure.
+C fixtures cover failed initialization, output binding lifetime and
+idempotent teardown.
+
+The native actor cue, movie sound, sound resource and actor sound edit
+traces matched across 43,328, 15,580, 99,001 and 7,456 bytes. All eight scene
+traces matched. The existing debug `scene-load` fingerprint assertion still
+follows the same 63,224-byte trace (`0D666753`).
+
+235 native checks, 13 SDL checks and three x86 worker fixtures passed.
+All ten Preview fingerprints matched the previous build.
+
+Native and SDL save/load passed. Studio authored and reopened the same
+27,056-byte movie. Marcus relaunched headlessly with the same startup image.
+The edited and copied 3D text archives matched their retained saves. Both
+ports reopened the copied save in `20261123T131017Z-3deadd50` and matched the
+scene, frame and canvas from retail and V3DMM in `20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T131017Z-0cc189cc` matched all 12 Studio sound
+device requests from the previous build, retail and V3DMM. The two ports and
+both originals recorded the authored 600 Hz ordinary cue and 1300 Hz motion
+cue in their first-scene mixed PCM. All 60 seek canvases and scene states
+per port matched the previous build. Both ports matched retail and V3DMM
+frame order in seek and playback. Studio matched all 240 actor snapshots at
+the recorded precision. Both ports matched 59 of 60 retail and V3DMM seek
+canvases, with the same difference at scene 0, frame 4.
+
+Text Acid candidate `20261123T131017Z-7f9f925d` matched all 240 seek canvases
+and caption and camera states from the previous build in each port. Both
+ports matched all 371 playback presentations after consecutive duplicates
+were removed. Each port matched all 240 authored frames in seek and playback
+order against the previous build, retail and V3DMM.
+
+Evidence is under `tmp/c89-frame-sound-runtime`.

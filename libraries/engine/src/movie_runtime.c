@@ -33,9 +33,12 @@ int mm_movie_runtime_open(MMMovieRuntime *runtime, void *client, void *path, MMU
     runtime->world = s->create_world(s->context, client, half);
     if (!runtime->world)
         goto done;
-    runtime->sounds = s->create_sounds(s->context);
-    if (!runtime->sounds)
+    mm_frame_sound_queue_prepare(&runtime->sounds);
+    if (!mm_frame_sound_queue_open_owners(&runtime->sounds, s->sound_allocator, s->sound_trash, &s->sound_output))
+    {
+        mm_frame_sound_queue_close(&runtime->sounds);
         goto done;
+    }
     mm_movie_runtime_set_ref(&runtime->client, client, s->retain, s->release);
     if (!working)
         return 1;
@@ -90,6 +93,6 @@ void mm_movie_runtime_dispose(MMMovieRuntime *runtime, MMPlaybackState *playback
 
     mm_movie_runtime_set_ref(&runtime->client, NULL, s->retain, s->release);
     mm_movie_runtime_set_ref(&runtime->world, NULL, s->retain, s->release);
-    mm_movie_runtime_set_ref(&runtime->sounds, NULL, s->retain, s->release);
+    mm_frame_sound_queue_close(&runtime->sounds);
     mm_movie_runtime_set_ref(&runtime->thumbnail_palette, NULL, s->retain, s->release);
 }

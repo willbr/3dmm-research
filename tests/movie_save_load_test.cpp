@@ -2216,59 +2216,10 @@ static bool TestActorPlacement()
     return true;
 }
 
-class QueueTestClock : public Clock
+static bool TestSoundQueueRuntime(PMovie parent)
 {
-  public:
-    QueueTestClock() : Clock(khidMsqClock + 13)
-    {
-    }
-    long AlarmCount() const
-    {
-        return _clock.count;
-    }
-    ulong FirstAlarm() const
-    {
-        MMClockAlarm alarm = {};
-        AssertDo(mm_alarm_clock_at(&_clock, 0, &alarm), "missing alarm");
-        return alarm.time;
-    }
-};
-
-class QueueTestAdapter : public MovieSoundQueue
-{
-  public:
-    QueueTestAdapter() : MovieSoundQueue(khidMsq + 13)
-    {
-    }
-    bool FInit()
-    {
-        auto output = _Output();
-        output.create_clock = [](void *) -> void * { return static_cast<PClock>(NewObj QueueTestClock()); };
-        return mm_frame_sound_queue_open(&_queue, KauaiCopyAllocator(),
-            [](void *p) { mm_sound_owner_retain(static_cast<PMovieSoundMSND>(p)); },
-            [](void *p) { mm_sound_owner_release(static_cast<PMovieSoundMSND>(p)); }, 0, &output) != 0;
-    }
-    long Pending() const
-    {
-        return _queue.count;
-    }
-    long Alarms() const
-    {
-        return static_cast<QueueTestClock *>(static_cast<PClock>(_queue.clock))->AlarmCount();
-    }
-    ulong FirstAlarm() const
-    {
-        return static_cast<QueueTestClock *>(static_cast<PClock>(_queue.clock))->FirstAlarm();
-    }
-    bool Take(MMFrameSoundRequest *request)
-    {
-        return mm_frame_sound_queue_dequeue(&_queue, request) != 0;
-    }
-};
-
-static bool TestSoundQueueRuntime()
-{
-    QueueTestAdapter *queue = NewObj QueueTestAdapter();
+    auto movie = Movie::PmvieNew(false, parent->Pmcc());
+    auto queue = movie ? movie->SoundQueue() : nullptr;
     auto sound = mm_sound_owner_create(&EngineSound::Host());
     if (sound)
     {
@@ -2277,13 +2228,19 @@ static bool TestSoundQueueRuntime()
         state->resource.volume = 123;
         state->silent = tYes; // Exercise dispatch without an audio file/device.
     }
-    QueueTestAdapter *failedAlarm = pvNil;
+    MMFrameSoundQueue failedAlarm = {};
+    const MMFrameSoundRequest cue = {sound, stySfx, 37, 123, 5, 0, 0, 0, 0};
+    const MMFrameSoundRequest actor = {sound, stySfx, 37, 123, 5, 456, 1, 0, 1};
     MMFrameSoundRequest request = {};
-    ulong firstAlarm = 0;
+    MMClockAlarm firstAlarm = {}, remainingAlarm = {};
+    PClock clock = nullptr;
+    Command idle = {};
+    bool renderQueued = false;
     bool ok = false;
-    if (queue == pvNil || sound == pvNil || !queue->FInit() || queue->DtimSnd() != kdtim2Msq)
+    if (!queue || !sound || queue->duration != MM_FRAME_SOUND_SHORT)
         goto done;
-    if (!queue->FEnqueue(sound, 37, true, false, 123, 5, true, 456) || mm_sound_owner_references(sound) != 2 || !queue->Take(&request))
+    if (!mm_frame_sound_queue_enqueue(queue, &actor, 0) || mm_sound_owner_references(sound) != 2 ||
+        !mm_frame_sound_queue_dequeue(queue, &request))
         goto done;
     if (request.sound != sound || request.style != stySfx || request.object != 37 || !request.actor ||
         !request.loop || request.queued || request.volume != 123 || request.priority != 5 || request.offset != 456)
@@ -2292,40 +2249,53 @@ static bool TestSoundQueueRuntime()
     request.sound = nullptr;
     if (mm_sound_owner_references(sound) != 1 || mm_sound_queue_number(stySfx, 37, 1) != 0x10020025)
         goto done;
-    if (!queue->FEnqueue(sound, 37, false, false, 123, 5))
+    if (!mm_frame_sound_queue_enqueue(queue, &cue, 0))
         goto done;
-    queue->PlayMsq();
-    if (queue->Pending() != 0 || mm_sound_owner_references(sound) != 1 || queue->Alarms() != 1)
+    mm_frame_sound_queue_play(queue);
+    clock = static_cast<PClock>(queue->clock);
+    if (queue->count || mm_sound_owner_references(sound) != 1 || clock->CoreClock()->count != 1 ||
+        !mm_alarm_clock_at(clock->CoreClock(), 0, &firstAlarm) ||
+        firstAlarm.target != static_cast<PCommandHandler>(movie))
         goto done;
-    firstAlarm = queue->FirstAlarm();
-    queue->SndOnLong();
-    if (!queue->FEnqueue(sound, 37, false, false, 123, 5))
+    queue->duration = MM_FRAME_SOUND_LONG;
+    if (!mm_frame_sound_queue_enqueue(queue, &cue, 0))
         goto done;
-    queue->PlayMsq();
-    if (queue->Pending() != 0 || mm_sound_owner_references(sound) != 1 || queue->Alarms() != 1 || queue->FirstAlarm() != firstAlarm)
-        goto done; // Long mode adds no alarm and does not cancel the existing preview alarm.
-    if (!queue->FEnqueue(sound, 37, false, false, 123, 5))
+    mm_frame_sound_queue_play(queue);
+    if (queue->count || mm_sound_owner_references(sound) != 1 || clock->CoreClock()->count != 1 ||
+        !mm_alarm_clock_at(clock->CoreClock(), 0, &remainingAlarm) || remainingAlarm.time != firstAlarm.time)
+        goto done; // Long mode preserves the existing preview alarm.
+    if (!mm_frame_sound_queue_enqueue(queue, &cue, 0))
         goto done;
-    queue->SndOff();
-    queue->PlayMsq();
-    if (queue->Pending() != 0 || mm_sound_owner_references(sound) != 1 || queue->Alarms() != 1)
+    queue->duration = MM_FRAME_SOUND_OFF;
+    mm_frame_sound_queue_play(queue);
+    if (queue->count || mm_sound_owner_references(sound) != 1 || clock->CoreClock()->count != 1)
+        goto done;
+    movie->SetFIdleSeen(true);
+    renderQueued = vpcex->FCidIn(cidRender);
+    idle.cid = cidIdle;
+    clock->Start(firstAlarm.time);
+    clock->FCmdAll(&idle);
+    if (clock->CoreClock()->count || !movie->FIdleSeen() || vpcex->FCidIn(cidRender) != renderQueued)
         goto done;
 #ifdef DEBUG
-    failedAlarm = NewObj QueueTestAdapter();
-    if (failedAlarm == pvNil || !failedAlarm->FInit() || !failedAlarm->FEnqueue(sound, 37, false, false, 123, 5))
-        goto done;
     {
+        const auto output = MovieSoundOutput(movie);
+        mm_frame_sound_queue_prepare(&failedAlarm);
+        if (!mm_frame_sound_queue_open_owners(&failedAlarm, KauaiCopyAllocator(), 0, &output) ||
+            !mm_frame_sound_queue_enqueue(&failedAlarm, &cue, 0))
+            goto done;
         vmutxMem.Enter();
         vdmglob.dmaglHq.cactDo = 0;
         vdmglob.dmaglHq.cactFail = 2;
         vmutxMem.Leave();
-        failedAlarm->PlayMsq(); // Fail both growth attempts for the first alarm after the batch drains.
+        mm_frame_sound_queue_play(&failedAlarm); // Fail both growth attempts for the first alarm.
         vmutxMem.Enter();
-        bool consumed = vdmglob.dmaglHq.cactFail == 0;
+        const bool consumed = vdmglob.dmaglHq.cactFail == 0;
         vdmglob.dmaglHq.cactFail = 0;
         vmutxMem.Leave();
         vpers->Clear();
-        if (!consumed || failedAlarm->Alarms() != 0 || failedAlarm->Pending() != 0 || mm_sound_owner_references(sound) != 1)
+        if (!consumed || static_cast<PClock>(failedAlarm.clock)->CoreClock()->count ||
+            failedAlarm.count || mm_sound_owner_references(sound) != 1)
             goto done;
     }
 #endif
@@ -2333,8 +2303,8 @@ static bool TestSoundQueueRuntime()
 done:
     if (request.sound)
         mm_sound_owner_release(static_cast<PMovieSoundMSND>(request.sound));
-    ReleasePpo(&failedAlarm);
-    ReleasePpo(&queue);
+    mm_frame_sound_queue_close(&failedAlarm);
+    ReleasePpo(&movie);
     mm_sound_owner_release(sound);
     return ok;
 }
@@ -2406,7 +2376,7 @@ static bool TestPlayStartupRuntime(PMovie movie, TestMcc *client)
     bool ok = false;
     movie->Play();
     if (!movie->FPlaying() || movie->FStopPlaying() || !movie->FSoundsEnabled() || movie->Cnfrm() != 0 ||
-        movie->Pmsq()->DtimSnd() != kdtimLongMsq || client->disabled != disabled + 1 || client->stopped != stopped ||
+        movie->SoundQueue()->duration != MM_FRAME_SOUND_LONG || client->disabled != disabled + 1 || client->stopped != stopped ||
         !vpcex->FCidIn(cidMviePlaying))
         goto done;
     movie->Play();
@@ -2426,7 +2396,7 @@ done:
     movie->SetFStopPlaying(false);
     movie->SetFPlaying(false);
     movie->SetFSoundsEnabled(oldSounds);
-    movie->Pmsq()->SndOnShort();
+    movie->SoundQueue()->duration = MM_FRAME_SOUND_SHORT;
     if (movie->Pscen() != pvNil)
     {
         // This empty fixture never prerenders actors. StopPlaying would try
@@ -2572,7 +2542,7 @@ int __cdecl main(int argc, char **argv)
 
     LOG("initializing vpcex (CommandExecutionManager) -- needed by Clock::Stop");
     /* vpcex is normally created by ApplicationBase::_FInit. Clock::Stop
-     * (called transitively from MovieSoundQueue::~MovieSoundQueue ->
+     * (called transitively when the movie runtime closes its sound queue ->
      * StopAll -> Clock::Stop) does vpcex->RemoveCmh(this, ...) so we
      * have to provide a real CommandExecutionManager. */
     vpcex = CommandExecutionManager::PcexNew(20, 20);
@@ -2794,7 +2764,7 @@ int __cdecl main(int argc, char **argv)
         BAIL("actor creation failed");
     if (!TestMovieSoundIntegration(pmvie))
         BAIL("movie sound integration failed");
-    if (!TestSoundQueueRuntime())
+    if (!TestSoundQueueRuntime(pmvie))
         BAIL("sound queue runtime boundary failed");
 
     LOG("playback alarm/idle handoff to render commands");

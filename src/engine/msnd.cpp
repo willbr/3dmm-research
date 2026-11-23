@@ -38,12 +38,6 @@
 
 ASSERTNAME
 
-RTCLASS(MovieSoundQueue)
-
-BEGIN_CMD_MAP(MovieSoundQueue, CommandHandler)
-ON_CID_ME(cidAlarm, &MovieSoundQueue::FCmdAlarm, pvNil)
-END_CMD_MAP_NIL()
-
 static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 &&
                   sizeof(MMSoundResource) == sizeof(void *) + 16,
               "sound resource ABI");
@@ -337,16 +331,16 @@ void StopAllMovieSounds(void)
     mm_frame_sound_stop_classes(nullptr, StopMovieSoundClass);
 }
 
-MMFrameSoundOutput MovieSoundQueue::_Output()
+MMFrameSoundOutput MovieSoundOutput(PCommandHandler alarmTarget)
 {
     MMFrameSoundOutput output = {};
-    output.context = this;
+    output.context = alarmTarget;
     output.create_clock = [](void *) -> void * { return NewObj Clock(khidMsqClock); };
     output.release_clock = [](void *, void *clock) { static_cast<PClock>(clock)->Release(); };
     output.start_clock = [](void *, void *clock) { static_cast<PClock>(clock)->Start(0); };
     output.stop_clock = [](void *, void *clock) { static_cast<PClock>(clock)->Stop(); };
     output.set_alarm = [](void *p, void *clock, MMI32 interval) -> int {
-        return static_cast<PClock>(clock)->FSetAlarm(interval, static_cast<PMovieSoundQueue>(p));
+        return static_cast<PClock>(clock)->FSetAlarm(interval, static_cast<PCommandHandler>(p));
     };
     output.begin = [](void *) { vpsndm->BeginSynch(); };
     output.end = [](void *) { vpsndm->EndSynch(); };
@@ -357,103 +351,3 @@ MMFrameSoundOutput MovieSoundQueue::_Output()
     output.playing_class = [](void *, MMI32 soundClass) -> int { return vpsndm->FPlayingAll(sqnNil, soundClass); };
     return output;
 }
-
-PMovieSoundQueue MovieSoundQueue::PmsqNew(void)
-{
-    auto queue = NewObj MovieSoundQueue(khidMsq);
-    if (!queue)
-        return pvNil;
-    const auto output = queue->_Output();
-#ifdef DEBUG
-    constexpr int trashUnused = 1;
-#else
-    constexpr int trashUnused = 0;
-#endif
-    if (!mm_frame_sound_queue_open(&queue->_queue, KauaiCopyAllocator(),
-                                   [](void *p) { mm_sound_owner_retain(static_cast<MMSoundOwner *>(p)); },
-                                   [](void *p) { mm_sound_owner_release(static_cast<MMSoundOwner *>(p)); },
-                                   trashUnused, &output))
-        ReleasePpo(&queue);
-    return queue;
-}
-
-bool MovieSoundQueue::FEnqueue(PMovieSoundMSND sound, long object, bool loop, bool queued, long volume, long priority,
-                               bool actor, ulong offset, bool lowPriority)
-{
-    AssertThis(0);
-    Assert(sound, "Missing sound owner");
-    const MMFrameSoundRequest request = {sound, static_cast<MMI32>(EngineSound::Style(sound)),
-        static_cast<MMI32>(object), static_cast<MMI32>(volume), static_cast<MMI32>(priority),
-        static_cast<MMU32>(offset), loop, queued, actor};
-    return mm_frame_sound_queue_enqueue(&_queue, &request, lowPriority) != 0;
-}
-
-void MovieSoundQueue::PlayMsq(void)
-{
-    AssertThis(0);
-    const auto output = _Output();
-    mm_frame_sound_queue_play(&_queue, &output);
-}
-
-void MovieSoundQueue::FlushMsq(void)
-{
-    AssertThis(0);
-    mm_frame_sound_queue_clear(&_queue);
-}
-
-void MovieSoundQueue::StopAll(void)
-{
-    const auto output = _Output();
-    mm_frame_sound_queue_stop(&_queue, &output);
-}
-
-bool MovieSoundQueue::FPlaying(bool loop)
-{
-    AssertThis(0);
-    const auto output = _Output();
-    return mm_frame_sound_playing(loop, &output) != 0;
-}
-
-bool MovieSoundQueue::FCmdAlarm(PCommand pcmd)
-{
-    AssertThis(0);
-    AssertVarMem(pcmd);
-    const auto output = _Output();
-    mm_frame_sound_queue_alarm(&_queue, &output);
-    return true;
-}
-
-MovieSoundQueue::~MovieSoundQueue(void)
-{
-    AssertBaseThis(0);
-    const auto output = _Output();
-    mm_frame_sound_queue_close(&_queue, &output);
-}
-
-#ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the MovieSoundQueue.
-***************************************************************************/
-void MovieSoundQueue::AssertValid(LegacyUlong grf)
-{
-    MovieSoundQueue_PAR::AssertValid(fobjAllocated);
-    Assert(_queue.initialized, "Invalid sound request storage");
-    Assert(_queue.count <= _queue.storage.buffers[0].capacity / sizeof(MMFrameSoundRequest),
-           "Invalid sound request count");
-    AssertPo(static_cast<PClock>(_queue.clock), 0);
-}
-
-/***************************************************************************
-    Mark memory used by the MovieSoundQueue
-***************************************************************************/
-void MovieSoundQueue::MarkMem(void)
-{
-    AssertThis(0);
-    MovieSoundQueue_PAR::MarkMem();
-    MarkPv(_queue.storage.buffers[0].data);
-    for (MMU32 index = 0; index < _queue.count; ++index)
-        mm_sound_owner_services()->mark_memory(mm_frame_sound_queue_at(&_queue, index)->sound);
-    MarkMemObj(static_cast<PClock>(_queue.clock));
-}
-
-#endif // DEBUG

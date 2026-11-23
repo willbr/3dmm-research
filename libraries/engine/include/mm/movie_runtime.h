@@ -3,14 +3,16 @@
 #ifndef MM_ENGINE_MOVIE_RUNTIME_H
 #define MM_ENGINE_MOVIE_RUNTIME_H
 #include "movie_save.h"
+#include "frame_sound.h"
 #ifdef __cplusplus
 extern "C"
 {
 #endif
     typedef struct MMMovieRuntime
     {
-        void *client, *world, *sounds, *thumbnail_palette;
+        void *client, *world, *thumbnail_palette;
         MMAlarmPlayback transport;
+        MMFrameSoundQueue sounds;
     } MMMovieRuntime;
     typedef struct MMMovieRuntimeServices
     {
@@ -20,7 +22,10 @@ extern "C"
         const MMMovieSceneServices *scenes;
         int (*prepare)(void *, void *original, void **working);
         int (*init_undo)(void *);
-        void *(*create_world)(void *, void *client, int half), *(*create_sounds)(void *);
+        void *(*create_world)(void *, void *client, int half);
+        const MMStorageAllocator *sound_allocator;
+        MMFrameSoundOutput sound_output;
+        int sound_trash;
         void (*retain)(void *), (*release)(void *);
         void (*discard_document)(void *);
         void (*missing_saved_file)(void *);

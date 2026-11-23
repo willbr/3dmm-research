@@ -16,7 +16,6 @@
 #define khidMscb khidLimKidFrame
 #define khidMvieClock khidLimKidFrame + 1
 #define khidRcd khidLimKidFrame + 2
-#define khidMsq khidLimKidFrame + 3
 #define khidMsqClock khidLimKidFrame + 4
 // khidStudio 				khidLimKidFrame + 5  Defined in stdiodef.h
 

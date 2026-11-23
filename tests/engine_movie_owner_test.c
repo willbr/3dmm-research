@@ -768,9 +768,9 @@ struct RuntimeCase
     MMMovieSaveServices saves;
     MMMovieSceneServices scene_services;
     MMMovieRuntimeServices services;
-    RuntimeRef client, world, sounds, palette;
+    RuntimeRef client, world, clock, palette;
     unsigned fail;
-    int working, bundle, busy, discarded, disable_fades;
+    int working, bundle, busy, discarded, disable_fades, sound_stops;
     void *container_name, *title_path;
 };
 enum { PREPARE_FAILED = 1, UNDO_FAILED, WORLD_FAILED, SOUNDS_FAILED, BIND_FAILED, CACHE_FAILED };
@@ -799,15 +799,26 @@ static void *create_world(void *context, void *client, int half)
     ++t->world.refs;
     return &t->world;
 }
-static void *create_sounds(void *context)
+static void *create_sound_clock(void *context)
 {
     RuntimeCase *t = context;
-    CHECK(t->runtime.world == &t->world && t->client.refs == 1 && !t->busy);
+    CHECK(t->runtime.world == &t->world && t->client.refs == 1 && !t->busy && t->runtime.sounds.initialized);
     event(&t->archive, 'q');
     if (t->fail == SOUNDS_FAILED)
         return NULL;
-    ++t->sounds.refs;
-    return &t->sounds;
+    ++t->clock.refs;
+    return &t->clock;
+}
+static void stop_sound_clock(void *context, void *clock)
+{
+    RuntimeCase *t = context;
+    CHECK(clock == &t->clock && t->clock.refs == 1);
+}
+static void stop_sound_class(void *context, MMI32 sound_class)
+{
+    RuntimeCase *t = context;
+    CHECK(sound_class == t->sound_stops && sound_class < 3);
+    ++t->sound_stops;
 }
 static void retain_runtime(void *p)
 {
@@ -822,6 +833,12 @@ static void release_runtime(void *p)
     CHECK(ref->refs > 0);
     --ref->refs;
     event(&ref->test->archive, ref->released);
+}
+static void release_sound_clock(void *context, void *clock)
+{
+    RuntimeCase *t = context;
+    CHECK(clock == &t->clock && !t->runtime.sounds.count && t->sound_stops == 3);
+    release_runtime(clock);
 }
 static void discard_document(void *context)
 {
@@ -908,19 +925,15 @@ static void long_op(void *p, int begin)
 }
 static void runtime_init(RuntimeCase *t)
 {
-    const MMMovieRuntimeServices runtime = {
-        NULL, NULL, NULL, NULL, prepare_runtime, init_undo, create_world, create_sounds,
-        retain_runtime, release_runtime, discard_document, missing_saved, merge_sources,
-        cache_tags, audio_resume, playback_stopped, fades_disabled, restore_volume, roll_call_changed};
     memset(t, 0, sizeof(*t));
     t->bundle = 1;
     t->archive.root_number = 7;
     t->archive.open_path = &t->working;
-    t->client.test = t->world.test = t->sounds.test = t->palette.test = t;
+    t->client.test = t->world.test = t->clock.test = t->palette.test = t;
     t->client.refs = t->palette.refs = 1;
     t->client.released = '-';
     t->world.released = 'W';
-    t->sounds.released = 'Q';
+    t->clock.released = 'Q';
     t->palette.released = 'L';
     mm_movie_state_init(&t->movie, 1);
     mm_movie_save_init(&t->saved);
@@ -944,11 +957,29 @@ static void runtime_init(RuntimeCase *t)
     t->saves.tag_graph = runtime_graph;
     t->scene_services.state = &t->scenes;
     t->scene_services.close = close_scene;
-    t->services = runtime;
     t->services.context = t;
     t->services.owner = &t->owners;
     t->services.save = &t->saves;
     t->services.scenes = &t->scene_services;
+    t->services.prepare = prepare_runtime;
+    t->services.init_undo = init_undo;
+    t->services.create_world = create_world;
+    t->services.sound_output.context = t;
+    t->services.sound_output.create_clock = create_sound_clock;
+    t->services.sound_output.stop_clock = stop_sound_clock;
+    t->services.sound_output.release_clock = release_sound_clock;
+    t->services.sound_output.stop_class = stop_sound_class;
+    t->services.retain = retain_runtime;
+    t->services.release = release_runtime;
+    t->services.discard_document = discard_document;
+    t->services.missing_saved_file = missing_saved;
+    t->services.merge_sources = merge_sources;
+    t->services.cache_tags = cache_tags;
+    t->services.resume_audio = audio_resume;
+    t->services.stop_playback = playback_stopped;
+    t->services.audio_fades_disabled = fades_disabled;
+    t->services.set_volume = restore_volume;
+    t->services.update_roll_call = roll_call_changed;
 }
 static void runtime_lifecycle(void)
 {
@@ -966,7 +997,9 @@ static void runtime_lifecycle(void)
             fprintf(stderr, "runtime failure %u: expected %s, saw %s\n", i, failure_order[i - 1], t.archive.log);
             exit(1);
         }
-        CHECK(t.discarded == 1 && !t.busy && t.client.refs == 1 && !t.world.refs && !t.sounds.refs &&
+        CHECK(t.discarded == 1 && !t.busy && t.client.refs == 1 && !t.world.refs && !t.clock.refs &&
+              !t.runtime.sounds.initialized && !t.runtime.sounds.clock &&
+              t.sound_stops == (i < SOUNDS_FAILED ? 0 : 3) &&
               !t.archive.resources && !t.archive.buffers && !t.title_path);
     }
     runtime_init(&t);
@@ -999,7 +1032,8 @@ static void runtime_lifecycle(void)
         mm_movie_runtime_dispose(&t.runtime, &t.playback, &t.services);
         CHECK(!strcmp(t.archive.log, i == 1 ? "+aRFpjzRA-WQL" : "+aRFpVjzRA-WQL"));
         CHECK(!t.playback.fadeOriginalVolume && !t.scenes.open && t.scenes.index == -1 &&
-              t.client.refs == 1 && !t.world.refs && !t.sounds.refs && t.palette.refs == 1 &&
+              t.client.refs == 1 && !t.world.refs && !t.clock.refs && t.palette.refs == 1 &&
+              !t.runtime.sounds.initialized && !t.runtime.sounds.clock && t.sound_stops == 3 &&
               !t.archive.resources && !t.archive.buffers);
     }
 }

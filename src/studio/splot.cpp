@@ -284,7 +284,7 @@ bool SplotMachine::FCmdUpdate(PCommand pcmd)
         if (_pmvie->Cscen() > 0 && !_pmvie->FRemScen(0))
             goto LFail;
 
-        _pmvie->Pmsq()->SndOff();
+        _pmvie->SoundQueue()->duration = MM_FRAME_SOUND_OFF;
 
 #ifdef BUG1907
         // We will run out of disk space eventually if the HD cache is not
@@ -297,7 +297,7 @@ bool SplotMachine::FCmdUpdate(PCommand pcmd)
         // just purge every five pulls.
         static long _cactPullTilClearCache = 5;
 
-        _pmvie->Pmsq()->StopAll(); // Make sure no sounds are streaming from HD cache
+        mm_frame_sound_queue_stop(_pmvie->SoundQueue()); // Make sure no sounds are streaming from HD cache
         if (--_cactPullTilClearCache == 0)
         {
             vpappb->BeginLongOp();
@@ -318,7 +318,7 @@ bool SplotMachine::FCmdUpdate(PCommand pcmd)
         tagBkgd = thd.tag;
         AssertPo(_pmvie->Pscen(), 0);
 
-        _pmvie->Pmsq()->SndOnLong();
+        _pmvie->SoundQueue()->duration = MM_FRAME_SOUND_LONG;
 
         _pbclCam->GetThd(_ithdCam, &thd);
         if (!vptagm->FBuildChildTag(&tagBkgd, thd.chid, kctgCam, &tagCam))
@@ -352,7 +352,7 @@ bool SplotMachine::FCmdUpdate(PCommand pcmd)
         if (!_pmvie->FAddBkgdSnd(&thd.tag, tribool::tYes, tribool::tNo))
             goto LFail;
 
-        _pmvie->Pmsq()->PlayMsq();
+        mm_frame_sound_queue_play(_pmvie->SoundQueue());
 
         vapp.EndLongOp();
     }
@@ -386,7 +386,7 @@ bool SplotMachine::FCmdDismiss(PCommand pcmd)
 #ifdef BUG1907
     else
     {
-        _pmvie->Pmsq()->StopAll();             // Make sure no sounds are streaming from HD cache
+        mm_frame_sound_queue_stop(_pmvie->SoundQueue());             // Make sure no sounds are streaming from HD cache
         vpappb->BeginLongOp();
         vptagm->ClearCache(sidNil, ftagmFile); // Clear content out of HD cache
         vpappb->EndLongOp();
@@ -408,8 +408,8 @@ SplotMachine::~SplotMachine(void)
             freed */
         Assert(_pmvie->PddgGet(0) == pvNil, "MovieView wasn't freed");
 
-        _pmvie->Pmsq()->StopAll();
-        _pmvie->Pmsq()->SndOnShort();
+        mm_frame_sound_queue_stop(_pmvie->SoundQueue());
+        _pmvie->SoundQueue()->duration = MM_FRAME_SOUND_SHORT;
     }
 
     if (_pglclrSav != pvNil)

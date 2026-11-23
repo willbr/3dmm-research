@@ -1120,49 +1120,52 @@ static void check_sound_output(void)
     mm_frame_sound_queue_prepare(&f.queue);
     CHECK(!mm_frame_sound_queue_open(&f.queue, NULL, output_retain, output_release, 0, &s));
     CHECK(f.queue.initialized && !f.queue.clock);
-    mm_frame_sound_queue_close(&f.queue, &s);
+    mm_frame_sound_queue_close(&f.queue);
     CHECK(!f.queue.initialized);
     output_expect(&f, "c012");
     f.clock_ok = 1;
     CHECK(mm_frame_sound_queue_open(&f.queue, NULL, output_retain, output_release, 0, &s));
     CHECK(mm_frame_sound_queue_open(&f.queue, NULL, output_retain, output_release, 0, &s));
-    mm_frame_sound_queue_play(&f.queue, &s);
+    s.context = NULL; /* Dispatch uses the binding copied at open. */
+    mm_frame_sound_queue_play(&f.queue);
     output_expect(&f, "c");
 
     CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
     request.object = 1;
     CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 1) && f.refs == 3);
-    mm_frame_sound_queue_play(&f.queue, &s);
+    mm_frame_sound_queue_play(&f.queue);
     CHECK(f.refs == 1 && !f.queue.count && f.interval == MM_FRAME_SOUND_SHORT);
     output_expect(&f, "BjrirEsa");
 
     f.queue.duration = MM_FRAME_SOUND_LONG;
     CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
-    mm_frame_sound_queue_play(&f.queue, &s);
+    mm_frame_sound_queue_play(&f.queue);
     output_expect(&f, "BjrE");
     CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
     f.queue.duration = MM_FRAME_SOUND_OFF;
-    mm_frame_sound_queue_play(&f.queue, &s);
+    mm_frame_sound_queue_play(&f.queue);
     output_expect(&f, "r");
 
     f.queue.duration = 37;
     f.alarm_ok = 0;
     CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
-    mm_frame_sound_queue_play(&f.queue, &s);
+    mm_frame_sound_queue_play(&f.queue);
     CHECK(f.refs == 1 && f.interval == 37);
     output_expect(&f, "BjrEsat012");
-    mm_frame_sound_queue_alarm(&f.queue, &s);
+    mm_frame_sound_queue_alarm(&f.queue);
     output_expect(&f, "tt012");
     f.playing_class = 2;
-    CHECK(mm_frame_sound_playing(1, &s));
+    CHECK(mm_frame_sound_queue_playing(&f.queue, 1));
     output_expect(&f, "Z");
     f.playing_class = 1;
-    CHECK(mm_frame_sound_playing(1, &s) && !mm_frame_sound_playing(0, &s));
+    CHECK(mm_frame_sound_queue_playing(&f.queue, 1) && !mm_frame_sound_queue_playing(&f.queue, 0));
     output_expect(&f, "ZYX");
     CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
-    mm_frame_sound_queue_close(&f.queue, &s);
+    mm_frame_sound_queue_close(&f.queue);
     CHECK(f.refs == 1 && !f.queue.initialized && !f.queue.clock);
     output_expect(&f, "t012rd");
+    mm_frame_sound_queue_close(&f.queue);
+    output_expect(&f, "");
 }
 
 /* This executable links with the C linker and only the C89 backend. Existing

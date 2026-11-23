@@ -2307,7 +2307,7 @@ bool BrowserMusic::FCmdDel(PCommand pcmd)
     }
 
     _SetScrollState(); // Set the state of the scroll arrows
-    _pstdio->Pmvie()->Pmsq()->StopAll();
+    mm_frame_sound_queue_stop(_pstdio->Pmvie()->SoundQueue());
     FDraw();
     return fTrue;
 }

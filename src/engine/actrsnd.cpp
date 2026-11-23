@@ -108,8 +108,10 @@ MMActorSoundServices Actor::_SoundServices()
     };
     services.enqueue = [](void *context, void *resource, const MMActorSound *sound, MMI32 priority, int low) {
         auto actor = static_cast<Actor *>(context);
-        return int(actor->_Scene()->Pmvie()->Pmsq()->FEnqueue(static_cast<PMovieSoundMSND>(resource), actor->_owner.runtime.actor,
-                   sound->loop, sound->queue, sound->volume, priority, fTrue, 0, low != 0));
+        const auto style = static_cast<MMI32>(EngineSound::Style(static_cast<PMovieSoundMSND>(resource)));
+        const MMFrameSoundRequest request = {resource, style,
+            actor->_owner.runtime.actor, sound->volume, priority, 0, sound->loop != 0, sound->queue != 0, 1};
+        return mm_frame_sound_queue_enqueue(actor->_Scene()->Pmvie()->SoundQueue(), &request, low);
     };
     services.release = [](void *, void *resource) {
         mm_sound_owner_release(static_cast<PMovieSoundMSND>(resource));

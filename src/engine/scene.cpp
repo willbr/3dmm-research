@@ -110,8 +110,10 @@ MMSceneSoundPacketServices ScenePacketServices(PMovie movie)
     };
     s.enqueue = [](void *p, void *sound, int loop, int queue, MMI32 volume, MMI32 priority,
                    MMU32 start) {
-        static_cast<PMovie>(p)->Pmsq()->FEnqueue(static_cast<PMovieSoundMSND>(sound), 0, loop != 0, queue != 0, volume,
-                                                 priority, fFalse, start);
+        const auto style = static_cast<MMI32>(EngineSound::Style(static_cast<PMovieSoundMSND>(sound)));
+        const MMFrameSoundRequest request = {sound, style,
+            0, volume, priority, start, loop != 0, queue != 0, 0};
+        mm_frame_sound_queue_enqueue(static_cast<PMovie>(p)->SoundQueue(), &request, 0);
     };
     s.release = [](void *, void *sound) {
         mm_sound_owner_release(static_cast<PMovieSoundMSND>(sound));
@@ -865,8 +867,8 @@ MMSceneSoundUndoServices SceneUndoSound::_Services()
         auto u = static_cast<PSceneUndoSound>(p);
         return u->Pmvie()->Pscen()->FGotoFrm(u->Nfrm());
     };
-    s.flush = [](void *p) { static_cast<PSceneUndoSound>(p)->Pmvie()->Pmsq()->FlushMsq(); };
-    s.play = [](void *p) { static_cast<PSceneUndoSound>(p)->Pmvie()->Pmsq()->PlayMsq(); };
+    s.flush = [](void *p) { mm_frame_sound_queue_clear(static_cast<PSceneUndoSound>(p)->Pmvie()->SoundQueue()); };
+    s.play = [](void *p) { mm_frame_sound_queue_play(static_cast<PSceneUndoSound>(p)->Pmvie()->SoundQueue()); };
     s.clear = [](void *p) { static_cast<PSceneUndoSound>(p)->Pmvie()->ClearUndo(); };
     s.get = [](void *p, MMI32 style, int *found, MMSceneSound **out) -> int {
         auto u = static_cast<PSceneUndoSound>(p);
@@ -2195,9 +2197,9 @@ MMSceneThumbnailServices Scene::_ThumbnailServices(void *graphics)
     s.owner = &_owner;
     s.owners = _OwnerServices();
     s.selection = _SelectionServices();
-    s.sound_time = [](void *p) -> MMI32 { return static_cast<Scene *>(p)->Pmvie()->Pmsq()->DtimSnd(); };
-    s.mute = [](void *p) { static_cast<Scene *>(p)->Pmvie()->Pmsq()->SndOff(); };
-    s.resume = [](void *p, MMI32 time) { static_cast<Scene *>(p)->Pmvie()->Pmsq()->SndOnDtim(time); };
+    s.sound_time = [](void *p) -> MMI32 { return static_cast<Scene *>(p)->Pmvie()->SoundQueue()->duration; };
+    s.mute = [](void *p) { static_cast<Scene *>(p)->Pmvie()->SoundQueue()->duration = MM_FRAME_SOUND_OFF; };
+    s.resume = [](void *p, MMI32 time) { static_cast<Scene *>(p)->Pmvie()->SoundQueue()->duration = time; };
     s.view = [](void *p) -> void * { return static_cast<Scene *>(p)->Pmvie()->PddgGet(0); };
     s.dirty = [](void *p) { return int(static_cast<Scene *>(p)->Pmvie()->FDirty()); };
     s.dimensions = [](void *p, MMI32 *width, MMI32 *height) {
@@ -2779,7 +2781,7 @@ MMScenePropertyUndoServices ScenePropertyUndoServices(ScenePropertyUndoHost *hos
         auto h = static_cast<ScenePropertyUndoHost *>(p);
         return int(h->movie->Pscen()->FGotoFrm(h->frame));
     };
-    s.flush = [](void *p) { static_cast<ScenePropertyUndoHost *>(p)->movie->Pmsq()->FlushMsq(); };
+    s.flush = [](void *p) { mm_frame_sound_queue_clear(static_cast<ScenePropertyUndoHost *>(p)->movie->SoundQueue()); };
     s.clear = [](void *p) { static_cast<ScenePropertyUndoHost *>(p)->movie->ClearUndo(); };
     return s;
 }
@@ -2985,7 +2987,7 @@ static MMSceneContentUndoServices SceneContentUndoServices(SceneContentUndoHost 
     s.seek = [](void *p, MMI32 frame) -> int {
         return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->FGotoFrm(frame);
     };
-    s.flush = [](void *p) { static_cast<SceneContentUndoHost *>(p)->movie->Pmsq()->FlushMsq(); };
+    s.flush = [](void *p) { mm_frame_sound_queue_clear(static_cast<SceneContentUndoHost *>(p)->movie->SoundQueue()); };
     s.clear = [](void *p) { static_cast<SceneContentUndoHost *>(p)->movie->ClearUndo(); };
     s.update_roll = [](void *p) { static_cast<SceneContentUndoHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
     return s;
@@ -3317,7 +3319,7 @@ MMSceneEditUndoServices SceneEditUndoHost::Services()
     s.scene_edit = [](void *p) -> MMSceneEditServices {
         return static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->_EditServices();
     };
-    s.flush = [](void *p) { static_cast<SceneEditUndoHost *>(p)->movie->Pmsq()->FlushMsq(); };
+    s.flush = [](void *p) { mm_frame_sound_queue_clear(static_cast<SceneEditUndoHost *>(p)->movie->SoundQueue()); };
     s.clear = [](void *p) { static_cast<SceneEditUndoHost *>(p)->movie->ClearUndo(); };
     return s;
 }

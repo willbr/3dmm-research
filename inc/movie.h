@@ -873,10 +873,7 @@ class Movie : public Movie_PAR
     bool FRemScenCore(long iscen);              // Removes a scene from the movie
     bool FPasteActr(PActor pactr);               // Pastes an actor into current scene.
     bool FPasteActrPath(PActor pactr);           // Pastes the path onto selected actor.
-    PMovieSoundQueue Pmsq(void)
-    {
-        return static_cast<PMovieSoundQueue>(static_cast<BASE *>(_runtime.sounds));
-    } // Sound queue
+    MMFrameSoundQueue *SoundQueue() { return &_runtime.sounds; }
 
     //
     // Runtime Pausing

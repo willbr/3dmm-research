@@ -1673,11 +1673,13 @@ The C89 engine now selects Marcus's frame cues and authored waits, including
 prior scene music, restart sample positions and motion-cue precedence. C89
 also owns Studio's pending movie sound queue, including the signed low-word
 lane key, replacement order, requests held for playback, and timeout policy.
-Studio embeds the queue and its owned clock reference in the native command
-handler. C89 prepares and drains synchronized batches, releases references,
-and orders short preview alarms and sound-class stops. The host supplies
-allocation, the clock, and device operations. Sound playback and pending
-replacement both compute Studio's queue key in C89.
+Studio's C89 movie runtime owns the queue, its output binding and its clock
+reference. Actor, scene and Studio preview callers use the queue directly.
+C89 prepares and drains synchronized batches, releases references, and orders
+short preview alarms and sound-class stops. Studio delivers preview alarms to
+the queue separately from movie transport alarms. The host supplies allocation,
+clock delivery and device operations. Sound playback and pending replacement
+both compute Studio's queue key in C89.
 Marcus caption compositing also uses C89. The renderer shares text-box
 visibility rules with Studio and keeps visible captions in presentation
 order across seeks. C owns mask sampling, workspace clipping, blending
@@ -1833,8 +1835,8 @@ and importing use the shared editor to publish links and remove failed
 copies. During import, the destination captured before the temporary-file
 step receives the sound, while its slot comes from the current working file.
 Studio's live document startup and teardown now run in C89 over the movie,
-save, and scene owners. The runtime owns the client, world, sound queue,
-and thumbnail palette references. C loads the working archive, binds the
+save, and scene owners. The runtime owns the frame-sound queue and the client,
+world and thumbnail palette references. C loads the working archive, binds the
 saved file, and orders source merge, dependency caching, and title
 publication. An unsuccessful open destroys the partial document before
 ending the wait cursor. The native host supplies container paths, typed

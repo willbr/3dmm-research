@@ -355,11 +355,11 @@ LExecuteCmd:
 
                 if (_pmvie->FSoundsEnabled())
                 {
-                    _pmvie->Pmsq()->PlayMsq();
+                    mm_frame_sound_queue_play(_pmvie->SoundQueue());
                 }
                 else
                 {
-                    _pmvie->Pmsq()->FlushMsq();
+                    mm_frame_sound_queue_clear(_pmvie->SoundQueue());
                 }
                 Update();
             }
@@ -388,11 +388,11 @@ LExecuteCmd:
 
                 if (_pmvie->FSoundsEnabled())
                 {
-                    _pmvie->Pmsq()->PlayMsq();
+                    mm_frame_sound_queue_play(_pmvie->SoundQueue());
                 }
                 else
                 {
-                    _pmvie->Pmsq()->FlushMsq();
+                    mm_frame_sound_queue_clear(_pmvie->SoundQueue());
                 }
                 Update();
             }

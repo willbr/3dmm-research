@@ -208,7 +208,7 @@ struct TextBoxUndoHost : TextBoxEditHost
             case MM_BOX_SEEK_SCENE: return h.owner->Pmvie()->Pscen()->FGotoFrm(q->value);
             case MM_BOX_SCENE_BOX: q->object = h.owner->Pmvie()->Pscen()->PtboxFromItbox(q->value); break;
             case MM_BOX_SELECT: h.owner->Pmvie()->Pscen()->SelectTbox(static_cast<PTBOX>(q->object)); break;
-            case MM_BOX_FLUSH: h.owner->Pmvie()->Pmsq()->FlushMsq(); break;
+            case MM_BOX_FLUSH: mm_frame_sound_queue_clear(h.owner->Pmvie()->SoundQueue()); break;
             case MM_BOX_CLEAR_UNDO: h.owner->Pmvie()->ClearUndo(); break;
             case MM_BOX_STORY: q->value = static_cast<PTBOX>(q->object)->FStory(); break;
             case MM_BOX_POSITION_VIEW:

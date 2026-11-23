@@ -8,23 +8,9 @@
     Primary Authors: *****, *****
     Status:  Reviewed
 
-    BASE ---> CommandHandler  ---> MovieSoundQueue
-
-    NOTE: when the MovieSoundQueue stops sounds, it does it based on sound class (scl)
-    and not sound queue (sqn).  This is slightly less efficient, because the
-    SoundManager must search all open sound queues for the given scl's when we stop
-    sounds; however, the code is made much simpler, because the sqn is
-    generated on the fly based on whether the sound is for an actor or
-    background, the sty of the sound, and (in the case of actor sounds) the
-    arid of the source of the sound.  If we had to enumerate all sounds
-    based on that information, we'd wind up calling into the SoundManager a minimum
-    of three times, plus three times for each actor; not only is the
-    enumeration on this side inefficient (the MovieSoundQueue would have to call into the
-    Movie to enumerate all the known actors), but the number of calls to SoundManager
-    gets to be huge!  On top of all that, we'd probably wind up finding some
-    bugs where a sound is still playing for an actor that's been deleted, and
-    possibly fail to stop the sound properly (Murphy reigning strong in any
-    software project).
+    Movie playback stops mixer classes for one-shot, looping wave and
+    looping MIDI sounds. Queue numbers also distinguish actor sounds
+    from scene sounds and separate their sound styles.
 
 ***************************************************************************/
 #ifndef MSND_H
@@ -95,73 +81,6 @@ void Play(PMovieSoundMSND, long object, bool loop, bool queue, long volume, long
           bool actor = false, ulong start = 0);
 }
 
-/****************************************
-    Movie Sound Queue  (MovieSoundQueue)
-    Sounds to be played at one time.
-    These are of all types, queues &
-    classes
+MMFrameSoundOutput MovieSoundOutput(PCommandHandler alarmTarget);
 
-****************************************/
-typedef class MovieSoundQueue *PMovieSoundQueue;
-#define MovieSoundQueue_PAR CommandHandler
-#define kclsMovieSoundQueue 'MSQ'
-
-class MovieSoundQueue : public MovieSoundQueue_PAR
-{
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-    CMD_MAP_DEC(MovieSoundQueue)
-
-  protected:
-    MMFrameSoundQueue _queue;
-    MMFrameSoundOutput _Output();
-
-  public:
-    MovieSoundQueue(long hid) : MovieSoundQueue_PAR(hid)
-    {
-        mm_frame_sound_queue_prepare(&_queue);
-    }
-    ~MovieSoundQueue(void);
-
-    static PMovieSoundQueue PmsqNew(void);
-
-    bool FEnqueue(PMovieSoundMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr = fFalse,
-                  ulong dtsStart = 0, bool fLowPri = fFalse);
-    void PlayMsq(void);  // Destroys queue as it plays
-    void FlushMsq(void); // Without playing the sounds
-    bool FCmdAlarm(PCommand pcmd);
-
-    // Sound on/off & duration control
-    void SndOff(void)
-    {
-        AssertThis(0);
-        _queue.duration = kdtimOffMsq;
-    }
-    void SndOnShort(void)
-    {
-        AssertThis(0);
-        _queue.duration = kdtim2Msq;
-    }
-    void SndOnLong(void)
-    {
-        AssertThis(0);
-        _queue.duration = kdtimLongMsq;
-    }
-    void StopAll(void);
-    bool FPlaying(bool fLoop);
-
-    // Save/Restore snd-on duration times
-    long DtimSnd(void)
-    {
-        AssertThis(0);
-        return _queue.duration;
-    }
-    void SndOnDtim(long dtim)
-    {
-        AssertThis(0);
-        _queue.duration = dtim;
-    }
-};
-
-#endif MSND_H
+#endif // MSND_H

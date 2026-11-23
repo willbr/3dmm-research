@@ -451,8 +451,8 @@ MMActorUndoServices ActorUndo::_UndoServices(UndoContext *context)
     s.current_scene=[](void *,void *p)->void * { return static_cast<PMovie>(p)->Pscen(); };
     s.seek=[](void *,void *p,MMI32 frame) { return int(static_cast<PScene>(p)->FGotoFrm(frame)); };
     s.clear_undo=[](void *,void *p) { static_cast<PMovie>(p)->ClearUndo(); };
-    s.flush=[](void *,void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
-    s.play=[](void *,void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
+    s.flush=[](void *,void *p) { mm_frame_sound_queue_clear(static_cast<PMovie>(p)->SoundQueue()); };
+    s.play=[](void *,void *p) { mm_frame_sound_queue_play(static_cast<PMovie>(p)->SoundQueue()); };
     s.find_actor=[](void *,void *p,MMI32 id)->void * { return static_cast<PScene>(p)->PactrFromArid(id); };
     s.retain=[](void *,void *p) { static_cast<PActor>(p)->AddRef(); };
     s.release=[](void *,void *p) { static_cast<PActor>(p)->Release(); };

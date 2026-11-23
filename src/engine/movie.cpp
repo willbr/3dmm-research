@@ -32,6 +32,7 @@ Actors, Text boxes, etc.
 #include "resource_archive_host.h"
 #include "engine_movie_graph.h"
 #include "engine_movie_host.h"
+#include "handle_services.h"
 #include "movie_archive_host.h"
 #include "mm/chunk_copy.h"
 #include "studio_preferences.h"
@@ -323,7 +324,11 @@ MMMovieRuntimeServices Movie::_RuntimeServices(RuntimeHost *host)
         auto client = static_cast<PMovieClientCallbacks>(static_cast<BASE *>(p));
         return static_cast<BASE *>(World::PbwldNew(client->Dxp(), client->Dyp(), half != 0, half != 0));
     };
-    s.create_sounds = [](void *) -> void * { return static_cast<BASE *>(MovieSoundQueue::PmsqNew()); };
+    s.sound_allocator = KauaiCopyAllocator();
+    s.sound_output = MovieSoundOutput(host->saveHost.movie);
+#ifdef DEBUG
+    s.sound_trash = 1;
+#endif
     s.retain = RetainRuntimeRef;
     s.release = ReleaseRuntimeRef;
     s.discard_document = [](void *p) { static_cast<RuntimeHost *>(p)->saveHost.movie->Release(); };
@@ -466,7 +471,11 @@ void Movie::MarkMem(void)
 
     MarkMemObj(Pmcc());
 
-    MarkMemObj(Pmsq());
+    const auto &sounds = _runtime.sounds;
+    MarkPv(sounds.storage.buffers[0].data);
+    for (MMU32 index = 0; index < sounds.count; ++index)
+        mm_sound_owner_services()->mark_memory(mm_frame_sound_queue_at(&sounds, index)->sound);
+    MarkMemObj(static_cast<PClock>(sounds.clock));
 
     MarkMemObj(static_cast<BASE *>(_runtime.thumbnail_palette));
 }
@@ -493,6 +502,12 @@ void Movie::AssertValid(LegacyUlong grf)
     AssertNilOrPo(Pbwld(), 0);
     AssertPo(&_clok, 0);
     AssertPo(Pmcc(), 0);
+    if (_runtime.sounds.initialized)
+    {
+        Assert(_runtime.sounds.count <= _runtime.sounds.storage.buffers[0].capacity / sizeof(MMFrameSoundRequest),
+               "Invalid sound request count");
+        AssertNilOrPo(static_cast<PClock>(_runtime.sounds.clock), 0);
+    }
 }
 
 #endif // DEBUG
@@ -596,8 +611,8 @@ MMMovieEditServices Movie::_EditServices()
     };
     s.default_title = [](void *p) { static_cast<PMovie>(p)->_SetTitle(); };
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
-    s.play_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
-    s.flush_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
+    s.play_sound = [](void *p) { mm_frame_sound_queue_play(static_cast<PMovie>(p)->SoundQueue()); };
+    s.flush_sound = [](void *p) { mm_frame_sound_queue_clear(static_cast<PMovie>(p)->SoundQueue()); };
     s.fetch_sound = [](void *, const MMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return EngineSound::Fetch(&tag); };
     s.sound_volume = [](void *p) -> MMI32 { return EngineSound::Volume(static_cast<PMovieSoundMSND>(p)); };
     s.sound_style = [](void *p) -> MMI32 { return EngineSound::Style(static_cast<PMovieSoundMSND>(p)); };
@@ -886,8 +901,8 @@ MMMovieSceneServices Movie::_SceneServices()
     s.rollcall_changed = [](void *p) { static_cast<PMovie>(p)->Pmcc()->UpdateRollCall(); };
     s.switch_error = [](void *) { PushErc(ercSocSceneSwitch); };
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
-    s.play_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
-    s.flush_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
+    s.play_sound = [](void *p) { mm_frame_sound_queue_play(static_cast<PMovie>(p)->SoundQueue()); };
+    s.flush_sound = [](void *p) { mm_frame_sound_queue_clear(static_cast<PMovie>(p)->SoundQueue()); };
     s.new_undo = [](void *, MMMovieSceneUndoRecord **record) -> void * {
         const auto undo = MovieSceneUndo::PmunsNew();
         if (undo)
@@ -2032,7 +2047,7 @@ MMAlarmPlaybackServices Movie::_AlarmServices(AlarmHost *host)
                 movie->Pscen()->StopPlaying();
             break;
         case MM_ALARM_PLAYING_NOTICE: vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, value); break;
-        case MM_ALARM_SHORT_SOUNDS: movie->Pmsq()->SndOnShort(); break;
+        case MM_ALARM_SHORT_SOUNDS: movie->SoundQueue()->duration = MM_FRAME_SOUND_SHORT; break;
         case MM_ALARM_NOTIFY_STOPPED: movie->Pmcc()->PlayStopped(); break;
         case MM_ALARM_STOP_AUDIO: vpsndm->StopAll(); break;
         }
@@ -2080,8 +2095,8 @@ void Movie::Play()
             reply.value = Pscen() != pvNil;
             break;
         case MM_PLAY_RESET_SOUNDS:
-            Pmsq()->StopAll();
-            Pmsq()->FlushMsq();
+            mm_frame_sound_queue_stop(SoundQueue());
+            mm_frame_sound_queue_clear(SoundQueue());
             break;
         case MM_PLAY_QUERY_END:
             reply.value = Iscen() + 1 == Cscen() && Pscen()->Nfrm() == Pscen()->NfrmLast();
@@ -2099,7 +2114,7 @@ void Movie::Play()
                                                     CurrentStudioPreferences().PlaybackFps(), &alarm);
             break;
         case MM_PLAY_PREPARE_SCENE:
-            Pmsq()->SndOnLong();
+            SoundQueue()->duration = MM_FRAME_SOUND_LONG;
             Pscen()->Enable(fscenPauses);
             Pscen()->SelectActr(pvNil);
             Pscen()->SelectTbox(pvNil);
@@ -2115,7 +2130,7 @@ void Movie::Play()
                 SetFStopPlaying(true);
             else
                 SetFPlaying(false);
-            Pmsq()->PlayMsq();
+            mm_frame_sound_queue_play(SoundQueue());
             SetFSoundsEnabled(_playback.oldSoundsEnabled);
             break;
         case MM_PLAY_DISABLE_ACCELERATORS:
@@ -2134,9 +2149,9 @@ void Movie::Play()
             break;
         case MM_PLAY_DISPATCH_SOUNDS:
             if (command.flag)
-                Pmsq()->PlayMsq();
+                mm_frame_sound_queue_play(SoundQueue());
             else
-                Pmsq()->FlushMsq();
+                mm_frame_sound_queue_clear(SoundQueue());
             break;
         case MM_PLAY_FINISHED:
             break;
@@ -2179,6 +2194,11 @@ bool Movie::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
+    if (pcmd->rglw[0] == khidMsqClock)
+    {
+        mm_frame_sound_queue_alarm(&_runtime.sounds);
+        return true;
+    }
     AlarmHost host{this, nullptr};
     const auto alarm = _AlarmServices(&host);
     mm_alarm_playback_alarm(&_runtime.transport, &_playback, &alarm);
@@ -2272,9 +2292,9 @@ bool Movie::FCmdRender(PCommand pcmd)
 #endif
             Pmcc()->UpdateScrollbars();
             if (FSoundsEnabled())
-                Pmsq()->PlayMsq();
+                mm_frame_sound_queue_play(SoundQueue());
             else
-                Pmsq()->FlushMsq();
+                mm_frame_sound_queue_clear(SoundQueue());
             vpappb->UpdateMarked();
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
             if (_playbackTest.active)
@@ -2299,7 +2319,7 @@ bool Movie::FCmdRender(PCommand pcmd)
             view->PauseUntilClick(command.flag);
             break;
         case MM_PLAYBACK_QUERY_SOUND:
-            reply.value = Pmsq()->FPlaying(false);
+            reply.value = mm_frame_sound_queue_playing(SoundQueue(), 0);
             break;
         case MM_PLAYBACK_READ_TIME:
             reply.timestamp = TsCurrent();
@@ -4065,20 +4085,20 @@ bool MovieView::FCmdMouseMove(PCMD_MOUSE pcmd)
         {
             if (pactr != _pactrListener)
             {
-                Pmvie()->Pmsq()->StopAll();
+                mm_frame_sound_queue_stop(Pmvie()->SoundQueue());
                 pactr->FReplayFrame(fscenSounds); // Ignore audition error; non-fatal
                 // Play outstanding sounds
-                Pmvie()->Pmsq()->PlayMsq();
+                mm_frame_sound_queue_play(Pmvie()->SoundQueue());
             }
             _fMouseOn = fFalse;
         }
         else if (!_fMouseOn)
         {
             _fMouseOn = fTrue;
-            Pmvie()->Pmsq()->StopAll();
+            mm_frame_sound_queue_stop(Pmvie()->SoundQueue());
             Pmvie()->Pscen()->FReplayFrm(fscenSounds);
             // Play outstanding sounds
-            Pmvie()->Pmsq()->PlayMsq();
+            mm_frame_sound_queue_play(Pmvie()->SoundQueue());
         }
 
         _pactrListener = pactr;
@@ -4638,11 +4658,11 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
 
     if (Pmvie()->FSoundsEnabled())
     {
-        Pmvie()->Pmsq()->PlayMsq();
+        mm_frame_sound_queue_play(Pmvie()->SoundQueue());
     }
     else
     {
-        Pmvie()->Pmsq()->FlushMsq();
+        mm_frame_sound_queue_clear(Pmvie()->SoundQueue());
     }
     _fMouseDownSeen = fTrue;
 
@@ -4926,6 +4946,7 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
             pmvie->SetFStopPlaying(fTrue);
             cmd.pcmh = pmvie;
             cmd.cid = cidAlarm;
+            cmd.rglw[0] = khidMvieClock;
             pmvie->FCmdAlarm(&cmd);
         }
 
@@ -5371,7 +5392,7 @@ bool MovieView::FCmdRollOff(PCommand pcmd)
 
     if (_fMouseOn && (Tool() == toolListener))
     {
-        Pmvie()->Pmsq()->StopAll();
+        mm_frame_sound_queue_stop(Pmvie()->SoundQueue());
     }
 
     _fMouseOn = fFalse;
