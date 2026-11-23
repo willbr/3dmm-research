@@ -25157,3 +25157,36 @@ embedded MIDI. The embedded MIDI fixture matched each port's previous
 
 Evidence is under `tmp/c89-midi-worker`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 cached MIDI streams and seek prefixes (23 November 2026)
+
+The C89 stream owner loads packed MIDI tracks through the shared block owner
+and stores the translated device events in a dense collection. The mixer uses
+the same owner for seek-state prefixes and pins each submitted buffer until
+its device callback returns it. A failed prefix build discards partial events
+and leaves the caller's skip offset untouched.
+
+The standalone fixture attempted to rebuild a pinned prefix, failed allocation
+after a successful prepend, then retried and compared the entire prefix with
+the event-level reference. The packed cache and seek trace remained `6B4B5C94`.
+The native and SDL completion fixtures passed, including the seek and resume
+path with separate prefix and stream returns. A rejected main buffer after a
+successful prefix submission returned the prefix before the next voice played.
+
+The 228 selected native, 27 standalone C89, and 17 strict syntax checks
+passed. Classic Studio rebuilt and the external consumer passed. The
+focused x86 fixtures, 48 selected SDL checks, five focused SDL audio checks,
+and both MIDI bindings passed. The 19 native save and edit traces, eight
+native scene traces, headless Marcus startup canvas, four SDL save traces,
+and eight VMM outputs matched their baselines.
+
+Fresh suite `20261123T181356Z-f72843de` completed eight captures. Replay suite
+`20261123T181512Z-c6243dd0` completed four. All input hashes were verified.
+Both ports matched all 60 Actor Audio frame positions and camera indices
+and 59 of 60 seek canvases against retained retail and V3DMM runs. Actor
+Audio peaks were 4,080 to 4,081 in PCM16. In the embedded MIDI fixture the
+100 ms WAVE cue and first 400 ms of MIDI matched each port's preceding
+capture sample for sample in both preparations.
+
+Evidence is under `tmp/c89-midi-stream`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

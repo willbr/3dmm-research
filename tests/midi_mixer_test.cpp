@@ -52,7 +52,7 @@ class TestHost : public KauaiMidi::StreamHost
 
   public:
     std::atomic<int> stops{0}, returned{0};
-    std::atomic<bool> rejectNext{false};
+    std::atomic<bool> rejectNextSound{false};
     TestHost(KauaiMidi::Completion complete, std::uintptr_t user) : complete(complete), user(user)
     {
     }
@@ -85,7 +85,7 @@ class TestHost : public KauaiMidi::StreamHost
     bool FQueueBuffer(void *data, LegacyLong bytes, LegacyLong offset, LegacyLong repeats, std::uintptr_t tag) override
     {
         CHECK(active && bytes > offset && offset >= 0 && bytes % 12 == 0 && offset % 12 == 0);
-        if (rejectNext.exchange(false))
+        if (tag && rejectNextSound.exchange(false))
             return false;
         std::lock_guard<std::mutex> lock(mutex);
         pending.push_back({data, bytes, offset, repeats, tag});
@@ -139,16 +139,16 @@ class MixerProbe : public MidiStreamMixer
     }
     void TraceSeek(PMidiStreamCached sound, LegacyUlong time)
     {
-        LegacyLong skip = 0;
-        const auto ok = _FGetKeyEvents(sound, time, &skip);
+        MMI32 skip = 0;
+        const bool ok = mm_midi_stream_prepare_seek(&_mix.prefix, sound->Stream(), time, &skip) != 0;
         Record(&ok, sizeof(ok));
         if (!ok)
             return;
         Record(&skip, sizeof(skip));
-        auto count = _pglmevKey->IvMac();
+        auto count = _mix.prefix.events.count;
         Record(&count, sizeof(count));
         if (count)
-            Record(_pglmevKey->QvGet(0), count * sizeof(KauaiMidi::StreamEvent));
+            Record(_mix.prefix.storage.buffers[0].data, count * sizeof(KauaiMidi::StreamEvent));
     }
     static MixerProbe *Make()
     {
@@ -183,13 +183,13 @@ static PMidiStreamCached Fixture(byte program, LegacyLong duration)
     auto cache = ChunkyResourceFile::PcrfNew(file, 0);
     CHECK(cache);
     auto stream = static_cast<PMidiStreamCached>(cache->PbacoFetch('MIDS', number, MidiStreamCached::FReadMdws));
-    CHECK(stream && stream->Dts() == static_cast<LegacyUlong>(duration));
-    LegacyLong bytes;
-    auto events = static_cast<KauaiMidi::StreamEvent *>(stream->PvLockData(&bytes));
+    CHECK(stream && stream->Stream()->duration == static_cast<LegacyUlong>(duration));
+    MMI32 bytes;
+    auto events = static_cast<KauaiMidi::StreamEvent *>(mm_midi_stream_lock(stream->Stream(), &bytes));
     CHECK(bytes == 5 * 12 && events[0].eventWord == ((KauaiMidi::tempo << 24) | 1000000) &&
           events[1].eventWord == (0xC0u | (std::uint32_t(program) << 8)) &&
           events[3].deltaTicks == std::uint32_t(duration));
-    stream->UnlockData();
+    CHECK(mm_midi_stream_unlock(stream->Stream()) == MM_STORAGE_OK);
     ReleasePpo(&cache);
     ReleasePpo(&file);
     return stream;
@@ -218,15 +218,15 @@ static void StreamTrace()
     CHECK(cache && cache->TLoad('MIDS', number, MidiStreamCached::FReadMdws) == tYes);
     auto sound = static_cast<PMidiStreamCached>(cache->PbacoFind('MIDS', number, MidiStreamCached::FReadMdws));
     CHECK(sound);
-    auto duration = sound->Dts();
+    auto duration = sound->Stream()->duration;
     mixer->Record(&duration, sizeof(duration));
-    LegacyLong bytes;
-    auto data = sound->PvLockData(&bytes);
+    MMI32 bytes;
+    auto data = mm_midi_stream_lock(sound->Stream(), &bytes);
     MMResourceEntry entry;
     CHECK(mm_resource_cache_at(cache->CoreCache(), 0, &entry) == MM_STORAGE_OK &&
           entry.bytes == bytes + sizeof(MidiStreamCached));
     mixer->Record(data, bytes);
-    sound->UnlockData();
+    CHECK(mm_midi_stream_unlock(sound->Stream()) == MM_STORAGE_OK);
     for (LegacyUlong time = 0; time <= duration + 3; ++time)
         mixer->TraceSeek(sound, time);
     std::printf("Stream construction/seek trace: %08X\n", mixer->trace);
@@ -279,16 +279,18 @@ int main()
           restored[1].tag == reinterpret_cast<std::uintptr_t>(a) && restored[1].offset > 0);
     CHECK(mixer->FPlay(first) && mixer->Voices() == 0 && host->Pending().empty());
     mixer->Suspend(true);
-    CHECK(mixer->FPlay(first, a, 10, 10));
+    CHECK(mixer->FPlay(first, a, 10, 10, 1, 100));
     CHECK(mixer->FPlay(second, c, 11, 5));
-    host->rejectNext = true;
+    const auto returnsBeforeFallback = host->returned.load();
+    host->rejectNextSound = true;
     mixer->Suspend(false);
     auto fallback = host->Take();
-    CHECK(mixer->Voices() == 2 && fallback.size() == 1 &&
+    CHECK(host->returned == returnsBeforeFallback + 1 && mixer->Voices() == 2 && fallback.size() == 1 &&
           fallback[0].tag == reinterpret_cast<std::uintptr_t>(c));
     host->Return(fallback);
     auto retry = host->Take();
-    CHECK(mixer->Voices() == 1 && retry.size() == 1 && retry[0].tag == reinterpret_cast<std::uintptr_t>(a));
+    CHECK(mixer->Voices() == 1 && retry.size() == 2 && retry[0].tag == 0 &&
+          retry[1].tag == reinterpret_cast<std::uintptr_t>(a) && retry[1].offset > 0);
     host->Return(retry);
     CHECK(mixer->Voices() == 0);
     mixer->Suspend(true);

@@ -154,7 +154,7 @@ MidiStreamCached::MidiStreamCached(void)
 ***************************************************************************/
 MidiStreamCached::~MidiStreamCached(void)
 {
-    ReleasePpo(&_pglmev);
+    AssertDo(mm_midi_stream_dispose(&_stream) == MM_STORAGE_OK, "MIDI stream still pinned");
 }
 
 #ifdef DEBUG
@@ -164,7 +164,7 @@ MidiStreamCached::~MidiStreamCached(void)
 void MidiStreamCached::AssertValid(LegacyUlong grf)
 {
     MidiStreamCached_PAR::AssertValid(0);
-    AssertPo(_pglmev, 0);
+    Assert(_stream.events.storage == &_stream.storage && _stream.events.count >= 2, "invalid MIDI stream");
 }
 
 /***************************************************************************
@@ -174,7 +174,7 @@ void MidiStreamCached::MarkMem(void)
 {
     AssertValid(0);
     MidiStreamCached_PAR::MarkMem();
-    MarkMemObj(_pglmev);
+    MarkPv(_stream.storage.buffers[0].data);
 }
 #endif // DEBUG
 
@@ -195,7 +195,7 @@ int MidiStreamCached::FReadMdws(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *b
         TrashVar(bytes);
         return fFalse;
     }
-    *bytes = stream->_pglmev->IvMac() * size(MEV) + size(MidiStreamCached);
+    *bytes = mm_midi_stream_bytes(stream->Stream()) + size(MidiStreamCached);
     *out = stream;
     return fTrue;
 }
@@ -205,45 +205,9 @@ int MidiStreamCached::FReadMdws(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *b
 ***************************************************************************/
 bool MidiStreamCached::_FInit(MMOwnedBlock *block)
 {
-    if (!(_pglmev = DynamicArray::PglNew(size(MEV))))
-        return false;
-    const auto append = [](void *p, const MEV *events, MMI32 count) -> int {
-        auto output = static_cast<PDynamicArray>(p);
-        auto index = output->IvMac();
-        if (count > klwMax / (LegacyLong)sizeof(MEV) - index || !output->FSetIvMac(index + count))
-            return 0;
-        if (count)
-            CopyPb(const_cast<PMEV>(events), output->QvGet(index), count * sizeof(MEV));
-        return 1;
-    };
-    MMU32 duration;
-    if (!mm_midi_stream_build_block(block, KauaiDecodeBlockHandle, nullptr, _pglmev, append, &duration))
-        return false;
-    _pglmev->FEnsureSpace(0, fgrpShrink);
-    _dts = duration;
-    return true;
-}
-
-/***************************************************************************
-    Return a locked pointer to the data.
-***************************************************************************/
-void *MidiStreamCached::PvLockData(LegacyLong *pcb)
-{
-    AssertThis(0);
-    AssertVarMem(pcb);
-
-    *pcb = LwMul(_pglmev->IvMac(), size(MEV));
-    return _pglmev->PvLock(0);
-}
-
-/***************************************************************************
-    Balance a call to PvLockData.
-***************************************************************************/
-void MidiStreamCached::UnlockData(void)
-{
-    AssertThis(0);
-
-    _pglmev->Unlock();
+    const auto allocator = Group::CollectionAllocator();
+    return mm_midi_stream_init(&_stream, &allocator, DebugShip(1, 0)) &&
+           mm_midi_stream_read(&_stream, block, KauaiDecodeBlockHandle, nullptr);
 }
 
 /***************************************************************************
@@ -408,7 +372,6 @@ MidiStreamMixer::~MidiStreamMixer(void)
     mm_midi_worker_stop(_worker);
     Assert(!_mix.voices.count, "MidiStreamMixer still has active sounds");
     ReleasePpo(&_pmisi);
-    ReleasePpo(&_pglmevKey);
     mm_midi_mix_dispose(&_mix);
     mm_native_event_destroy(_buffersReturned);
     mm_midi_worker_destroy(_worker);
@@ -467,7 +430,6 @@ void MidiStreamMixer::AssertValid(LegacyUlong grf)
     Assert(mm_midi_worker_running(_worker), "no MIDI expiration worker");
     Assert(_mix.voices.storage == &_mix.storage, "MIDI voice state uninitialized");
     AssertPo(_pmisi, 0);
-    AssertNilOrPo(_pglmevKey, 0);
     _mutx.Leave();
 }
 
@@ -483,7 +445,7 @@ void MidiStreamMixer::MarkMem(void)
     _mutx.Enter();
     MarkPv(_mix.storage.buffers[0].data);
     MarkMemObj(_pmisi);
-    MarkMemObj(_pglmevKey);
+    MarkPv(_mix.prefix.storage.buffers[0].data);
     _mutx.Leave();
 }
 #endif // DEBUG
@@ -497,16 +459,6 @@ void MidiStreamMixer::Suspend(bool fSuspend)
     auto s = _Services();
     mm_midi_mix_suspend(&_mix, &s, fSuspend);
     _mutx.Leave();
-}
-
-/***************************************************************************
-    If we're currently playing a midi stream stop it. Assumes the mutx is
-    already checked out exactly once.
-***************************************************************************/
-void MidiStreamMixer::_StopStream(void)
-{
-    auto s = _Services();
-    mm_midi_mix_stop(&_mix, &s);
 }
 
 /***************************************************************************
@@ -538,65 +490,12 @@ bool MidiStreamMixer::FPlay(PMidiStreamQueue pmsque, PMidiStreamCached pmdws, Le
 {
     AssertPo(pmsque, 0);
     AssertNilOrPo(pmdws, 0);
-    MMMidiMixVoice v = {pmsque, pmdws, sii, spr, cactPlay, 0, dtsStart, vlm, 0};
+    MMMidiMixVoice v = {pmsque, pmdws, pmdws ? pmdws->Stream() : nullptr,
+                        sii, spr, cactPlay, 0, dtsStart, vlm, 0};
     _mutx.Enter();
     auto s = _Services();
     bool ok = mm_midi_mix_play(&_mix, &s, &v) != 0;
     _mutx.Leave();
-    return ok;
-}
-
-/***************************************************************************
-    The sound list changed so make sure we're playing the first tune.
-    Assumes the mutx is already checked out.
-***************************************************************************/
-void MidiStreamMixer::_Restart(bool fNew)
-{
-    auto s = _Services();
-    mm_midi_mix_restart(&_mix, &s, fNew);
-}
-
-/***************************************************************************
-    Submit the buffer(s) for the current voice. Assumes the mutx is already
-    checked out.
-***************************************************************************/
-void MidiStreamMixer::_SubmitBuffers(LegacyUlong tsCur)
-{
-    auto s = _Services();
-    mm_midi_mix_submit(&_mix, &s, tsCur);
-}
-
-/***************************************************************************
-    Seek into the pmdws the given amount of time, and accumulate key events
-    in _pglmevKey.
-***************************************************************************/
-bool MidiStreamMixer::_FGetKeyEvents(PMidiStreamCached pmdws, LegacyUlong dtsSeek, LegacyLong *pcbSkip)
-{
-    if (!_pglmevKey && !(_pglmevKey = DynamicArray::PglNew(size(MEV))))
-        return false;
-    _pglmevKey->FSetIvMac(0);
-    LegacyLong bytes;
-    auto events = static_cast<const MEV *>(pmdws->PvLockData(&bytes));
-    MMI32 skip;
-    const bool ok = mm_midi_stream_seek(
-                        events, bytes / sizeof(MEV), dtsSeek, _pglmevKey,
-                        [](void *p, const MEV *events, MMI32 count) -> int {
-                            auto output = static_cast<PDynamicArray>(p);
-                            auto old = output->IvMac();
-                            if (count > klwMax / (LegacyLong)sizeof(MEV) - old || !output->FSetIvMac(old + count))
-                                return 0;
-                            auto data = static_cast<PMEV>(output->QvGet(0));
-                            BltPb(data, data + count, old * sizeof(MEV));
-                            CopyPb(const_cast<PMEV>(events), data, count * sizeof(MEV));
-                            return 1;
-                        },
-                        &skip) != 0;
-    if (!ok)
-        _pglmevKey->FSetIvMac(0);
-    _pglmevKey->FEnsureSpace(0, fgrpShrink);
-    pmdws->UnlockData();
-    if (ok)
-        *pcbSkip = skip;
     return ok;
 }
 
@@ -623,10 +522,11 @@ void MidiStreamMixer::_Notify(void *pvData, PMidiStreamCached pmdws)
 {
     _mutx.Enter();
     Assert(_mix.outstanding > 0, "what buffer is this?");
-    Assert(pmdws || (_pglmevKey && pvData == _pglmevKey->QvGet(0)), "Bad pvData/pmdws combo");
+    auto stream = pmdws ? pmdws->Stream() : &_mix.prefix;
+    Assert(pvData == stream->storage.buffers[0].data && stream->storage.buffers[0].locks, "Wrong MIDI buffer");
     Assert(!pmdws || (_mix.voices.count && mm_midi_mix_voice_at(&_mix, 0)->sound == pmdws), "Wrong pmdws");
     auto s = _Services();
-    mm_midi_mix_return(&_mix, &s, pmdws);
+    mm_midi_mix_return(&_mix, &s, stream);
     _mutx.Leave();
 }
 
@@ -659,7 +559,6 @@ MMMidiMixServices MidiStreamMixer::_Services()
     MMMidiMixServices s = {};
     s.context = this;
     s.clock = [](void *) -> MMU32 { return TsCurrentSystem(); };
-    s.duration = [](void *, void *p) -> MMU32 { return static_cast<PMidiStreamCached>(p)->Dts(); };
     s.enter = [](void *p) { static_cast<MidiStreamMixer *>(p)->_mutx.Enter(); };
     s.leave = [](void *p) { static_cast<MidiStreamMixer *>(p)->_mutx.Leave(); };
     s.stop_device = [](void *p) { static_cast<MidiStreamMixer *>(p)->_pmisi->StopPlaying(); };
@@ -680,26 +579,6 @@ MMMidiMixServices MidiStreamMixer::_Services()
     s.activate = [](void *p, int a) -> int { return static_cast<MidiStreamMixer *>(p)->_pmisi->FActivate(a != 0); };
     s.busy = [](void *) { PushErc(ercSndMidiDeviceBusy); };
     s.volume = [](void *p, MMI32 v) { static_cast<MidiStreamMixer *>(p)->_pmisi->SetVlm(v); };
-    s.seek = [](void *p, void *sound, MMU32 time, MMI32 *skip) -> int {
-        LegacyLong bytes;
-        if (!static_cast<MidiStreamMixer *>(p)->_FGetKeyEvents(static_cast<PMidiStreamCached>(sound), time, &bytes))
-            return 0;
-        *skip = bytes;
-        return 1;
-    };
-    s.lock_key = [](void *p, MMI32 *bytes) -> void * {
-        auto list = static_cast<MidiStreamMixer *>(p)->_pglmevKey;
-        *bytes = list->IvMac() * sizeof(MEV);
-        return *bytes > 0 ? list->PvLock(0) : nullptr;
-    };
-    s.unlock_key = [](void *p) { static_cast<MidiStreamMixer *>(p)->_pglmevKey->Unlock(); };
-    s.lock_sound = [](void *, void *p, MMI32 *bytes) -> void * {
-        LegacyLong n;
-        auto data = static_cast<PMidiStreamCached>(p)->PvLockData(&n);
-        *bytes = n;
-        return data;
-    };
-    s.unlock_sound = [](void *, void *p) { static_cast<PMidiStreamCached>(p)->UnlockData(); };
     s.submit = [](void *p, void *data, MMI32 bytes, MMI32 skip, MMI32 repeats, void *sound) -> int {
         return static_cast<MidiStreamMixer *>(p)->_pmisi->FQueueBuffer(data, bytes, skip, repeats,
                                                                        reinterpret_cast<std::uintptr_t>(sound));

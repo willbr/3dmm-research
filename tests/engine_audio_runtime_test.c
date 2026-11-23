@@ -1151,6 +1151,39 @@ static int stream_prepend(void *p, const MMMidiStreamEvent *e, MMI32 n)
     f->output_count += n;
     return 1;
 }
+static void stream_owner(StreamFixture *f)
+{
+    MMMidiStream source, prefix;
+    MMStorageAllocator allocator = {NULL, test_storage_resize, test_storage_free};
+    void *data;
+    MMI32 skip, bytes;
+    allocator.context = &f->fail;
+    assert(mm_midi_stream_init(&source, NULL, 0));
+    assert(mm_midi_stream_init(&prefix, &allocator, 1));
+    assert(mm_array_insert(&source.events, 0, f->events, f->count) == MM_STORAGE_OK);
+    data = mm_midi_stream_lock(&source, &bytes);
+    assert(data && bytes == f->count * 12);
+    assert(mm_midi_stream_prepare_seek(&prefix, &source, 101, &skip) && skip == 102 * 12);
+    assert(mm_midi_stream_dispose(&source) == MM_STORAGE_LOCKED);
+    data = mm_midi_stream_lock(&prefix, &bytes);
+    assert(data && bytes == 102 * 12);
+    skip = -1;
+    assert(!mm_midi_stream_prepare_seek(&prefix, &source, 1900, &skip) && skip == -1);
+    assert(mm_midi_stream_dispose(&prefix) == MM_STORAGE_LOCKED);
+    assert(!memcmp(data, f->output, 101 * 12));
+    assert(mm_midi_stream_unlock(&prefix) == MM_STORAGE_OK);
+    f->fail = 1;
+    assert(!mm_midi_stream_prepare_seek(&prefix, &source, 1900, &skip) && skip == -1);
+    assert(!mm_midi_stream_lock(&prefix, &bytes) && bytes == 0 && !prefix.storage.buffers[0].data);
+    f->fail = 0;
+    assert(mm_midi_stream_prepare_seek(&prefix, &source, 1900, &skip) && skip == 1901 * 12);
+    data = mm_midi_stream_lock(&prefix, &bytes);
+    assert(data && bytes == f->output_count * 12 && !memcmp(data, f->output, bytes));
+    assert(mm_midi_stream_unlock(&prefix) == MM_STORAGE_OK);
+    assert(mm_midi_stream_unlock(&source) == MM_STORAGE_OK);
+    assert(mm_midi_stream_dispose(&prefix) == MM_STORAGE_OK);
+    assert(mm_midi_stream_dispose(&source) == MM_STORAGE_OK);
+}
 static void stream(void)
 {
     StreamFixture f;
@@ -1169,6 +1202,7 @@ static void stream(void)
     assert(f.output[0].eventWord == 0x010f4240UL && f.output[1900].eventWord == f.events[1900].eventWord);
     for (i = 0; i < f.output_count; ++i)
         assert(f.output[i].streamId == 0 && f.output[i].deltaTicks == 0);
+    stream_owner(&f);
     f.output_count = f.batches = 0;
     f.fail = 2;
     assert(!mm_midi_stream_seek(f.events, f.count, 1900, &f, stream_prepend, &skip) && f.batches == 2);

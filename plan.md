@@ -2309,6 +2309,10 @@ The shared native runtime starts and joins those workers and provides the
 return latch for interrupted buffers. The mixer stores its priority list in
 C89 and rotates past rejected buffers before applying completion to the
 active voice.
+Cached Studio MIDI streams and seek prefixes also use C89 storage. The
+shared loader reads the track through the block owner. The mixer pins each
+submitted buffer until its device returns it and clears partial prefixes
+when a seek fails.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

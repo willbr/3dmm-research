@@ -20,8 +20,6 @@
 #include "midi_worker.h"
 #include "mm/midi_mix.h"
 #include "mm/native_runtime.h"
-using MEV = KauaiMidi::StreamEvent;
-typedef MEV *PMEV;
 
 /***************************************************************************
     This is the midi stream cached object.
@@ -36,8 +34,7 @@ class MidiStreamCached : public MidiStreamCached_PAR
     MARKMEM
 
   protected:
-    PDynamicArray _pglmev;
-    LegacyUlong _dts;
+    MMMidiStream _stream = {};
 
     MidiStreamCached(void);
     bool _FInit(MMOwnedBlock *);
@@ -47,12 +44,10 @@ class MidiStreamCached : public MidiStreamCached_PAR
 
     ~MidiStreamCached(void);
 
-    LegacyUlong Dts(void)
+    MMMidiStream *Stream()
     {
-        return _dts;
+        return &_stream;
     }
-    void *PvLockData(LegacyLong *pcb);
-    void UnlockData(void);
 };
 
 // forward declaration
@@ -116,17 +111,10 @@ class MidiStreamMixer : public MidiStreamMixer_PAR
 
     PMidiStreamInterface _pmisi; // the midi stream interface
 
-    PDynamicArray _pglmevKey; // to accumulate state events for seeking
-
     MMMidiMixState _mix = {};
     MMMidiMixServices _Services();
     MidiStreamMixer(void);
     bool _FInit(KauaiMidi::HostFactory factory);
-    void _StopStream(void);
-    bool _FGetKeyEvents(PMidiStreamCached pmdws, LegacyUlong dtsSeek, LegacyLong *pcbSkip);
-    void _Restart(bool fNew = fFalse);
-    void _WaitForBuffers(void);
-    void _SubmitBuffers(LegacyUlong tsCur);
 
     static void _MidiProc(std::uintptr_t luUser, void *pvData, std::uintptr_t lUserDataa);
     void _Notify(void *pvData, PMidiStreamCached pmdws);

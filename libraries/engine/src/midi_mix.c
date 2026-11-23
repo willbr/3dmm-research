@@ -69,7 +69,8 @@ void mm_midi_queue_notify(const MMMidiQueueServices *s, void *sound)
 int mm_midi_mix_init(MMMidiMixState *m, const MMStorageAllocator *allocator, MMI32 full_volume, int trash_unused)
 {
     memset(m, 0, sizeof(*m));
-    if (mm_storage_init(&m->storage, allocator) != MM_STORAGE_OK)
+    if (mm_storage_init(&m->storage, allocator) != MM_STORAGE_OK ||
+        !mm_midi_stream_init(&m->prefix, allocator, trash_unused))
         return 0;
     m->storage.min_grow[0] = sizeof(MMMidiMixVoice);
     m->voices.storage = &m->storage;
@@ -80,6 +81,7 @@ int mm_midi_mix_init(MMMidiMixState *m, const MMStorageAllocator *allocator, MMI
 }
 void mm_midi_mix_dispose(MMMidiMixState *m)
 {
+    mm_midi_stream_dispose(&m->prefix);
     if (m->voices.storage)
         mm_storage_dispose(&m->storage);
     memset(m, 0, sizeof(*m));
@@ -123,7 +125,7 @@ int mm_midi_mix_play(MMMidiMixState *m, const MMMidiMixServices *s, const MMMidi
     MMMidiMixVoice v;
     MMU32 i;
     int fresh = 0, result = 1;
-    if (input->sound && !s->duration(s->context, input->sound))
+    if (input->sound && (!input->stream || !input->stream->duration))
         return 0;
     for (i = m->voices.count; i-- > 0;)
     {
@@ -150,7 +152,7 @@ int mm_midi_mix_play(MMMidiMixState *m, const MMMidiMixServices *s, const MMMidi
             mm_midi_mix_stop(m, s);
         }
         v = *input;
-        v.duration = s->duration(s->context, input->sound);
+        v.duration = v.stream->duration;
         v.start = s->clock(s->context) - v.offset;
         if (mm_array_insert(&m->voices, i, &v, 1) != MM_STORAGE_OK)
         {
@@ -206,28 +208,29 @@ void mm_midi_mix_submit(MMMidiMixState *m, const MMMidiMixServices *s, MMU32 now
         skip = 0;
         if (now != v.start)
         {
-            if (!s->seek(s->context, v.sound, now - v.start, &skip))
+            if (!mm_midi_stream_prepare_seek(&m->prefix, v.stream, now - v.start, &skip))
                 goto next;
-            data = s->lock_key(s->context, &bytes);
-            if (bytes > 0)
+            data = mm_midi_stream_lock(&m->prefix, &bytes);
+            if (!data)
+                goto next;
+            if (!s->submit(s->context, data, bytes, 0, 1, NULL))
             {
-                if (!s->submit(s->context, data, bytes, 0, 1, NULL))
-                {
-                    s->unlock_key(s->context);
-                    goto next;
-                }
-                ++m->outstanding;
-                m->playing = 1;
+                mm_midi_stream_unlock(&m->prefix);
+                goto next;
             }
+            ++m->outstanding;
+            m->playing = 1;
         }
+        data = mm_midi_stream_lock(v.stream, &bytes);
+        if (!data)
+            goto next;
         ++m->outstanding;
-        data = s->lock_sound(s->context, v.sound, &bytes);
         if (s->submit(s->context, data, bytes, skip, v.plays, v.sound))
         {
             m->playing = 1;
             break;
         }
-        s->unlock_sound(s->context, v.sound);
+        mm_midi_stream_unlock(v.stream);
         --m->outstanding;
     next:
         mm_midi_mix_stop(m, s);
@@ -239,16 +242,13 @@ void mm_midi_mix_submit(MMMidiMixState *m, const MMMidiMixServices *s, MMU32 now
     if (m->playing && i > 0)
         mm_array_rotate_left(&m->voices, i);
 }
-void mm_midi_mix_return(MMMidiMixState *m, const MMMidiMixServices *s, void *sound)
+void mm_midi_mix_return(MMMidiMixState *m, const MMMidiMixServices *s, MMMidiStream *stream)
 {
     MMMidiMixVoice v;
     --m->outstanding;
     if (!m->outstanding)
         s->signal_return(s->context);
-    if (sound)
-        s->unlock_sound(s->context, sound);
-    else
-        s->unlock_key(s->context);
+    mm_midi_stream_unlock(stream);
     if (!m->playing)
         return;
     if (!m->outstanding)
@@ -344,11 +344,57 @@ int mm_midi_stream_build(const MMMidiStreamBuildServices *s, MMU32 *duration)
     return 1;
 }
 
+int mm_midi_stream_init(MMMidiStream *stream, const MMStorageAllocator *allocator, int trash_unused)
+{
+    memset(stream, 0, sizeof(*stream));
+    if (mm_storage_init(&stream->storage, allocator) != MM_STORAGE_OK)
+        return 0;
+    stream->events.storage = &stream->storage;
+    stream->events.width = sizeof(MMMidiStreamEvent);
+    stream->events.trash_unused = trash_unused;
+    return 1;
+}
+
+int mm_midi_stream_dispose(MMMidiStream *stream)
+{
+    int result = MM_STORAGE_OK;
+    if (stream->events.storage)
+        result = mm_storage_dispose(&stream->storage);
+    if (result == MM_STORAGE_OK)
+        memset(stream, 0, sizeof(*stream));
+    return result;
+}
+
+MMI32 mm_midi_stream_bytes(const MMMidiStream *stream)
+{
+    return (MMI32)(stream->events.count * sizeof(MMMidiStreamEvent));
+}
+
+void *mm_midi_stream_lock(MMMidiStream *stream, MMI32 *bytes)
+{
+    *bytes = 0;
+    if (!stream->events.count || mm_storage_lock(&stream->storage, 0) != MM_STORAGE_OK)
+        return NULL;
+    *bytes = mm_midi_stream_bytes(stream);
+    return stream->storage.buffers[0].data;
+}
+
+int mm_midi_stream_unlock(MMMidiStream *stream)
+{
+    return mm_storage_unlock(&stream->storage, 0);
+}
+
+static void finish_stream(MMMidiStream *stream, int success)
+{
+    if (!success)
+        mm_array_set_count(&stream->events, 0);
+    mm_array_reserve(&stream->events, 0, 1);
+}
+
 typedef struct MidiBlockBuild
 {
     MMMidiParser parser;
-    void *context;
-    int (*append)(void *, const MMMidiStreamEvent *, MMI32);
+    MMArray *events;
 } MidiBlockBuild;
 
 static int next_block_event(void *p, MMMidiEvent *event)
@@ -358,13 +404,11 @@ static int next_block_event(void *p, MMMidiEvent *event)
 
 static int append_block_events(void *p, const MMMidiStreamEvent *events, MMI32 count)
 {
-    MidiBlockBuild *build = (MidiBlockBuild *)p;
-    return build->append(build->context, events, count);
+    MMArray *output = ((MidiBlockBuild *)p)->events;
+    return mm_array_insert(output, output->count, events, (MMU32)count) == MM_STORAGE_OK;
 }
 
-int mm_midi_stream_build_block(MMOwnedBlock *block, MMBlockTransform decode, void *decode_context,
-                               void *append_context, int (*append)(void *, const MMMidiStreamEvent *, MMI32),
-                               MMU32 *duration)
+int mm_midi_stream_read(MMMidiStream *stream, MMOwnedBlock *block, MMBlockTransform decode, void *decode_context)
 {
     MMBlockIO io;
     void *handle;
@@ -372,19 +416,20 @@ int mm_midi_stream_build_block(MMOwnedBlock *block, MMBlockTransform decode, voi
     MMMidiStreamBuildServices services;
     const MMHandleServices *handles = block->handles;
     int result;
-    if (mm_owned_block_code(block, 0, decode_context, decode, NULL) != MM_DATA_OK ||
+    if (stream->events.count || stream->storage.buffers[0].locks ||
+        mm_owned_block_code(block, 0, decode_context, decode, NULL) != MM_DATA_OK ||
         mm_owned_block_io(block, &io) != MM_DATA_OK ||
         mm_block_read_handle(&io, 0, io.view.length, 0, &handle) != MM_DATA_OK || !handle)
         return 0;
-    build.context = append_context;
-    build.append = append;
+    build.events = &stream->events;
     services.context = &build;
     services.next = next_block_event;
     services.append = append_block_events;
     mm_midi_parser_init(&build.parser, handles->lock(handles->context, handle), io.view.length, 0, 500000);
-    result = mm_midi_stream_build(&services, duration);
+    result = mm_midi_stream_build(&services, &stream->duration);
     handles->unlock(handles->context, handle);
     handles->release(handles->context, handle);
+    finish_stream(stream, result);
     return result;
 }
 
@@ -455,4 +500,29 @@ int mm_midi_stream_seek(const MMMidiStreamEvent *events, MMI32 count, MMU32 time
         }
     }
     return 1;
+}
+
+static int prepend_events(void *p, const MMMidiStreamEvent *events, MMI32 count)
+{
+    return mm_array_insert((MMArray *)p, 0, events, (MMU32)count) == MM_STORAGE_OK;
+}
+
+int mm_midi_stream_prepare_seek(MMMidiStream *prefix, MMMidiStream *source, MMU32 time, MMI32 *skip)
+{
+    const MMMidiStreamEvent *events;
+    MMI32 bytes, offset;
+    int result = 0;
+    if (prefix == source || prefix->storage.buffers[0].locks || mm_array_set_count(&prefix->events, 0) != MM_STORAGE_OK)
+        return 0;
+    events = mm_midi_stream_lock(source, &bytes);
+    if (events)
+    {
+        result = mm_midi_stream_seek(events, bytes / (MMI32)sizeof(*events), time, &prefix->events, prepend_events,
+                                     &offset);
+        mm_midi_stream_unlock(source);
+    }
+    finish_stream(prefix, result);
+    if (result)
+        *skip = offset;
+    return result;
 }

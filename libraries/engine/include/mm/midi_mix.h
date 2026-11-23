@@ -21,9 +21,27 @@ extern "C"
     void mm_midi_queue_run(const MMMidiQueueServices *, MMI32 first);
     void mm_midi_queue_pause(const MMMidiQueueServices *, MMI32 first);
     void mm_midi_queue_notify(const MMMidiQueueServices *, void *sound);
+    typedef struct MMMidiStream
+    {
+        MMCollectionStorage storage;
+        MMArray events;
+        MMU32 duration;
+    } MMMidiStream;
+    /* Initialize in place before use. The owner and its pins are serialized by the caller. */
+    int mm_midi_stream_init(MMMidiStream *, const MMStorageAllocator *, int trash_unused);
+    int mm_midi_stream_dispose(MMMidiStream *);
+    /* Decode in place and load an empty owner. Failure leaves it empty. */
+    int mm_midi_stream_read(MMMidiStream *, MMOwnedBlock *, MMBlockTransform, void *decode_context);
+    MMI32 mm_midi_stream_bytes(const MMMidiStream *);
+    /* A non-NULL result pins the buffer until unlock. Empty or failed locks report zero bytes. */
+    void *mm_midi_stream_lock(MMMidiStream *, MMI32 *bytes);
+    int mm_midi_stream_unlock(MMMidiStream *);
+    /* Rebuild an unpinned prefix and publish the skip only on success. */
+    int mm_midi_stream_prepare_seek(MMMidiStream *prefix, MMMidiStream *source, MMU32 time, MMI32 *skip);
     typedef struct MMMidiMixVoice
     {
         void *queue, *sound;
+        MMMidiStream *stream;
         MMI32 id, priority, plays;
         MMU32 duration, offset;
         MMI32 volume;
@@ -33,23 +51,19 @@ extern "C"
     {
         MMCollectionStorage storage;
         MMArray voices; /* Dense, in arbitration order. Voice objects are borrowed. */
+        MMMidiStream prefix;
         int playing, waiting;
         MMI32 outstanding, base_volume, sound_volume;
     } MMMidiMixState;
     typedef struct MMMidiMixServices
     {
         void *context;
-        MMU32 (*clock)(void *), (*duration)(void *, void *sound);
+        MMU32 (*clock)(void *);
         void (*enter)(void *), (*leave)(void *), (*stop_device)(void *), (*wait_return)(void *),
             (*signal_return)(void *);
         void (*signal_worker)(void *);
         int (*active)(void *), (*activate)(void *, int);
         void (*busy)(void *), (*volume)(void *, MMI32);
-        int (*seek)(void *, void *sound, MMU32 time, MMI32 *skip);
-        void *(*lock_key)(void *, MMI32 *bytes);
-        void (*unlock_key)(void *);
-        void *(*lock_sound)(void *, void *sound, MMI32 *bytes);
-        void (*unlock_sound)(void *, void *sound);
         int (*submit)(void *, void *data, MMI32 bytes, MMI32 skip, MMI32 repeats, void *sound);
         void (*notify)(void *, void *queue, void *sound);
     } MMMidiMixServices;
@@ -66,7 +80,7 @@ extern "C"
     int mm_midi_mix_play(MMMidiMixState *, const MMMidiMixServices *, const MMMidiMixVoice *);
     void mm_midi_mix_restart(MMMidiMixState *, const MMMidiMixServices *, int fresh);
     void mm_midi_mix_submit(MMMidiMixState *, const MMMidiMixServices *, MMU32 now);
-    void mm_midi_mix_return(MMMidiMixState *, const MMMidiMixServices *, void *sound);
+    void mm_midi_mix_return(MMMidiMixState *, const MMMidiMixServices *, MMMidiStream *);
     MMU32 mm_midi_mix_expire(MMMidiMixState *, const MMMidiMixServices *);
     /* Appends groups of at most 100 events. No sample/codec/device dependency. */
     typedef struct MMMidiStreamBuildServices
@@ -76,11 +90,6 @@ extern "C"
         int (*append)(void *, const MMMidiStreamEvent *, MMI32 count);
     } MMMidiStreamBuildServices;
     int mm_midi_stream_build(const MMMidiStreamBuildServices *, MMU32 *duration);
-    /* Decode the block in place and append WinMM events from its track data.
-     * The track handle stays private and is released even if append fails. */
-    int mm_midi_stream_build_block(MMOwnedBlock *, MMBlockTransform, void *decode_context,
-                                   void *append_context, int (*append)(void *, const MMMidiStreamEvent *, MMI32),
-                                   MMU32 *duration);
     int mm_midi_stream_seek(const MMMidiStreamEvent *, MMI32 count, MMU32 time, void *context,
                                   int (*prepend)(void *, const MMMidiStreamEvent *, MMI32),
                                   MMI32 *skip_bytes);
