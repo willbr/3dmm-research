@@ -20,7 +20,7 @@ class MarcusPlayback
     void Stop();
     bool Audition(MM::Preview &, MM::PreviewSoundCue, MM::Error &);
     bool Auditioning() const;
-    static bool ReadTiming(const MM::PreviewPresentation &presentation, MarcusSoundTiming &timing,
+    static bool ReadTiming(const MM::PreviewPresentation &presentation, MMMovieTimingHolds &timing,
                            MM::Error &error, const std::shared_ptr<KauaiFonts::FontCatalog> &fonts = {});
     void SetFonts(std::shared_ptr<KauaiFonts::FontCatalog> fonts);
     bool RestoreAudio(MM::Preview &preview, const std::vector<MarcusResumeSound> &sounds, MM::Error &error);

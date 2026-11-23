@@ -1,5 +1,4 @@
 #include "sound_timeline.h"
-#include <algorithm>
 #include <exception>
 #include <limits>
 #include <istream>
@@ -36,6 +35,33 @@ bool TimingCue(const MM::PreviewSoundCue &cue, const MarcusWaveformInfo &audio, 
 static_assert(int(MARCUS_WAVEFORM_SAMPLED) == MM_SOUND_CLIP_SAMPLED &&
               int(MARCUS_WAVEFORM_MIDI) == MM_SOUND_CLIP_MIDI, "schedule audio kinds");
 
+struct TimingCueSource
+{
+    const std::vector<MM::PreviewSoundCue> &cues;
+    const MarcusSoundTimeline::WaveformReader &audio;
+    std::exception_ptr failure;
+
+    static int Read(void *p, std::size_t index, MMMovieTimingCue *out)
+    {
+        auto &source = *static_cast<TimingCueSource *>(p);
+        try
+        {
+            const auto &cue = source.cues[index];
+            return TimingCue(cue, source.audio(cue), *out);
+        }
+        catch (...) { source.failure = std::current_exception(); return 0; }
+    }
+    bool Result(int status) const
+    {
+        if (failure) std::rethrow_exception(failure);
+        if (status == MM_SOUND_COLLECT_SOURCE)
+            throw std::out_of_range("Movie sound cue is outside the native range.");
+        if (status == MM_SOUND_COLLECT_MEMORY)
+            throw std::bad_alloc();
+        return status == MM_SOUND_COLLECT_OK;
+    }
+};
+
 MM::PreviewSoundCue PreviewCue(const MMMovieSoundSchedule *schedule, std::size_t scene, std::size_t row)
 {
     MMMovieTimingScene source;
@@ -58,22 +84,14 @@ bool MarcusSoundTimeline::Write(std::ostream &out) const
     struct Context
     {
         std::ostream &output;
-        const MMMovieSoundSchedule *schedule;
         std::exception_ptr failure;
-    } context{out, schedule.get(), {}};
-    const MMMovieTimingWriter writer{
-        &context,
+    } context{out, {}};
+    const int written = mm_movie_sound_schedule_write_snapshot(schedule.get(), &context,
         [](void *p, const void *bytes, std::size_t size) -> int {
             auto &ctx = *static_cast<Context *>(p);
             try { return bool(ctx.output.write(static_cast<const char *>(bytes), size)); }
             catch (...) { ctx.failure = std::current_exception(); return false; }
-        },
-        [](void *p, std::size_t index, MMMovieTimingScene *scene) -> int {
-            mm_movie_sound_schedule_source(static_cast<Context *>(p)->schedule, index, scene);
-            return true;
-        }};
-    const int written = mm_movie_timing_snapshot_write(&writer, Size(),
-                                                       mm_movie_sound_schedule_frame_seconds(schedule.get()));
+        });
     if (context.failure) std::rethrow_exception(context.failure);
     return written != 0;
 }
@@ -84,10 +102,9 @@ bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> 
     {
         std::istream &input;
         const std::vector<MarcusScene> &expected;
-        Schedule schedule;
         std::exception_ptr failure;
-    } context{in, expected, Schedule(nullptr, mm_movie_sound_schedule_destroy), {}};
-    const MMMovieTimingReader reader{
+    } context{in, expected, {}};
+    const MMMovieSoundSnapshotInput reader{
         &context,
         [](void *p, void *bytes, std::size_t size) -> int {
             auto &ctx = *static_cast<Context *>(p);
@@ -101,22 +118,12 @@ bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> 
         },
         [](void *p, std::size_t index, MMMovieTimingRange *range) -> int {
             return TimingRange(static_cast<Context *>(p)->expected[index], *range);
-        },
-        [](void *p, std::size_t, const MMMovieTimingScene *scene) -> int {
-            return mm_movie_sound_schedule_append(static_cast<Context *>(p)->schedule.get(), scene);
-        },
-        [](void *p, double seconds) -> int {
-            auto &ctx = *static_cast<Context *>(p);
-            ctx.schedule.reset(mm_movie_sound_schedule_create(seconds));
-            return bool(ctx.schedule);
         }};
-    double frameSeconds;
-    const int read = mm_movie_timing_snapshot_read(&reader, expected.size(), &frameSeconds);
+    MMMovieSoundSchedule *result = nullptr;
+    const int read = mm_movie_sound_schedule_read_snapshot(&reader, expected.size(), &result);
     if (context.failure) std::rethrow_exception(context.failure);
     if (!read) return false;
-    auto metadata = expected;
-    scenes = std::move(metadata);
-    schedule = std::move(context.schedule);
+    schedule.reset(result);
     return true;
 }
 
@@ -131,8 +138,7 @@ MarcusSoundTimeline::MarcusSoundTimeline() : schedule(Create(1.0 / 6))
 {
 }
 
-MarcusSoundTimeline::MarcusSoundTimeline(Schedule data, std::vector<MarcusScene> metadata)
-    : schedule(std::move(data)), scenes(std::move(metadata))
+MarcusSoundTimeline::MarcusSoundTimeline(Schedule data) : schedule(std::move(data))
 {
 }
 
@@ -146,36 +152,32 @@ bool MarcusSoundTimeline::Reframe(const MarcusScene *ranges, std::size_t availab
 
 std::optional<MarcusSoundTimeline> MarcusSoundTimeline::Reframed(const MarcusScene *ranges, std::size_t available) const
 {
-    const auto count = std::min(Size(), available);
-    std::vector<MMMovieTimingRange> geometry(count);
-    for (std::size_t i = 0; i < count; ++i)
-        if (!TimingRange(ranges[i], geometry[i])) return std::nullopt;
     MMMovieSoundSchedule *result = nullptr;
-    const int status = mm_movie_sound_schedule_reframe(schedule.get(), geometry.data(), geometry.size(), &result);
+    const int status = mm_movie_sound_schedule_reframe_read(schedule.get(), available, &ranges,
+        [](void *p, std::size_t index, MMMovieTimingRange *out) -> int {
+            return TimingRange((*static_cast<const MarcusScene **>(p))[index], *out);
+        }, &result);
     if (status == MM_SOUND_REFRAME_MISMATCH) return std::nullopt;
     if (status == MM_SOUND_REFRAME_MEMORY) throw std::bad_alloc();
-    Schedule replacement(result, mm_movie_sound_schedule_destroy);
-    std::vector<MarcusScene> metadata;
-    if (count) metadata.assign(ranges, ranges + count);
-    return MarcusSoundTimeline(std::move(replacement), std::move(metadata));
+    return MarcusSoundTimeline(Schedule(result, mm_movie_sound_schedule_destroy));
 }
 
 void MarcusSoundTimeline::Clear()
 {
     mm_movie_sound_schedule_clear(schedule.get());
-    scenes.clear();
 }
 
 void MarcusSoundTimeline::SetRate(double fps)
 {
     mm_movie_sound_schedule_rate(schedule.get(), fps);
-    scenes.clear();
 }
 
 MarcusSoundScene::MarcusSoundScene(const MarcusSoundTimeline &owner, std::size_t index)
-    : start(0), info(owner.scenes.at(index)), owner(owner), index(index)
+    : start(0), range{}, owner(owner), index(index)
 {
-    start = TimeAt(info.first_frame);
+    if (!mm_movie_sound_schedule_range(owner.schedule.get(), index, &range))
+        throw std::out_of_range("Movie sound scene is outside the schedule.");
+    start = TimeAt(range.first);
 }
 
 double MarcusSoundScene::TimeAt(double frame) const
@@ -238,32 +240,45 @@ std::vector<MarcusResumeSound> MarcusSoundTimeline::Resume(std::size_t index, lo
     return result;
 }
 
+bool MarcusSoundTimeline::Extend(const MarcusScene *scenes, std::size_t count, const PresentationReader &read,
+                                const WaveformReader &audio)
+{
+    MM::PreviewPresentation presentation;
+    struct Analysis
+    {
+        const MarcusScene *scenes;
+        const PresentationReader &read;
+        MM::PreviewPresentation &presentation;
+        TimingCueSource cueSource;
+    } analysis{scenes, read, presentation, {presentation.sounds, audio, {}}};
+    const MMMovieSoundAnalysis input{&analysis,
+        [](void *p, std::size_t index, MMMovieTimingRange *range, MMMovieTimingHolds *holds, std::size_t *count) -> int {
+            auto &ctx = *static_cast<Analysis *>(p);
+            try
+            {
+                ctx.presentation = {};
+                if (!ctx.read(index, ctx.presentation, *holds))
+                    return 0;
+                if (!TimingRange(ctx.scenes[index], *range))
+                    throw std::out_of_range("Movie sound scene is outside the native range.");
+                *count = ctx.presentation.sounds.size();
+                return 1;
+            }
+            catch (...) { ctx.cueSource.failure = std::current_exception(); return 0; }
+        },
+        [](void *p, std::size_t index, MMMovieTimingCue *out) -> int {
+            return TimingCueSource::Read(&static_cast<Analysis *>(p)->cueSource, index, out);
+        }};
+    return analysis.cueSource.Result(mm_movie_sound_schedule_extend(schedule.get(), count, &input));
+}
+
 void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<MM::PreviewSoundCue> &cues,
-                                const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,
-                                const MMMovieTimingHolds &timing)
+                                const WaveformReader &read, const MMMovieTimingHolds &timing)
 {
     MMMovieTimingRange range;
     if (!TimingRange(info, range))
         throw std::out_of_range("Movie sound scene is outside the native range.");
-    struct Context
-    {
-        const std::vector<MM::PreviewSoundCue> &cues;
-        const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read;
-        std::exception_ptr failure;
-    } context{cues, read, {}};
-    scenes.push_back(info);
-    const int status = mm_movie_sound_schedule_append_cues(schedule.get(), &range, &timing, cues.size(), &context,
-        [](void *p, std::size_t index, MMMovieTimingCue *out) -> int {
-            auto &h = *static_cast<Context *>(p);
-            try { return TimingCue(h.cues[index], h.read(h.cues[index]), *out); }
-            catch (...) { h.failure = std::current_exception(); return 0; }
-        });
-    if (status != MM_SOUND_COLLECT_OK)
-    {
-        scenes.pop_back();
-        if (context.failure) std::rethrow_exception(context.failure);
-        if (status == MM_SOUND_COLLECT_SOURCE)
-            throw std::out_of_range("Movie sound cue is outside the native range.");
-        throw std::bad_alloc();
-    }
+    TimingCueSource source{cues, read, {}};
+    source.Result(mm_movie_sound_schedule_append_cues(schedule.get(), &range, &timing, cues.size(), &source,
+                                                      TimingCueSource::Read));
 }

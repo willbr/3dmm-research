@@ -1496,13 +1496,16 @@ reader also loads stored caption bounds, text and formatting through the
 same wire decoders Studio uses. It preserves the raw TEXT read and shares
 caption conversion with the edit preview. Font conversion and publication
 into the preview API use host services.
-The snapshot codec now runs in C89. It validates scene IDs and frame
-ranges, bounds timing records, and exchanges explicit scene, hold and cue
-fields. The helper and player supply the file stream and commit the
-decoded schedule after the full snapshot is accepted.
+The C89 snapshot codec validates scene IDs and frame ranges, bounds timing
+records and exchanges explicit scene, hold and cue fields. The C89 schedule
+owns snapshot staging and publishes the imported schedule after the full
+snapshot and EOF are accepted. The helper and player supply file streams.
 The shared C89 schedule owns the source cues, clip lengths, scroll holds
 and pauses used for live analysis and timing imports. Frame-range edits
 rebuild it from those records, including cues previously outside the scene.
+C89 extends the schedule through the requested scene and keeps completed
+scenes on failure. The published schedule also supplies the scene timing
+ranges used by Marcus. Range edits stage a replacement in C89.
 C89 collects authored transition durations, pause rows and the longest
 caption scroll at each start frame. It stages the measured sound cues before
 appending a scene. Marcus supplies the playback font layout and audio lengths.

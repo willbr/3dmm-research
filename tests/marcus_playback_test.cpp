@@ -310,7 +310,7 @@ void RangeScheduling()
     CHECK(cached.Read(input, ranges));
     std::istringstream trailing(encoded.str() + "x", std::ios::binary);
     CHECK(!cached.Read(trailing, ranges) && cached.Size() == ranges.size() &&
-          cached.Scene(0).info.chunk == ranges[0].chunk);
+          cached.Scene(0).range.chunk == ranges[0].chunk);
     for (int edit = 0; edit < 3; ++edit)
     {
         auto changed = ranges;
@@ -347,7 +347,7 @@ void RangeScheduling()
     }
     auto invalid = ranges;
     invalid[0].chunk = 999;
-    CHECK(!cached.Reframe(invalid) && cached.Scene(0).info.chunk == ranges[0].chunk);
+    CHECK(!cached.Reframe(invalid) && cached.Scene(0).range.chunk == ranges[0].chunk);
 }
 void PresentationClock()
 {

@@ -624,8 +624,8 @@ static int timing_received(void *context, size_t index, const MMMovieTimingScene
 typedef struct TimingInputHost
 {
     unsigned measured;
-    size_t cue_reads;
-    int reject;
+    size_t cue_reads, scene_reads;
+    int reject, reject_scene;
 } TimingInputHost;
 
 static void timing_caption(void *context, size_t row, MMMovieTimingCaption *out)
@@ -666,6 +666,22 @@ static int timing_cue(void *context, size_t row, MMMovieTimingCue *out)
     return !host->reject || row == 0;
 }
 
+static int timing_analyse_scene(void *context, size_t index, MMMovieTimingRange *range, MMMovieTimingHolds *holds,
+                                size_t *cues)
+{
+    TimingInputHost *host = (TimingInputHost *)context;
+    MMMovieTimingPresentation input = {NULL, MM_GRAPHICS_MOVIE_DISSOLVE, 5, 3,
+                                       timing_caption, timing_measure, timing_pause};
+    ++host->scene_reads;
+    range->chunk = 9 + (MMU32)index;
+    range->first = -3;
+    range->last = 12;
+    *cues = 2;
+    input.context = context;
+    CHECK(mm_movie_timing_holds_collect(holds, &input) == MM_SOUND_COLLECT_OK);
+    return !host->reject_scene || index == 0;
+}
+
 static void check_timing_input(void)
 {
     TimingInputHost host = {0};
@@ -674,10 +690,13 @@ static void check_timing_input(void)
     const MMMovieTimingRange range = {9, -3, 12};
     MMMovieTimingHolds holds = {0};
     MMMovieTimingScene scene;
+    MMMovieTimingRange published;
+    MMMovieSoundAnalysis analysis = {NULL, timing_analyse_scene, timing_cue};
     const MMMovieTimingScroll *saved;
     MMMovieSoundSchedule *schedule = mm_movie_sound_schedule_create(1.0 / 6);
     CHECK(schedule != NULL);
     input.context = &host;
+    analysis.context = &host;
     CHECK(mm_movie_timing_holds_collect(&holds, &input) == MM_SOUND_COLLECT_OK);
     CHECK(host.measured == 29 && holds.transition == 4 && holds.scroll_count == 3 && holds.pause_count == 3);
     CHECK(holds.scrolls[0].frame == -3 && holds.scrolls[0].seconds == 0);
@@ -699,6 +718,16 @@ static void check_timing_input(void)
     mm_movie_sound_schedule_source(schedule, 0, &scene);
     CHECK(scene.range.chunk == 9 && scene.scroll_count == 3 && scene.pause_count == 3 && scene.cue_count == 2);
     CHECK(scene.scrolls[2].frame == 8 && scene.cues[0].frame == 6 && scene.cues[1].sound_number == 101);
+    mm_movie_sound_schedule_clear(schedule);
+    host.reject_scene = 1;
+    CHECK(mm_movie_sound_schedule_extend(schedule, 2, &analysis) == MM_SOUND_COLLECT_SCENE);
+    CHECK(host.scene_reads == 2 && host.cue_reads == 6 && mm_movie_sound_schedule_size(schedule) == 1);
+    CHECK(mm_movie_sound_schedule_range(schedule, 0, &published) && published.chunk == 9);
+    CHECK(!mm_movie_sound_schedule_range(schedule, 1, &published) && published.chunk == 9);
+    host.reject_scene = 0;
+    CHECK(mm_movie_sound_schedule_extend(schedule, 2, &analysis) == MM_SOUND_COLLECT_OK);
+    CHECK(host.scene_reads == 3 && host.cue_reads == 8 && mm_movie_sound_schedule_size(schedule) == 2);
+    CHECK(mm_movie_sound_schedule_range(schedule, 1, &published) && published.chunk == 10);
     mm_movie_sound_schedule_destroy(schedule);
 }
 

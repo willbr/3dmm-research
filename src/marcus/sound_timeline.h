@@ -21,7 +21,7 @@ class MarcusSoundTimeline;
 struct MarcusSoundScene
 {
     double start;
-    MarcusScene info;
+    MMMovieTimingRange range;
     double TimeAt(double frame) const;
     double FrameAt(double seconds) const;
     std::size_t SoundCount() const;
@@ -54,12 +54,13 @@ class MarcusSoundTimeline
 {
     using Schedule = std::unique_ptr<MMMovieSoundSchedule, decltype(&mm_movie_sound_schedule_destroy)>;
     static Schedule Create(double frameSeconds);
-    MarcusSoundTimeline(Schedule, std::vector<MarcusScene>);
+    explicit MarcusSoundTimeline(Schedule);
     friend struct MarcusSoundScene;
     Schedule schedule;
-    std::vector<MarcusScene> scenes;
 
   public:
+    using WaveformReader = std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)>;
+    using PresentationReader = std::function<bool(std::size_t, MM::PreviewPresentation &, MMMovieTimingHolds &)>;
     MarcusSoundTimeline();
     void Clear();
     void SetRate(double fps);
@@ -74,8 +75,8 @@ class MarcusSoundTimeline
     MarcusSoundScene Scene(std::size_t index) const { return MarcusSoundScene(*this, index); }
     bool Locate(double seconds, MMMovieSoundPosition &) const;
     std::vector<MarcusResumeSound> Resume(std::size_t scene, long frame) const;
+    bool Extend(const MarcusScene *scenes, std::size_t count, const PresentationReader &, const WaveformReader &);
     void Append(const MarcusScene &scene, const std::vector<MM::PreviewSoundCue> &cues,
-                const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,
-                const MMMovieTimingHolds &timing = {});
+                const WaveformReader &read, const MMMovieTimingHolds &timing = {});
 };
 #endif

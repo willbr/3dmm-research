@@ -23362,3 +23362,27 @@ Actor Audio candidate `20261122T235435Z-afdd0a5a` matched
 port. Studio and Marcus matched the retained retail and V3DMM seek and
 playback frame order from `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-preview-helper` and `tmp/c89-aqcap`.
+
+## C89 sound schedule analysis and snapshots (23 November 2026)
+
+C89 extends the schedule, owns the temporary caption and pause holds, and
+keeps the already analysed scenes when a later scene fails. The C89
+schedule also supplies timing ranges, stages range edits, and imports and
+exports the matching-build MMT4 snapshot. Marcus supplies presentation,
+font measurements, clip lengths and stream I/O.
+
+The old and new helper snapshots matched byte for byte at two playback
+settings for Actor Audio, the text and caption fixtures, a scene transition
+and `stranger1.zip`. The C regression rejects the second scene and verifies
+that retry publishes it without reading cues from the completed first
+scene again. The native playback tests cover truncated and trailing
+snapshots, carried voices and range edits. All 13 C89 checks passed after
+fixing aggregate initializers in the new fixture. The other 215 selected
+native checks and 12 SDL checks passed. Headless startup produced the same
+screenshot.
+
+Actor Audio candidate `20261123T000512Z-d829b203` matched
+`20261122T235435Z-afdd0a5a` on all 60 seek canvases and scene states per
+port. Both ports matched the seek and playback frame order in retained
+retail and V3DMM run `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-schedule-owner` and `tmp/c89-aqcap`.

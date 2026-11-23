@@ -630,19 +630,19 @@ MarcusPlayer::AnimationCache *Animation(MarcusPlayer *player, int object, MM::Er
 bool ReadSoundTimeline(MarcusPlayer *player, int index, const MarcusScenes &scenes,
                        MarcusSoundTimeline &timeline, MM::Error &error)
 {
-    while (timeline.Size() <= static_cast<std::size_t>(index))
-    {
-        const auto next = timeline.Size();
-        MM::PreviewPresentation presentation;
-        MarcusSoundTiming timing;
-        if (!player->preview.ReadTimingPresentation(scenes.Id(next), presentation, error) ||
-            !MarcusPlayback::ReadTiming(presentation, timing, error, player->timingInput ? player->timingInput->fonts : nullptr))
-            return false;
-        timeline.Append(scenes[next], presentation.sounds, [&](const MM::PreviewSoundCue &cue) {
+    if (index < 0 || static_cast<std::size_t>(index) >= scenes.size())
+        return false;
+    const auto count = static_cast<std::size_t>(index) + 1;
+    if (timeline.Size() >= count)
+        return true;
+    return timeline.Extend(scenes.Data(), count,
+        [&](std::size_t next, MM::PreviewPresentation &presentation, MMMovieTimingHolds &timing) {
+            return player->preview.ReadTimingPresentation(scenes.Id(next), presentation, error) &&
+                MarcusPlayback::ReadTiming(presentation, timing, error, player->timingInput ? player->timingInput->fonts : nullptr);
+        },
+        [&](const MM::PreviewSoundCue &cue) {
             return player->waveforms.Length(player->preview, cue);
-        }, timing);
-    }
-    return true;
+        });
 }
 bool ReadSoundTimeline(MarcusPlayer *player, int index, MM::Error &error)
 {

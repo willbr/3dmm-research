@@ -630,9 +630,34 @@ int mm_movie_sound_schedule_append_cues(MMMovieSoundSchedule *schedule, const MM
     return result ? MM_SOUND_COLLECT_OK : MM_SOUND_COLLECT_MEMORY;
 }
 
+int mm_movie_sound_schedule_extend(MMMovieSoundSchedule *schedule, size_t count, const MMMovieSoundAnalysis *input)
+{
+    while (schedule->scene_count < count)
+    {
+        MMMovieTimingHolds holds = {0};
+        MMMovieTimingRange range;
+        size_t cues;
+        int status = MM_SOUND_COLLECT_SCENE;
+        if (input->scene(input->context, schedule->scene_count, &range, &holds, &cues))
+            status = mm_movie_sound_schedule_append_cues(schedule, &range, &holds, cues, input->context, input->cue);
+        mm_movie_timing_holds_dispose(&holds);
+        if (status != MM_SOUND_COLLECT_OK)
+            return status;
+    }
+    return MM_SOUND_COLLECT_OK;
+}
+
 void mm_movie_sound_schedule_source(const MMMovieSoundSchedule *schedule, size_t scene, MMMovieTimingScene *source)
 {
     *source = schedule->scenes[scene].source;
+}
+
+int mm_movie_sound_schedule_range(const MMMovieSoundSchedule *schedule, size_t scene, MMMovieTimingRange *range)
+{
+    if (scene >= schedule->scene_count)
+        return 0;
+    *range = schedule->scenes[scene].source.range;
+    return 1;
 }
 
 int mm_movie_sound_schedule_reframe(const MMMovieSoundSchedule *schedule, const MMMovieTimingRange *ranges,
@@ -661,6 +686,121 @@ int mm_movie_sound_schedule_reframe(const MMMovieSoundSchedule *schedule, const 
     }
     *out = replacement;
     return MM_SOUND_REFRAME_OK;
+}
+
+int mm_movie_sound_schedule_reframe_read(const MMMovieSoundSchedule *schedule, size_t count, void *context,
+                                          MMMovieTimingRangeRead *range, MMMovieSoundSchedule **out)
+{
+    MMMovieTimingRange *ranges;
+    size_t i;
+    int status;
+    if (count > schedule->scene_count)
+        count = schedule->scene_count;
+    ranges = (MMMovieTimingRange *)rows(count, sizeof(*ranges));
+    if (count && !ranges)
+        return MM_SOUND_REFRAME_MEMORY;
+    for (i = 0; i < count; ++i)
+        if (!range(context, i, &ranges[i]))
+        {
+            free(ranges);
+            return MM_SOUND_REFRAME_MISMATCH;
+        }
+    status = mm_movie_sound_schedule_reframe(schedule, ranges, count, out);
+    free(ranges);
+    return status;
+}
+
+typedef struct ScheduleImport
+{
+    const MMMovieSoundSnapshotInput *input;
+    MMMovieSoundSchedule *schedule;
+} ScheduleImport;
+
+static int import_read(void *context, void *bytes, size_t size)
+{
+    const MMMovieSoundSnapshotInput *input = ((ScheduleImport *)context)->input;
+    return input->read(input->context, bytes, size);
+}
+
+static int import_end(void *context)
+{
+    const MMMovieSoundSnapshotInput *input = ((ScheduleImport *)context)->input;
+    return input->at_end(input->context);
+}
+
+static int import_expected(void *context, size_t index, MMMovieTimingRange *range)
+{
+    const MMMovieSoundSnapshotInput *input = ((ScheduleImport *)context)->input;
+    return input->expected(input->context, index, range);
+}
+
+static int import_begin(void *context, double frame_seconds)
+{
+    ScheduleImport *staged = (ScheduleImport *)context;
+    staged->schedule = mm_movie_sound_schedule_create(frame_seconds);
+    return staged->schedule != NULL;
+}
+
+static int import_scene(void *context, size_t index, const MMMovieTimingScene *scene)
+{
+    ScheduleImport *staged = (ScheduleImport *)context;
+    return index == staged->schedule->scene_count && mm_movie_sound_schedule_append(staged->schedule, scene);
+}
+
+int mm_movie_sound_schedule_read_snapshot(const MMMovieSoundSnapshotInput *input, size_t count,
+                                           MMMovieSoundSchedule **out)
+{
+    ScheduleImport staged;
+    MMMovieTimingReader reader;
+    double frame_seconds;
+    staged.input = input;
+    staged.schedule = NULL;
+    reader.context = &staged;
+    reader.read = import_read;
+    reader.at_end = import_end;
+    reader.expected = import_expected;
+    reader.scene = import_scene;
+    reader.begin = import_begin;
+    if (!mm_movie_timing_snapshot_read(&reader, count, &frame_seconds))
+    {
+        mm_movie_sound_schedule_destroy(staged.schedule);
+        return 0;
+    }
+    *out = staged.schedule;
+    return 1;
+}
+
+typedef struct ScheduleExport
+{
+    const MMMovieSoundSchedule *schedule;
+    void *context;
+    int (*write)(void *, const void *, size_t);
+} ScheduleExport;
+
+static int export_write(void *context, const void *bytes, size_t size)
+{
+    const ScheduleExport *out = (const ScheduleExport *)context;
+    return out->write(out->context, bytes, size);
+}
+
+static int export_scene(void *context, size_t index, MMMovieTimingScene *scene)
+{
+    mm_movie_sound_schedule_source(((const ScheduleExport *)context)->schedule, index, scene);
+    return 1;
+}
+
+int mm_movie_sound_schedule_write_snapshot(const MMMovieSoundSchedule *schedule, void *context,
+                                             int (*write)(void *, const void *, size_t))
+{
+    ScheduleExport out;
+    MMMovieTimingWriter writer;
+    out.schedule = schedule;
+    out.context = context;
+    out.write = write;
+    writer.context = &out;
+    writer.write = export_write;
+    writer.scene = export_scene;
+    return mm_movie_timing_snapshot_write(&writer, schedule->scene_count, schedule->frame_seconds);
 }
 
 size_t mm_movie_sound_schedule_sound_count(const MMMovieSoundSchedule *schedule, size_t scene)

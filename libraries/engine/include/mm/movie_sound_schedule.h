@@ -10,7 +10,7 @@ typedef struct MMMovieSoundSchedule MMMovieSoundSchedule;
 
 enum { MM_SOUND_CLIP_SAMPLED = 1, MM_SOUND_CLIP_MIDI = 2 };
 enum { MM_SOUND_REFRAME_OK, MM_SOUND_REFRAME_MISMATCH, MM_SOUND_REFRAME_MEMORY };
-enum { MM_SOUND_COLLECT_OK, MM_SOUND_COLLECT_SOURCE, MM_SOUND_COLLECT_MEMORY };
+enum { MM_SOUND_COLLECT_OK, MM_SOUND_COLLECT_SOURCE, MM_SOUND_COLLECT_MEMORY, MM_SOUND_COLLECT_SCENE };
 
 typedef struct MMMovieTimingHolds
 {
@@ -99,12 +99,39 @@ int mm_movie_sound_schedule_append(MMMovieSoundSchedule *, const MMMovieTimingSc
 typedef int MMMovieTimingCueRead(void *, size_t, MMMovieTimingCue *);
 int mm_movie_sound_schedule_append_cues(MMMovieSoundSchedule *, const MMMovieTimingRange *,
                                         const MMMovieTimingHolds *, size_t count, void *, MMMovieTimingCueRead *);
+typedef struct MMMovieSoundAnalysis
+{
+    void *context;
+    /* Fill an empty hold owner for the requested scene and select its cue
+     * source. The analyser disposes holds even if acquisition fails. */
+    int (*scene)(void *, size_t, MMMovieTimingRange *, MMMovieTimingHolds *, size_t *cue_count);
+    MMMovieTimingCueRead *cue;
+} MMMovieSoundAnalysis;
+/* Analyse through the requested scene count. Failure retains the completed
+ * prefix, so retrying starts again at the first unpublished scene. */
+int mm_movie_sound_schedule_extend(MMMovieSoundSchedule *, size_t count, const MMMovieSoundAnalysis *);
 /* Borrow the scene's inputs until the schedule is cleared or destroyed. */
 void mm_movie_sound_schedule_source(const MMMovieSoundSchedule *, size_t scene, MMMovieTimingScene *);
+int mm_movie_sound_schedule_range(const MMMovieSoundSchedule *, size_t scene, MMMovieTimingRange *);
 /* Rebuild the common prefix using the new ranges and the stored inputs.
  * The previous schedule survives either result. Output is set on success. */
 int mm_movie_sound_schedule_reframe(const MMMovieSoundSchedule *, const MMMovieTimingRange *, size_t count,
                                      MMMovieSoundSchedule **out);
+typedef int MMMovieTimingRangeRead(void *, size_t, MMMovieTimingRange *);
+int mm_movie_sound_schedule_reframe_read(const MMMovieSoundSchedule *, size_t count, void *,
+                                          MMMovieTimingRangeRead *, MMMovieSoundSchedule **out);
+
+typedef struct MMMovieSoundSnapshotInput
+{
+    void *context;
+    int (*read)(void *, void *, size_t);
+    int (*at_end)(void *);
+    MMMovieTimingRangeRead *expected;
+} MMMovieSoundSnapshotInput;
+/* Publish an owning schedule only after all expected scenes and EOF match.
+ * Stream and range callbacks are synchronous and must not unwind into C. */
+int mm_movie_sound_schedule_read_snapshot(const MMMovieSoundSnapshotInput *, size_t count, MMMovieSoundSchedule **out);
+int mm_movie_sound_schedule_write_snapshot(const MMMovieSoundSchedule *, void *, int (*write)(void *, const void *, size_t));
 
 double mm_movie_sound_schedule_time_at(const MMMovieSoundSchedule *, size_t scene, double frame);
 double mm_movie_sound_schedule_frame_at(const MMMovieSoundSchedule *, size_t scene, double time);

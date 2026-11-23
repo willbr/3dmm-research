@@ -360,7 +360,7 @@ void MarcusPlayback::SetFonts(std::shared_ptr<KauaiFonts::FontCatalog> fonts)
     marcus_caption_raster_clear(&impl->captionRasters);
     impl->fonts = std::move(fonts);
 }
-bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusSoundTiming &timing, Error &error,
+bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MMMovieTimingHolds &timing, Error &error,
                                 const std::shared_ptr<KauaiFonts::FontCatalog> &fonts)
 {
     Impl calculator;
