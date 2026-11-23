@@ -11,7 +11,8 @@ static bool TestBodyRuntime()
     if (const char *path=std::getenv("MM_BODY_RUNTIME_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1); face.vertices[1]=1; face.vertices[2]=2;
-    auto a=EngineModel::New(3,vertices,1,&face),b=EngineModel::New(3,vertices,1,&face);
+    auto a = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
+    auto b = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
     auto ma=EngineMaterial::New(),mb=EngineMaterial::New();
     PMaterial_MTRL parts[]={ma,mb,ma,mb,ma,mb};
     auto ca=ma && mb?EngineCostume::New(0,6,parts):nullptr;

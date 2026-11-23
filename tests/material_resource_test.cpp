@@ -261,13 +261,14 @@ static PChunkyFile CustomFile(int variant, ChunkNumber *number)
             v[2].p.v[1] = 65536;
             face.vertices[1] = 1;
             face.vertices[2] = 2;
-            auto model = EngineModel::New(3, v, 1, &face);
+            auto model = mm_model_new(3, v, 1, &face, mm_kauai_model_host());
             CHECK(model);
             ChunkNumber modelNumber;
             DataBlock b;
             CHECK(f->FAdd(0, kctgBmdl, &modelNumber, &b));
             b.Free();
-            CHECK(EngineModel::Write(model, f, kctgBmdl, modelNumber));
+            const auto writer = f->WriteOwnerIndex();
+            CHECK(mm_model_owner_write(model, &writer, kctgBmdl, modelNumber));
             CHECK(f->FAdoptChild(kctgCmtl, *number, kctgBmdl, modelNumber, i));
             mm_model_owner_release(model);
         }

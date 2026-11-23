@@ -1301,7 +1301,8 @@ static JVal MovieDetails(PScene scene)
                                utf8);
         item.Set("name", JVal::MkStr(utf8));
         std::uint64_t pose = UINT64_C(14695981039346656037), appearance = pose;
-        const int parts = body ? EngineBody::ActorCount(body) - 2 : 0;
+        const auto draw = body ? EngineBody::DrawView(body) : MMBodyDrawView{};
+        const int parts = draw.part_count;
         item.Set("parts", JVal::MkInt(parts));
         JVal partMatrices = JVal::MkArr();
         for (int part = 0; part < parts; ++part)
@@ -1311,9 +1312,9 @@ static JVal MovieDetails(PScene scene)
                 for (int column = 0; column < 3; ++column)
                     partMatrices.a->push_back(JVal::MkInt(bact->t.t.mat.m[row][column]));
             pose = HashMovieBytes(pose, &bact->t.t.mat, sizeof(bact->t.t.mat));
-            if (bact->model)
+            if (auto model = static_cast<MMModelOwner *>(draw.bindings[part + 2].model_owner))
             {
-                auto number = mm_model_owner_binding(EngineModel::FromHandle(bact->model))->number;
+                auto number = mm_model_owner_binding(model)->number;
                 appearance = HashMovieBytes(appearance, &number, sizeof(number));
             }
             if (bact->material)

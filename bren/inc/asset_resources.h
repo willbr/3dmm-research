@@ -16,6 +16,7 @@ int mm_kauai_resource_name(const MMResourceCache *, MMU32 type, MMU32 number, co
 const MMFontOwnerHost *mm_kauai_font_host(void);
 void mm_kauai_font_missing_model(void *, MMU32 id);
 const MMModelOwnerHost *mm_kauai_model_host(void);
+void mm_kauai_model_validate(const MMModelOwner *);
 const MMMaterialOwnerHost *mm_kauai_material_host(void);
 void mm_kauai_material_validate(MMMaterialOwner *);
 
@@ -30,7 +31,6 @@ MMModelOwner *mm_brender_font_glyph(const MMFontOwner *, MMU32 id);
 
 int mm_brender_model_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 MMModelOwner *mm_brender_model_fetch(MMResourceCache *, MMU32 type, MMU32 number);
-MMI32 mm_brender_model_extent(MMModelOwner *, unsigned axis);
 void mm_brender_model_mark(MMModelOwner *);
 
 int mm_brender_material_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);

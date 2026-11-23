@@ -115,7 +115,6 @@
 #include "frame.h"
 #include "soc.h"
 
-#include "body_world.h"
 #include "engine_actor_timeline.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_placement.h"
@@ -184,7 +183,9 @@ MMActorCreateServices Actor::_CreateServices()
         *flags=value; return int(ok);
     };
     s.create_body=[](void *,void *p)->void * { return EngineTemplate::PbodyCreate(static_cast<PTemplate>(p)); };
-    s.bind_body=[](void *,void *body,void *scene) { BodyWorld::Bind(static_cast<PBody>(body),static_cast<PScene>(scene)->Pmvie()->Pbwld()); };
+    s.bind_body = [](void *, void *body, void *scene) {
+        static_cast<PScene>(scene)->Pmvie()->Pbwld()->BindBody(static_cast<PBody>(body));
+    };
     s.diagnostic=[](void *,int fault) {
         if (fault==MM_CREATE_WRONG_SCENE) { Bug("SetPscen logic error"); }
         else { Assert(fault==MM_CREATE_BOUND_WITHOUT_BODY || fault==MM_CREATE_BODY_WITHOUT_SCENE,"Unknown binding fault"); Bug("Bad body pointer"); }
@@ -1474,7 +1475,7 @@ bool Actor::FPtIn(long xp, long yp, long *pibset)
     AssertThis(0);
     AssertVarMem(pibset);
 
-    return BodyWorld::FPtInBody(_Body(), _Scene()->Pmvie()->Pbwld(), xp, yp, pibset);
+    return _Scene()->Pmvie()->Pbwld()->ContainsBody(_Body(), xp, yp, pibset, EngineBody::GeometryServices());
 }
 
 /***************************************************************************

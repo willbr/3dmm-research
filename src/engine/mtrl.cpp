@@ -223,7 +223,7 @@ void EngineCostume::Validate(PCustomMaterial_CMTL costume)
         if (data.materials[i])
             EngineMaterial::Validate(static_cast<PMaterial_MTRL>(data.materials[i]));
         if (data.models[i])
-            EngineModel::Validate(static_cast<PModel>(data.models[i]));
+            mm_kauai_model_validate(static_cast<PModel>(data.models[i]));
     }
 }
 #endif

@@ -57,10 +57,6 @@ void GetPosition(PBody, BRS *x, BRS *y, BRS *z);
 bool IsInView(PBody);
 
 MMBodyGeometryServices GeometryServices();
-int ReadRenderBody(PBACT, MMRenderBody *);
-void PrepareRenderBody(const MMRenderBody *);
-void ActorRendered(PBACT, RC *);
-void RenderRect(PBACT, RC *);
 
 #ifdef DEBUG
 void Validate(PBody, LegacyUlong flags = 0);

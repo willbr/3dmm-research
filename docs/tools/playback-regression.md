@@ -24388,3 +24388,39 @@ from retail and V3DMM. The transition comparison covers steady frames and
 the settled canvas.
 
 Evidence is under `tmp/c89-background-bindings`.
+
+## C89 model ownership and body rendering (23 November 2026)
+
+The model owner uses its own renderer for BMDL saves, glyph measurements
+and glyph adjustment. Studio reads the retained model identity from the body
+part binding. The C BRender adapter prepares body draws and performs the
+viewport hit scan. World binds the native scene and display effects. The
+C++ model and body-to-world modules are out of the engine build.
+
+The model fixture matched all 277,360 reference bytes, including the
+prepared face and model archive records. Its DAT loads and prelight cleanup
+checks passed. Body edit, runtime, geometry, font and text generation traces
+matched byte for byte. The native and SDL world-camera checks exercise
+visible body picks, part-set lookup, and miss output after hiding the body.
+The historical `tdfmake` source passed the native syntax check.
+
+The 227 native suite checks, 16 SDL checks and three x86 worker fixtures
+passed. The native suite includes both strict C89 syntax checks. All ten
+Preview fingerprints matched. Studio authored and reopened the same
+27,056-byte movie. The SDL movie-content and actor-create snapshots and
+the headless Marcus startup image matched the previous build.
+
+All eight native scene traces matched. The existing `scene-load` debug
+assertion repeated with a 63,224-byte trace and fingerprint `0D666753`.
+
+Candidate `20261123T134624Z-6d4c46e3` completed eight headless port runs.
+Actor Audio matched all 60 previous seek canvases and scene states in
+each port, including Studio's actor appearance hashes. Both ports matched
+all 60 retail and V3DMM camera indices and the authored frame order.
+Studio matched all 240 recorded actor snapshots at the recorded precision.
+The existing seek canvas difference at scene 0, frame 4, reproduced.
+The dissolve case matched all 60 previous seek canvases and 59 steady
+playback observations per port. Its authored frame order and settled
+canvas matched retail and V3DMM.
+
+Evidence is under `tmp/c89-body-render-binding`.

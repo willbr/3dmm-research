@@ -46,7 +46,6 @@
 ***************************************************************************/
 
 #include "soc.h"
-#include "body_world.h"
 #include "movie_archive_host.h"
 #include "engine_movie_graph.h"
 #include "scene_sound.h"
@@ -1623,7 +1622,7 @@ Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
         &host,
         [](void *p, MMI32 x, MMI32 y) -> void * {
             auto h = static_cast<Host *>(p);
-            return BodyWorld::PbodyClicked(x, y, h->scene->Pmvie()->Pbwld(), h->part);
+            return h->scene->Pmvie()->Pbwld()->PickBody(x, y, h->part, EngineBody::GeometryServices());
         },
         [](void *p) -> MMI32 { return static_cast<Host *>(p)->scene->Cactr(); },
         [](void *p, MMI32 index) -> void * { return static_cast<Host *>(p)->scene->PactrAt(index); },

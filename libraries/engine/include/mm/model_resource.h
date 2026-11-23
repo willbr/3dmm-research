@@ -97,6 +97,10 @@ extern "C"
     MMI32 mm_model_owner_references(const MMModelOwner *);
     void mm_model_owner_retain(MMModelOwner *);
     void mm_model_owner_release(MMModelOwner *);
+    struct MMArchiveWriter;
+    int mm_model_owner_write(const MMModelOwner *, const struct MMArchiveWriter *, MMU32 type, MMU32 number);
+    MMI32 mm_model_owner_extent(const MMModelOwner *, unsigned axis);
+    void mm_model_owner_adjust_glyph(MMModelOwner *);
     int mm_model_write(const MMModelResource *, const MMChunkEdit *, const MMBlockFileServices *,
                        MMU32 type, MMU32 number, const MMModelServices *);
     MMI32 mm_model_extent(const MMModelResource *, unsigned axis, const MMModelServices *);

@@ -31,16 +31,12 @@ MMModelOwner *mm_brender_model_fetch(MMResourceCache *cache, MMU32 type, MMU32 n
     return mm_resource_cache_fetch_owned_chunk(cache, type, number, mm_brender_model_read, mm_model_owner_services());
 }
 
-MMI32 mm_brender_model_extent(MMModelOwner *owner, unsigned axis)
-{
-    return mm_model_extent(mm_model_owner_resource(owner), axis, mm_kauai_model_host()->renderer);
-}
-
 void mm_brender_model_mark(MMModelOwner *owner)
 {
     const MMResourceObject *binding;
     if (!owner)
         return;
+    mm_kauai_model_validate(owner);
     mm_model_owner_services()->mark_memory(owner);
     binding = mm_model_owner_binding(owner);
     if (binding->cache && !binding->attached)
@@ -56,13 +52,13 @@ static void font_release_model(void *context, void *object)
 static MMI32 font_model_width(void *context, void *object)
 {
     (void)context;
-    return mm_brender_model_extent(object, 0);
+    return mm_model_owner_extent(object, 0);
 }
 
 static MMI32 font_model_height(void *context, void *object)
 {
     (void)context;
-    return mm_brender_model_extent(object, 1);
+    return mm_model_owner_extent(object, 1);
 }
 
 void mm_brender_asset_font_bind(MMFontResourceServices *s)

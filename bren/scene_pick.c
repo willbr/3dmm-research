@@ -75,6 +75,41 @@ void *mm_brender_world_pick(MMWorldCamera *state, const MMWorldBuffers *buffers,
     return mm_world_pick(state, buffers, x, y, &services);
 }
 
+typedef struct WorldBodyPoint
+{
+    const MMWorldBuffers *buffers;
+    const MMRenderFrame *frame;
+    MMI32 x, y;
+} WorldBodyPoint;
+
+static void scan_bodies(void *context, MMBodyHitVisitor *visit, void *visitor_context)
+{
+    const WorldBodyPoint *point = context;
+    mm_brender_world_visit(point->buffers, point->frame, point->x, point->y, visit, visitor_context);
+}
+
+MMBodyOwner *mm_brender_world_pick_body(const MMWorldBuffers *buffers, const MMRenderFrame *frame, MMI32 x, MMI32 y,
+                                        MMI32 *set, const MMBodyGeometryServices *services)
+{
+    WorldBodyPoint point;
+    point.buffers = buffers;
+    point.frame = frame;
+    point.x = x;
+    point.y = y;
+    return mm_body_pick_at(scan_bodies, &point, set, services);
+}
+
+int mm_brender_world_search_body(MMBodyOwner *body, const MMWorldBuffers *buffers, const MMRenderFrame *frame,
+                                 MMI32 x, MMI32 y, MMI32 *set, const MMBodyGeometryServices *services)
+{
+    WorldBodyPoint point;
+    point.buffers = buffers;
+    point.frame = frame;
+    point.x = x;
+    point.y = y;
+    return mm_body_search_at(body, scan_bodies, &point, set, services);
+}
+
 static int BR_CALLBACK visit_preview_face(br_model *model, br_material *material, br_vector3 *position,
                                           br_vector3 *direction, br_scalar distance, int face, int edge, int vertex,
                                           br_vector3 *hit, br_vector2 *map, void *context)

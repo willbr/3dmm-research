@@ -35,7 +35,9 @@ static bool TestTemplateRuntime()
     FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_TEMPLATE_RUNTIME_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1); face.vertices[1]=1; face.vertices[2]=2;
-    auto a=EngineModel::New(3,vertices,1,&face),b=EngineModel::New(3,vertices,1,&face); auto material=EngineMaterial::New();
+    auto a = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
+    auto b = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
+    auto material = EngineMaterial::New();
     bool ok=a && b && material; int successes=0,failures=0;
     const int counts[]={0,2,6},cels[]={-7,-1,0,2,7};
     for (int shape=0;ok && shape<3;++shape) for (int mode=0;ok && mode<3;++mode) for (int cn=0;ok && cn<5;++cn)
@@ -78,7 +80,7 @@ static bool TestTemplateRuntime()
             if (applied) ++successes; else ++failures;
             LegacyLong values[]={shape,mode,cn,kind,failure,applied,distance,mm_model_owner_references(a),mm_model_owner_references(b),mm_action_resource_references(action),fixture.used};
             ok=record(values,sizeof(values)) && record(fixture.trace,fixture.used*sizeof(int)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
-            for (int i=0;i<n;++i) { LegacyLong identity=EngineBody::Part(body, i)->model==EngineModel::Handle(a)?1:EngineBody::Part(body, i)->model==EngineModel::Handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
+            for (int i=0;i<n;++i) { LegacyLong identity=EngineBody::Part(body, i)->model==mm_brender_model_handle(a)?1:EngineBody::Part(body, i)->model==mm_brender_model_handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
             LegacyLong count=-77; LegacyUlong flags=0x1357; bool exists=true; TAG tag={123,nullptr,0x12345678,456};
             MMI32 d=BR_SCALAR(-99); bool dOk=mm_brender_template_distance(t, 0,cels[cn],&d)!=0,countOk=EngineTemplate::FGetCcelActn(t, 0,&count),flagsOk=EngineTemplate::FGetGrfactn(t, 0,&flags),soundOk=EngineTemplate::FGetSndActnCel(t, 0,cels[cn],&exists,&tag);
             LegacyLong queries[]={dOk,d,countOk,count,flagsOk,static_cast<LegacyLong>(flags),soundOk,exists,tag.sid,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)};

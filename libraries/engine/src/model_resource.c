@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/model_resource.h"
 #include "mm/chunk_storage.h"
+#include "mm/chunk_storage.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -453,6 +454,11 @@ done:
         allocator->release(allocator->context, b, (MMU32)layout.end);
     return ok;
 }
+int mm_model_owner_write(const MMModelOwner *owner, const MMArchiveWriter *archive, MMU32 type, MMU32 number)
+{
+    return mm_model_write(&owner->model, &archive->edit, archive->payloads->files, type, number,
+                          owner->host->renderer);
+}
 MMModelOwner *mm_model_dat(const void *path, const MMModelOwnerHost *host)
 {
     const MMModelServices *s = host->renderer;
@@ -477,6 +483,10 @@ MMI32 mm_model_extent(const MMModelResource *m, unsigned axis, const MMModelServ
     MMModelDescription d;
     s->describe(s->context, m->handle, &d);
     return mm_fixed_sub(d.bounds.max[axis], d.bounds.min[axis]);
+}
+MMI32 mm_model_owner_extent(const MMModelOwner *owner, unsigned axis)
+{
+    return mm_model_extent(&owner->model, axis, owner->host->renderer);
 }
 static MMI32 half_floor(MMI32 n)
 {
@@ -508,4 +518,8 @@ void mm_model_adjust_glyph(const MMModelResource *m, const MMModelServices *s)
     d.bounds.max[2] = mm_fixed_sub(d.bounds.max[2], z);
     d.pivot[2] = mm_fixed_sub(d.pivot[2], z);
     s->geometry(s->context, m->handle, &d);
+}
+void mm_model_owner_adjust_glyph(MMModelOwner *owner)
+{
+    mm_model_adjust_glyph(&owner->model, owner->host->renderer);
 }

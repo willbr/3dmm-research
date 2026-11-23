@@ -43,7 +43,7 @@ static bool TestBodyEditing()
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1);
     face.vertices[1]=1; face.vertices[2]=2;
-    auto model=EngineModel::New(3,vertices,1,&face);
+    auto model = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
     auto generic=EngineMaterial::New(),material=EngineMaterial::New();
     PMaterial_MTRL customParts[6]={material,material,material,material,material,material};
     auto custom=material?EngineCostume::New(1,6,customParts):nullptr;

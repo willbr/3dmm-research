@@ -30,10 +30,15 @@ MMU32 mm_brender_model_faces(const void *handle)
     return ((const br_model *)handle)->nprepared_faces;
 }
 
-void *mm_brender_model_owner(const void *handle)
+br_model *mm_brender_model_handle(const MMModelOwner *owner)
+{
+    return (br_model *)mm_model_owner_resource(owner)->handle;
+}
+
+MMModelOwner *mm_brender_model_owner(const void *handle)
 {
     const br_model *model = (const br_model *)handle;
-    void *owner;
+    MMModelOwner *owner;
     memcpy(&owner, model->identifier, sizeof(owner));
     return owner;
 }
@@ -336,7 +341,7 @@ static void lighting_free(void *context, int kind, void *handle)
         BrPixelmapFree((br_pixelmap *)handle);
 }
 
-int mm_brender_model_prelight(const MMModelResource *model, MMI32 lights, void (*multiple_lights)(void *))
+int mm_brender_model_prelight(const MMModelOwner *owner, MMI32 lights, void (*multiple_lights)(void *))
 {
     ModelLighting lighting;
     MMModelLightingServices services = {
@@ -346,5 +351,5 @@ int mm_brender_model_prelight(const MMModelResource *model, MMI32 lights, void (
     memset(&lighting, 0, sizeof(lighting));
     services.context = &lighting;
     services.multiple_lights = multiple_lights;
-    return mm_model_prelight(model, lights, &services);
+    return mm_model_prelight(mm_model_owner_resource(owner), lights, &services);
 }

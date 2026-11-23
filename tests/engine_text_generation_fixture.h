@@ -60,8 +60,11 @@ static bool TestTextGeneration()
     std::memcpy(wire.data(),&order,2); std::memcpy(wire.data()+2,&system,2); std::memcpy(wire.data()+4,&count,4); std::memcpy(wire.data()+8,&maximum,4);
     for (int i=0;i<256;++i) { BRS width=BR_SCALAR(i%4+1)+(i%2),height=BR_SCALAR(i%3+1)+(i%5); std::memcpy(wire.data()+12+i*4,&width,4); std::memcpy(wire.data()+12+256*4+i*4,&height,4); }
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(2); face.vertices[1]=1; face.vertices[2]=2;
-    auto model=EngineModel::New(3,vertices,1,&face); ChunkNumber number=0,modelNumber=0;
-    bool ok=cache && model && file->FAddPv(wire.data(),static_cast<LegacyLong>((wire.size)()),kctgTdf,&number) && number==0 && file->FAdd(0,kctgBmdl,&modelNumber) && EngineModel::Write(model, file,kctgBmdl,modelNumber);
+    auto model = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
+    ChunkNumber number = 0, modelNumber = 0;
+    const auto writer = file ? file->WriteOwnerIndex() : MMArchiveWriter{};
+    bool ok = cache && model && file->FAddPv(wire.data(), static_cast<LegacyLong>((wire.size)()), kctgTdf, &number) &&
+              number == 0 && file->FAdd(0, kctgBmdl, &modelNumber) && mm_model_owner_write(model, &writer, kctgBmdl, modelNumber);
     for (int i=0;ok && i<256;++i) ok=file->FAdoptChild(kctgTdf,0,kctgBmdl,modelNumber,i);
     mm_model_owner_release(model); TAG font={ksidUseCrf,cache->CoreCache(),kctgTdf,0}; TextGenerationFontContext context={cache,false,0};
     const char *strings[]={"","A","AiB","\xe9 A","ABBAi"}; int generated=0,attempts=0,successful=0;

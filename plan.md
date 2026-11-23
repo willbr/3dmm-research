@@ -2090,6 +2090,11 @@ owners directly. The C89 BRender body adapter supplies body allocation,
 body-part materials and models, pose and geometry services for Studio and
 Preview. Marcus, its Preview helper and its regression runner link the C89
 body adapter directly. Kauai supplies allocation and diagnostic callbacks.
+The model owner now supplies its renderer when saving BMDL chunks, measuring
+glyphs and adjusting glyph geometry. Studio reads model identity from the body
+part's retained owner. The C renderer prepares body draw entries and scans for
+body hits directly. World supplies the target scene and display effects. The
+C++ model and body-to-world modules have been removed from the engine build.
 Actor-track editing in both hosts uses the shared C89 local tag operations.
 Loaded 3D text carries its host's font provider. Studio binds its catalogue
 through the C89 tag-based template fetch. The template owner keeps an

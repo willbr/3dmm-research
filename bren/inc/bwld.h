@@ -58,8 +58,7 @@ class World : public World_PAR
     BPMP _bpmpRGB, _bpmpZ; // BRender views refreshed from the C89 buffers before use.
     static long _defaultRenderScale;
     PFNBEGINREND _pfnbeginrend;  // Callback to each actor before rendering
-    int (*_pfnreadbody)(PBACT, MMRenderBody *) = nullptr;
-    void (*_pfnpreparebody)(const MMRenderBody *) = nullptr;
+    const MMBodyGeometryServices *_bodyGeometry = nullptr;
     PFNBACTREND _pfnbactrend;    // Callback when an actor is rendered
     PFNGETRECT _pfngetrect;      // Callback to get an actor's bounding rect
 
@@ -97,16 +96,13 @@ class World : public World_PAR
 
     // Actor stuff
     void AddActor(BACT *pbact);
+    void BindBody(MMBodyOwner *);
+    MMBodyOwner *PickBody(long x, long y, long *set, const MMBodyGeometryServices &);
+    bool ContainsBody(MMBodyOwner *, long x, long y, long *set, const MMBodyGeometryServices &);
     bool FClickedActor(long xp, long yp, BACT **ppbact);
-    void IterateActorsInPt(MMBRenderActorHit *visit, void *context, long xp, long yp);
     void SetBeginRenderCallback(PFNBEGINREND pfnbeginrend)
     {
         _pfnbeginrend = pfnbeginrend;
-    }
-    void SetBodyRenderCallbacks(int (*read)(PBACT, MMRenderBody *), void (*prepare)(const MMRenderBody *))
-    {
-        _pfnreadbody = read;
-        _pfnpreparebody = prepare;
     }
     void SetActorRenderedCallback(PFNBACTREND pfnbactrend)
     {

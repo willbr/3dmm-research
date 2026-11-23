@@ -97,6 +97,14 @@ LFail:
     return 1; // error
 }
 
+static bool WriteGlyphModel(PChunkyFile file, PModel model, ChunkNumber *number)
+{
+    if (!file->FAdd(0, kctgBmdl, number))
+        return false;
+    const auto writer = file->WriteOwnerIndex();
+    return mm_model_owner_write(model, &writer, kctgBmdl, *number) != 0;
+}
+
 /***************************************************************************
     Writes a ThreeDFont chunk and child BMDL chunks based on all DAT files in
     pfniSrcDir to the destination file pcflDst.
@@ -163,13 +171,13 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
             fFoundSpace = fTrue;
         if (chid == 0xa0) // nonbreaking space
             fFoundSpace2 = fTrue;
-        pmodl = EngineModel::FromDat(&fni);
+        String path;
+        fni.GetStnPath(&path);
+        pmodl = mm_model_dat(path.Psz(), mm_kauai_model_host());
         if (pvNil == pmodl)
             return fFalse;
-        EngineModel::AdjustGlyph(pmodl);
-        if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
-            goto LFail;
-        if (!EngineModel::Write(pmodl, pcflDst, kctgBmdl, cnoModl))
+        mm_model_owner_adjust_glyph(pmodl);
+        if (!WriteGlyphModel(pcflDst, pmodl, &cnoModl))
             goto LFail;
         mm_model_owner_release(pmodl);
         pmodl = nullptr;
@@ -187,12 +195,10 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     // Hack to insert a space character if none specified
     if (!fFoundSpace)
     {
-        pmodl = EngineModel::New(0, pvNil, 0, pvNil);
+        pmodl = mm_model_new(0, nullptr, 0, nullptr, mm_kauai_model_host());
         if (pvNil == pmodl)
             return fFalse;
-        if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
-            goto LFail;
-        if (!EngineModel::Write(pmodl, pcflDst, kctgBmdl, cnoModl))
+        if (!WriteGlyphModel(pcflDst, pmodl, &cnoModl))
             goto LFail;
         mm_model_owner_release(pmodl);
         pmodl = nullptr;
@@ -206,12 +212,10 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     // Hack to insert a nonbreaking space character if none specified
     if (!fFoundSpace2)
     {
-        pmodl = EngineModel::New(0, pvNil, 0, pvNil);
+        pmodl = mm_model_new(0, nullptr, 0, nullptr, mm_kauai_model_host());
         if (pvNil == pmodl)
             return fFalse;
-        if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
-            goto LFail;
-        if (!EngineModel::Write(pmodl, pcflDst, kctgBmdl, cnoModl))
+        if (!WriteGlyphModel(pcflDst, pmodl, &cnoModl))
             goto LFail;
         mm_model_owner_release(pmodl);
         pmodl = nullptr;

@@ -32,6 +32,11 @@ MMBodyState *mm_body_owner_state(MMBodyOwner *body)
     return &body->state;
 }
 
+void mm_body_owner_bind_render(MMBodyOwner *body, const MMBodyRenderBinding *binding)
+{
+    body->state.render = *binding;
+}
+
 MMI32 mm_body_owner_references(const MMBodyOwner *body)
 {
     return body->references.count;

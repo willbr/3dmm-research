@@ -11,16 +11,20 @@ struct BodyGeometryFixtureAccess
     static void Prepare(PBody body)
     {
         MMRenderBody entry = {};
-        if (EngineBody::ReadRenderBody(EngineBody::Root(body), &entry))
-            EngineBody::PrepareRenderBody(&entry);
+        const auto &geometry = mm_kauai_body_renderer()->geometry;
+        if (mm_brender_body_read_render(EngineBody::Root(body), &entry, &geometry))
+            mm_brender_body_prepare_render(&entry, &geometry);
     }
     static void Rendered(PBACT actor, RC *rect)
     {
-        EngineBody::ActorRendered(actor, rect);
+        const MMBodyRect bounds = {rect->xpLeft, rect->ypTop, rect->xpRight, rect->ypBottom};
+        mm_body_rendered(actor, &bounds, &mm_kauai_body_renderer()->geometry);
     }
     static void RawRect(PBACT actor, RC *rect)
     {
-        EngineBody::RenderRect(actor, rect);
+        MMBodyRect bounds;
+        if (mm_body_render_rect(actor, &bounds, &mm_kauai_body_renderer()->geometry))
+            rect->Set(bounds.left, bounds.top, bounds.right, bounds.bottom);
     }
     static void State(PBody body, LegacyLong *out)
     {
@@ -80,7 +84,7 @@ static bool TestBodyGeometry()
     faces[1].vertices[0] = 1;
     faces[1].vertices[1] = 2;
     faces[1].vertices[2] = 3;
-    auto model = EngineModel::New(4, vertices, 2, faces);
+    auto model = mm_model_new(4, vertices, 2, faces, mm_kauai_model_host());
     auto material = EngineMaterial::New();
     ok = model && material;
     for (int shape = 0; ok && shape < 3; ++shape)

@@ -219,6 +219,21 @@ const MMModelOwnerHost *mm_kauai_model_host(void)
     return &host;
 }
 
+void mm_kauai_model_validate(const MMModelOwner *owner)
+{
+#ifdef DEBUG
+    Assert(owner, "Bad Model owner");
+    if (owner)
+    {
+        const auto handle = mm_brender_model_handle(owner);
+        AssertVarMem(handle);
+        Assert(handle && mm_brender_model_owner(handle) == owner, "Bad Model identifier");
+    }
+#else
+    (void)owner;
+#endif
+}
+
 namespace
 {
 MMTextureServices TextureEffects()
@@ -350,12 +365,7 @@ const MMMaterialOwnerHost *mm_kauai_material_host(void)
         [](void *p) { MarkPv(p); },
         mm_resource_cache_mark,
         [](void *p) { mm_brender_texture_mark(static_cast<MMTextureOwner *>(p)); },
-        [](void *p) {
-            const auto owner = static_cast<MMModelOwner *>(p);
-            const auto handle = mm_model_owner_resource(owner)->handle;
-            Assert(handle && mm_brender_model_owner(handle) == owner, "Bad Model identifier");
-            mm_brender_model_mark(owner);
-        }
+        [](void *p) { mm_brender_model_mark(static_cast<MMModelOwner *>(p)); }
 #else
         nullptr, nullptr, nullptr, nullptr
 #endif

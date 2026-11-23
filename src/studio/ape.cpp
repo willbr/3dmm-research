@@ -22,7 +22,6 @@
 
 ***************************************************************************/
 #include "studio.h"
-#include "body_world.h"
 
 ASSERTNAME
 
@@ -129,7 +128,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
     BrMatrix34PostRotateY(&_bact.t.t.mat, BR_ANGLE_DEG(-40.0));
     _pbwld->AddActor(&_bact);
     BrLightEnable(&_bact);
-    BodyWorld::Bind(_pbody, _pbwld);
+    _pbwld->BindBody(_pbody);
     EngineBody::Show(_pbody);
 
     _InitView();

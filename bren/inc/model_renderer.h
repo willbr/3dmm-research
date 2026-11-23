@@ -10,9 +10,11 @@ extern "C" {
 /* Bind the BRender operations of a model provider. File access, object
  * allocation and diagnostics remain the caller's services. */
 void mm_brender_model_services(MMModelServices *);
-void *mm_brender_model_owner(const void *handle);
+struct br_model;
+struct br_model *mm_brender_model_handle(const MMModelOwner *);
+MMModelOwner *mm_brender_model_owner(const void *handle);
 MMU32 mm_brender_model_faces(const void *handle);
-int mm_brender_model_prelight(const MMModelResource *, MMI32 lights, void (*multiple_lights)(void *));
+int mm_brender_model_prelight(const MMModelOwner *, MMI32 lights, void (*multiple_lights)(void *));
 
 #ifdef __cplusplus
 }

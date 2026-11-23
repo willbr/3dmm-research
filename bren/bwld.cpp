@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include "bren.h"
+#include "body_renderer.h"
 #include "scene_renderer.h"
 
 ASSERTNAME
@@ -86,12 +87,14 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
     _SyncPixelmaps();
     mm_render_frame_borrow(&s.frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
     mm_brender_world_camera_view(&_bactCamera, &_camera, &s.camera);
-    if (_pfnreadbody && _pfnpreparebody)
+    if (_bodyGeometry)
     {
         s.body = [](void *p, void *actor, MMRenderBody *out) -> int {
-            return RenderWorld(p)->_pfnreadbody(static_cast<PBACT>(actor), out);
+            return mm_brender_body_read_render(actor, out, RenderWorld(p)->_bodyGeometry);
         };
-        s.prepare_body = [](void *p, const MMRenderBody *body) { RenderWorld(p)->_pfnpreparebody(body); };
+        s.prepare_body = [](void *p, const MMRenderBody *body) {
+            mm_brender_body_prepare_render(body, RenderWorld(p)->_bodyGeometry);
+        };
         s.retain_body = [](void *, void *body) { mm_body_owner_retain(static_cast<MMBodyOwner *>(body)); };
         s.release_body = [](void *, void *body) { mm_body_owner_release(static_cast<MMBodyOwner *>(body)); };
     }
@@ -437,18 +440,64 @@ void World::AddActor(BACT *pbact)
     BrActorAdd(&_bactWorld, pbact);
 }
 
-/***************************************************************************
-    Visit the actors under the point (xp, yp).
-***************************************************************************/
-void World::IterateActorsInPt(MMBRenderActorHit *visit, void *context, long xp, long yp)
+void World::BindBody(MMBodyOwner *body)
 {
     AssertThis(0);
+    Assert(body && mm_body_owner_state(body)->shape.hidden > 0, "Cannot rebind a visible body");
+    const MMBodyRenderBinding binding = {
+        this,
+        [](void *p, void *body) {
+            auto world = static_cast<PWorld>(p);
+            const auto state = mm_body_owner_state(static_cast<MMBodyOwner *>(body));
+            world->AddActor(static_cast<PBACT>(state->shape.actors));
+            world->_bodyGeometry = &mm_kauai_body_renderer()->geometry;
+            world->SetActorRenderedCallback([](PBACT actor, RC *bounds) {
+                const MMBodyRect rect = {bounds->xpLeft, bounds->ypTop, bounds->xpRight, bounds->ypBottom};
+                mm_body_rendered(actor, &rect, &mm_kauai_body_renderer()->geometry);
+            });
+            world->SetGetRcCallback([](PBACT actor, RC *bounds) {
+                MMBodyRect rect;
+                if (mm_body_render_rect(actor, &rect, &mm_kauai_body_renderer()->geometry))
+                    bounds->Set(rect.left, rect.top, rect.right, rect.bottom);
+            });
+        },
+        [](void *p) { static_cast<PWorld>(p)->MarkDirty(); }
+    };
+    mm_body_owner_bind_render(body, &binding);
+}
 
-    if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
-        return;
+MMBodyOwner *World::PickBody(long x, long y, long *set, const MMBodyGeometryServices &geometry)
+{
+    AssertThis(0);
+    AssertNilOrVarMem(set);
+    if (x < INT32_MIN || x > INT32_MAX || y < INT32_MIN || y > INT32_MAX)
+        return nullptr;
     MMRenderFrame frame;
     mm_render_frame_borrow(&frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
-    mm_brender_world_visit(&_buffers, &frame, xp, yp, visit, context);
+    MMI32 partSet;
+    auto body = mm_brender_world_pick_body(&_buffers, &frame, x, y, set ? &partSet : nullptr, &geometry);
+    if (body && set)
+        *set = partSet;
+    return body;
+}
+
+bool World::ContainsBody(MMBodyOwner *body, long x, long y, long *set, const MMBodyGeometryServices &geometry)
+{
+    AssertThis(0);
+    Assert(body, "missing body");
+    AssertVarMem(set);
+    if (x < INT32_MIN || x > INT32_MAX || y < INT32_MIN || y > INT32_MAX)
+    {
+        mm_body_search_begin(&mm_body_owner_state(body)->geometry);
+        *set = -1;
+        return false;
+    }
+    MMRenderFrame frame;
+    mm_render_frame_borrow(&frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
+    MMI32 partSet;
+    const bool found = mm_brender_world_search_body(body, &_buffers, &frame, x, y, &partSet, &geometry) != 0;
+    *set = partSet;
+    return found;
 }
 
 /***************************************************************************

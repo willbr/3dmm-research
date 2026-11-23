@@ -110,7 +110,8 @@ void EngineBody::ReleaseSharedMaterial(void)
 void EngineBody::SetRenderCallbacks(PBody body, void *context, void (*attach)(void *, void *), void (*changed)(void *))
 {
     Assert(State(body).shape.hidden > 0, "Cannot rebind a visible body");
-    State(body).render = {context, attach, changed};
+    const MMBodyRenderBinding binding = {context, attach, changed};
+    mm_body_owner_bind_render(body, &binding);
 }
 
 /***************************************************************************
@@ -266,7 +267,7 @@ void EngineBody::SetPartModel(PBody body, LegacyLong ibact, PModel pmodl)
 {
     BODY_VALIDATE(body, 0); AssertIn(ibact, 0, State(body).shape.part_count);
 #ifdef DEBUG
-    EngineModel::Validate(pmodl);
+    mm_kauai_model_validate(pmodl);
 #endif
     const auto &s = RuntimeServices(); mm_body_set_model(body, ibact, pmodl, &s);
 }
@@ -345,43 +346,6 @@ MMBodyGeometryServices EngineBody::GeometryServices(void)
 }
 
 /***************************************************************************
-    World is about to render, so clear this Body's current C bounds
-    (but save the last good bounds in its last-visible C rectangle).  Also size the
-    bounding box correctly.
-***************************************************************************/
-int EngineBody::ReadRenderBody(PBACT root, MMRenderBody *entry)
-{
-    const auto services = GeometryServices();
-    const auto body = static_cast<PBody>(mm_body_read_render(root, &entry->draw, &services));
-    if (!body)
-        return 0;
-    entry->target = root;
-    entry->resource = body;
-    return 1;
-}
-
-void EngineBody::PrepareRenderBody(const MMRenderBody *entry)
-{
-    mm_brender_body_submit(&entry->draw, entry->target);
-    const auto services = GeometryServices();
-    mm_body_prepare_render(entry->target, &services);
-}
-
-/***************************************************************************
-    Return the bounds of the Body contaning PBACT
-***************************************************************************/
-void EngineBody::RenderRect(PBACT pbact, RC *prc)
-{
-    AssertVarMem(pbact);
-    AssertVarMem(prc);
-
-    auto services = GeometryServices();
-    MMBodyRect rect;
-    if (mm_body_render_rect(pbact, &rect, &services))
-        prc->Set(rect.left, rect.top, rect.right, rect.bottom);
-}
-
-/***************************************************************************
     Compute the world-space bounding box of the Body.  The code temporarily
     changes the hilite BACT's type to BR_ACTOR_NONE so that BrActorToBounds
     doesn't include the size of the bounding box when computing the size of
@@ -396,19 +360,6 @@ void EngineBody::GetBcbBounds(PBody body, BCB *pbcb, bool fWorld)
     mm_brender_body_bounds(mm_kauai_body_renderer(), body, fWorld, &bounds);
     pbcb->xrMin = bounds.min[0]; pbcb->yrMin = bounds.min[1]; pbcb->zrMin = bounds.min[2];
     pbcb->xrMax = bounds.max[0]; pbcb->yrMax = bounds.max[1]; pbcb->zrMax = bounds.max[2];
-}
-
-/***************************************************************************
-    World calls this function when each BACT is rendered.  It unions the
-    BACT bounds with the Body's current C rectangle
-***************************************************************************/
-void EngineBody::ActorRendered(PBACT pbact, RC *prc)
-{
-    AssertVarMem(pbact);
-    AssertVarMem(prc);
-    auto services = GeometryServices();
-    const MMBodyRect rect = {prc->xpLeft, prc->ypTop, prc->xpRight, prc->ypBottom};
-    mm_body_rendered(pbact, &rect, &services);
 }
 
 /***************************************************************************
@@ -497,8 +448,9 @@ void EngineBody::Validate(PBody body, LegacyUlong grf)
             pbact = Part(body, ibact);
             const auto &binding = State(body).shape.bindings[ibact+2];
             AssertIn(binding.set, 0, State(body).shape.set_count);
-            if (pvNil != pbact->model)
-                EngineModel::Validate(EngineModel::FromHandle(pbact->model));
+            Assert(binding.model_handle == pbact->model, "body part model binding mismatch");
+            if (binding.model_owner)
+                mm_kauai_model_validate(static_cast<PModel>(binding.model_owner));
             Assert(binding.material == pbact->material, "body part material binding mismatch");
             if (pvNil != pbact->material)
             {
@@ -530,8 +482,7 @@ void EngineBody::Mark(PBody body)
     for (LegacyLong part = 0; part < State(body).shape.part_count; ++part)
     {
         const auto &binding = State(body).shape.bindings[part+2];
-        if (binding.model_owner)
-            EngineModel::Mark(static_cast<PModel>(binding.model_owner));
+        mm_brender_model_mark(static_cast<PModel>(binding.model_owner));
         if (binding.material_owner)
             EngineMaterial::Mark(static_cast<PMaterial_MTRL>(binding.material_owner));
     }

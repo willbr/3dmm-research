@@ -169,13 +169,13 @@ static bool TestMovieContentCore()
         vertices[2].p.v[1] = BR_SCALAR(2);
         face.vertices[1] = 1;
         face.vertices[2] = 2;
-        auto model = EngineModel::New(3, vertices, 1, &face);
+        auto model = mm_model_new(3, vertices, 1, &face, mm_kauai_model_host());
         ChunkNumber fontNumber = 0, modelNumber = 0;
         if (ok)
         {
             const MovieArchiveFixture archive(resource);
             ok = model && archive.AddBytes(wire.data(), (wire.size)(), kctgTdf, &fontNumber) &&
-                 archive.Add(0, kctgBmdl, &modelNumber) && EngineModel::Write(model, archive.writer, kctgBmdl, modelNumber);
+                 archive.Add(0, kctgBmdl, &modelNumber) && mm_model_owner_write(model, &archive.writer, kctgBmdl, modelNumber);
             for (int i = 0; ok && i < 256; ++i)
                 ok = archive.Adopt(kctgTdf, fontNumber, kctgBmdl, modelNumber, i);
         }

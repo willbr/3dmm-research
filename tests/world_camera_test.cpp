@@ -2,6 +2,8 @@
 #include <cstdlib>
 #include <cstring>
 #include "bren.h"
+#include "asset_resources.h"
+#include "body_renderer.h"
 #undef size
 using namespace BRender;
 ASSERTNAME
@@ -87,6 +89,39 @@ struct Access : World
         _ActorRendered(actor, nullptr, nullptr, 0, nullptr, bounds);
     }
 };
+static void CheckBodyPicking(br_model *triangle)
+{
+    auto world = World::PbwldNew(32, 24, true, true);
+    CHECK(world);
+    CHECK(world->FSetRenderScale(2));
+    BMAT34 camera;
+    BrMatrix34Identity(&camera);
+    camera.m[3][2] = BR_SCALAR(5);
+    world->SetCamera(&camera, BR_SCALAR(1), BR_SCALAR(100), BR_ANGLE_DEG(45));
+
+    const auto renderer = mm_kauai_body_renderer();
+    const auto &runtime = renderer->edit.runtime;
+    const short parent = -1, setIndex = 0;
+    const MMPartIndexView parents = {reinterpret_cast<const unsigned char *>(&parent), 1};
+    const MMPartIndexView sets = {reinterpret_cast<const unsigned char *>(&setIndex), 1};
+    auto body = mm_brender_body_create(renderer, &parents, &sets);
+    auto model = mm_model_new(3, triangle->prepared_vertices, 1, triangle->prepared_faces, mm_kauai_model_host());
+    CHECK(body && model);
+    mm_body_set_model(body, 0, model, &runtime);
+    world->BindBody(body);
+    mm_body_show(body, &runtime);
+    world->Render();
+
+    long set = -1;
+    CHECK(world->PickBody(16, 12, &set, renderer->geometry) == body && set == 0);
+    CHECK(world->ContainsBody(body, 16, 12, &set, renderer->geometry) && set == 0);
+    mm_body_hide(body, &runtime);
+    CHECK(!world->PickBody(16, 12, &set, renderer->geometry) && set == 0);
+    CHECK(!world->ContainsBody(body, 16, 12, &set, renderer->geometry) && set == -1);
+    mm_body_owner_release(body);
+    mm_model_owner_release(model);
+    ReleasePpo(&world);
+}
 int main()
 {
     auto app = NewObj TestApp;
@@ -122,6 +157,7 @@ int main()
     model->faces[0].vertices[1] = 1;
     model->faces[0].vertices[2] = 2;
     BrModelAdd(model);
+    CheckBodyPicking(model);
     for (int mode = 0; mode < 6; ++mode)
     {
         auto w = World::PbwldNew(32, 24, mode == 1 || mode == 3, mode == 2 || mode == 3);

@@ -225,6 +225,22 @@ void mm_brender_body_submit(const MMBodyDrawView *view, void *actors)
     mm_body_draw(view, actors, submit_part);
 }
 
+int mm_brender_body_read_render(void *root, MMRenderBody *entry, const MMBodyGeometryServices *services)
+{
+    void *body = mm_body_read_render(root, &entry->draw, services);
+    if (!body)
+        return 0;
+    entry->target = root;
+    entry->resource = body;
+    return 1;
+}
+
+void mm_brender_body_prepare_render(const MMRenderBody *entry, const MMBodyGeometryServices *services)
+{
+    mm_brender_body_submit(&entry->draw, entry->target);
+    mm_body_prepare_render(entry->target, services);
+}
+
 void *mm_brender_body_attach(void *context, void *parent, MMI32 index, const MMBodyPartBinding *binding)
 {
     br_actor *actor;

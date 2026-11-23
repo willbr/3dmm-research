@@ -13,6 +13,7 @@
 #define MODL_H
 
 #include "asset_resources.h"
+#include "model_renderer.h"
 
 using namespace BRender;
 
@@ -58,24 +59,5 @@ struct BrFaceOnFile
 static_assert(sizeof(BrFaceOnFile) == 32, "BrFaceOnFile on-disk layout drift");
 
 using PModel = MMModelOwner *;
-namespace EngineModel
-{
-const MMModelOwnerHost &Host();
-constexpr MMResourceBlockReader Read = mm_brender_model_read;
-PModel Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
-PModel New(LegacyLong, BRV *, LegacyLong, BRF *);
-PModel FromDat(Filename *);
-PBMDL Handle(PModel);
-PModel FromHandle(PBMDL);
-bool Write(PModel, PChunkyFile, ChunkTagOrType, ChunkNumber);
-bool Write(PModel, const MMArchiveWriter &, ChunkTagOrType, ChunkNumber);
-void AdjustGlyph(PModel);
-BRS Extent(PModel, unsigned axis);
-bool Prelight(PModel, LegacyLong count, BVEC3 *directions);
-#ifdef DEBUG
-void Validate(PModel);
-void Mark(PModel);
-#endif
-}
 
 #endif

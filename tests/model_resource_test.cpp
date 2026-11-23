@@ -28,8 +28,7 @@ bool FAssertProc(schar *file, LegacyLong line, schar *message, void *, LegacyLon
     } while (0)
 static bool Prelight(PModel model)
 {
-    BVEC3 light = {};
-    return EngineModel::Prelight(model, 1, &light);
+    return mm_brender_model_prelight(model, 1, [](void *) { CHECK(false); }) != 0;
 }
 static FILE *snapshot;
 static std::uint32_t fingerprint = 2166136261u, traceBytes = 0;
@@ -50,7 +49,8 @@ static std::vector<byte> Wire(PModel model)
 {
     auto file = ChunkyFile::PcflCreateTemp();
     CHECK(file);
-    CHECK(EngineModel::Write(model, file, 'MODL', 7));
+    const auto archive = file->WriteOwnerIndex();
+    CHECK(mm_model_owner_write(model, &archive, 'MODL', 7));
     DataBlock block;
     CHECK(file->FFind('MODL', 7, &block));
     std::vector<byte> bytes(block.Cb());
@@ -64,7 +64,7 @@ static void State(PModel model, bool complete)
     Value(model != nullptr);
     if (!model)
         return;
-    auto m = EngineModel::Handle(model);
+    auto m = mm_brender_model_handle(model);
     Value(m != nullptr);
     if (!m)
         return;
@@ -79,13 +79,13 @@ static void State(PModel model, bool complete)
                            m->prepared_faces != nullptr,
                            m->vertex_groups != nullptr,
                            m->face_groups != nullptr,
-                           EngineModel::FromHandle(m) == model};
+                           mm_brender_model_owner(m) == model};
     Record(fields, sizeof(fields));
     if (complete)
     {
-        Value(EngineModel::Extent(model, 0));
-        Value(EngineModel::Extent(model, 1));
-        Value(EngineModel::Extent(model, 2));
+        Value(mm_model_owner_extent(model, 0));
+        Value(mm_model_owner_extent(model, 1));
+        Value(mm_model_owner_extent(model, 2));
         auto wire = Wire(model);
         Value(static_cast<LegacyLong>(wire.size()));
         Record(wire.data(), wire.size());
@@ -115,7 +115,7 @@ static PModel Source(int pattern)
     faces[1].vertices[1] = 2;
     faces[1].vertices[2] = 3;
     faces[1].smoothing = 2;
-    return EngineModel::New(4, vertices, 2, faces);
+    return mm_model_new(4, vertices, 2, faces, mm_kauai_model_host());
 }
 static void Inject(int kind, int n)
 {
@@ -171,7 +171,7 @@ static void Dat(const char *identifier)
 {
     auto source = Source(0);
     CHECK(source);
-    auto prepared = EngineModel::Handle(source);
+    auto prepared = mm_brender_model_handle(source);
     auto raw = BrModelAllocate(const_cast<char *>(identifier), prepared->nprepared_vertices, prepared->nprepared_faces);
     CHECK(raw);
     std::memcpy(raw->vertices, prepared->prepared_vertices, prepared->nprepared_vertices * sizeof(BRV));
@@ -182,10 +182,11 @@ static void Dat(const char *identifier)
     filename.GetStnPath(&path);
     CHECK(BrModelSave(path.Psz(), raw));
     BrModelFree(raw);
-    auto loaded = EngineModel::FromDat(&filename);
-    CHECK(loaded && EngineModel::FromHandle(EngineModel::Handle(loaded)) == loaded &&
-          (EngineModel::Handle(loaded)->flags & BR_MODF_KEEP_ORIGINAL) &&
-          EngineModel::Handle(loaded)->nprepared_faces == prepared->nprepared_faces);
+    auto loaded = mm_model_dat(path.Psz(), mm_kauai_model_host());
+    CHECK(loaded);
+    auto handle = mm_brender_model_handle(loaded);
+    CHECK(mm_brender_model_owner(handle) == loaded && (handle->flags & BR_MODF_KEEP_ORIGINAL) &&
+          handle->nprepared_faces == prepared->nprepared_faces);
     mm_model_owner_release(loaded);
     CHECK(filename.FDelete());
     mm_model_owner_release(source);
@@ -225,9 +226,9 @@ int main()
         CHECK(source);
         auto original = Wire(source);
         State(source, true);
-        EngineModel::AdjustGlyph(source);
+        mm_model_owner_adjust_glyph(source);
         State(source, true);
-        EngineModel::AdjustGlyph(source);
+        mm_model_owner_adjust_glyph(source);
         State(source, true);
         mm_model_owner_release(source);
         for (int variant = 0; variant < 9; ++variant)
@@ -272,16 +273,16 @@ int main()
                         DataBlock block;
                         CHECK(file->FFind('MODL', number, &block));
                         MMI32 estimate = -1;
-                        CHECK(EngineModel::Read(cache->CoreCache(), 'MODL', number, block.CoreBlock(), nullptr, &estimate));
+                        CHECK(mm_brender_model_read(cache->CoreCache(), 'MODL', number, block.CoreBlock(), nullptr, &estimate));
                         Value(estimate);
-                        PModel model = factory ? nullptr : mm_model_owner_create(&EngineModel::Host());
+                        PModel model = factory ? nullptr : mm_model_owner_create(mm_kauai_model_host());
                         CHECK(factory || model);
                         bool ok;
                         Inject(kind, failure);
                         if (factory)
                         {
                             void *output = nullptr;
-                            ok = EngineModel::Read(cache->CoreCache(), 'MODL', number, block.CoreBlock(), &output, &estimate);
+                            ok = mm_brender_model_read(cache->CoreCache(), 'MODL', number, block.CoreBlock(), &output, &estimate);
                             model = ok ? static_cast<PModel>(output) : nullptr;
                         }
                         else
@@ -294,7 +295,7 @@ int main()
                         State(model, ok);
                         if (ok && variant != 4)
                         {
-                            EngineModel::AdjustGlyph(model);
+                            mm_model_owner_adjust_glyph(model);
                             State(model, true);
                         }
                         mm_model_owner_release(model);

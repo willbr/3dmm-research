@@ -6,6 +6,7 @@
 #include "mm/body_geometry.h"
 #include "mm/body_runtime.h"
 #include "mm/material_resource.h"
+#include "mm/render_frame.h"
 #include <stddef.h>
 
 #ifdef __cplusplus
@@ -27,6 +28,8 @@ void mm_brender_body_highlight_colour(MMI32);
  * valid through both paths. The live selection highlight is handled separately. */
 void mm_brender_body_submit(const MMBodyDrawView *, void *actors);
 void *mm_brender_body_attach(void *, void *parent, MMI32 index, const MMBodyPartBinding *);
+int mm_brender_body_read_render(void *actor, MMRenderBody *, const MMBodyGeometryServices *);
+void mm_brender_body_prepare_render(const MMRenderBody *, const MMBodyGeometryServices *);
 
 void *mm_brender_body_owner(const void *actor);
 void mm_brender_body_geometry_services(MMBodyGeometryServices *);

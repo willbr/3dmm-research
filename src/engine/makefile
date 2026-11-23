@@ -33,7 +33,6 @@ ENGINE_TARGETS =\
     $(TARGET_DIR)actrsnd.obj\
     $(TARGET_DIR)bkgd.obj\
     $(TARGET_DIR)body.obj\
-    $(TARGET_DIR)modl.obj\
     $(TARGET_DIR)movie.obj\
     $(TARGET_DIR)msnd.obj\
     $(TARGET_DIR)mtrl.obj\

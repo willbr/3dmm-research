@@ -1217,14 +1217,13 @@ target_link_libraries(brender
 
 # --- engine-core: stored data, assets, evaluation and playback policy ---
 # Actor editing/playback, sound import/playback and recording belong to engine.
-# Body binding to World lives in body_world.cpp.
+# The renderer binds to Studio through World.
 add_library(engine-core)
 target_sources(engine-core
     PRIVATE
     "${PROJECT_SOURCE_DIR}/src/engine/body.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/portfolio_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tdt.cpp"
@@ -1337,7 +1336,6 @@ endif()
 add_library(engine)
 target_sources(engine
     PRIVATE
-    "${PROJECT_SOURCE_DIR}/src/engine/body_world.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actor.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actredit.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/actrsave.cpp"
