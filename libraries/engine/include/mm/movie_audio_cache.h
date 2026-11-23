@@ -19,7 +19,7 @@ typedef struct MMMovieAudioMedia
     MMMovieAudioClip clip;
     void *owner;
     void (*release)(void *);
-    MMMovieAudioEvent (*event)(void *, size_t);
+    const MMMovieAudioEvent *events; /* clip.midi_events rows borrowed from the media owner. */
 } MMMovieAudioMedia;
 
 typedef struct MMMovieAudioSynth

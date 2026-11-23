@@ -953,23 +953,59 @@ bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &
 bool Preview::ReadSoundCue(const MMPreviewCue &cue, PreviewAudio &audio, Error &error)
 try
 {
+    Internal::AudioOutput output{audio, {}};
+    const bool ok = ReadSoundCueCore(cue, output.Services(), [](void *p, MMI32 sid) {
+        static_cast<Internal::AudioOutput *>(p)->output.source = sid;
+    }, error);
+    if (output.exception) std::rethrow_exception(output.exception);
+    return ok;
+}
+catch (const std::bad_alloc &)
+{
+    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode movie audio.");
+}
+
+bool Preview::ReadSoundCueOwned(const MMPreviewCue &cue, MMPreviewOwnedAudio &audio, Error &error)
+try
+{
+    return ReadSoundCueCore(cue, mm_preview_owned_audio_services(&audio), [](void *p, MMI32 sid) {
+        static_cast<MMPreviewOwnedAudio *>(p)->source = sid;
+    }, error);
+}
+catch (const std::bad_alloc &)
+{
+    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode movie audio.");
+}
+
+bool Preview::ReadSoundCueCore(const MMPreviewCue &cue, const MMPreviewAudioServices &audio,
+                               void (*publishSource)(void *, std::int32_t), Error &error)
+{
     error = {};
     Internal::ClearDiagnostic();
-    Internal::AudioOutput output{audio, {}};
-    const auto audioServices = output.Services();
     struct SoundSource
     {
         Impl &impl;
-        Internal::AudioOutput &audio;
-    } source{*_impl, output};
+        const MMPreviewAudioServices &audio;
+        void (*publishSource)(void *, std::int32_t);
+        std::exception_ptr exception;
+    } source{*_impl, audio, publishSource, {}};
     const MMPreviewSoundServices services{
         &source,
-        [](void *p, MMI32 sid) { static_cast<SoundSource *>(p)->audio.output.source = sid; },
-        [](void *p, MMI32 sid, MMU32 type, MMU32 number, MMMovieSessionGraph *out) {
+        [](void *p, MMI32 sid) {
             auto &host = *static_cast<SoundSource *>(p);
-            return host.audio.Guard([&] {
+            host.publishSource(host.audio.context, sid);
+        },
+        [](void *p, MMI32 sid, MMU32 type, MMU32 number, MMMovieSessionGraph *out) -> int {
+            auto &host = *static_cast<SoundSource *>(p);
+            try
+            {
                 return host.impl.ResolveGraph({sid, 0, type, number}, *out);
-            });
+            }
+            catch (...)
+            {
+                host.exception = std::current_exception();
+                return -2;
+            }
         }};
     MMChunkAccess chunks;
     const bool hasMovie = _impl->assets.Reader() != nullptr;
@@ -980,8 +1016,9 @@ try
     }
     MMU32 number;
     const int result = mm_preview_sound(&cue, _impl->live.status.ready, _impl->live.status.asset_number,
-                                        hasMovie ? &chunks : nullptr, &number, &services, &audioServices);
-    if (output.exception) std::rethrow_exception(output.exception);
+                                        hasMovie ? &chunks : nullptr, &number, &services, &audio);
+    if (source.exception) std::rethrow_exception(source.exception);
+    if (result == -1) throw std::bad_alloc();
     if (result > 0) return true;
     if (result == MM_PREVIEW_SOUND_NOT_READY)
         return Fail(error, ErrorCode::invalid_argument, "Select a scene before reading its sounds.");
@@ -989,10 +1026,6 @@ try
         return Fail(error, ErrorCode::decode_failed, _impl->resolveError.c_str());
     return Fail(error, ErrorCode::decode_failed,
                 ("Cannot decode sound " + Identity({cue.type, number}) + ".").c_str());
-}
-catch (const std::bad_alloc &)
-{
-    return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode movie audio.");
 }
 bool Preview::Open(const std::string &archivePath, const std::string &resourcesPath, Error &error)
 {

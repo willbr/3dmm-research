@@ -3,7 +3,7 @@
 
 #include "mm/audio_mixer.h"
 #include "mm/movie_audio_cache.h"
-#include "mm/preview_metadata.h"
+#include "mm/preview_media.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,15 +32,14 @@ int marcus_playback_audio_mix_active(MarcusPlaybackAudio *);
 void marcus_playback_audio_mute(MarcusPlaybackAudio *, int muted);
 void marcus_playback_audio_stats(MarcusPlaybackAudio *, MMMovieAudioStats *);
 
-/* Instrument bytes are loaded lazily and borrowed until audio destruction. */
-const void *marcus_playback_audio_bank(MarcusPlaybackAudio *, size_t *bytes);
-
+typedef int (*MarcusPlaybackAudioRead)(void *, MMPreviewOwnedAudio *);
 enum { MARCUS_PLAYBACK_AUDIO_DEVICE = MM_MOVIE_AUDIO_CACHE_LIMIT + 1 };
-/* Returns a cache status or DEVICE with a diagnostic. Audition is one-shot
- * and begins after the caller stops the previous presentation. Decoder calls
- * are synchronous and happen outside the mixer lock. */
+/* Returns a cache status or DEVICE. Local decode failures report a diagnostic.
+ * Audition is one-shot. The source callback uses the owned Preview receiver
+ * to fill a zeroed output outside the mixer lock and returns nonzero on
+ * success. The caller stops the previous presentation before audition. */
 int marcus_playback_audio_play(MarcusPlaybackAudio *, const MMPreviewCue *, MMU32 active_scene, MMAudioCounter offset,
-                               const MMMovieAudioDecode *, int audition, char *error, size_t capacity);
+                               void *context, MarcusPlaybackAudioRead, int audition, char *error, size_t capacity);
 
 #ifdef __cplusplus
 }

@@ -864,3 +864,66 @@ int mm_preview_sound(const MMPreviewCue *cue, int ready, MMU32 scene, const MMCh
         s->source(s->context, cue->source);
     return r;
 }
+
+void mm_preview_owned_audio_dispose(MMPreviewOwnedAudio *audio)
+{
+    mm_wave_buffer_dispose(&audio->payload);
+    memset(audio, 0, sizeof(*audio));
+}
+
+static void reset_owned_audio(void *p)
+{
+    MMPreviewOwnedAudio *audio = p;
+    mm_preview_owned_audio_dispose(audio);
+    mm_wave_buffer_init(&audio->payload, NULL);
+}
+
+static void silent_owned_audio(void *p)
+{
+    ((MMPreviewOwnedAudio *)p)->silent = 1;
+}
+
+static void publish_owned_audio(void *p, MMU32 type, MMU32 number, int midi)
+{
+    MMPreviewOwnedAudio *audio = p;
+    audio->type = type;
+    audio->number = number;
+    audio->midi = midi;
+}
+
+static int owned_wave_buffer(void *p, MMU32 bytes, unsigned char **buffer)
+{
+    MMPreviewOwnedAudio *audio = p;
+    if (!mm_wave_buffer_reserve(&audio->payload, bytes))
+        return -1;
+    audio->wave_bytes = bytes;
+    if (bytes)
+        memset(audio->payload.data, 0, bytes);
+    *buffer = audio->payload.data;
+    return 1;
+}
+
+static int owned_midi_event(void *p, MMU32 timestamp, MMU32 message)
+{
+    MMPreviewOwnedAudio *audio = p;
+    MMMovieAudioEvent *events;
+    MMU32 capacity;
+    if (audio->event_count == audio->payload.capacity / sizeof(*events))
+    {
+        capacity = audio->payload.capacity ? 2 * audio->payload.capacity : 64 * sizeof(*events);
+        if (!mm_wave_buffer_reserve(&audio->payload, capacity))
+            return -1;
+    }
+    events = (MMMovieAudioEvent *)audio->payload.data;
+    events[audio->event_count].milliseconds = timestamp;
+    events[audio->event_count++].message = message;
+    return 1;
+}
+
+MMPreviewAudioServices mm_preview_owned_audio_services(MMPreviewOwnedAudio *audio)
+{
+    MMPreviewAudioServices services = {NULL, NULL, reset_owned_audio, silent_owned_audio, publish_owned_audio,
+                                       owned_wave_buffer, owned_midi_event};
+    services.context = audio;
+    return services;
+}

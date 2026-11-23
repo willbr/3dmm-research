@@ -25289,3 +25289,36 @@ and first 400 ms of MIDI sample for sample.
 
 Evidence is under `tmp/c89-c-wave`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 archive audio ownership in Marcus playback (23 November 2026)
+
+Marcus playback reads archive WAVE bytes and translated MIDI events into a
+C89 owner through Preview's existing cue resolver. The C playback layer
+decodes WAVE samples and gives the MIDI event array directly to its cache.
+Both kinds of media survive cache eviction while a voice uses them. C also
+loads an independent SoundFont synthesizer for each MIDI voice. Timeline
+waveforms measure and decode the same owned archive payload.
+
+The standalone media fixture reuses an owner across WAVE, a partial read,
+75 MIDI events that grow the array, and a silent envelope. It verifies the
+WAVE bytes and each translated MIDI timestamp and message. The audio cache
+fixture checks retained samples after eviction and independent MIDI voices.
+
+The 228 selected native, 28 standalone C89, and 18 strict syntax checks
+passed. The waveform envelope, Marcus playback and sound-edit fixtures,
+and SDL checks passed. Classic Studio rebuilt and the external consumer
+passed. Native save and scene traces, SDL saves, the headless Marcus
+startup canvas, and VMM workflow outputs matched their baselines.
+
+Fresh suite `20261123T184835Z-76f7831c` completed eight captures. Replay suite
+`20261123T185057Z-7bdff609` completed four. Both verified input hashes. Both
+ports matched 60 Actor Audio frame positions and camera indices and 59 seek
+canvases against retained retail and V3DMM. The first 100 ms of each of the
+four sampled spans matched its preceding port capture sample for sample.
+In the embedded MIDI fixture, Marcus matched all 34,014 stereo frames from
+MIDI onset in the fresh capture and all 33,534 overlapping frames on replay.
+Both ports matched the 100 ms WAVE cue and first 400 ms of MIDI. SDL replay
+reached the previously recorded later PCM16 peak of 7,609.
+
+Evidence is under `tmp/c89-owned-movie-audio`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

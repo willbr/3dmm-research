@@ -1,6 +1,7 @@
 #include "waveform.h"
-#include "sdl_audio.h"
+#include "sdl_wave.h"
 #include "sound_timeline.h"
+#include "mm/preview_media.h"
 #include <cstdio>
 #include <exception>
 #include <new>
@@ -11,9 +12,15 @@ struct MediaReader
 {
     MM::Preview &preview;
     const MM::PreviewSoundCue &cue;
-    MM::PreviewAudio audio{};
-    KauaiAudio::Sample sample{};
+    MMPreviewOwnedAudio audio{};
+    MMAudioSample *sample = nullptr;
     std::exception_ptr failure{};
+
+    ~MediaReader()
+    {
+        mm_audio_sample_release(sample);
+        mm_preview_owned_audio_dispose(&audio);
+    }
 
     template <class Effect> int Run(Effect effect)
     {
@@ -29,10 +36,11 @@ struct MediaReader
                 auto &reader = *static_cast<MediaReader *>(context);
                 return reader.Run([&] {
                     MM::Error error;
-                    const bool ok = reader.preview.ReadSound(reader.cue, reader.audio, error);
+                    const bool ok = reader.preview.ReadSoundCueOwned(reader.cue.Native(), reader.audio, error);
                     const auto &audio = reader.audio;
-                    *media = {audio.source, audio.asset.type, audio.asset.number,
-                              audio.events.empty() ? 0 : audio.events.back().milliseconds, audio.midi, audio.silent};
+                    const auto events = reinterpret_cast<const MMMovieAudioEvent *>(audio.payload.data);
+                    *media = {audio.source, audio.type, audio.number,
+                              audio.event_count ? events[audio.event_count - 1].milliseconds : 0, audio.midi, audio.silent};
                     if (!ok)
                         std::snprintf(message, capacity, "%s", error.message.c_str());
                     return ok;
@@ -40,19 +48,18 @@ struct MediaReader
             },
             [](void *context, double *seconds) {
                 auto &reader = *static_cast<MediaReader *>(context);
-                return reader.Run([&] {
-                    return KauaiAudio::WaveSeconds(reader.audio.wave.data(), reader.audio.wave.size(), *seconds);
-                });
+                return mm_sdl_wave_seconds(reader.audio.payload.data, reader.audio.wave_bytes, seconds);
             },
             [](void *context, const float **stereo, std::size_t *frames) {
                 auto &reader = *static_cast<MediaReader *>(context);
-                return reader.Run([&] {
-                    if (!KauaiAudio::DecodeWave(reader.audio.wave.data(), reader.audio.wave.size(), reader.sample))
-                        return false;
-                    *stereo = mm_audio_sample_data(reader.sample.get());
-                    *frames = mm_audio_sample_frames(reader.sample.get());
-                    return true;
-                });
+                MMAudioSample *sample;
+                if (!mm_sdl_wave_decode(reader.audio.payload.data, reader.audio.wave_bytes, &sample))
+                    return 0;
+                mm_audio_sample_release(reader.sample);
+                reader.sample = sample;
+                *stereo = mm_audio_sample_data(sample);
+                *frames = mm_audio_sample_frames(sample);
+                return 1;
             }};
     }
 

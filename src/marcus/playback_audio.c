@@ -1,6 +1,9 @@
 #include "playback_audio.h"
+#include "midi_synth.h"
 #include "sdl_audio_output.h"
+#include "sdl_wave.h"
 #include <SDL3/SDL.h>
+#include <stdlib.h>
 
 struct MarcusPlaybackAudio
 {
@@ -178,7 +181,7 @@ void marcus_playback_audio_stats(MarcusPlaybackAudio *audio, MMMovieAudioStats *
     SDL_UnlockMutex(audio->mutex);
 }
 
-const void *marcus_playback_audio_bank(MarcusPlaybackAudio *audio, size_t *bytes)
+static const void *instrument_bank(MarcusPlaybackAudio *audio, size_t *bytes)
 {
     const char *base;
     char *path;
@@ -202,19 +205,103 @@ const void *marcus_playback_audio_bank(MarcusPlaybackAudio *audio, size_t *bytes
     return audio->bank;
 }
 
+typedef struct AudioLoad
+{
+    MarcusPlaybackAudio *audio;
+    void *source;
+    MarcusPlaybackAudioRead read;
+    char *error;
+    size_t capacity;
+} AudioLoad;
+
+static void release_sample(void *p)
+{
+    mm_audio_sample_release(p);
+}
+
+static int load_media(void *p, MMMovieAudioMedia *out)
+{
+    AudioLoad *load = p;
+    MMPreviewOwnedAudio input = {0};
+    MMAudioSample *sample = NULL;
+    int ok = load->read(load->source, &input);
+    if (!ok)
+        goto done;
+    out->clip.source = input.source;
+    out->clip.type = input.type;
+    out->clip.number = input.number;
+    if (!input.silent && input.midi)
+    {
+        out->clip.midi_events = input.event_count;
+        out->events = (const MMMovieAudioEvent *)input.payload.data;
+        /* The preview receiver uses the default C heap. Hand its rows to the cache. */
+        out->owner = input.payload.data;
+        out->release = free;
+        input.payload.data = NULL;
+    }
+    else
+    {
+        if (!input.silent && !mm_sdl_wave_decode(input.payload.data, input.wave_bytes, &sample))
+        {
+            SDL_snprintf(load->error, load->capacity, "Cannot decode movie WAVE audio: %s", SDL_GetError());
+            ok = 0;
+            goto done;
+        }
+        if (sample)
+        {
+            out->clip.stereo = mm_audio_sample_data(sample);
+            out->clip.sample_frames = mm_audio_sample_frames(sample);
+        }
+        out->owner = sample;
+        out->release = release_sample;
+    }
+done:
+    mm_preview_owned_audio_dispose(&input);
+    return ok;
+}
+
+static int load_synth(void *p, MMMovieAudioSynth *out)
+{
+    AudioLoad *load = p;
+    size_t bytes;
+    const void *bank = instrument_bank(load->audio, &bytes);
+    MMMidiSynth *synth = mm_midi_synth_load(bank, bytes, MARCUS_PLAYBACK_AUDIO_RATE);
+    if (!synth)
+    {
+        SDL_snprintf(load->error, load->capacity, "%s", "Cannot load the General MIDI instrument bank (assets/GeneralUserGS.sf2).");
+        return 0;
+    }
+    out->owner = synth;
+    out->release = mm_midi_synth_destroy;
+    out->message = mm_midi_synth_message;
+    out->render = mm_midi_synth_render;
+    out->reset = mm_midi_synth_reset;
+    return 1;
+}
+
 int marcus_playback_audio_play(MarcusPlaybackAudio *audio, const MMPreviewCue *sound, MMU32 active_scene,
-                               MMAudioCounter offset,
-                               const MMMovieAudioDecode *decode, int audition, char *error, size_t capacity)
+                               MMAudioCounter offset, void *source, MarcusPlaybackAudioRead read,
+                               int audition, char *error, size_t capacity)
 {
     MMMovieAudioKey key;
     MMMovieAudioVoice *voice;
+    AudioLoad load;
+    MMMovieAudioDecode decode = {NULL, load_media, load_synth};
     int submitted, status;
+    if (capacity)
+        error[0] = 0;
+    load.audio = audio;
+    load.source = source;
+    load.read = read;
+    load.error = error;
+    load.capacity = capacity;
+    decode.context = &load;
     key.source = sound->source;
     key.type = sound->type;
     key.number = sound->number;
     key.scene = sound->source == 0 ? (sound->scene_type ? sound->scene_number : active_scene) : 0;
     key.child = sound->child;
-    status = mm_movie_audio_cache_voice(audio->clips, sound->silent ? NULL : &key, decode, offset, sound->volume,
+    status = mm_movie_audio_cache_voice(audio->clips, sound->silent ? NULL : &key, &decode, offset, sound->volume,
                                        sound->loop && !audition, &voice);
     if (status != MM_MOVIE_AUDIO_CACHE_OK)
         return status;

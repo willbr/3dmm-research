@@ -11,8 +11,6 @@
 #include "caption_runs.h"
 #include "caption_scene.h"
 #include "caption_catalog.h"
-#include "sdl_audio.h"
-#include "midi_synth.h"
 #include "font_host.h"
 #include "font_catalog.h"
 #include "mm/graphics_transition.h"
@@ -53,91 +51,39 @@ MMGraphicsMoviePaletteSource TransitionPalettes(const Preview &preview)
             static_cast<const Preview *>(p)->OverlayTransitionPalette(colours);
         }};
 }
-struct DecodedAudio
-{
-    KauaiAudio::Sample sample;
-    std::vector<PreviewMidiEvent> midi;
-};
-static_assert(KauaiAudio::SampleRate == MARCUS_PLAYBACK_AUDIO_RATE, "Movie decoder and output sample rate");
 struct AudioDecodeContext
 {
-    MarcusPlaybackAudio *audio;
     Preview &preview;
     const MMPreviewCue &cue;
     Error &error;
     std::exception_ptr failure;
 };
 
-int ReadAudioMedia(void *p, MMMovieAudioMedia *out)
+int ReadAudioMedia(void *p, MMPreviewOwnedAudio *out)
 {
     auto &ctx = *static_cast<AudioDecodeContext *>(p);
-    try
-    {
-        PreviewAudio data;
-        if (!ctx.preview.ReadSoundCue(ctx.cue, data, ctx.error))
-            return 0;
-        auto media = std::make_unique<DecodedAudio>();
-        MMMovieAudioClip clip{data.source, data.asset.type, data.asset.number, nullptr, 0, 0};
-        if (!data.silent)
-        {
-            if (data.midi)
-            {
-                media->midi = std::move(data.events);
-                clip.midi_events = media->midi.size();
-            }
-            else
-            {
-                if (!KauaiAudio::DecodeWave(data.wave.data(), data.wave.size(), media->sample))
-                    return Fail(ctx.error, std::string("Cannot decode movie WAVE audio: ") + SDL_GetError());
-                clip.stereo = mm_audio_sample_data(media->sample.get());
-                clip.sample_frames = mm_audio_sample_frames(media->sample.get());
-            }
-        }
-        *out = {clip, media.release(),
-            [](void *p) { delete static_cast<DecodedAudio *>(p); },
-            [](void *p, std::size_t index) {
-                const auto &event = static_cast<const DecodedAudio *>(p)->midi[index];
-                return MMMovieAudioEvent{event.milliseconds, event.message};
-            }};
-        return 1;
-    }
-    catch (...) { ctx.failure = std::current_exception(); return 0; }
-}
-
-int CreateAudioSynth(void *p, MMMovieAudioSynth *out)
-{
-    auto &ctx = *static_cast<AudioDecodeContext *>(p);
-    try
-    {
-        std::size_t bytes;
-        const auto bank = marcus_playback_audio_bank(ctx.audio, &bytes);
-        auto synth = mm_midi_synth_load(bank, bytes, MARCUS_PLAYBACK_AUDIO_RATE);
-        if (!synth)
-            return Fail(ctx.error, "Cannot load the General MIDI instrument bank (assets/GeneralUserGS.sf2).");
-        *out = {synth, mm_midi_synth_destroy, mm_midi_synth_message, mm_midi_synth_render, mm_midi_synth_reset};
-        return 1;
-    }
+    try { return ctx.preview.ReadSoundCueOwned(ctx.cue, *out, ctx.error); }
     catch (...) { ctx.failure = std::current_exception(); return 0; }
 }
 
 bool PlayAudio(MarcusPlaybackAudio *audio, Preview &preview, const MMPreviewCue &cue, MMAudioCounter offset,
                Error &error, bool audition = false)
 {
-    AudioDecodeContext ctx{audio, preview, cue, error, {}};
-    const MMMovieAudioDecode decode{&ctx, ReadAudioMedia, CreateAudioSynth};
+    AudioDecodeContext ctx{preview, cue, error, {}};
     char message[512];
     const int status = marcus_playback_audio_play(audio, &cue, preview.Info().asset.number, offset,
-                                                  &decode, audition, message, sizeof(message));
+                                                  &ctx, ReadAudioMedia, audition, message, sizeof(message));
     if (ctx.failure)
         std::rethrow_exception(ctx.failure);
     if (status == MM_MOVIE_AUDIO_CACHE_LIMIT)
         return Fail(error, "A decoded movie sound exceeds the 256 MiB audio budget.");
     if (status == MM_MOVIE_AUDIO_CACHE_MEMORY)
         throw std::bad_alloc();
-    if (status == MARCUS_PLAYBACK_AUDIO_DEVICE)
+    if (status == MARCUS_PLAYBACK_AUDIO_DEVICE || (status == MM_MOVIE_AUDIO_CACHE_SOURCE && message[0]))
         return Fail(error, message);
     return status == MM_MOVIE_AUDIO_CACHE_OK;
 }
+
 MarcusCaptionRaster CaptionMask(const KauaiFonts::Mask &mask)
 {
     return {{mask.left, mask.top, mask.width, mask.height, mask.pitch},

@@ -4,9 +4,11 @@
 #include "preview_metadata.h"
 #include "caption_layout.h"
 #include "movie_session.h"
+#include "movie_audio.h"
 #include "midi.h"
 #include "sound_resource.h"
 #include "text_store.h"
+#include "wave.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -103,6 +105,18 @@ extern "C"
         int (*wave_buffer)(void *, MMU32, unsigned char **);
         int (*event)(void *, MMU32 timestamp, MMU32 message);
     } MMPreviewAudioServices;
+    typedef struct MMPreviewOwnedAudio
+    {
+        MMWaveBuffer payload; /* WAVE bytes or aligned MMMovieAudioEvent values. */
+        MMU32 type, number, wave_bytes;
+        size_t event_count;
+        MMI32 source;
+        int midi, silent;
+    } MMPreviewOwnedAudio;
+    /* Bind a zeroed or previously used owner. Each read replaces its C-heap
+     * payload. The descriptor retains a partial result on failure. */
+    MMPreviewAudioServices mm_preview_owned_audio_services(MMPreviewOwnedAudio *);
+    void mm_preview_owned_audio_dispose(MMPreviewOwnedAudio *);
     typedef struct MMPreviewSoundServices
     {
         void *context;

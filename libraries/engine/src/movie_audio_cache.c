@@ -173,7 +173,7 @@ static MMMovieAudioEvent voice_event(void *p, size_t row)
 {
     const AudioVoiceOwner *owner = p;
     const MMMovieAudioMedia *media = &owner->asset->media;
-    return media->event(media->owner, row);
+    return media->events[row];
 }
 
 static void voice_message(void *p, MMU32 message)

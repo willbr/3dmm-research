@@ -677,6 +677,41 @@ static void au_setup(Audio *h, int midi)
     s->wave_buffer = wave_buffer;
     s->event = midi_event;
 }
+static void owned_audio_test(void)
+{
+    Audio h;
+    MMPreviewOwnedAudio audio = {0};
+    MMPreviewAudioServices services = mm_preview_owned_audio_services(&audio);
+    const MMMovieAudioEvent *events;
+    unsigned char track[300];
+    size_t at;
+    au_setup(&h, 0);
+    assert(mm_preview_audio(&h.graph, MM_SOUND_TYPE, 9, &services) == 1);
+    assert(audio.type == MM_SOUND_WAVE && audio.number == 10 && audio.wave_bytes == h.length);
+    assert(!memcmp(audio.payload.data, h.bytes, h.length) && !audio.event_count);
+    h.fail_read = 1;
+    assert(!mm_preview_audio(&h.graph, MM_SOUND_WAVE, 10, &services));
+    assert(audio.wave_bytes == h.length && audio.payload.data[0] == 0x5a && audio.payload.data[h.length - 1] == 0);
+    au_setup(&h, 1);
+    for (at = 0; at < sizeof(track); at += 4)
+    {
+        track[at] = 5;
+        track[at + 1] = 0x90;
+        track[at + 2] = 60;
+        track[at + 3] = 100;
+    }
+    h.large = track;
+    h.length = sizeof(track);
+    assert(mm_preview_audio(&h.graph, MM_SOUND_TYPE, 9, &services) == 1);
+    assert(audio.midi && audio.type == MM_SOUND_MIDI && !audio.wave_bytes && audio.event_count == 75);
+    events = (const MMMovieAudioEvent *)audio.payload.data;
+    for (at = 0; at < audio.event_count; ++at)
+        assert(events[at].milliseconds == (at + 1) * 5 && events[at].message == 0x00643c90UL);
+    h.has_child = 0;
+    assert(mm_preview_audio(&h.graph, MM_SOUND_TYPE, 9, &services) == 1);
+    assert(audio.silent && !audio.event_count && !audio.payload.data && !audio.type);
+    mm_preview_owned_audio_dispose(&audio);
+}
 static void audio_tests(void)
 {
     Audio h;
@@ -874,6 +909,7 @@ int main(void)
     caption_tests();
     edited_caption_collections();
     audio_tests();
+    owned_audio_test();
     sound_tests();
     puts("Preview media: caption prefixes/UTF-16/properties, stable sorting, envelope/MIDI budgets, source remapping "
          "and fault cleanup passed.");

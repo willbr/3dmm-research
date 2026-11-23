@@ -197,11 +197,11 @@ static void movie_release(void *p)
     ++((Fixture *)p)->releases;
 }
 
+static const MMMovieAudioEvent movie_events[] = {{0, 0x00643c90UL}, {1, 0x00003c80UL}};
 static MMMovieAudioEvent movie_event(void *p, size_t index)
 {
-    static const MMMovieAudioEvent events[] = {{0, 0x00643c90UL}, {1, 0x00003c80UL}};
     (void)p;
-    return events[index];
+    return movie_events[index];
 }
 
 static void movie_render(void *p, float *out, size_t frames)
@@ -310,7 +310,7 @@ static int read_cached_audio(void *p, MMMovieAudioMedia *out)
     out->clip.midi_events = f->midi ? 2 : 0;
     out->owner = &f->media;
     out->release = movie_release;
-    out->event = movie_event;
+    out->events = movie_events;
     return 1;
 }
 

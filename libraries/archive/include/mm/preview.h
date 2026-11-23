@@ -14,6 +14,8 @@ struct MMMoviePoseJournal;
 struct MMMovieWorkerPlacements;
 struct MMMovieTextJournal;
 struct MMPreviewCue;
+struct MMPreviewAudioServices;
+struct MMPreviewOwnedAudio;
 struct MMPreviewActorInfo;
 struct MMPreviewObjectRows;
 struct MMPreviewOwnedPresentationOutput;
@@ -280,6 +282,8 @@ class Preview
 {
     using TakeArchive = void (*)(void *, Internal::ArchiveInput &);
     bool OpenCore(void *, TakeArchive, const std::string &, Error &, bool, bool);
+    bool ReadSoundCueCore(const MMPreviewCue &, const MMPreviewAudioServices &,
+                           void (*source)(void *, std::int32_t), Error &);
     struct LightInput
     {
         const MMPreviewLightValues *values;
@@ -398,6 +402,8 @@ class Preview
     bool SoundName(const PreviewSoundCue &, std::string &) const;
     bool ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error);
     bool ReadSoundCue(const MMPreviewCue &cue, PreviewAudio &audio, Error &error);
+    // Pass a zeroed or previously used owner and dispose it after use.
+    bool ReadSoundCueOwned(const MMPreviewCue &cue, MMPreviewOwnedAudio &audio, Error &error);
     // Resolve stored indexed caption colours against the active movie palette.
     std::uint32_t PresentationColour(std::uint32_t colour) const;
     bool CopyPresentationPalette(unsigned char bgrx[1024]) const;
