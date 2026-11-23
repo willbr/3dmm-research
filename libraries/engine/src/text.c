@@ -156,6 +156,35 @@ static unsigned short map_unit(unsigned short value, int upper)
             return windows1252[upper ? upper1252[i] : lower1252[i]];
     return value;
 }
+typedef struct Utf8Buffer
+{
+    char *data;
+    size_t capacity, count;
+} Utf8Buffer;
+
+static int collect_utf8(void *context, const char *bytes, size_t count)
+{
+    Utf8Buffer *out = context;
+    if (count > out->capacity - out->count)
+        return -1;
+    memcpy(out->data + out->count, bytes, count);
+    out->count += count;
+    return 1;
+}
+
+int mm_text_write_utf8(const unsigned short *units, size_t length, char *bytes, size_t capacity, size_t *count)
+{
+    Utf8Buffer buffer;
+    int result;
+    buffer.data = bytes;
+    buffer.capacity = capacity;
+    buffer.count = 0;
+    result = mm_text_encode_utf8(units, length, &buffer, collect_utf8);
+    if (result == 1)
+        *count = buffer.count;
+    return result;
+}
+
 size_t mm_text_utf16(const MMTextHost *host, const void *input, size_t bytes, int source,
                            unsigned short *output, size_t capacity)
 {
@@ -266,7 +295,7 @@ size_t mm_text_ansi_from_units(const MMTextHost *host, const unsigned short *uni
     unsigned short *round_trip;
     size_t bytes, i;
     int encoding;
-    if (!count || count > 2147483647UL / 2 || !output)
+    if (!count || count > 2147483647UL / 2 || (exact && !output))
         return 0;
     if (host && host->encode)
         bytes = host->encode(host->context, units, count, output, capacity);

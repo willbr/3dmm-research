@@ -1,4 +1,5 @@
 #include "mm/string_table.h"
+#include "mm/string_wire.h"
 #include "mm/text.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -269,6 +270,14 @@ static void counted_utf8(void)
     CHECK(mm_text_ansi_from_units(NULL, t.units + 6, 2, t.bytes, sizeof(t.bytes), 0) == 1 && t.bytes[0] == '?');
     CHECK(!mm_text_ansi_from_units(NULL, t.units + 6, 2, t.bytes, sizeof(t.bytes), 1));
     CHECK(mm_text_read_utf8(NULL, 0, NULL, 0, &count) == 1 && count == 0);
+    CHECK(mm_text_ansi_from_units(NULL, units + 6, 2, NULL, 0, 0) == 1);
+    CHECK(mm_text_write_utf8(units, 8, t.bytes, 7, &count) == -1 && count == 0);
+    CHECK(mm_text_write_utf8(bad_units, 3, t.bytes, sizeof(t.bytes), &count) == 0 && count == 0);
+    CHECK(mm_string_text_utf8(NULL, units, 8, 2, t.bytes, sizeof(t.bytes), &count) == 1);
+    CHECK(count == sizeof(encoded) - 1 && !memcmp(t.bytes, encoded, count));
+    CHECK(mm_string_text_utf8(NULL, bad_units, 3, 2, t.bytes, sizeof(t.bytes), &count) == -1);
+    CHECK(mm_string_text_utf8(NULL, "a\0\x80", 3, 1, t.bytes, sizeof(t.bytes), &count) == 1);
+    CHECK(count == 5 && !memcmp(t.bytes, "a\0\xe2\x82\xac", count));
 }
 
 int main(void)

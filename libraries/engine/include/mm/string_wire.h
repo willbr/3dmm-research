@@ -10,8 +10,14 @@ extern "C"
 #endif
     enum
     {
-        MM_STRING_MAX = 255
+        MM_STRING_MAX = 255,
+        MM_STRING_UTF8_MAX = MM_STRING_MAX * 3
     };
+    /* Display a counted native legacy string (ANSI or native UTF-16).
+     * Return 1 on success, 0 for unavailable legacy conversion, -1 for
+     * malformed UTF-16 or short output. Only success sets written. */
+    int mm_string_text_utf8(const MMTextHost *, const void *, size_t count, unsigned unit,
+                            char *, size_t capacity, size_t *written);
     typedef struct MMStringWire
     {
         void *buffer; /* (255+2) native one/two-byte units: count, text, terminator. */

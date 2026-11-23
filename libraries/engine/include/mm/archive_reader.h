@@ -5,6 +5,7 @@
 #include "chunk_storage.h"
 #include "chunk_loading.h"
 #include "movie_session.h"
+#include "movie_title.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -88,6 +89,9 @@ int mm_archive_reader_read_stored(const MMArchiveReader *, const MMChunkEntry *,
  * through the call and can consume decoded chunks through the same reader. */
 int mm_archive_reader_stored_payload(void *, const MMChunkEntry *, MMReadReceiver, void *out);
 int mm_archive_reader_name(MMArchiveReader *, MMU32 position, MMReadReceiver, void *out);
+/* Decode the legacy name at an index position into an initialized native title. Missing
+ * or malformed names return 0. */
+int mm_archive_reader_title(MMArchiveReader *, MMU32 position, MMMovieTitle *, const MMChunkTitleIO *);
 
 typedef struct MMArchiveCatalogLink
 {

@@ -204,7 +204,6 @@ int marcus_archive_input_open_profile(MarcusArchiveInput *input, const char *pat
 
 typedef struct ArchiveName
 {
-    const MMPrivateArchiveProfile *profile;
     const MMTextHost *text;
     char *output;
     size_t available;
@@ -240,38 +239,25 @@ static int encode_archive_text(ArchiveName *name, const void *text, size_t bytes
     return mm_text_encode_utf8(utf16, units, name, write_archive_name);
 }
 
-static int read_archive_name(void *p, const MMReadStream *stream)
-{
-    ArchiveName *name = p;
-    const MMPrivateArchiveProfile *profile = name->profile;
-    unsigned char wire[MM_CHUNK_NAME_WIRE_BYTES];
-    MMMovieTitle title;
-    MMChunkTitleIO io = {0};
-    if (stream->length > sizeof(wire) || !mm_read_exact(stream, 0, wire, stream->length))
-        return MM_MOVIE_BAD_FILE;
-    io.context = (void *)profile;
-    io.encoding = profile->encoding;
-    io.swapped_unicode_encoding = profile->swapped_unicode_encoding;
-    io.convert = translate_archive_name;
-    mm_movie_title_init(&title, profile->unit);
-    mm_movie_title_read_wire(&title, wire, stream->length, &io);
-    return encode_archive_text(name, mm_movie_title_text(&title), title.count * title.unit, io.encoding) == 1 ?
-        MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
-}
-
 size_t marcus_archive_name_utf8(MMArchiveReader *reader, MMU32 position, const MMPrivateArchiveProfile *profile,
                                 const MMTextHost *text, char *output, size_t capacity, int whole_characters)
 {
     ArchiveName name;
+    MMMovieTitle title;
+    MMChunkTitleIO codec = {0};
     if (!capacity)
         return 0;
-    name.profile = profile;
     name.text = text;
     name.output = output;
     name.available = capacity - 1;
     name.whole_characters = whole_characters;
+    codec.context = (void *)profile;
+    codec.encoding = profile->encoding;
+    codec.swapped_unicode_encoding = profile->swapped_unicode_encoding;
+    codec.convert = translate_archive_name;
     *output = '\0';
-    if (mm_archive_reader_name(reader, position, read_archive_name, &name) != MM_MOVIE_OK)
+    if (!mm_movie_title_init(&title, profile->unit) || !mm_archive_reader_title(reader, position, &title, &codec) ||
+        encode_archive_text(&name, mm_movie_title_text(&title), title.count * title.unit, codec.encoding) != 1)
     {
         memset(output, 0, capacity);
         return 0;
@@ -285,7 +271,6 @@ int marcus_archive_text_utf8(const MMTextHost *host, const void *text, size_t by
     ArchiveName name;
     if (!capacity)
         return 0;
-    name.profile = NULL;
     name.text = host;
     name.output = output;
     name.available = capacity - 1;

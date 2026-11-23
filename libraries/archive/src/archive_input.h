@@ -3,6 +3,7 @@
 
 #include "mm/archive.h"
 #include "mm/native_archive_file.h"
+#include "mm/string_value.h"
 
 namespace MM {
 namespace Internal {
@@ -32,6 +33,7 @@ public:
 
 bool ArchiveCatalogError(int status, const MMChunkEntry &, Error &);
 std::string ArchiveTextUtf8(const void *units, std::size_t count);
+bool ArchiveTextUtf8(const MMStringValue &, std::string &out);
 
 } // namespace Internal
 } // namespace MM

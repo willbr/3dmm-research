@@ -10,6 +10,37 @@ struct MMNativeArchiveFile
     size_t references;
 };
 
+int mm_native_archive_legacy_path(const char *path, size_t length, int ansi, const MMTextHost *text, char *out)
+{
+    unsigned short units[MM_STRING_MAX], round_trip[MM_STRING_MAX];
+    size_t count, bytes;
+    int status;
+    if (!length || memchr(path, 0, length))
+        return MM_ARCHIVE_PATH_EMPTY;
+    if (!ansi)
+    {
+        if (length > MM_STRING_MAX)
+            return MM_ARCHIVE_PATH_TOO_LONG;
+        memcpy(out, path, length);
+        out[length] = 0;
+        return MM_ARCHIVE_PATH_OK;
+    }
+
+    status = mm_text_read_utf8(path, length, units, MM_STRING_MAX, &count);
+    if (status != 1)
+        return status < 0 ? MM_ARCHIVE_PATH_TOO_LONG : MM_ARCHIVE_PATH_BAD_UTF8;
+    bytes = mm_text_ansi_from_units(text, units, count, NULL, 0, 0);
+    if (bytes > MM_STRING_MAX)
+        return MM_ARCHIVE_PATH_TOO_LONG;
+    if (!bytes || mm_text_ansi_from_units(text, units, count, out, bytes, 0) != bytes)
+        return MM_ARCHIVE_PATH_ENCODE;
+    if (mm_text_utf16(text, out, bytes, MM_TEXT_WINDOWS, round_trip, MM_STRING_MAX) != count ||
+        memcmp(units, round_trip, count * sizeof(*units)))
+        return MM_ARCHIVE_PATH_LOSSY;
+    out[bytes] = 0;
+    return MM_ARCHIVE_PATH_OK;
+}
+
 static int seek_extent(MMNativeArchiveFile *file, MMU32 offset, size_t bytes)
 {
     return offset <= 0x7fffffffUL && bytes <= 0x7fffffffUL - offset && mm_native_file_seek(file->handle, offset);

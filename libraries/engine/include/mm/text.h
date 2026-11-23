@@ -36,8 +36,11 @@ extern "C"
     /* Collect into a bounded buffer. A short buffer returns -1, invalid UTF-8
      * returns 0. Only success sets the count. Failure may write a prefix. */
     int mm_text_read_utf8(const char *, size_t, unsigned short *, size_t capacity, size_t *count);
-    /* Convert native UTF-16 units. Exact conversion requires a round trip
-     * through the same code page. It can leave rejected bytes in the buffer. */
+    /* Collect UTF-8 into a counted buffer with the same status convention. */
+    int mm_text_write_utf8(const unsigned short *, size_t, char *, size_t capacity, size_t *count);
+    /* Convert native UTF-16 units. Non-exact conversion accepts null output
+     * to query the byte count. Exact conversion requires a round trip through
+     * the same code page and can leave rejected bytes in the buffer. */
     size_t mm_text_ansi_from_units(const MMTextHost *, const unsigned short *, size_t,
                                   char *, size_t capacity, int exact);
     /* Legacy lossy Mac/Windows maps; supports in-place counted conversion. */

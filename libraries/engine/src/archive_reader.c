@@ -475,19 +475,27 @@ int mm_archive_reader_name(MMArchiveReader *reader, MMU32 position, MMReadReceiv
     return reader->options.name(reader->archive, &entry, receive, out);
 }
 
-typedef struct CatalogName
+typedef struct EncodedName
 {
     unsigned char bytes[MM_CHUNK_NAME_WIRE_BYTES];
     MMU32 count;
-} CatalogName;
+} EncodedName;
 
-static int read_catalog_name(void *context, const MMReadStream *stream)
+static int read_encoded_name(void *context, const MMReadStream *stream)
 {
-    CatalogName *name = context;
+    EncodedName *name = context;
     if (stream->length > sizeof(name->bytes) || !mm_read_exact(stream, 0, name->bytes, stream->length))
-        return 0;
+        return MM_MOVIE_BAD_FILE;
     name->count = stream->length;
-    return 1;
+    return MM_MOVIE_OK;
+}
+
+int mm_archive_reader_title(MMArchiveReader *reader, MMU32 position, MMMovieTitle *title, const MMChunkTitleIO *codec)
+{
+    EncodedName name;
+    name.count = 0;
+    return mm_archive_reader_name(reader, position, read_encoded_name, &name) == MM_MOVIE_OK && name.count &&
+           mm_movie_title_read_wire(title, name.bytes, name.count, codec);
 }
 
 static int compare_catalog_links(const void *first, const void *second)
@@ -502,7 +510,7 @@ int mm_archive_reader_catalog(MMArchiveReader *reader, MMArchiveCatalogVisit vis
     const MMChunkAccess *chunks = &reader->chunks;
     MMArchiveCatalogLink *links = NULL, *grown;
     MMChunkEntry entry;
-    CatalogName name;
+    EncodedName name;
     MMU32 i, j, target, capacity = 0;
     int status = MM_ARCHIVE_CATALOG_OK;
     for (i = 0; i < chunks->count; ++i)
@@ -544,7 +552,7 @@ int mm_archive_reader_catalog(MMArchiveReader *reader, MMArchiveCatalogVisit vis
         if (entry.child_count > 1)
             qsort(links, entry.child_count, sizeof(*links), compare_catalog_links);
         name.count = 0;
-        mm_archive_reader_name(reader, i, read_catalog_name, &name);
+        mm_archive_reader_name(reader, i, read_encoded_name, &name);
         status = MM_ARCHIVE_CATALOG_STOPPED;
         if (!visit(context, &entry, name.bytes, name.count, links))
             goto done;

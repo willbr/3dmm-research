@@ -500,6 +500,24 @@ static int check_index(void *file, const char *path, MMU32 type, int movie, Seek
     return ok;
 }
 
+static int check_legacy_paths(void)
+{
+    char path[MM_STRING_MAX + 1], out[MM_STRING_MAX + 1];
+    memset(path, 'a', sizeof(path));
+    return mm_native_archive_legacy_path("", 0, 1, NULL, out) == MM_ARCHIVE_PATH_EMPTY &&
+           mm_native_archive_legacy_path("a\0b", 3, 0, NULL, out) == MM_ARCHIVE_PATH_EMPTY &&
+           mm_native_archive_legacy_path(path, sizeof(path), 0, NULL, out) == MM_ARCHIVE_PATH_TOO_LONG &&
+           mm_native_archive_legacy_path(path, sizeof(path), 1, NULL, out) == MM_ARCHIVE_PATH_TOO_LONG &&
+           mm_native_archive_legacy_path(path, MM_STRING_MAX, 1, NULL, out) == MM_ARCHIVE_PATH_OK &&
+           !memcmp(out, path, MM_STRING_MAX) && !out[MM_STRING_MAX] &&
+           mm_native_archive_legacy_path("caf\xc3\xa9", 5, 1, NULL, out) == MM_ARCHIVE_PATH_OK &&
+           !strcmp(out, "caf\xe9") &&
+           mm_native_archive_legacy_path("\xf0\x9f\x8e\xac", 4, 1, NULL, out) == MM_ARCHIVE_PATH_LOSSY &&
+           mm_native_archive_legacy_path("a\xe2\x82", 3, 1, NULL, out) == MM_ARCHIVE_PATH_BAD_UTF8 &&
+           mm_native_archive_legacy_path("a\xe2\x82", 3, 0, NULL, out) == MM_ARCHIVE_PATH_OK &&
+           !strcmp(out, "a\xe2\x82");
+}
+
 int main(int argc, char **argv)
 {
     MMNativeOpenOptions options;
@@ -507,6 +525,12 @@ int main(int argc, char **argv)
     MMU32 type = 0;
     void *file;
     int i, movie, seek, actors, auto_content, bodies, ok;
+
+    if (!check_legacy_paths())
+    {
+        fputs("Legacy archive path conversion failed\n", stderr);
+        return 1;
+    }
 
     movie = argc == 3 && strcmp(argv[2], "--movie") == 0;
     actors = argc >= 3 && strcmp(argv[2], "--actors") == 0;

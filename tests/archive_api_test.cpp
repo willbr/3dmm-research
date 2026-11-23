@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     StringTablePage strings;
     MovieDirectory directory;
     const bool stream = argc == 6 && std::string(argv[5]) == "stream";
-    const auto open = [stream](Archive &input, const char *path, Error &error) {
+    const auto open = [stream](Archive &input, const std::string &path, Error &error) {
         return stream ? input.OpenForInspection(path, error) : input.Open(path, error);
     };
     Check(!open(archive, "", error) && error.code == ErrorCode::invalid_path && !error.hasChunk);
@@ -67,6 +67,12 @@ int main(int argc, char **argv)
           error.hasChunk);
     Check(error.chunk == archive.Chunks()[scene].id);
     Check(!open(archive, "", error) && archive.Path() == originalPath && archive.Chunks().size() == 6);
+    Check(!open(archive, originalPath + std::string("\0ignored", 8), error) && error.code == ErrorCode::invalid_path);
+    Check(!open(archive, std::string(256, 'x'), error) && error.code == ErrorCode::invalid_path);
+#ifdef _WIN32
+    Check(!open(archive, originalPath + "\xe2\x82", error) && error.code == ErrorCode::unsupported_format);
+#endif
+    Check(archive.Path() == originalPath && archive.Chunks().size() == 6);
     Check(archive.ReadRecord(Find(archive, "MVIE"), record, error) && !error && record.kind == RecordKind::movie);
     Check(open(archive, argv[2], error));
     Check(!archive.ReadRecord(Find(archive, "SCEN"), record, error) && error.code == ErrorCode::corrupt_archive &&

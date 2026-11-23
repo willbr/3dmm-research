@@ -37,11 +37,6 @@ constexpr std::uint32_t FourCC(const char (&code)[5])
             std::uint32_t(static_cast<unsigned char>(code[3]));
 }
 
-std::string Utf8(String &value)
-{
-    return Internal::ArchiveTextUtf8(value.Psz(), value.Cch());
-}
-
 } // namespace
 Archive::Archive(Options options) : _impl(new Impl(options))
 {
@@ -236,12 +231,25 @@ struct CatalogHost
             chunk.packed = (entry->flags & MM_CHUNK_PACKED) != 0;
             chunk.loner = (entry->flags & MM_CHUNK_LONER) != 0;
             chunk.forest = (entry->flags & MM_CHUNK_FOREST) != 0;
-            String name;
+            MMMovieTitle name;
+            mm_movie_title_init(&name, sizeof(achar));
             if (nameBytes)
-                name.FSetData(encodedName, nameBytes);
-            chunk.name = Utf8(name);
-            for (LegacyLong j = 0; j < name.Cch(); ++j)
-                chunk.nameUnits.push_back(sizeof(achar) == 1 ? static_cast<byte>(name.Psz()[j]) : name.Psz()[j]);
+            {
+                const auto codec = KauaiChunkTitleIO();
+                mm_movie_title_read_wire(&name, encodedName, nameBytes, &codec);
+            }
+            const auto *units = mm_movie_title_text(&name);
+            chunk.name = Internal::ArchiveTextUtf8(units, name.count);
+            if (name.unit == 1)
+            {
+                const auto *bytes = static_cast<const unsigned char *>(units);
+                chunk.nameUnits.assign(bytes, bytes + name.count);
+            }
+            else
+            {
+                const auto *wide = static_cast<const unsigned short *>(units);
+                chunk.nameUnits.assign(wide, wide + name.count);
+            }
             chunk.children.reserve(entry->child_count);
             for (MMU32 j = 0; j < entry->child_count; ++j)
             {
@@ -477,9 +485,10 @@ struct DirectoryHost
             [](void *context, const MMMovieSourceName *row) -> int {
                 auto &host = *static_cast<DirectoryHost *>(context);
                 return host.Append([&] {
-                    String text;
-                    EngineMovieSource::ToString(*row, text);
-                    host.directory.sources.push_back({row->id, Utf8(text)});
+                    achar text[MM_STRING_MAX];
+                    const auto count = mm_movie_source_name_text(row, koskCur, sizeof(achar),
+                        EngineMovieSource::ConvertWidth, nullptr, text, MM_STRING_MAX);
+                    host.directory.sources.push_back({row->id, Internal::ArchiveTextUtf8(text, count)});
                 });
             },
         };

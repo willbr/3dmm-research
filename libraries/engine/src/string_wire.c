@@ -2,6 +2,24 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/string_wire.h"
 #include <string.h>
+
+int mm_string_text_utf8(const MMTextHost *host, const void *text, size_t count, unsigned unit,
+                        char *out, size_t capacity, size_t *written)
+{
+    const unsigned short order = 1;
+    unsigned short units[MM_STRING_MAX];
+    size_t decoded;
+    int encoding;
+    if ((unit != 1 && unit != 2) || count > MM_STRING_MAX)
+        return 0;
+    encoding = unit == 1 ? MM_TEXT_WINDOWS :
+               (*(const unsigned char *)&order ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE);
+    decoded = mm_text_utf16(host, text, count * unit, encoding, units, MM_STRING_MAX);
+    if (count && !decoded)
+        return 0;
+    return mm_text_write_utf8(units, decoded, out, capacity, written) == 1 ? 1 : -1;
+}
+
 static unsigned width(int encoding)
 {
     if (encoding == MM_TEXT_MAC || encoding == MM_TEXT_WINDOWS)

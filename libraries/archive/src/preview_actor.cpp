@@ -1,9 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "platform_text.h"
-#include <codecvt>
+#include "archive_input.h"
 #include <algorithm>
 #include <cmath>
-#include <locale>
 #include <map>
 #include <sstream>
 #include "preview_actor.h"
@@ -111,15 +109,7 @@ bool PreviewActor::Text(PreviewObjectText &out) const
 {
     MMPreviewActorText descriptor;
     if (!mm_preview_actor_text(&core, &descriptor)) return false;
-    String text;
-    text.SetSt(static_cast<PPascalString>(descriptor.name.buffer));
-    const auto count = KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi, nullptr, 0);
-    if (text.Cch() && !count) return false;
-    std::vector<std::uint16_t> units(count);
-    if (count && KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi,
-        units.data(), count) != count) return false;
-    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
-    out.text = convert.to_bytes(std::u16string(units.begin(), units.end()));
+    if (!ArchiveTextUtf8(descriptor.name, out.text)) return false;
     out.shape = descriptor.shape;
     out.fontSource = descriptor.font_source;
     out.font = descriptor.font_number;
@@ -175,18 +165,12 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 }
 std::string PreviewActor::ActionName(LegacyLong action) const
 {
-    String name;
-    const MMStringValue counted = {name.Pst(), sizeof(achar)};
+    STZ name;
+    const MMStringValue counted = {name, sizeof(achar)};
+    std::string text;
     if (action >= 0 && action < mm_preview_actor_action_count(&core) &&
-        mm_brender_template_action_name(Ptmpl(), action, &counted) && name.Cch())
-    {
-        const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
-        const auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
-        std::u16string text(count, 0);
-        if (count && KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding,
-                                        reinterpret_cast<std::uint16_t *>(&text[0]), count))
-            return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
-    }
+        mm_brender_template_action_name(Ptmpl(), action, &counted) && ArchiveTextUtf8(counted, text) && !text.empty())
+        return text;
     return "Action " + std::to_string(action);
 }
 bool PreviewActor::Actions(std::vector<PreviewAction> &out) const

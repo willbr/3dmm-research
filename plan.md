@@ -2334,6 +2334,11 @@ sample lookup through its existing resource cache. Studio and Marcus link
 the C audio libraries directly for decoding, import, recording, and output.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
+C89 also owns legacy archive path conversion and the counted text used by
+the inspector and preview. Marcus and the archive API share the chunk-name
+decoder. Kauai supplies the native code page and file lookup for its legacy
+paths. The archive API publishes UTF-8 strings and native chunk-name code
+units from the C reader.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining
 body, template, resource and object dependencies by the operation that still

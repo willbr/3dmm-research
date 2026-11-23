@@ -25387,3 +25387,43 @@ The embedded MIDI fixture matched the 100 ms WAVE cue and first 400 ms of MIDI.
 
 Evidence is under `tmp/c89-sdl-wave-device`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 archive paths and names (23 November 2026)
+
+The archive API converts UTF-8 paths through the C89 text layer before
+passing them to the legacy file API. Windows paths require an exact
+code-page round trip and a maximum of 255 encoded bytes. The POSIX path
+keeps the original bytes. Malformed Windows UTF-8 reports an unsupported
+format. A failed open leaves the previous archive published.
+
+Marcus and the archive API share the C decoder for native chunk names.
+The archive API retains the native code units for catalog names and uses
+bounded C UTF-8 conversion for display names, movie sources, string tables,
+and preview actor and action text. The caption font reader uses the same
+UTF-8 writer and retains its malformed-font fallback.
+
+The direct C fixtures cover the ANSI and byte-preserving path modes,
+encoding boundaries, a lossy code page, malformed sequences, short output
+buffers, and embedded zeroes in counted text. The public archive fixture
+checks failed opens in the live and inspection modes and verifies the
+input files by SHA-256 after both modes have run.
+
+SDL and classic Studio rebuilt. The 228 selected native tests, 29 standalone
+engine checks, and 21 native strict syntax checks passed. The external core,
+archive, and preview consumers passed. Native save and scene traces, four
+SDL save traces, eight VMM outputs, and the headless Marcus startup canvas
+matched their baselines. The x86 tag and source traces also matched.
+
+Fresh suite `20261123T192851Z-e1b3b099` completed eight captures. Replay suite
+`20261123T192948Z-cd53e7b0` completed four. Both verified input hashes. SDL
+and Marcus matched all 60 Actor Audio frames and camera indices and 59 of
+60 seek canvases against retained retail and V3DMM. They matched all 60
+seek canvases and scene states from the previous port capture.
+
+The first 100 ms of all four Actor Audio spans matched the previous port
+captures sample for sample on fresh playback and replay. The embedded
+MIDI fixture matched the 100 ms WAVE cue and first 400 ms of MIDI. SDL
+replay reached the previously recorded later PCM16 peak of 7,609.
+
+Evidence is under `tmp/c89-archive-text`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

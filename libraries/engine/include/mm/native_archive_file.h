@@ -11,6 +11,17 @@ extern "C" {
 
 typedef struct MMNativeArchiveFile MMNativeArchiveFile;
 
+enum
+{
+    MM_ARCHIVE_PATH_OK, MM_ARCHIVE_PATH_EMPTY, MM_ARCHIVE_PATH_TOO_LONG,
+    MM_ARCHIVE_PATH_BAD_UTF8, MM_ARCHIVE_PATH_ENCODE, MM_ARCHIVE_PATH_LOSSY
+};
+
+/* Produce the terminated short path used by the legacy file API. ANSI paths
+ * require an exact code-page round trip. Other paths retain their input bytes.
+ * Output storage has room for MM_STRING_MAX + 1 bytes. */
+int mm_native_archive_legacy_path(const char *, size_t, int ansi, const MMTextHost *, char *);
+
 /* Open with one owned reference. Streams borrow that reference, while blocks
  * retain their own. Access to the shared native file position is serialized. */
 MMNativeArchiveFile *mm_native_archive_file_open(const MMNativePathChar *);

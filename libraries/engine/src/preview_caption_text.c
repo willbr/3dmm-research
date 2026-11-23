@@ -1,5 +1,4 @@
 #include "mm/preview_media.h"
-#include <string.h>
 
 static MMI32 translate_name(void *p, const void *data, MMU32 bytes, int system, void *out, MMU32 capacity)
 {
@@ -38,42 +37,23 @@ static int load_name(void *p, const MMReadStream *stream, MMU32 offset)
     return 1;
 }
 
-typedef struct FontBytes
-{
-    char *data;
-    size_t count, capacity;
-} FontBytes;
-
-static int append_utf8(void *p, const char *bytes, size_t count)
-{
-    FontBytes *out = p;
-    if (count > out->capacity - out->count)
-        return 0;
-    memcpy(out->data + out->count, bytes, count);
-    out->count += count;
-    return 1;
-}
-
 static int title_font(void *p, const MMMovieTitle *title, MMCaptionFont *out)
 {
     MMPreviewCaptionText *text = p;
     unsigned short units[MM_STRING_MAX];
-    FontBytes bytes;
+    size_t bytes = 0;
     int status;
     /* Use the same display encoding for counted font names as Preview. */
     const int system = title->unit == 1 ? MM_TEXT_WINDOWS : MM_TEXT_UTF16_LE;
     const size_t count = mm_text_utf16(text->encoding, mm_movie_title_text(title), title->count * title->unit,
                                        system, units, MM_STRING_MAX);
-    bytes.data = text->utf8;
-    bytes.count = 0;
-    bytes.capacity = sizeof(text->utf8);
-    status = mm_text_encode_utf8(units, count, &bytes, append_utf8);
+    status = mm_text_write_utf8(units, count, text->utf8, sizeof(text->utf8), &bytes);
     if (!status && text->malformed_font)
-        status = text->malformed_font(text->context, units, count, bytes.data, bytes.capacity, &bytes.count);
-    if (status <= 0 || bytes.count > bytes.capacity)
+        status = text->malformed_font(text->context, units, count, text->utf8, sizeof(text->utf8), &bytes);
+    if (status <= 0 || bytes > sizeof(text->utf8))
         return status < 0 ? status : 0;
-    out->name = bytes.data;
-    out->length = bytes.count;
+    out->name = text->utf8;
+    out->length = bytes;
     return 1;
 }
 

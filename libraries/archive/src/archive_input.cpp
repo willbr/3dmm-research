@@ -1,9 +1,6 @@
 #include "archive_input.h"
 #include "diagnostics.h"
-#include <algorithm>
-#include <codecvt>
 #include <cstdio>
-#include <locale>
 #include <stdexcept>
 #include <utility>
 #include "kauai_core.h"
@@ -15,47 +12,24 @@ ASSERTNAME
 namespace MM {
 namespace Internal {
 namespace {
-bool NativePath(const std::string &input, String &path, std::string &error)
-{
-    if (input.empty() || input.find('\0') != std::string::npos)
-    {
-        error = "Enter a file path.";
-        return false;
-    }
-    std::string native = input;
-#ifdef _WIN32
-    const auto units = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().from_bytes(input);
-    const auto count = KauaiText::ToAnsi(units.data(), units.size() * 2, KauaiText::Encoding::Utf16LE, nullptr, 0);
-    native.resize(count);
-    if (!count || !KauaiText::ToAnsi(units.data(), units.size() * 2, KauaiText::Encoding::Utf16LE, &native[0], count))
-    {
-        error = "Cannot convert this path to the legacy Windows file encoding.";
-        return false;
-    }
-    const auto backCount =
-        KauaiText::ToUtf16(native.data(), native.size(), KauaiText::Encoding::WindowsAnsi, nullptr, 0);
-    std::vector<uint16_t> back(backCount);
-    KauaiText::ToUtf16(native.data(), native.size(), KauaiText::Encoding::WindowsAnsi, back.data(), backCount);
-    if (back.size() != units.size() || !std::equal(back.begin(), back.end(), units.begin()))
-    {
-        error = "This path is not representable in the legacy Windows file encoding. Move the file to a simpler path.";
-        return false;
-    }
-#endif
-    if (native.size() > static_cast<std::size_t>(kcchMaxStn))
-    {
-        error = "The core file API supports paths up to 255 bytes.";
-        return false;
-    }
-    path.SetSzs(const_cast<char *>(native.c_str()));
-    return true;
-}
-
 bool Fail(Error &error, ErrorCode code, const char *message)
 {
     error.code = code;
     error.message = message;
     return false;
+}
+
+bool ReadArchiveTextUtf8(const void *value, std::size_t count, unsigned unit, std::string &out)
+{
+    char text[MM_STRING_UTF8_MAX];
+    std::size_t written;
+    const int status = mm_string_text_utf8(KauaiText::Services(), value, count, unit, text, sizeof(text), &written);
+    if (status < 0)
+        throw std::range_error("Archive text cannot be decoded.");
+    if (!status)
+        return false;
+    out.assign(text, written);
+    return true;
 }
 } // namespace
 
@@ -79,9 +53,29 @@ try
     ClearDiagnostic();
     String pathString;
     Filename filename;
-    std::string message;
-    if (!NativePath(utf8Path, pathString, message))
-        return Fail(error, ErrorCode::invalid_path, message.c_str());
+    char nativePath[MM_STRING_MAX + 1];
+#ifdef _WIN32
+    constexpr int ansi = 1;
+#else
+    constexpr int ansi = 0;
+#endif
+    switch (mm_native_archive_legacy_path(utf8Path.data(), utf8Path.size(), ansi, KauaiText::Services(), nativePath))
+    {
+    case MM_ARCHIVE_PATH_OK:
+        break;
+    case MM_ARCHIVE_PATH_EMPTY:
+        return Fail(error, ErrorCode::invalid_path, "Enter a file path.");
+    case MM_ARCHIVE_PATH_TOO_LONG:
+        return Fail(error, ErrorCode::invalid_path, "The core file API supports paths up to 255 bytes.");
+    case MM_ARCHIVE_PATH_BAD_UTF8:
+        return Fail(error, ErrorCode::unsupported_format, "Archive text cannot be decoded.");
+    case MM_ARCHIVE_PATH_LOSSY:
+        return Fail(error, ErrorCode::invalid_path,
+                    "This path is not representable in the legacy Windows file encoding. Move the file to a simpler path.");
+    default:
+        return Fail(error, ErrorCode::invalid_path, "Cannot convert this path to the legacy Windows file encoding.");
+    }
+    pathString.SetSzs(nativePath);
     if (!filename.FBuildFromPath(&pathString))
         return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
     const MMArchiveReaderOptions readerOptions = {
@@ -159,26 +153,26 @@ std::string ArchiveInput::ChunkName(MMU32 type, MMU32 number) const
     MMU32 position;
     if (mm_chunk_find(&chunks, type, number, &position) != MM_CHUNK_OK)
         return {};
-    String name;
-    const auto status = mm_archive_reader_name(Reader(), position,
-        [](void *p, const MMReadStream *stream) -> int {
-            unsigned char wire[MM_CHUNK_NAME_WIRE_BYTES];
-            return stream->length <= sizeof(wire) && mm_read_exact(stream, 0, wire, stream->length) &&
-                static_cast<String *>(p)->FSetData(wire, stream->length) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
-        }, &name);
-    return status == MM_MOVIE_OK ? ArchiveTextUtf8(name.Psz(), name.Cch()) : std::string();
+    MMMovieTitle name;
+    const auto codec = KauaiChunkTitleIO();
+    mm_movie_title_init(&name, sizeof(achar));
+    if (!mm_archive_reader_title(Reader(), position, &name, &codec))
+        return {};
+    return ArchiveTextUtf8(mm_movie_title_text(&name), name.count);
 }
 
 std::string ArchiveTextUtf8(const void *value, std::size_t unitsCount)
 {
-    const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
-    const auto bytes = unitsCount * sizeof(achar);
-    const auto count = KauaiText::ToUtf16(value, bytes, encoding, nullptr, 0);
-    std::vector<uint16_t> units(count);
-    if (!count || !KauaiText::ToUtf16(value, bytes, encoding, units.data(), count))
-        return {};
-    std::u16string text(units.begin(), units.end());
-    return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
+    std::string result;
+    ReadArchiveTextUtf8(value, unitsCount, sizeof(achar), result);
+    return result;
+}
+
+bool ArchiveTextUtf8(const MMStringValue &value, std::string &out)
+{
+    const auto *text = static_cast<const unsigned char *>(value.buffer);
+    const auto count = value.unit == 1 ? text[0] : static_cast<const unsigned short *>(value.buffer)[0];
+    return ReadArchiveTextUtf8(text + value.unit, count, value.unit, out);
 }
 } // namespace Internal
 

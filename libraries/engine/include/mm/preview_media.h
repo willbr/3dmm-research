@@ -79,7 +79,7 @@ extern "C"
         int (*malformed_font)(void *, const unsigned short *, size_t, char *, size_t, size_t *);
         MMMovieTitle font;
         int system, swapped_unicode;
-        char utf8[MM_STRING_MAX * 3];
+        char utf8[MM_STRING_UTF8_MAX];
     } MMPreviewCaptionText;
     /* Binds the caller's scratch state for the duration of a decode. Set the
      * optional diagnostics before binding. Returned font views expire at the
