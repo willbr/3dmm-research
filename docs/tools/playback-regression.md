@@ -23787,3 +23787,31 @@ Text Acid candidate `20261123T101231Z-01082b61` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-texture-binding`.
+
+## C89 3D text action names (23 November 2026)
+
+Studio loads the retail 3D text action catalogue into C89 storage through
+the shared resource cache. Lookups select the first matching signed ID and
+return counted strings in the host encoding. A failed reload preserves the
+installed catalogue. Studio releases its catalogue during application cleanup.
+
+A C89 consumer read all 16 action labels from retail `GST 3`. Their text
+matched the original resource source in action-ID order. The native 3D text
+resource trace matched the pre-change build across all 279,277 bytes. The
+existing C fixture checks both archive byte orders, Mac-to-Windows string
+conversion, duplicate and negative IDs, empty labels and malformed reads.
+
+All 230 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks. The headless
+Marcus startup image matched the previous build.
+
+Actor Audio candidate `20261123T102636Z-53c6d2cb` matched baseline
+`20261123T101231Z-28567826` on all 60 seek canvases and scene states per
+port. Both ports matched the retained retail and V3DMM authored frame order
+in seek and playback.
+
+Text Acid candidate `20261123T102636Z-f09dedd1` matched baseline
+`20261123T101231Z-01082b61` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-text-action-names`.

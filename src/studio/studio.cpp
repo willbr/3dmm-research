@@ -2794,7 +2794,6 @@ void Studio::MarkMem(void)
     MarkMemObj(_pglcmg);
     MarkMemObj(_pglclr);
     MarkMemObj(_ptgobTitle);
-    EngineText::MarkActionNames();
 
     //
     // Mark browser objects

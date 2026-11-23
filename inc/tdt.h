@@ -60,16 +60,11 @@ using PThreeDText = MMTemplateOwner *;
 namespace EngineText
 {
 MMTextGenerationServices GenerationServices();
-MMTextNames &ActionNames();
 bool Initialize(PThreeDText, MMResourceCache *, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
 void SetFontResolver(PThreeDText, void *context, MMFontOwner *(*)(void *, const MMTag *));
 MMActionResource *FetchAction(PThreeDText, LegacyLong);
 PModel FetchModel(PThreeDText, ChildChunkID);
 bool ActionName(PThreeDText, LegacyLong, PString);
-bool FSetActionNames(PStringTable_GST);
-#ifdef DEBUG
-void MarkActionNames();
-#endif
 
 PThreeDText PtdtNew(PString, LegacyLong shape, PTAG font);
 PThreeDText PtdtNew(PString, LegacyLong shape, PTAG font, const MMTemplateFontProvider &);

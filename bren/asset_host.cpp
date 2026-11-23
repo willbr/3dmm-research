@@ -86,21 +86,9 @@ int mm_kauai_resource_name(const MMResourceCache *cache, MMU32 type, MMU32 numbe
     return ReadResourceName(cache, type, number, *out);
 }
 
-void mm_kauai_text_name_services(MMTextResourceServices *s)
+void mm_kauai_text_action_name_missing(void *)
 {
-    s->name_count = [](void *, void *table) -> MMI32 { return static_cast<PStringTable_GST>(table)->IvMac(); };
-    s->name_id = [](void *, void *table, MMI32 index) -> MMI32 {
-        LegacyLong id;
-        static_cast<PStringTable_GST>(table)->GetExtra(index, &id);
-        return id;
-    };
-    s->name_text = [](void *, void *table, MMI32 index, void *out) {
-        String name;
-        static_cast<PStringTable_GST>(table)->GetStn(index, &name);
-        mm_string_value_copy(static_cast<const MMStringValue *>(out), name.Pst());
-    };
-    s->clear = [](void *, void *out) { mm_string_value_clear(static_cast<const MMStringValue *>(out)); };
-    s->missing_name = [](void *) { Warn("action name not found"); };
+    Warn("action name not found");
 }
 
 void mm_kauai_text_read_services(MMTextResourceServices *s)
@@ -128,7 +116,6 @@ void mm_kauai_template_validate(MMTemplateOwner *owner)
     {
         const auto &descriptor = *mm_template_owner_descriptor(owner);
         const auto &generated = *mm_template_owner_generated(owner);
-        AssertNilOrPo(static_cast<PStringTable_GST>(mm_brender_text_action_names()->table), 0);
         Assert(descriptor.font.type != ctgNil, "ThreeDText has bad _tagTdf");
         mm_kauai_material_validate(static_cast<MMMaterialOwner *>(generated.material));
         if (generated.action_id != -1)

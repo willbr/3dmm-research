@@ -59,7 +59,9 @@
 #endif
 #include "studio_preferences.h"
 #include "studio_resources.h"
+#include "private_archive_host.h"
 #include "resource_archive_host.h"
+#include "template_renderer.h"
 #include "socres.h"
 #ifdef WIN
 #include "mminstal.h"
@@ -1975,20 +1977,9 @@ bool Application::_FInitTdt(void)
     AssertBaseThis(0);
     AssertVarMem(_bootResources);
 
-    PStringTable_GST pgst;
-
-    // set ThreeDText action names
-    pgst = _PgstRead(kcnoGstAction);
-    if (pvNil == pgst)
-        return fFalse;
-    Assert(pgst->CbExtra() == size(LegacyLong), "bad Action string table");
-    if (!EngineText::FSetActionNames(pgst))
-    {
-        ReleasePpo(&pgst);
-        return fFalse;
-    }
-    ReleasePpo(&pgst);
-    return fTrue;
+    const auto profile = KauaiPrivateArchiveProfile();
+    return mm_brender_text_action_names_load(_bootResources, kcnoGstAction, profile.encoding, profile.convert,
+                                             nullptr) != 0;
 }
 
 /***************************************************************************
@@ -4394,6 +4385,7 @@ void Application::_CleanUp(void)
     _FWriteUserData();
     ReleasePpo(&_pstdio);
     ReleasePpo(&_ptatr);
+    mm_brender_text_action_names_clear();
     if (_bootResources)
     {
         mm_resource_cache_release(_bootResources);
@@ -5842,7 +5834,6 @@ void Application::MarkMem(void)
 #endif
     MarkMemObj(vptagm);
     EngineMaterial::MarkShadeTable();
-    EngineText::MarkActionNames();
     MarkMemObj(_pstdio);
     MarkMemObj(_ptatr);
     MarkMemObj(_pmvieHandoff);

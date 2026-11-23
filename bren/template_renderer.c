@@ -9,10 +9,45 @@
 
 typedef char TemplateMatrixSize[sizeof(br_matrix34) == sizeof(MMActorMatrix) ? 1 : -1];
 
-MMTextNames *mm_brender_text_action_names(void)
+static MMTextNames *text_action_names;
+
+typedef struct MMTextNamesRead
 {
-    static MMTextNames names;
-    return &names;
+    int encoding;
+    MMStringConvert convert;
+    void *context;
+} MMTextNamesRead;
+
+int mm_brender_text_action_names_read(const MMReadStream *stream, int encoding, MMStringConvert convert,
+                                     void *context)
+{
+    return mm_text_names_read(&text_action_names, stream, encoding, convert, context);
+}
+
+static int read_action_names(void *context, const MMReadStream *stream)
+{
+    MMTextNamesRead *request = context;
+    return mm_brender_text_action_names_read(stream, request->encoding, request->convert, request->context);
+}
+
+int mm_brender_text_action_names_load(MMResourceCache *cache, MMU32 number, int encoding, MMStringConvert convert,
+                                     void *context)
+{
+    MMTextResourceServices services = {0};
+    MMTextNamesRead request;
+    int read;
+    request.encoding = encoding;
+    request.convert = convert;
+    request.context = context;
+    mm_kauai_text_read_services(&services);
+    return mm_resource_cache_visit_payload(cache, 0x47535420UL, number, services.payloads->decode,
+                                           services.payloads->decode_context, read_action_names, &request,
+                                           &read) == MM_CHUNK_OK && read;
+}
+
+void mm_brender_text_action_names_clear(void)
+{
+    mm_text_names_clear(&text_action_names);
 }
 
 static MMTemplateState *template_state(void *context, void *object)
@@ -517,13 +552,9 @@ void mm_brender_template_rest_pose(MMTemplateOwner *owner, MMBodyOwner *body)
 int mm_brender_template_action_name(MMTemplateOwner *owner, MMI32 id, const MMStringValue *name)
 {
     MMTemplateRuntimeServices services = {0};
-    runtime_services(&services, owner);
     if (mm_template_owner_is_text(owner))
-    {
-        MMTextResourceServices text = {0};
-        mm_kauai_text_name_services(&text);
-        return mm_text_action_name(mm_brender_text_action_names(), id, (void *)name, &text);
-    }
+        return mm_text_action_name(text_action_names, id, name, mm_kauai_text_action_name_missing, NULL);
+    runtime_services(&services, owner);
     return mm_template_action_name(id, (void *)name, &services);
 }
 

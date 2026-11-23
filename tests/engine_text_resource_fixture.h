@@ -1,6 +1,8 @@
 #ifndef ENGINE_TEXT_RESOURCE_FIXTURE_H
 #define ENGINE_TEXT_RESOURCE_FIXTURE_H
 #include "engine_action_tables_fixture.h"
+#include "private_archive_host.h"
+#include "template_renderer.h"
 static MMFontOwner *TextResourceNoFont(void *context,const MMTag *)
 { ++*static_cast<int *>(context); return nullptr; }
 struct TextResourceFixtureAccess
@@ -9,7 +11,6 @@ struct TextResourceFixtureAccess
     static bool Initialize(PThreeDText t, PChunkyResourceFile cache,ChunkNumber n) { return EngineText::Initialize(t, cache->CoreCache(), kctgTmpl, n, nullptr); }
     static bool Provider(PThreeDText t,void *context)
     { const auto provider = mm_template_owner_font(t); return provider->context == context && provider->fetch == TextResourceNoFont; }
-    static PStringTable_GST DetachNames() { auto t=static_cast<PStringTable_GST>(EngineText::ActionNames().table); EngineText::ActionNames().table=nullptr; return t; }
     static MMActionResource *Seed(PThreeDText t)
     {
         auto cels=GeneralGroup::PggNew(sizeof(AnimationCel)); auto matrices=DynamicArray::PglNew(sizeof(BMAT34));
@@ -175,9 +176,18 @@ static bool TestTextResources()
     ok=t && !EngineTemplate::FGetActnName(t, 0,&text) && !text.Cch() && ok;
     auto names=StringTable_GST::PgstNew(4); LegacyLong ids[]={7,0,7}; const char *labels[]={"Pulse","Rest","Later duplicate"};
     for (int i=0;ok && i<3;++i) { text.SetSzs(const_cast<char *>(labels[i])); ok=names && names->FAddStn(&text,&ids[i]); }
-    ok=ok && EngineText::FSetActionNames(names) && names->CactRef()==2;
+    {
+        DataBlock block;
+        MMBlockIO io;
+        MMReadStream stream;
+        const auto profile = KauaiPrivateArchiveProfile();
+        ok = ok && block.FSetTemp(names->CbOnFile()) && names->FWrite(&block) &&
+             mm_owned_block_io(block.CoreBlock(), &io) == MM_DATA_OK && mm_block_io_stream(&io, &stream) == MM_DATA_OK &&
+             mm_brender_text_action_names_read(&stream, profile.encoding, profile.convert, nullptr);
+    }
+    ReleasePpo(&names);
     for (int id=0;ok && id<16;++id) { text.SetSzs(PszLit("dirty")); bool found=EngineTemplate::FGetActnName(t, id,&text); LegacyLong fields[]={id,found,text.Cch()}; ok=record(fields,sizeof(fields)) && record(text.Psz(),text.Cch()) && ok; }
-    auto root=TextResourceFixtureAccess::DetachNames(); ReleasePpo(&root); ReleasePpo(&names); mm_template_owner_release(t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
+    mm_brender_text_action_names_clear(); mm_template_owner_release(t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
     std::fprintf(stderr,"[text resources] attempts=%d successful=%d\n",attempts,successful);
 #ifdef DEBUG
     ok=ok && successful==1843;

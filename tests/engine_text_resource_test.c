@@ -1,5 +1,6 @@
 #include "mm/text_resource.h"
 #include "mm/chunk_ops.h"
+#include "mm/collections.h"
 #include "engine_resource_block_fixture.h"
 #include "template_writer_fixture.h"
 #include <assert.h>
@@ -20,14 +21,13 @@ typedef struct Context
     MMTextResourceSource source;
     MMI32 bytes; int fail,step,live,header,child,found,packed,unpacked,appended;
     int file_refs;
-    int error,released_error,bad,warnings,custom,defaults,names_published;
-    MMTextNames *names;
+    int error,released_error,bad,custom,defaults;
 } Context;
 static void copy_string(char *to,const char *from) { memcpy(to,from,strlen(from)+1); }
 static void *allocate(Context *c,size_t n,int object)
 { Root *r; if (++c->step==c->fail) return NULL; r=(Root *)calloc(1,n); assert(r); r->refs=1; r->object=object; ++c->live; return r; }
 static void retain(void *p,void *v)
-{ Context *c=(Context *)p; if (c->names && c->names->table==v) c->names_published=1; ++((Root *)v)->refs; }
+{ (void)p; ++((Root *)v)->refs; }
 static void release(void *p,void *v)
 {
     Context *c=(Context *)p; Root *r=(Root *)v; Object *o;
@@ -49,7 +49,6 @@ static void *text(void *p,void *o) { (void)p; return ((Object *)o)->text; }
 static MMI32 length(void *p,void *o) { (void)p; return (MMI32)strlen(((Object *)o)->text); }
 static void assign(void *p,void *to,const void *from) { (void)p; copy_string((char *)to,(const char *)from); }
 static void space(void *p,void *t) { (void)p; copy_string((char *)t," "); }
-static void clear(void *p,void *t) { (void)p; *(char *)t=0; }
 static void *saved(void *p) { return ((Context *)p)->saved; }
 static void provider_copy(void *p,void *to,void *from) { (void)p; ((Object *)to)->provider=((Object *)from)->provider; }
 static int has_provider(void *p,void *o) { (void)p; return ((Object *)o)->provider; }
@@ -148,10 +147,6 @@ static int write_block(void *p, void *file, MMU32 offset, const void *bytes, siz
 static void publish_error(void *p,void *out,int v) { ((Context *)p)->error=v; *(int *)out=v; }
 static void *tag_list(void *p) { assert(!((Context *)p)->error); return list_new(p,0,0); }
 static int append_tag(void *p,void *list,const MMTag *t) { (void)list; assert(!t->cache); ++((Context *)p)->appended; return ((Context *)p)->child!=2; }
-static MMI32 name_count(void *p,void *t) { (void)p; (void)t; return 3; }
-static MMI32 name_id(void *p,void *t,MMI32 i) { (void)p; (void)t; return i==1?0:7; }
-static void name_text(void *p,void *t,MMI32 i,void *out) { (void)p; (void)t; copy_string((char *)out,i==0?"Pulse":i==1?"Rest":"duplicate"); }
-static void missing(void *p) { ++((Context *)p)->warnings; }
 static void bad(void *p) { ++((Context *)p)->bad; }
 static void init(Context *c)
 {
@@ -178,10 +173,10 @@ static void init(Context *c)
     s->context=c; g->context=c; g->state=generated; g->length=length; g->template_state=template_state;
     g->table_allocator.context=c; g->table_allocator.resize=resize_shape; g->table_allocator.release=free_shape;
     g->material_new=material_new; g->retain_material=retain; g->release_material=release;
-    s->state=state; s->create=create; s->retain_object=retain; s->release_object=release; s->release_tag_list=release; s->text=text; s->assign=assign; s->space=space; s->clear=clear; s->saved_text=saved; s->provider_copy=provider_copy;
+    s->state=state; s->create=create; s->release_object=release; s->release_tag_list=release; s->text=text; s->assign=assign; s->space=space; s->saved_text=saved; s->provider_copy=provider_copy;
     s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template;
     s->payloads=&c->payloads;
-    s->publish_error=publish_error; s->tag_list=tag_list; s->append_tag=append_tag; s->name_count=name_count; s->name_id=name_id; s->name_text=name_text; s->missing_name=missing; s->bad_order=bad;
+    s->publish_error=publish_error; s->tag_list=tag_list; s->append_tag=append_tag; s->bad_order=bad;
 }
 static void lifecycle(void)
 {
@@ -450,14 +445,67 @@ static void author_names(void)
     assert(!strcmp(max_utf8, authored.utf8) && strlen(authored.legacy) == MM_TEXT_NAME_BYTES - 1);
     assert(mm_text_author_prepare_name("", &authored) == MM_TEXT_NAME_EMPTY && !strcmp(max_utf8, authored.utf8));
 }
+static void missing(void *context)
+{
+    ++*(int *)context;
+}
+
+static void name_word(unsigned char *bytes, MMU32 word, int big)
+{
+    unsigned i;
+    for (i = 0; i < 4; ++i)
+        bytes[big ? 3 - i : i] = (unsigned char)(word >> (8 * i));
+}
+
 static void names(void)
 {
-    Context c; MMTextNames n={NULL}; void *table; char out[256];
-    init(&c); copy_string(out,"dirty"); assert(!mm_text_action_name(&n,0,out,&c.services) && !out[0] && !c.warnings);
-    table=list_new(&c,0,0); c.names=&n; assert(mm_text_set_names(&n,table,&c.services) && c.names_published && ((Root *)table)->refs==2);
-    assert(mm_text_action_name(&n,7,out,&c.services) && !strcmp(out,"Pulse"));
-    assert(mm_text_action_name(&n,0,out,&c.services) && !strcmp(out,"Rest"));
-    assert(!mm_text_action_name(&n,15,out,&c.services) && !out[0] && c.warnings==1);
-    release(&c,table); release(&c,table); assert(!c.live);
+    static const unsigned char strings[] = "\005Pulse\004Rest\011duplicate\001\216\003A\000B\000";
+    static const MMU32 offsets[] = {0, 6, 11, 21, 23, 27};
+    static const MMI32 ids[] = {7, 0, 7, -1, -2, 1};
+    unsigned char bytes[20 + sizeof(strings) - 1 + sizeof(ids) / sizeof(ids[0]) * 8];
+    unsigned char out[257];
+    MMCollectionHeader header = {0};
+    MMMemoryStream source;
+    MMTextNames *catalogue = NULL;
+    MMStringValue value = {0};
+    int big, warnings = 0;
+    MMU32 i;
+    value.buffer = out;
+    value.unit = 1;
+    out[0] = 5;
+    assert(!mm_text_action_name(catalogue, 0, &value, missing, &warnings) && !out[0] && !warnings);
+    header.kind = MM_COLLECTION_STRINGS;
+    header.system = MM_TEXT_MAC;
+    header.width = 8;
+    header.count = sizeof(ids) / sizeof(ids[0]);
+    header.bytes = sizeof(strings) - 1;
+    header.free_count = -1;
+    for (big = 0; big <= 1; ++big)
+    {
+        unsigned char *entries = bytes + 20 + header.bytes;
+        header.big_endian = big;
+        assert(mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK);
+        memcpy(bytes + 20, strings, header.bytes);
+        for (i = 0; i < header.count; ++i)
+        {
+            name_word(entries + i * 8, offsets[i], big);
+            name_word(entries + i * 8 + 4, (MMU32)ids[i], big);
+        }
+        assert(mm_memory_stream_init(&source, bytes, sizeof(bytes)));
+        assert(mm_text_names_read(&catalogue, &source.stream, MM_TEXT_WINDOWS, NULL, NULL));
+        name_word(entries, header.bytes, big);
+        assert(!mm_text_names_read(&catalogue, &source.stream, MM_TEXT_WINDOWS, NULL, NULL));
+        assert(mm_memory_stream_init(&source, bytes, sizeof(bytes) - 1));
+        assert(!mm_text_names_read(&catalogue, &source.stream, MM_TEXT_WINDOWS, NULL, NULL));
+        memset(bytes, 0, sizeof(bytes));
+        assert(mm_text_action_name(catalogue, 7, &value, missing, &warnings) && !memcmp(out, "\005Pulse", 7));
+        assert(mm_text_action_name(catalogue, 0, &value, missing, &warnings) && !memcmp(out, "\004Rest", 6));
+        assert(mm_text_action_name(catalogue, -1, &value, missing, &warnings) && !memcmp(out, "\001\351", 3));
+        assert(mm_text_action_name(catalogue, -2, &value, missing, &warnings) && !memcmp(out, "\003A\000B", 5));
+        assert(mm_text_action_name(catalogue, 1, &value, missing, &warnings) && !out[0]);
+        assert(!mm_text_action_name(catalogue, 15, &value, missing, &warnings) && !out[0] && warnings == big + 1);
+    }
+    mm_text_names_clear(&catalogue);
+    assert(!catalogue && !mm_text_action_name(catalogue, 7, &value, missing, &warnings) && warnings == 2);
 }
 int main(void) { lifecycle(); wire(); drafts(); author_names(); names(); return 0; }

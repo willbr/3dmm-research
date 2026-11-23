@@ -66,7 +66,7 @@ int mm_text_author_prepare_name(const char *utf8, MMTextAuthorName *);
 /* Decodes the descriptor even when its marker is invalid. The result reports
  * whether the marker was valid. A bad marker uses the opposite host order. */
 int mm_text_decode_descriptor(const unsigned char bytes[24], int host_big, MMTextDescriptor *);
-typedef struct MMTextNames { void *table; } MMTextNames;
+typedef struct MMTextNames MMTextNames;
 typedef struct MMTextResourceSource
 {
     MMResourceCache *cache;
@@ -80,12 +80,10 @@ typedef struct MMTextResourceServices
     MMTextGenerationServices generation;
     MMTextDescriptor *(*state)(void *,void *object);
     void *(*create)(void *);
-    void (*retain_object)(void *,void *);
     void (*release_object)(void *,void *);
     void *(*text)(void *,void *object);
     void (*assign)(void *,void *destination,const void *source);
     void (*space)(void *,void *text);
-    void (*clear)(void *,void *text);
     void *(*saved_text)(void *);
     void (*provider_copy)(void *,void *destination,void *source);
     int (*has_provider)(void *,void *object);
@@ -98,10 +96,6 @@ typedef struct MMTextResourceServices
     void *(*tag_list)(void *);
     void (*release_tag_list)(void *,void *);
     int (*append_tag)(void *,void *list,const MMTag *);
-    MMI32 (*name_count)(void *,void *table);
-    MMI32 (*name_id)(void *,void *table,MMI32 index);
-    void (*name_text)(void *,void *table,MMI32 index,void *text);
-    void (*missing_name)(void *);
     void (*bad_order)(void *);
 } MMTextResourceServices;
 /* Text/tag storage is borrowed. Runtime cache bits survive copying and rollback;
@@ -139,10 +133,15 @@ int mm_text_bind_preview_font(const struct MMChunkEndpoint *source, const struct
                               MMU32 tmpl, MMU32 font);
 void *mm_text_tags(const MMTextResourceSource *,MMU32 type,MMU32 number,void *error_out,
                    const MMTextResourceServices *);
-/* Set-once table publishes before retain. Lookup takes the first matching ID;
- * an absent table clears silently, an absent entry warns before clearing. */
-int mm_text_set_names(MMTextNames *,void *table,const MMTextResourceServices *);
-int mm_text_action_name(const MMTextNames *,MMI32 id,void *text,const MMTextResourceServices *);
+/* Use a zero-initialized owner. Read a dense GST with one signed 32-bit
+ * action ID per row. The copied table uses the requested host text encoding.
+ * A failed read leaves the previous catalogue available. */
+int mm_text_names_read(MMTextNames **, const MMReadStream *, int encoding, MMStringConvert, void *context);
+void mm_text_names_clear(MMTextNames **);
+/* Use an output with the same native character width as the catalogue.
+ * Lookup takes the first matching ID. A missing catalogue clears silently.
+ * A missing entry invokes the optional diagnostic before clearing. */
+int mm_text_action_name(const MMTextNames *, MMI32 id, const MMStringValue *, void (*missing)(void *), void *);
 #ifdef __cplusplus
 }
 #endif

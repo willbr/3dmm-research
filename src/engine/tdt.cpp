@@ -43,7 +43,6 @@ static MMTextResourceServices ResourceServices(void *context)
     static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 && sizeof(TAG) == sizeof(MMTag), "text resource ABI");
     s.state = [](void *, void *object) { return mm_template_owner_descriptor(static_cast<PThreeDText>(object)); };
     s.create = [](void *) -> void * { return mm_template_owner_create(&EngineTemplate::Host(), 1); };
-    s.retain_object = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.release_object = [](void *, void *object) { mm_template_owner_release(static_cast<PThreeDText>(object)); };
     s.text = [](void *, void *object) -> void * {
         return mm_template_owner_name(static_cast<PThreeDText>(object)).buffer;
@@ -69,24 +68,9 @@ static MMTextResourceServices ResourceServices(void *context)
     return s;
 }
 
-MMTextNames &EngineText::ActionNames()
-{
-    return *mm_brender_text_action_names();
-}
-
 void EngineText::SetFontResolver(PThreeDText owner, void *context, MMFontOwner *(*fetch)(void *, const MMTag *))
 {
     *mm_template_owner_font(owner) = {context, fetch};
-}
-
-/***************************************************************************
-    Set the StringTable_GST of action names for ThreeDTexts
-***************************************************************************/
-bool EngineText::FSetActionNames(PStringTable_GST pgstAction)
-{
-    AssertPo(pgstAction, 0); Assert(ActionNames().table == pvNil, "you already set the action names");
-    TextResourceContext context; auto services = ResourceServices(&context);
-    return mm_text_set_names(&ActionNames(), pgstAction, &services) != 0;
 }
 
 /***************************************************************************
@@ -259,14 +243,3 @@ bool EngineText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, c
     const auto encoded = ChunkyFile::EncodeName(name, wire);
     return mm_text_write_draft(&encoded, &draft, number, &writer) != 0;
 }
-
-#ifdef DEBUG
-/***************************************************************************
-    Mark memory used by the ThreeDText action StringTable_GST
-***************************************************************************/
-void EngineText::MarkActionNames(void)
-{
-    MarkMemObj(static_cast<PStringTable_GST>(ActionNames().table));
-}
-
-#endif // DEBUG

@@ -15,7 +15,7 @@ void mm_kauai_text_read_services(MMTextResourceServices *);
 void mm_kauai_template_validate(MMTemplateOwner *);
 void mm_kauai_template_mark(MMTemplateOwner *);
 void mm_kauai_font_check_index(MMI32 index, MMI32 count);
-void mm_kauai_text_name_services(MMTextResourceServices *);
+void mm_kauai_text_action_name_missing(void *);
 
 void mm_brender_template_read_services(MMTemplateCreateServices *, MMResourceCache *);
 int mm_brender_template_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
@@ -23,7 +23,9 @@ MMTemplateOwner *mm_brender_template_fetch(MMResourceCache *, MMU32 type, MMU32 
 int mm_brender_action_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 int mm_brender_text_initialize(MMTemplateOwner *, MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
 void mm_brender_text_generation_services(MMTextGenerationServices *);
-MMTextNames *mm_brender_text_action_names(void);
+int mm_brender_text_action_names_read(const MMReadStream *, int encoding, MMStringConvert, void *context);
+int mm_brender_text_action_names_load(MMResourceCache *, MMU32 number, int encoding, MMStringConvert, void *context);
+void mm_brender_text_action_names_clear(void);
 
 struct MMBodyOwner;
 struct MMMaterialOwner;

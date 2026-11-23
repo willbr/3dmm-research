@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/text_resource.h"
 #include "mm/chunk_ops.h"
+#include "mm/collections.h"
 #include "mm/font_resource.h"
 #include "mm/text.h"
 #include "mm/material_resource.h"
@@ -369,18 +370,89 @@ void *mm_text_tags(const MMTextResourceSource *source, MMU32 type, MMU32 number,
     if (list && descriptor(source,type,number,&d,s) && s->append_tag(s->context,list,&d.font)) return list;
     s->publish_error(s->context,error_out,1); if (list) s->release_tag_list(s->context,list); return NULL;
 }
-int mm_text_set_names(MMTextNames *names,void *table,const MMTextResourceServices *s)
+struct MMTextNames
 {
-    names->table=table; s->retain_object(s->context,table); return 1;
-}
-int mm_text_action_name(const MMTextNames *names,MMI32 id,void *text,const MMTextResourceServices *s)
+    MMCollectionStorage storage;
+    MMStringTable strings;
+    int id_big_endian;
+};
+
+void mm_text_names_clear(MMTextNames **names)
 {
-    MMI32 i;
-    if (names->table)
+    if (*names)
     {
-        for (i=0;i<s->name_count(s->context,names->table);++i)
-            if (s->name_id(s->context,names->table,i)==id) { s->name_text(s->context,names->table,i,text); return 1; }
-        if (s->missing_name) s->missing_name(s->context);
+        mm_storage_dispose(&(*names)->storage);
+        free(*names);
+        *names = NULL;
     }
-    s->clear(s->context,text); return 0;
+}
+
+int mm_text_names_read(MMTextNames **names, const MMReadStream *stream, int encoding, MMStringConvert convert,
+                        void *context)
+{
+    const unsigned short order = 1;
+    MMCollectionHeader header;
+    MMTextNames *next;
+    MMStringTable *view;
+    MMU32 row, units;
+    const void *characters;
+    if (mm_collection_header_read(stream, MM_COLLECTION_STRINGS, 0, &header) != MM_STORAGE_OK || header.width != 8)
+        return 0;
+    next = calloc(1, sizeof(*next));
+    if (!next)
+        return 0;
+    mm_storage_init(&next->storage, NULL);
+    if (mm_storage_read(&next->storage, stream, header.header_bytes, header.first_bytes,
+                         header.second_bytes) != MM_STORAGE_OK)
+        goto fail;
+    next->id_big_endian = header.big_endian;
+    view = &next->strings;
+    view->strings = next->storage.buffers[0].data;
+    view->entries = next->storage.buffers[1].data;
+    view->string_capacity = next->storage.buffers[0].capacity;
+    view->entry_capacity = next->storage.buffers[1].capacity;
+    view->bytes = header.bytes;
+    view->count = header.count;
+    view->stride = header.width;
+    view->free_count = header.free_count;
+    view->unit_bytes = encoding == MM_TEXT_UTF16_LE || encoding == MM_TEXT_UTF16_BE ? 2 : 1;
+    view->context = &next->storage;
+    view->reserve = mm_strings_reserve_storage;
+    if (header.big_endian != (*(const unsigned char *)&order == 0))
+        mm_strings_swap_offsets(view);
+    if (!mm_strings_translate(view, header.system, encoding, convert, context))
+        goto fail;
+    for (row = 0; row < view->count; ++row)
+        if (!mm_strings_get(view, row, &characters, &units))
+            goto fail;
+    mm_text_names_clear(names);
+    *names = next;
+    return 1;
+fail:
+    mm_text_names_clear(&next);
+    return 0;
+}
+
+int mm_text_action_name(const MMTextNames *names, MMI32 id, const MMStringValue *text,
+                         void (*missing)(void *), void *context)
+{
+    if (names && text->unit == names->strings.unit_bytes)
+    {
+        const MMStringTable *view = &names->strings;
+        MMU32 row;
+        for (row = 0; row < view->count; ++row)
+            if (word(view->entries + row * view->stride + 4, 4, names->id_big_endian) == (MMU32)id)
+            {
+                const void *characters;
+                MMU32 units;
+                if (!mm_strings_get(view, row, &characters, &units))
+                    break;
+                mm_string_value_set(text, characters, (MMI32)units);
+                return 1;
+            }
+        if (missing)
+            missing(context);
+    }
+    mm_string_value_clear(text);
+    return 0;
 }
