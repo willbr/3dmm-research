@@ -26,7 +26,8 @@ typedef struct MMActorLoadServices
     void *(*create)(void *, MMActorOwner **);
     void (*release)(void *, void *actor);
     void *(*fetch_template)(void *, const MMTag *);
-    int (*lifetime)(void *, void *actor);
+    /* Bind the fetched template when an older header needs its last frame. */
+    MMActorTimelineServices (*timeline)(void *, void *actor);
     void (*diagnostic)(void *, int);
 } MMActorLoadServices;
 
@@ -46,15 +47,14 @@ typedef struct MMActorStoreServices
     void *context;
     const MMArchiveWriter *archive;
     MMMovieEmbeddedArchive assets;
-    int (*refresh_lifetime)(void *);
+    const MMActorTimelineServices *timeline;
     void (*missing_first_frame)(void *);
-    /* Write the native template object and return its allocated chunk number. */
-    int (*write_template)(void *, void *object, MMU32 type, MMU32 *written);
 } MMActorStoreServices;
 
 /* Write into the new ACTR under a candidate scene. On failure the caller
- * drops the candidate scene and its children. Live track data is borrowed. */
-int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorOwner *, const MMActorStoreServices *);
+ * drops the candidate scene and its children. Track ownership is unchanged.
+ * Frame caches may change before the write, including on a partial refresh. */
+int mm_actor_store(MMU32 actor, MMU32 scene, MMActorOwner *, const MMActorStoreServices *);
 
 typedef struct MMActorTrackArchive
 {

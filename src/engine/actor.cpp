@@ -1431,63 +1431,15 @@ bool Actor::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
     AssertNilOrVarMem(pnfrmFirst);
     AssertNilOrVarMem(pnfrmLast);
 
-    if (klwMax == _owner.runtime.first)
-        return fFalse;
-
-    if (pvNil != pnfrmFirst)
-        *pnfrmFirst = _owner.runtime.first;
-
-    if (pvNil == pnfrmLast)
-        return fTrue;
-
-    if (!_owner.runtime.life_dirty)
-    {
-        *pnfrmLast = _owner.runtime.last;
-        Assert(_owner.runtime.last >= _owner.runtime.first, "fLifeDirty incorrect");
-        return fTrue;
-    }
-
-    if (!_FComputeLifetime(pnfrmLast))
-        PushErc(ercSocBadFrameSlider);
-
-    return fTrue;
-}
-
-/***************************************************************************
-
-    Compute the actor's event lifetime
-    Update nfrm values for all events.	Recording or rerecording pushes
-    out later subroutes, whereas recording off screen followed by an earlier
-    add does not - note therefore that when roll calling invisible actors,
-    the end of the existing subroute must first be truncated.
-
-    On a false return, it is possible that the template could not be
-    accessed, so the update is incomplete.
-
-    pnfrmLast may be pvNil
-    NOTE: Now that by spec, edits do not cross subroute boundaries,
-    performance optimization can be achieved by storing the
-    index if the first aev edited when _owner.runtime.life_dirty is set.
-
-    Note: There is some amount of redundant checking here now
-    that subroutes are now step=0 terminated.  Zero termination implies that
-    fEndSubRoute should be false, as actors should not be attempting to move
-    past the end of their paths.  Note that FIsStalled() now flags the end
-    of step=0 terminated subroutes; stalls mid path should now be impossible
-    as by spec, motion fill now inherits the original movement along the path.
-
-***************************************************************************/
-bool Actor::_FComputeLifetime(long *pnfrmLast)
-{
-    AssertBaseThis(0); AssertNilOrVarMem(pnfrmLast);
     const auto timeline = _TimelineServices();
-    const auto life = mm_actor_owner_lifetime(&_owner);
-    MMI32 last;
-    const bool ok = mm_actor_refresh_lifetime(_owner.track.route, _owner.track.events, pnfrmLast ? &last : nullptr,
-                                              &life, &timeline) != 0;
-    if (ok && pnfrmLast)
+    MMI32 first, last;
+    const int result = mm_actor_owner_frame_range(&_owner, pnfrmFirst ? &first : nullptr,
+                                                  pnfrmLast ? &last : nullptr, &timeline);
+    if (pnfrmFirst && result != MM_ACTOR_RANGE_UNPLACED)
+        *pnfrmFirst = first;
+    if (pnfrmLast && result == MM_ACTOR_RANGE_READY)
         *pnfrmLast = last;
-    return ok;
+    return result != MM_ACTOR_RANGE_UNPLACED;
 }
 
 /***************************************************************************

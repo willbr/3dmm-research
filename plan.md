@@ -1612,8 +1612,12 @@ archive adapter provides encoded bytes, code-page conversion, and diagnostics.
 Studio actor saves and scene undo snapshots use C89 to write the ACTR header
 and tracks and attach their embedded templates, costume materials, and scene
 sounds. C89 owns the PATH and GGAE output blocks and renumbers embedded
-templates before linking them. Costume events store the destination material
-number and retain the material subtree before the old actor is removed.
+templates before linking them. The actor owner refreshes dirty frame ranges
+for live queries, saves and older actor headers. It preserves partial event
+caches when the template cannot supply a step. Actor saves write missing
+embedded 3D text directly through the C89 template owner. Costume events
+store the destination material number and retain the material subtree before
+the old actor is removed.
 Scene and actor cues share a C89 writer for embedded sounds. It copies the
 payload to the destination archive and writes the mapped chunk number at the
 authored scene sound slot. The private undo archive can carry the same cue

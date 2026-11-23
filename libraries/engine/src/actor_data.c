@@ -8,7 +8,7 @@
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_sound.h"
 #include "mm/scene_data.h"
-#include "mm/template_create.h"
+#include "mm/text_resource.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -478,9 +478,10 @@ void *mm_actor_write_events(void *runtime, const MMActorEventServices *s)
     return write_events(runtime, s, 0, 0, NULL);
 }
 
-static int store_template(MMU32 actor, const MMActorHeader *header, void *object, const MMActorStoreServices *s)
+static int store_template(MMU32 actor, const MMActorHeader *header, MMTemplateOwner *object,
+                          const MMArchiveWriter *archive)
 {
-    const MMChunkEdit *edit = &s->archive->edit;
+    const MMChunkEdit *edit = &archive->edit;
     MMChunkAccess chunks = mm_chunk_edit_access(edit);
     MMChunkChild link;
     MMU32 row, number;
@@ -493,7 +494,7 @@ static int store_template(MMU32 actor, const MMActorHeader *header, void *object
         return 1;
     if (mm_chunk_find(&chunks, link.type, link.number, &row) != MM_CHUNK_OK)
     {
-        if (!s->write_template(s->context, object, link.type, &number))
+        if (!object || !mm_text_write_owner(object, link.type, &number, archive))
             return 0;
         if (number != link.number && mm_chunk_move(edit, link.type, number, link.type, link.number) != MM_CHUNK_OK)
         {
@@ -577,16 +578,13 @@ int mm_actor_store_edit_tracks(const MMActorTrack *track, int with_route, const 
            s->save(s->context);
 }
 
-int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorOwner *owner, const MMActorStoreServices *s)
+int mm_actor_store(MMU32 actor, MMU32 scene, MMActorOwner *owner, const MMActorStoreServices *s)
 {
     const MMActorRuntime *runtime = &owner->runtime;
     MMActorHeader header = {0};
-    if (runtime->first != 2147483647L)
-    {
-        if (!s->refresh_lifetime(s->context))
-            return 0;
-    }
-    if (runtime->first == 2147483647L && s->missing_first_frame)
+    MMI32 last;
+    if (mm_actor_owner_frame_range(owner, NULL, &last, s->timeline) == MM_ACTOR_RANGE_UNPLACED &&
+        s->missing_first_frame)
         s->missing_first_frame(s->context);
 
     header.order = 1;
@@ -600,7 +598,7 @@ int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorOwner *owner, const MM
     header.source_id = runtime->template_tag.sid;
     header.template_type = runtime->template_tag.type;
     header.template_number = runtime->template_tag.number;
-    if (!header.source_id && !store_template(actor, &header, runtime->template_object, s))
+    if (!header.source_id && !store_template(actor, &header, runtime->template_object, s->archive))
         return 0;
     return mm_actor_write_header(actor, &header, s->archive) && store_tracks(actor, scene, &owner->track, s);
 }

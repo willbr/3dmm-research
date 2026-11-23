@@ -55,6 +55,17 @@ typedef struct MMActorOwnerServices
 void mm_actor_runtime_init(MMActorRuntime *);
 void mm_actor_owner_init(MMActorOwner *);
 MMActorLifetime mm_actor_owner_lifetime(MMActorOwner *);
+enum { MM_ACTOR_FRAME_UNPLACED = 2147483647L };
+enum MMActorRangeResult
+{
+    MM_ACTOR_RANGE_UNPLACED,
+    MM_ACTOR_RANGE_READY,
+    MM_ACTOR_RANGE_PARTIAL
+};
+/* Requesting the last frame refreshes dirty lifetime caches. A failed refresh
+ * retains the partial caches and publishes only the first frame. An unplaced
+ * actor leaves both optional outputs alone. */
+int mm_actor_owner_frame_range(MMActorOwner *, MMI32 *first, MMI32 *last, const MMActorTimelineServices *);
 /* Seek the live Studio actor. Frame and entrance policy reads from the owner.
  * The host provides template metadata, animation, sound and renderer effects. */
 int mm_actor_owner_seek(MMActorOwner *, MMI32 target, int *sound, const MMActorTimelineServices *,

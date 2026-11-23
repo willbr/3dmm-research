@@ -3,8 +3,6 @@
 #include "mm/actor_persistence.h"
 #include "mm/wide.h"
 
-#define FRAME_INVALID 2147483647L
-
 int mm_actor_movie_path(const MMMovieSessionGraph *graph, MMU32 number, const MMActorPathFactory *factory,
                         MMActorPath **out)
 {
@@ -40,7 +38,7 @@ static int read_runtime(const MMMovieSessionGraph *graph, MMU32 number, MMActorR
     runtime->actor = header.actor_id;
     runtime->first = header.first_frame;
     runtime->last = header.last_frame;
-    runtime->life_dirty = runtime->first == FRAME_INVALID || runtime->last == FRAME_INVALID;
+    runtime->life_dirty = runtime->first == MM_ACTOR_FRAME_UNPLACED || runtime->last == MM_ACTOR_FRAME_UNPLACED;
     runtime->template_tag.sid = header.source_id;
     runtime->template_tag.cache = NULL;
     runtime->template_tag.type = header.template_type;
@@ -87,8 +85,12 @@ void *mm_actor_load(const MMMovieSessionGraph *graph, MMU32 number, void *cache,
     runtime->template_object = s->fetch_template(s->context, &runtime->template_tag);
     if (!runtime->template_object)
         goto fail;
-    if (runtime->last == FRAME_INVALID && runtime->first != FRAME_INVALID && !s->lifetime(s->context, actor))
-        goto fail;
+    if (runtime->last == MM_ACTOR_FRAME_UNPLACED && runtime->first != MM_ACTOR_FRAME_UNPLACED)
+    {
+        const MMActorTimelineServices timeline = s->timeline(s->context, actor);
+        MMI32 last;
+        mm_actor_owner_frame_range(owner, NULL, &last, &timeline);
+    }
     return actor;
 
 fail:

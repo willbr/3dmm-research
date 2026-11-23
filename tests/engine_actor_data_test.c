@@ -1,11 +1,12 @@
 #include "mm/actor_data.h"
+#include "mm/actor_effect.h"
 #include "chunk_writer_fixture.h"
 #include "mm/actor_persistence.h"
 #include "mm/collections.h"
 #include "mm/movie_data.h"
 #include "mm/movie_sound.h"
 #include "mm/scene_data.h"
-#include "mm/template_create.h"
+#include "mm/text_resource.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -627,11 +628,13 @@ typedef struct ActorStore
     HeaderIO header;
     ChunkWriterFixture archive;
     unsigned char path[28], events[208];
+    unsigned char tmpl[MM_TEMPLATE_HEADER_BYTES], descriptor[MM_TEXT_DESCRIPTOR_BYTES];
     MMU32 event_bytes;
     int copies, linked, tracks, discarded, reject, reuse, reject_track, fail_track_write;
+    int text_actor, reject_template, template_writes;
 } ActorStore;
 
-enum { header_offset = 64, path_offset = 128, events_offset = 256 };
+enum { header_offset = 64, path_offset = 128, events_offset = 256, template_offset = 768, descriptor_offset = 1024 };
 static int store_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
     ActorStore *store = ((ChunkIndexFixture *)p)->observer;
@@ -641,6 +644,11 @@ static int store_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
     extent->bytes = bytes;
     if (bytes == MM_ACTOR_HEADER_BYTES)
         return 1;
+    if (store->text_actor && (bytes == sizeof(store->tmpl) || bytes == sizeof(store->descriptor)))
+    {
+        extent->offset = bytes == sizeof(store->tmpl) ? template_offset : descriptor_offset;
+        return 1;
+    }
     if (++store->tracks == 1)
     {
         CHECK(bytes == sizeof(store->path));
@@ -648,7 +656,7 @@ static int store_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
     }
     else
     {
-        CHECK(store->tracks == 2 && store->linked && bytes <= sizeof(store->events));
+        CHECK(store->tracks == 2 && (store->linked || store->text_actor) && bytes <= sizeof(store->events));
         extent->offset = events_offset;
         store->event_bytes = bytes;
     }
@@ -662,6 +670,13 @@ static int store_write(void *p, void *file, MMU32 offset, const void *data, size
     CHECK(file == p);
     if (offset == header_offset)
         return write_header(&store->header, data, bytes);
+    if (offset == template_offset || offset == descriptor_offset)
+    {
+        CHECK(bytes == (offset == template_offset ? sizeof(store->tmpl) : sizeof(store->descriptor)));
+        memcpy(offset == template_offset ? store->tmpl : store->descriptor, data, bytes);
+        ++store->template_writes;
+        return 1;
+    }
     CHECK(fixture->file_refs == 1 && store->tracks >= 1 && store->tracks <= 2);
     if (store->fail_track_write == store->tracks)
         return 0;
@@ -708,7 +723,17 @@ static int store_insert(void *p, MMU32 parent, const MMChunkChild *child)
         CHECK(parent == 8 && child->slot == 3 && child->number == 88);
         return 1;
     }
+    if (child->type == MM_TDT)
+    {
+        CHECK(store->text_actor && parent == 0 && child->slot == 0);
+        return 1;
+    }
     CHECK(parent == 7 && child->slot == 0);
+    if (child->type == MM_TMPL)
+    {
+        CHECK(store->text_actor && child->number == 19);
+        return !store->reject_template;
+    }
     if (child->type == MM_ACTOR_ROUTE_CHUNK || child->type == MM_ACTOR_EVENTS_CHUNK)
     {
         CHECK(child->number == 0 && store->tracks == (child->type == MM_ACTOR_ROUTE_CHUNK ? 1 : 2));
@@ -830,6 +855,82 @@ static void store_actor(ActorStore *store)
     mm_actor_events_release((MMActorEventTable *)out);
     mm_actor_events_release(owner.track.events);
     mm_actor_path_release(owner.track.route);
+}
+
+static void store_text_actor(void)
+{
+    const MMTemplateOwnerHost host = {NULL, 1, NULL};
+    const MMActorEventFactory factory = {NULL, 0};
+    const MMActorRoutePoint point = {0};
+    const MMActorTimelineServices timeline = mm_actor_track_timeline_services();
+    MMTemplateOwner *text = mm_template_owner_create(&host, 1);
+    MMActorStoreServices services = {0};
+    MMActorOwner owner;
+    ActorStore store;
+    MMArchiveWriter archive;
+    MMStringValue name;
+    MMTextDescriptor *descriptor;
+    int mode;
+    CHECK(text != NULL);
+    name = mm_template_owner_name(text);
+    mm_string_value_set(&name, "Test text", 9);
+    mm_template_owner_state(text)->flags = MM_TEMPLATE_TEXT;
+    descriptor = mm_template_owner_descriptor(text);
+    descriptor->shape = 5;
+    descriptor->font.sid = 3;
+    descriptor->font.type = 0x54444620UL;
+    descriptor->font.number = 22;
+    mm_actor_owner_init(&owner);
+    owner.runtime.template_object = text;
+    owner.runtime.template_tag.sid = 0;
+    owner.runtime.template_tag.type = MM_TMPL;
+    owner.runtime.template_tag.number = 19;
+    owner.runtime.first = 6;
+    owner.track.route = mm_actor_path_create(NULL, 0, 0);
+    owner.track.events = mm_actor_events_create(&factory, 0, 0);
+    CHECK(owner.track.route && owner.track.events && mm_actor_path_insert(owner.track.route, 0, &point));
+    services.archive = &archive;
+    services.timeline = &timeline;
+    for (mode = 0; mode < 5; ++mode)
+    {
+        const int reuse = mode == 1 || mode == 2 || mode == 4;
+        MMChunkChild link = {MM_TMPL, 19, 0};
+        MMChunkAccess chunks;
+        MMU32 number, row;
+        memset(&store, 0, sizeof(store));
+        store.text_actor = 1;
+        store.header.length = sizeof(store.header.bytes);
+        archive = chunk_writer_fixture(&store.archive, &store, store_extent, store_write);
+        archive.system = MM_TEXT_WINDOWS;
+        store.archive.index.before_insert = store_insert;
+        fixture_chunk_add(&store.archive.index, MM_ACTOR_CHUNK, 7);
+        if (reuse)
+            fixture_chunk_add(&store.archive.index, link.type, link.number);
+        if (mode == 2)
+            CHECK(mm_chunk_adopt(&archive.edit, MM_ACTOR_CHUNK, 7, &link, 1) == MM_CHUNK_OK);
+        store.reject_template = mode >= 3;
+        owner.runtime.life_dirty = 1;
+        CHECK(mm_actor_store(7, 8, &owner, &services) == (mode < 3));
+        CHECK(owner.runtime.last == 6 && !owner.runtime.life_dirty && !store.archive.file_refs);
+        CHECK(store.template_writes == (reuse ? 0 : 2));
+        chunks = fixture_chunk_access(&store.archive.index);
+        CHECK(mm_chunk_find(&chunks, MM_TMPL, 0, &row) == MM_CHUNK_NOT_FOUND);
+        CHECK(mm_chunk_find(&chunks, MM_TMPL, 19, &row) == (mode == 3 ? MM_CHUNK_NOT_FOUND : MM_CHUNK_OK));
+        CHECK(mm_chunk_link_number(&chunks, MM_ACTOR_CHUNK, 7, 0, MM_TMPL, &number) ==
+              (mode < 3 ? MM_CHUNK_OK : MM_CHUNK_NOT_FOUND));
+        CHECK(mm_chunk_find(&chunks, MM_TDT, 0, &row) == (mode == 0 ? MM_CHUNK_OK : MM_CHUNK_NOT_FOUND));
+        if (!mode)
+        {
+            MMTextDescriptor written;
+            CHECK(number == 19 && mm_chunk_link_number(&chunks, MM_TMPL, 19, 0, MM_TDT, &number) == MM_CHUNK_OK);
+            CHECK(mm_text_decode_descriptor(store.descriptor, 0, &written) && written.shape == 5 &&
+                  written.font.sid == 3 && written.font.number == 22);
+            CHECK(!memcmp(store.archive.name, "\003\003\011Test text", 13));
+        }
+    }
+    mm_actor_events_release(owner.track.events);
+    mm_actor_path_release(owner.track.route);
+    mm_template_owner_release(text);
 }
 
 typedef struct TrackArchive
@@ -1063,13 +1164,12 @@ static void *load_template(void *p, const MMTag *tag)
     return load->fail == 3 ? NULL : p;
 }
 
-static int load_lifetime(void *p, void *actor)
+static MMActorTimelineServices load_timeline(void *p, void *actor)
 {
     ActorLoad *load = (ActorLoad *)p;
     CHECK(actor == load && load->stage++ == 2 && load->legacy);
     CHECK(load->owner.runtime.life_dirty && load->owner.runtime.template_object == p);
-    load->owner.runtime.last = 20;
-    return load->fail != 4;
+    return mm_actor_track_timeline_services();
 }
 
 static void load_diagnostic(void *p, int diagnostic)
@@ -1085,16 +1185,16 @@ static void load_actor(ActorStore *saved)
     ActorLoad load;
     MMMovieSessionGraph graph = {NULL, load_access, NULL, load_payload, NULL};
     MMActorLoadServices s = {NULL, &load_tags, NULL, 0, create_loaded_actor, release_loaded_actor,
-                            load_template, load_lifetime, load_diagnostic};
+                            load_template, load_timeline, load_diagnostic};
     int run;
     graph.context = s.context = &load;
-    for (run = 0; run < 7; ++run)
+    for (run = 0; run < 6; ++run)
     {
         memset(&load, 0, sizeof(load));
         load.saved = saved;
-        load.fail = run <= 4 ? run : 0;
-        load.legacy = run == 4 || run == 5;
-        load.missing_link = run == 6;
+        load.fail = run <= 3 ? run : 0;
+        load.legacy = run == 4;
+        load.missing_link = run == 5;
         CHECK(mm_actor_load(&graph, 7, &load, &s) == (load.fail ? NULL : &load));
         CHECK(load.owner.runtime.actor == 47 && load.owner.runtime.origin.dxr == -65537 && load.owner.runtime.first == 4);
         if (load.fail)
@@ -1102,11 +1202,86 @@ static void load_actor(ActorStore *saved)
         else
         {
             CHECK(load.refs == 4 && mm_actor_path_count(load.owner.track.route) == 1);
-            CHECK(load.stage == 2 + load.legacy && load.owner.runtime.last == (load.legacy ? 20 : 13));
+            CHECK(load.stage == 2 + load.legacy && load.owner.runtime.last == (load.legacy ? 4 : 13));
+            CHECK(!load.owner.runtime.life_dirty);
             CHECK(load.diagnostics == (load.missing_link << MM_ACTOR_LOAD_TEMPLATE_LINK));
             release_loaded_actor(&load, &load);
         }
     }
+}
+
+typedef struct RangeCheck
+{
+    MMActorOwner *owner;
+    int resolves, diagnostics;
+} RangeCheck;
+
+static void range_diagnostic(void *p, int issue)
+{
+    RangeCheck *check = p;
+    check->diagnostics |= 1 << issue;
+}
+
+static int range_unavailable(void *p, MMI32 action, MMI32 cel, MMI32 *distance)
+{
+    RangeCheck *test = p;
+    CHECK(action == 0 && cel == 0 && *distance == 0);
+    CHECK(test->owner->runtime.last == 2);
+    ++test->resolves;
+    return 0;
+}
+
+static void actor_range(void)
+{
+    const MMActorEventFactory factory = {NULL, 0};
+    const MMActorEntrance entrance = {0};
+    const MMI32 action_step = -65536L;
+    MMActorOwner owner;
+    MMActorTimelineServices timeline = mm_actor_track_timeline_services();
+    MMActorEvent event = {0};
+    MMActorRoutePoint point = {0};
+    RangeCheck test;
+    MMI32 first = -99, last = -99;
+    mm_actor_owner_init(&owner);
+    test.owner = &owner;
+    test.resolves = test.diagnostics = 0;
+    timeline.context = &test;
+    timeline.resolve = range_unavailable;
+    timeline.diagnostic = range_diagnostic;
+    CHECK(mm_actor_owner_frame_range(&owner, &first, &last, &timeline) == MM_ACTOR_RANGE_UNPLACED);
+    CHECK(first == -99 && last == -99);
+    owner.runtime.first = 1;
+    owner.runtime.life_dirty = 1;
+    CHECK(mm_actor_owner_frame_range(&owner, &first, NULL, &timeline) == MM_ACTOR_RANGE_READY && first == 1);
+    CHECK(owner.runtime.life_dirty && !test.resolves && !test.diagnostics);
+    owner.track.route = mm_actor_path_create(NULL, 0, 0);
+    owner.track.events = mm_actor_events_create(&factory, 0, 0);
+    point.dwr = 65536L;
+    CHECK(owner.track.route && owner.track.events && mm_actor_path_insert(owner.track.route, 0, &point));
+    point.dwr = 0;
+    CHECK(mm_actor_path_insert(owner.track.route, 1, &point));
+    CHECK(mm_actor_path_insert(owner.track.route, 2, &point));
+    event.aet = MM_ACTOR_ADD;
+    event.nfrm = 1;
+    CHECK(mm_actor_events_insert(owner.track.events, 0, sizeof(entrance), &entrance, &event));
+    event.aet = MM_ACTOR_STEP;
+    CHECK(mm_actor_events_insert(owner.track.events, 1, sizeof(action_step), &action_step, &event));
+    event.aet = MM_ACTOR_ADD;
+    event.nfrm = 8;
+    event.rtel.irpt = 2;
+    CHECK(mm_actor_events_insert(owner.track.events, 2, sizeof(entrance), &entrance, &event));
+    CHECK(mm_actor_owner_frame_range(&owner, &first, &last, &timeline) == MM_ACTOR_RANGE_PARTIAL);
+    CHECK(first == 1 && last == -99 && owner.runtime.last == 2 && owner.runtime.life_dirty && test.resolves == 1);
+    CHECK(test.diagnostics == (1 << MM_ACTOR_LIFETIME_INCOMPLETE));
+    owner.runtime.recording.recording = 1;
+    CHECK(mm_actor_owner_frame_range(&owner, NULL, &last, &timeline) == MM_ACTOR_RANGE_READY);
+    CHECK(last == 2 && owner.runtime.life_dirty && test.resolves == 1);
+    owner.runtime.life_dirty = 0;
+    owner.runtime.last = 0;
+    CHECK(mm_actor_owner_frame_range(&owner, &first, &last, &timeline) == MM_ACTOR_RANGE_READY);
+    CHECK(last == 0 && (test.diagnostics & (1 << MM_ACTOR_LIFETIME_BAD_RANGE)));
+    mm_actor_events_release(owner.track.events);
+    mm_actor_path_release(owner.track.route);
 }
 
 int main(void)
@@ -1119,6 +1294,8 @@ int main(void)
     event_streams();
     store_actor(&store);
     load_actor(&store);
+    store_text_actor();
+    actor_range();
     store_edit_tracks();
     puts("actor data passed");
     return 0;

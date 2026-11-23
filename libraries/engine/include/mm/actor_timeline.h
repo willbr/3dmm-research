@@ -12,7 +12,9 @@ extern "C"
         MM_ACTOR_UNKNOWN_EVENT,
         MM_ACTOR_CORRUPT_ROUTE,
         MM_ACTOR_LIFETIME_LOGIC,
-        MM_ACTOR_CORRUPT_ENTRANCE
+        MM_ACTOR_CORRUPT_ENTRANCE,
+        MM_ACTOR_LIFETIME_BAD_RANGE,
+        MM_ACTOR_LIFETIME_INCOMPLETE
     };
     typedef struct MMActorTimelineServices
     {

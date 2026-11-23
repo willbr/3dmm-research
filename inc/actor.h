@@ -204,7 +204,6 @@ class Actor : public Actor_PAR
     void _PositionBody(PRoutePoint pxyz);
     void _MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34);
     void _TruncateSubRte(long irptDelLim);
-    bool _FComputeLifetime(long *pnfrmLast = pvNil);
     bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 
 

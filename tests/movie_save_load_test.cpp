@@ -1616,23 +1616,29 @@ class TrackTestActor : public Actor
         auto tmpl = TrackTestTemplate::From(_Template());
         tmpl->FailNextFetch();
         long reported = 88;
-        if (_FComputeLifetime(&reported) || reported != 88 || _owner.runtime.last != -1 || !_owner.runtime.life_dirty ||
+        auto lifetime = [&](bool complete) {
+            vpers->Flush(ercSocBadFrameSlider);
+            long first;
+            return FGetLifetime(&first, &reported) && first == -2 && vpers->FIn(ercSocBadFrameSlider) == !complete;
+        };
+        if (!lifetime(false) || reported != 88 || _owner.runtime.last != -1 || !_owner.runtime.life_dirty ||
             !ActorFrameTest::SameState(_owner.runtime.state, before))
             return false;
-        if (!_FComputeLifetime(&reported) || reported != 0 || _owner.runtime.last != 0 || _owner.runtime.life_dirty ||
+        if (!lifetime(true) || reported != 0 || _owner.runtime.last != 0 || _owner.runtime.life_dirty ||
             !ActorFrameTest::SameState(_owner.runtime.state, before))
             return false;
         _owner.runtime.recording.recording = true;
         _owner.runtime.last = 42;
+        _owner.runtime.life_dirty = true;
         tmpl->FailNextFetch();
-        if (!_FComputeLifetime(&reported) || reported != 42 || !_owner.runtime.life_dirty)
+        if (!lifetime(true) || reported != 42 || !_owner.runtime.life_dirty)
             return false;
         _owner.runtime.recording.recording = false;
         reported = 88;
         // The failure is still pending: recording did not consult the resolver.
-        if (_FComputeLifetime(&reported) || reported != 88 || !_owner.runtime.life_dirty)
+        if (!lifetime(false) || reported != 88 || !_owner.runtime.life_dirty)
             return false;
-        return _FComputeLifetime(&reported) && reported == 0 && !_owner.runtime.life_dirty &&
+        return lifetime(true) && reported == 0 && !_owner.runtime.life_dirty &&
                ActorFrameTest::SameState(_owner.runtime.state, before);
     }
     bool FInit(PScene scene, PChunkyResourceFile resource)

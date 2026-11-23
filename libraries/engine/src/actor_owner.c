@@ -9,7 +9,7 @@ void mm_actor_runtime_init(MMActorRuntime *runtime)
     memset(runtime, 0, sizeof(*runtime));
     mm_actor_state_init(&runtime->state);
     runtime->template_tag.sid = runtime->sound_tag.sid = -1;
-    runtime->first = 2147483647L;
+    runtime->first = MM_ACTOR_FRAME_UNPLACED;
     runtime->last = (-2147483647L - 1);
     runtime->actor = -1;
 }
@@ -32,6 +32,32 @@ MMActorLifetime mm_actor_owner_lifetime(MMActorOwner *actor)
     life.rejoining = &r->recording.rejoining;
     life.publish_attempts = 1;
     return life;
+}
+
+int mm_actor_owner_frame_range(MMActorOwner *owner, MMI32 *first, MMI32 *last,
+                               const MMActorTimelineServices *timeline)
+{
+    const MMActorRuntime *runtime = &owner->runtime;
+    MMActorLifetime lifetime;
+    if (runtime->first == MM_ACTOR_FRAME_UNPLACED)
+        return MM_ACTOR_RANGE_UNPLACED;
+    if (first)
+        *first = runtime->first;
+    if (!last)
+        return MM_ACTOR_RANGE_READY;
+    if (!runtime->life_dirty)
+    {
+        *last = runtime->last;
+        if (runtime->last < runtime->first && timeline->diagnostic)
+            timeline->diagnostic(timeline->context, MM_ACTOR_LIFETIME_BAD_RANGE);
+        return MM_ACTOR_RANGE_READY;
+    }
+    lifetime = mm_actor_owner_lifetime(owner);
+    if (mm_actor_refresh_lifetime(owner->track.route, owner->track.events, last, &lifetime, timeline))
+        return MM_ACTOR_RANGE_READY;
+    if (timeline->diagnostic)
+        timeline->diagnostic(timeline->context, MM_ACTOR_LIFETIME_INCOMPLETE);
+    return MM_ACTOR_RANGE_PARTIAL;
 }
 
 int mm_actor_owner_set_action(MMActorOwner *owner, MMI32 action, MMI32 cel, int frozen, MMU32 external_child,

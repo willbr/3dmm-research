@@ -23886,3 +23886,40 @@ Text Acid candidate `20261123T105027Z-049fd380` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-text-archive-writer`.
+
+## C89 actor save and frame ranges (23 November 2026)
+
+Studio uses the C89 actor owner for frame-range queries, saves and older
+actor headers that lack a last frame. The owner preserves the last attempted
+frame and cached event changes when a refresh fails. The public Studio query
+still returns a placed actor and reports the incomplete range. The live save
+path writes missing embedded 3D text through the C89 template writer, moves
+the chunk to its authored number and links it at the original child slot.
+
+The C-only actor fixture covers template creation, reuse, rejected links,
+older actor headers, recording deferral and partial lifetime refresh. The
+native save/load fixture also exercises the public Studio range query with
+an injected template lookup failure. The native and SDL 29,440-byte save
+traces and 91,484-byte movie-content traces matched the previous build.
+The native 3D text resource and generation traces also matched.
+
+All 230 selected native checks, 13 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks. The headless
+Marcus startup image matched the previous build.
+
+Headless Studio authored, saved and reopened its actor and caption fixture.
+The resulting 27,056-byte movie matched the retained save. The copied 3D
+text save matched its retained archive. Both rebuilt ports reopened it in
+`20261123T110403Z-60a93cee` and matched the single frame and canvas from the
+retail and V3DMM runs in `20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T110336Z-885134fb` matched baseline
+`20261123T105027Z-84c626a7` on all 60 seek canvases and scene states per
+port. Both ports matched the retained retail and V3DMM authored frame order
+in seek and playback.
+
+Text Acid candidate `20261123T110336Z-3e223e47` matched baseline
+`20261123T105027Z-049fd380` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-actor-save-owner`.

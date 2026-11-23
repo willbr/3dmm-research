@@ -28,6 +28,12 @@ inline void Diagnostic(void *, int fault)
     case MM_ACTOR_CORRUPT_ENTRANCE:
         Assert(false, "Corrupt event list");
         break;
+    case MM_ACTOR_LIFETIME_BAD_RANGE:
+        Assert(false, "fLifeDirty incorrect");
+        break;
+    case MM_ACTOR_LIFETIME_INCOMPLETE:
+        PushErc(ercSocBadFrameSlider);
+        break;
     }
 }
 inline MMActorTimelineServices Services(Host *host)

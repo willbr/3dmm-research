@@ -41,27 +41,15 @@ bool Actor::FWrite(const MMArchiveWriter &archive, const MMMovieEmbeddedArchive 
                   kctgPath == MM_ACTOR_ROUTE_CHUNK && kctgGgae == MM_ACTOR_EVENTS_CHUNK &&
                   kctgMsnd == MM_SOUND_CHUNK, "actor archive constants");
 
-    struct Host
-    {
-        PActor actor;
-        const MMArchiveWriter &archive;
-    } host = {this, archive};
+    const auto timeline = _TimelineServices();
     MMActorStoreServices services = {};
-    services.context = &host;
+    services.context = this;
     services.archive = &archive;
     services.assets = assets;
-    services.refresh_lifetime = [](void *p) -> int {
-        long first, last;
-        return static_cast<Host *>(p)->actor->FGetLifetime(&first, &last);
-    };
+    services.timeline = &timeline;
 #ifdef DEBUG
     services.missing_first_frame = [](void *) { Warn("Saving an actor who has no first frame number"); };
 #endif
-    services.write_template = [](void *p, void *object, MMU32 type, MMU32 *number) -> int {
-        auto tmpl = static_cast<PTemplate>(object);
-        Assert(EngineTemplate::FIsTdt(tmpl), "Expected an embedded ThreeDText template");
-        return EngineText::FWrite(static_cast<PThreeDText>(tmpl), static_cast<Host *>(p)->archive, type, number);
-    };
     return mm_actor_store(cnoActr, cnoScene, &_owner, &services) != 0;
 }
 
@@ -89,10 +77,7 @@ PActor Actor::PactrRead(MMResourceCache *pcrf, ChunkNumber cnoActr)
     };
     services.release = [](void *, void *p) { static_cast<PActor>(p)->Release(); };
     services.fetch_template = _FetchTemplate;
-    services.lifetime = [](void *, void *p) -> int {
-        long first, last;
-        return static_cast<PActor>(p)->FGetLifetime(&first, &last);
-    };
+    services.timeline = [](void *, void *p) { return static_cast<PActor>(p)->_TimelineServices(); };
     services.diagnostic = [](void *, int diagnostic) {
         switch (diagnostic)
         {
