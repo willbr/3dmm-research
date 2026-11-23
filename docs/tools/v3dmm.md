@@ -125,8 +125,9 @@ the same ordered portable source without introducing a global filesystem shim.
 
 The format library is in `libraries/v3dmm/`, persistent storage in
 `src/studio/vxp_store.cpp`, and document/source integration in
-`src/studio/v3dmm_runtime.cpp`. The engine's `MovieContainer::Document` adapter
-keeps host package management outside the movie wire format.
+`src/studio/v3dmm_runtime.cpp`. The C89 movie runtime owns the container
+document and calls Studio's package and filesystem services through
+`MMMovieContainerServices`.
 
 Studio and Marcus share the read-only content VFS in `libraries/content/`.
 Its mount tables, source aliases, lookup, enumeration, mount precedence and

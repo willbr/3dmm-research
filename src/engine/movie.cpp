@@ -223,12 +223,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.bad_file = [](void *) { PushErc(ercSocBadFile); };
     s.update_title = [](void *p, void *path) { static_cast<SaveHost *>(p)->movie->_SetTitle(static_cast<PFilename>(path)); };
     s.clear_undo = [](void *p) { static_cast<SaveHost *>(p)->movie->ClearUndo(); };
-    s.has_container = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->_container != nullptr; };
-    s.bundled = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->_container->Bundled(); };
-    s.is_vmm = [](void *path) -> int { return MovieContainer::IsVmm(static_cast<PFilename>(path)); };
-    s.package = [](void *p, void *working, void *destination) -> int {
-        return static_cast<SaveHost *>(p)->movie->_container->Save(static_cast<PFilename>(working), static_cast<PFilename>(destination));
-    };
+    s.is_vmm = [](void *path) -> int { return path && static_cast<PFilename>(path)->Ftg() == MM_SAVE_BUNDLE; };
     s.source_archive = [](void *, MMI32 source) -> int {
         Filename path;
         return vptagm && vptagm->SourceArchive(source, kftgContent, 0, &path);
@@ -295,6 +290,13 @@ static void ReleaseRuntimeRef(void *p) { static_cast<BASE *>(p)->Release(); }
 static int MovieFadesDisabled(void *) { return CurrentStudioPreferences().disableAudioFades; }
 static void SetMovieVolume(void *, MMI32 volume) { vpsndm->SetVlm(volume); }
 
+static MMMovieContainerPrepare prepareMovieContainer;
+
+void Movie::SetContainerPrepare(MMMovieContainerPrepare prepare)
+{
+    prepareMovieContainer = prepare;
+}
+
 MMMovieRuntimeServices Movie::_RuntimeServices(RuntimeHost *host)
 {
     MMMovieRuntimeServices s = {};
@@ -302,22 +304,8 @@ MMMovieRuntimeServices Movie::_RuntimeServices(RuntimeHost *host)
     s.owner = &host->owner;
     s.save = &host->save;
     s.scenes = &host->scenes;
-    s.prepare = [](void *p, void *original, void **working) -> int {
-        auto h = static_cast<RuntimeHost *>(p);
-        auto path = static_cast<PFilename>(original);
-        const bool bundled = MovieContainer::IsVmm(path);
-        if (!MovieContainer::prepare)
-        {
-            if (bundled)
-                PushErc(ercSocBadFile);
-            return !bundled;
-        }
-        if (!MovieContainer::prepare(path, &h->working, h->saveHost.movie->_container))
-            return 0;
-        if (bundled)
-            *working = &h->working;
-        return 1;
-    };
+    s.prepare_container = prepareMovieContainer;
+    s.container_working_path = &host->working;
     s.init_undo = [](void *p) -> int { return static_cast<RuntimeHost *>(p)->saveHost.movie->_FInitUndo(); };
     s.create_world = [](void *, void *p, int half) -> void * {
         auto client = static_cast<PMovieClientCallbacks>(static_cast<BASE *>(p));

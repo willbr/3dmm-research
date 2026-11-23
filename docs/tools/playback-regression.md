@@ -24689,3 +24689,45 @@ duplicates were removed. The retained retail and V3DMM frame order
 matched all 240 authored frames in both modes.
 
 Evidence is under `tmp/c89-source-catalogue`.
+
+## C89 movie container ownership (23 November 2026)
+
+The C89 movie runtime selects the working archive for VMM input and
+owns the optional container document through teardown. It releases the
+container after the archive, saved-file, scene, and runtime references.
+Movie saves and source-set commits call the container service table
+directly. Studio supplies package installation and file operations.
+
+The runtime fixture checks that ordinary movies open with no container
+provider and that VMM input requires one. It verifies release order across
+failed opens and successful teardown. The existing save fixture exercises
+the same container operations through the Studio movie entry point.
+
+All six standalone C checks passed, including strict C89 syntax. The
+x64 and x86 movie runtime and save fixtures passed, and the tag and
+source traces matched byte for byte. The 29,440-byte native movie-save
+trace, eight other body and movie traces, eight scene traces, ten asset
+preview fingerprints, and the headless Marcus startup image matched
+their baselines. The pre-existing `scene-load` assertion still follows
+the same 63,224-byte trace with fingerprint `0D666753`.
+
+The native suite passed 227 selected checks and SDL Studio passed 23
+targeted checks. SDL Studio reproduced the native movie-save trace and
+the previous 27,056-byte authored `.3mm`. The external consumer passed.
+
+The headless Studio VMM workflow passed all eight checks before and after
+the change. It used a local Portable fixture built from the workspace's
+template archive and prop thumbnails. The ordinary `.3mm`, five `.vmm`
+outputs, and both saved and reopened canvas images matched byte for byte.
+The workflow also verified package selection across restart and preserved
+the reference input bytes. Both runs closed all extracted working files.
+
+Actor Audio and Dissolve suite `20261123T152720Z-8f381e6d` verified all
+input hashes and completed eight captures. It reused six captures from
+the disk-space-limited run and recorded the remaining two with the final
+binaries. Both ports matched prior seek canvases and states. Actor Audio
+matched the retained frame order, camera indices, and Studio actor
+snapshots. Dissolve matched prior steady observations and the settled
+canvas in retail and V3DMM.
+
+Evidence is under `tmp/c89-movie-container`.

@@ -1336,7 +1336,6 @@ target_sources(engine
     "${PROJECT_SOURCE_DIR}/src/engine/actrsnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/msnd.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/movie.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/movie_container.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/scene.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tbox.cpp"
 )

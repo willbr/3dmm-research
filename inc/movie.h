@@ -24,7 +24,6 @@
 #ifndef MOVIE_H
 #define MOVIE_H
 #include <cstdint>
-#include "movie_container.h"
 #include "mm/movie_sound.h"
 #include "mm/movie_scene.h"
 #include "mm/movie_runtime.h"
@@ -582,7 +581,6 @@ class Movie : public Movie_PAR
     void _RecordPlaybackTestFrame();
     void _FinishPlaybackTest();
 #endif
-    std::shared_ptr<MovieContainer::Document> _container; // Outlives the working archive.
     MMMovieState _data; // Archive state and roll-call ownership, independent of views.
 
     MMMovieSaveState _save; // Save flags and saved-file reference owned by C.
@@ -794,13 +792,11 @@ class Movie : public Movie_PAR
     bool FGetFni(Filename *pfni);                  // For saving to a file
     bool FSave(long cid);                     // For saving to a file, (calls FGetFni and FSaveToFni)
     bool FSaveToFni(Filename *pfni, bool fSetFni); // For doing a Save As or Save
-    bool CommitContainer()
+    static void SetContainerPrepare(MMMovieContainerPrepare);
+    bool CommitContainer() { return mm_movie_container_commit(&_save.container) != 0; }
+    void *ContainerDocument(const MMMovieContainerServices *services) const
     {
-        return _container && _container->Commit();
-    }
-    MovieContainer::Document *ContainerDocument() const
-    {
-        return _container.get();
+        return services == _save.container.services ? _save.container.document : nullptr;
     }
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     void ObservePlaybackFrames(void (*observer)(Movie *))

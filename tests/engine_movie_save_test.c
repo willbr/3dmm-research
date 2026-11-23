@@ -88,7 +88,7 @@ struct Test
     int temp, marks, tempSets, persistent, missingRoot, archiveRefs, savedCalls, tempCalls;
     MMU32 rootNumber, savedRootNumber;
     int changeSavedRoot;
-    int begins, ends, dirty, updates, titleCalls, undos, packages, packageNull, container, bundled;
+    int begins, ends, dirty, updates, titleCalls, undos, packages, packageNull, bundled;
     int sourceArchive, sourceCalls, tagCount, sceneTagCalls, failTags, failFrames;
     MMU32 lastSceneTagged;
     MMTag tags[12];
@@ -528,10 +528,6 @@ static void clear_undo(void *p)
     ++t->undos;
     event(t, UNDO_CLEAR);
 }
-static int container(void *p)
-{
-    return ((Test *)p)->container;
-}
 static int bundled(void *p)
 {
     return ((Test *)p)->bundled;
@@ -550,6 +546,12 @@ static int package(void *p, void *working, void *destination)
     ++t->packages;
     t->packageNull += !working;
     return working && succeeds(t, PACKAGE);
+}
+static void set_container(Test *t)
+{
+    static const MMMovieContainerServices services = {NULL, bundled, package, NULL};
+    t->state.container.document = t;
+    t->state.container.services = &services;
 }
 static int source_archive(void *p, MMI32 source)
 {
@@ -1082,10 +1084,7 @@ static void init(Test *t)
     s->bad_file = save_error;
     s->update_title = update_title;
     s->clear_undo = clear_undo;
-    s->has_container = container;
-    s->bundled = bundled;
     s->is_vmm = vmm;
-    s->package = package;
     s->source_archive = source_archive;
     s->tag_graph = tag_graph;
     s->material_reader = read_asset;
@@ -1356,13 +1355,13 @@ static int packaging(void)
     t.named.vmm = 1;
     CHECK(!mm_movie_save_to(&t.named, 1, &t.s) && t.errors == 1 && !t.begins);
     init(&t);
-    t.container = 1;
+    set_container(&t);
     t.bundled = 1;
     CHECK(!mm_movie_save_to(&t.named, 1, &t.s) && t.packageNull == 1 && !t.begins && !t.undos);
     for (remember = 0; remember <= 1; ++remember)
     {
         init(&t);
-        t.container = 1;
+        set_container(&t);
         t.named.vmm = 1;
         t.named.readOnly = 1;
         t.changeSavedRoot = 1;
@@ -1384,7 +1383,7 @@ static int packaging(void)
         mm_movie_save_release(1, &t.s);
     }
     init(&t);
-    t.container = 1;
+    set_container(&t);
     t.named.vmm = 1;
     t.fail = PACKAGE;
     t.left = 1;
@@ -1392,18 +1391,18 @@ static int packaging(void)
           !t.state.containerNamed);
     CHECK(t.updates == 2 && !t.lastTitle);
     init(&t);
-    t.container = 1;
+    set_container(&t);
     t.named.vmm = 1;
     t.state.containerNamed = 1;
     t.fail = PACKAGE;
     t.left = 1;
     CHECK(!mm_movie_save_to(&t.named, 1, &t.s) && t.lastTitle == &t.publicName);
     init(&t);
-    t.container = 1;
+    set_container(&t);
     t.named.vmm = 1;
     CHECK(mm_movie_autosave(&t.named, 1, &t.s) && !t.state.containerNamed && t.packages == 1);
     init(&t);
-    t.container = 1;
+    set_container(&t);
     t.state.autosaveDirty = 0;
     t.sourceArchive = 1;
     t.tagCount = 3;
@@ -1423,7 +1422,8 @@ static int packaging(void)
     t.left = 1;
     CHECK(mm_movie_needs_container(&t.s) && !t.liveAlloc);
     init(&t);
-    t.container = t.sourceArchive = 1;
+    set_container(&t);
+    t.sourceArchive = 1;
     t.fail = TITLE;
     t.left = 1;
     CHECK(mm_movie_needs_container(&t.s) && t.begins == 1 && t.ends == 1 && !t.sceneTagCalls);

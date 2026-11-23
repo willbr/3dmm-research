@@ -7,9 +7,9 @@
 class MovieSaveProbe
 {
   public:
-    static void Container(PMovie movie, const std::shared_ptr<MovieContainer::Document> &document)
+    static void Container(PMovie movie, MMMovieContainer container)
     {
-        movie->_container = document;
+        movie->_save.container = container;
     }
     static MMMovieState *Data(PMovie movie)
     {
@@ -64,29 +64,23 @@ class MovieSaveProbe
         trace.push_back(-2);
     }
 };
-class MovieSaveContainer : public MovieContainer::Document
+struct MovieSaveContainer
 {
-  public:
     bool bundled = false, fail = false;
     std::vector<LegacyLong> *trace;
-    explicit MovieSaveContainer(std::vector<LegacyLong> *value) : trace(value)
-    {
-    }
-    bool Bundled() const override
-    {
-        return bundled;
-    }
-    bool Save(PFilename working, PFilename destination) override
-    {
-        LegacyLong row[] = {800, working != nullptr, MovieContainer::IsVmm(destination), fail};
-        trace->insert(trace->end(), row, row + 4);
-        return working && !fail;
-    }
-    bool Commit() override
-    {
-        return false;
-    }
 };
+
+static const MMMovieContainerServices movieSaveContainerServices = {
+    [](void *p) { delete static_cast<MovieSaveContainer *>(p); },
+    [](void *p) -> int { return static_cast<MovieSaveContainer *>(p)->bundled; },
+    [](void *p, void *working, void *destination) -> int {
+        auto container = static_cast<MovieSaveContainer *>(p);
+        auto path = static_cast<PFilename>(destination);
+        LegacyLong row[] = {800, working != nullptr, path && path->Ftg() == MM_SAVE_BUNDLE, container->fail};
+        container->trace->insert(container->trace->end(), row, row + 4);
+        return working && !container->fail;
+    },
+    [](void *) -> int { return false; }};
 static bool TestMovieSave(PMovie parent)
 {
     std::vector<LegacyLong> trace;
@@ -96,13 +90,11 @@ static bool TestMovieSave(PMovie parent)
         auto movie = Movie::PmvieNew(false, parent->Pmcc());
         Filename path;
         ok = movie && path.FGetTemp() && path.FChangeFtg((mode & 4) ? 'VMM' : kftg3mm);
-        std::shared_ptr<MovieSaveContainer> container;
+        MovieSaveContainer *container = nullptr;
         if (ok && (mode & 2))
         {
-            container = std::make_shared<MovieSaveContainer>(&trace);
-            container->bundled = (mode & 8) != 0;
-            container->fail = (mode & 1) != 0;
-            MovieSaveProbe::Container(movie, container);
+            container = new MovieSaveContainer{(mode & 8) != 0, (mode & 1) != 0, &trace};
+            MovieSaveProbe::Container(movie, {container, &movieSaveContainerServices});
         }
         auto record = [&](int operation, bool result) {
             MovieSaveProbe::Record(movie, trace, 100 * mode + operation, result);

@@ -17,11 +17,26 @@ extern "C"
         MM_SAVE_SCENE = 0x5343454e,
         MM_SAVE_TABLE = 0x47535420,
         MM_SAVE_MATERIAL = 0x4d54524c,
-        MM_SAVE_TEMPLATE = 0x544d504c
+        MM_SAVE_TEMPLATE = 0x544d504c,
+        MM_SAVE_BUNDLE = 0x564d4d
     };
+    typedef struct MMMovieContainerServices
+    {
+        void (*release)(void *document);
+        int (*bundled)(void *document);
+        int (*package)(void *document, void *working, void *destination);
+        int (*commit)(void *document);
+    } MMMovieContainerServices;
+    /* The movie owns the document. Its service table must outlive the movie. */
+    typedef struct MMMovieContainer
+    {
+        void *document;
+        const MMMovieContainerServices *services;
+    } MMMovieContainer;
     typedef struct MMMovieSaveState
     {
         void *file;
+        MMMovieContainer container;
         int autosaveDirty, nameValid, closing, readOnly, containerNamed;
     } MMMovieSaveState;
     typedef struct MMMovieSaveServices
@@ -53,8 +68,7 @@ extern "C"
         int (*has_error)(void *resources);
         void (*reset_error)(void *resources), (*clear_errors)(void *), (*save_error)(void *), (*bad_file)(void *);
         void (*update_title)(void *, void *path), (*clear_undo)(void *);
-        int (*has_container)(void *), (*bundled)(void *), (*is_vmm)(void *path);
-        int (*package)(void *, void *working, void *destination), (*source_archive)(void *, MMI32 source);
+        int (*is_vmm)(void *path), (*source_archive)(void *, MMI32 source);
         MMMovieSessionGraph (*tag_graph)(void *resources);
         void (*actor_tag_issue)(void *, int issue), (*scene_tag_issue)(void *, int start, int missing_background);
         MMResourceBlockReader material_reader, template_reader;
@@ -80,6 +94,8 @@ extern "C"
      * After old children are removed, physical save failure keeps the new graph.
      * Native debug/physical I/O diagnostics remain host operations. */
     void mm_movie_save_init(MMMovieSaveState *);
+    /* True when the host committed a change to the active source set. */
+    int mm_movie_container_commit(const MMMovieContainer *);
     void mm_movie_save_release(int clear_name, const MMMovieSaveServices *);
     int mm_movie_save_bind(void *path, const MMMovieSaveServices *);
     void mm_movie_save_flush(const MMMovieSaveServices *);

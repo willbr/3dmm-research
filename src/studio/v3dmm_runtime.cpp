@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <random>
 #include <set>
 #include <stdexcept>
@@ -83,7 +84,7 @@ bool LibraryAvailable(const std::string &name)
         return std::string(product.sourceId.begin(), product.sourceId.end()) == source;
     });
 }
-struct Document : MovieContainer::Document
+struct Document
 {
     bool bundled = false, committed = false, changed = false, explicitSelection = false;
     std::uint64_t activatedRevision = 0;
@@ -91,7 +92,7 @@ struct Document : MovieContainer::Document
     std::vector<MM::Content::File> previousMounts;
     std::vector<std::string> libraries;
     fs::path working;
-    ~Document() override
+    ~Document()
     {
         if (changed && !committed && revision == activatedRevision)
         {
@@ -107,20 +108,20 @@ struct Document : MovieContainer::Document
             fs::remove(working, ignored); // The engine may still own it; never force deletion.
         }
     }
-    bool Bundled() const override
+    bool Bundled() const
     {
         return bundled || (explicitSelection && !selection.empty());
     }
-    bool Commit() override
+    bool Commit()
     {
         committed = true;
         return changed;
     }
-    bool Save(PFilename movie, PFilename destination) override
+    bool Save(PFilename movie, PFilename destination)
     {
         try
         {
-            if (!movie || !MovieContainer::IsVmm(destination))
+            if (!movie || !destination || destination->Ftg() != MM_SAVE_BUNDLE)
                 throw std::runtime_error("This movie uses V3DMM content. Save it with a .vmm filename.");
             V::SaveAtomically(Path(destination), [&](const fs::path &candidate) {
                 const auto dependencies = ActiveMovieDependencies(libraries, selection);
@@ -136,14 +137,23 @@ struct Document : MovieContainer::Document
         }
     }
 };
-bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContainer::Document> &result)
+
+const MMMovieContainerServices containerServices = {
+    [](void *document) { delete static_cast<Document *>(document); },
+    [](void *document) -> int { return static_cast<Document *>(document)->Bundled(); },
+    [](void *document, void *working, void *destination) -> int {
+        return static_cast<Document *>(document)->Save(static_cast<PFilename>(working), static_cast<PFilename>(destination));
+    },
+    [](void *document) -> int { return static_cast<Document *>(document)->Commit(); }};
+
+int Prepare(void *, void *original, void *working, int bundled, MMMovieContainer *result)
 {
     try
     {
-        auto document = std::make_shared<Document>();
+        auto document = std::make_unique<Document>();
         document->previous = active;
         document->previousMounts = StudioPacks::Filesystem().Entries("v3dmm");
-        if (!MovieContainer::IsVmm(original))
+        if (!bundled)
             for (const auto &entry : store->Entries())
                 if (entry.enabled)
                     document->selection.push_back(store->Resolve(entry.hash));
@@ -155,12 +165,12 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
             if (LibraryAvailable(name))
                 document->libraries.push_back(name);
         }
-        if (MovieContainer::IsVmm(original))
+        if (bundled)
         {
             document->bundled = true;
             // A VMM records its own applied set. Installed/default packages
             // from another movie must not silently reappear in this document.
-            auto bundle = V::ReadBundle(Path(original));
+            auto bundle = V::ReadBundle(Path(static_cast<PFilename>(original)));
             auto resolved = ResolveMoviePackages(bundle, LibraryAvailable, [] { return store.get(); });
             document->selection = std::move(resolved.portable);
             document->libraries.insert(document->libraries.end(), resolved.libraries.begin(), resolved.libraries.end());
@@ -170,7 +180,7 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
             if (fs::exists(document->working))
                 throw std::runtime_error("VMM working path already exists");
             V::Copy(bundle.movie, document->working);
-            if (!FilenameOf(document->working, working))
+            if (!FilenameOf(document->working, static_cast<PFilename>(working)))
                 throw std::runtime_error("VMM working path cannot be represented by the movie engine");
         }
         if (!SameSelection(document->selection, active))
@@ -179,7 +189,8 @@ bool Prepare(PFilename original, PFilename working, std::shared_ptr<MovieContain
             document->activatedRevision = revision;
             document->changed = true;
         }
-        result = std::move(document);
+        result->services = &containerServices;
+        result->document = document.release();
         return true;
     }
     catch (const std::exception &error)
@@ -200,7 +211,7 @@ void Initialize()
         if (entry.enabled)
             active.push_back(store->Resolve(entry.hash));
     Activate(active);
-    MovieContainer::prepare = Prepare;
+    Movie::SetContainerPrepare(Prepare);
 }
 Store &Packages()
 {
@@ -208,7 +219,7 @@ Store &Packages()
 }
 std::vector<std::string> AppliedPackages(PMovie movie)
 {
-    auto document = movie ? dynamic_cast<Document *>(movie->ContainerDocument()) : nullptr;
+    auto document = movie ? static_cast<Document *>(movie->ContainerDocument(&containerServices)) : nullptr;
     std::vector<std::string> result;
     if (document)
         for (const auto &entry : document->selection)
@@ -217,7 +228,7 @@ std::vector<std::string> AppliedPackages(PMovie movie)
 }
 void SetAppliedPackages(PMovie movie, const std::vector<std::string> &hashes)
 {
-    auto document = movie ? dynamic_cast<Document *>(movie->ContainerDocument()) : nullptr;
+    auto document = movie ? static_cast<Document *>(movie->ContainerDocument(&containerServices)) : nullptr;
     if (!document)
         throw std::runtime_error("Open a movie before applying packages.");
     if (movie->FPlaying())

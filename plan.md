@@ -2259,6 +2259,11 @@ index when live selection leaves that choice open. The Studio tag host
 provides native path, drive, prompt, and diagnostic services. The old
 `engine-core` target now groups the C89 engine and native bindings as an
 interface, and callers needing the Studio tag host link it separately.
+The C89 movie lifecycle owns the optional container document, chooses the
+working archive for bundled movies, and releases the container after the
+archive and runtime references. Studio supplies VMM package and filesystem
+operations through a C service table. The C++ movie-container module is
+out of the engine build.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

@@ -20,11 +20,23 @@ int mm_movie_runtime_open(MMMovieRuntime *runtime, void *client, void *path, MMU
     MMMovieState *movie = save->data;
     void *working = path, *title_path;
     MMTagList tags;
-    int busy = 0, ok = 0;
-    if (!s->prepare(s->context, path, &working))
-        goto done;
-    if (save->is_vmm(path))
+    int bundled = save->is_vmm(path), busy = 0, ok = 0;
+    if (bundled && (!s->prepare_container || !s->container_working_path))
     {
+        save->bad_file(save->context);
+        goto done;
+    }
+    if (s->prepare_container &&
+        !s->prepare_container(s->context, path, s->container_working_path, bundled, &save->state->container))
+        goto done;
+    if (bundled)
+    {
+        if (!save->state->container.document)
+        {
+            save->bad_file(save->context);
+            goto done;
+        }
+        working = s->container_working_path;
         save->set_container_name(save->context, path);
         save->state->containerNamed = 1;
     }
@@ -74,6 +86,7 @@ done:
 
 void mm_movie_runtime_dispose(MMMovieRuntime *runtime, MMPlaybackState *playback, const MMMovieRuntimeServices *s)
 {
+    MMMovieContainer *container = &s->save->state->container;
     if (runtime->transport.paused)
         s->resume_audio(s->context);
     runtime->transport.paused = 0;
@@ -95,4 +108,12 @@ void mm_movie_runtime_dispose(MMMovieRuntime *runtime, MMPlaybackState *playback
     mm_movie_runtime_set_ref(&runtime->world, NULL, s->retain, s->release);
     mm_frame_sound_queue_close(&runtime->sounds);
     mm_movie_runtime_set_ref(&runtime->thumbnail_palette, NULL, s->retain, s->release);
+    if (container->document)
+    {
+        void *document = container->document;
+        const MMMovieContainerServices *services = container->services;
+        container->document = NULL;
+        container->services = NULL;
+        services->release(document);
+    }
 }

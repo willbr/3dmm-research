@@ -13,6 +13,10 @@ void mm_movie_save_init(MMMovieSaveState *state)
 {
     memset(state, 0, sizeof(*state));
 }
+int mm_movie_container_commit(const MMMovieContainer *container)
+{
+    return container->document && container->services->commit(container->document);
+}
 void mm_movie_save_release(int clear_name, const MMMovieSaveServices *s)
 {
     if (s->state->file)
@@ -179,7 +183,7 @@ int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices 
     MMChunkChild actors = {MM_ROLLCALL_CHUNK, 0, MM_ROLLCALL_SLOT}, old_actors = actors;
     MMChunkChild old_scene = {MM_SAVE_SCENE, NIL_NUMBER, 0}, old_sources = {MM_SAVE_TABLE, 0, 1};
     int success, retry = 1;
-    if (s->has_container(s->context) && s->is_vmm(path))
+    if (s->state->container.document && s->is_vmm(path))
         return mm_movie_save_to(path, 0, s);
     if (!s->data->resources)
         return 0;
@@ -283,26 +287,29 @@ fail_end:
 }
 int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *s)
 {
+    const MMMovieContainer *container = &s->state->container;
     void *file, *working;
+    int bundle;
     if (!s->data->resources)
         return 0;
     file = s->data->resources;
-    if (s->is_vmm(path) && !s->has_container(s->context))
+    bundle = s->is_vmm(path);
+    if (bundle && !container->document)
     {
         s->bad_file(s->context);
         return 0;
     }
-    if (s->has_container(s->context) && (s->is_vmm(path) || mm_movie_needs_container(s)))
+    if (container->document && (bundle || mm_movie_needs_container(s)))
     {
-        if (!s->is_vmm(path))
-            return s->package(s->context, 0, path);
+        if (!bundle)
+            return container->services->package(container->document, NULL, path);
         working = s->temporary_path(s->context);
         if (!working || !mm_movie_autosave(working, 1, s))
             return 0;
         if (!refresh_root(file, s))
             return 0;
         s->set_temp(file, 1);
-        if (!s->package(s->context, working, path))
+        if (!container->services->package(container->document, working, path))
         {
             s->update_title(s->context, s->state->containerNamed ? s->container_name(s->context) : 0);
             return 0;
@@ -332,13 +339,14 @@ int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *s)
 }
 int mm_movie_needs_container(const MMMovieSaveServices *s)
 {
+    const MMMovieContainer *container = &s->state->container;
     MMTagList tags;
     MMU32 i;
     MMTagCached tag;
     int portable = 0;
-    if (!s->has_container(s->context))
+    if (!container->document)
         return 0;
-    if (s->state->containerNamed || s->bundled(s->context))
+    if (s->state->containerNamed || container->services->bundled(container->document))
         return 1;
     if (!s->source_archive(s->context, 6) || !s->data->resources)
         return 0;

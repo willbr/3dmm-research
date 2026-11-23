@@ -770,18 +770,36 @@ struct RuntimeCase
     MMMovieRuntimeServices services;
     RuntimeRef client, world, clock, palette;
     unsigned fail;
-    int working, bundle, busy, discarded, disable_fades, sound_stops;
+    int working, bundle, busy, discarded, disable_fades, sound_stops, committed;
     void *container_name, *title_path;
 };
 enum { PREPARE_FAILED = 1, UNDO_FAILED, WORLD_FAILED, SOUNDS_FAILED, BIND_FAILED, CACHE_FAILED };
 
-static int prepare_runtime(void *context, void *path, void **working)
+static void release_container(void *context)
 {
     RuntimeCase *t = context;
+    CHECK(!t->saved.container.document && !t->saved.file && !t->movie.resources && !t->runtime.world &&
+          !t->runtime.sounds.initialized && !t->runtime.thumbnail_palette);
+    event(&t->archive, 'J');
+}
+
+static int commit_container(void *context)
+{
+    RuntimeCase *t = context;
+    return ++t->committed == 1;
+}
+
+static int prepare_runtime(void *context, void *path, void *working, int bundled, MMMovieContainer *out)
+{
+    static const MMMovieContainerServices services = {release_container, NULL, NULL, commit_container};
+    RuntimeCase *t = context;
+    CHECK(working == &t->working && bundled == (path == &t->bundle));
     event(&t->archive, 'k');
-    if (path == &t->bundle)
-        *working = &t->working;
-    return t->fail != PREPARE_FAILED;
+    if (t->fail == PREPARE_FAILED)
+        return 0;
+    out->document = t;
+    out->services = &services;
+    return 1;
 }
 static int init_undo(void *context)
 {
@@ -849,6 +867,7 @@ static void discard_document(void *context)
     mm_movie_runtime_dispose(&t->runtime, &t->playback, &t->services);
 }
 static void missing_saved(void *p) { event(&((RuntimeCase *)p)->archive, '!'); }
+static void bad_file(void *p) { event(&((RuntimeCase *)p)->archive, 'b'); }
 static void merge_sources(void *p, MMU32 root)
 {
     CHECK(root == 7);
@@ -950,6 +969,7 @@ static void runtime_init(RuntimeCase *t)
     t->saves.release_saved = release_saved;
     t->saves.read_only = read_only;
     t->saves.is_vmm = is_bundle;
+    t->saves.bad_file = bad_file;
     t->saves.set_container_name = name_container;
     t->saves.container_name = container_path;
     t->saves.update_title = update_title;
@@ -961,7 +981,8 @@ static void runtime_init(RuntimeCase *t)
     t->services.owner = &t->owners;
     t->services.save = &t->saves;
     t->services.scenes = &t->scene_services;
-    t->services.prepare = prepare_runtime;
+    t->services.prepare_container = prepare_runtime;
+    t->services.container_working_path = &t->working;
     t->services.init_undo = init_undo;
     t->services.create_world = create_world;
     t->services.sound_output.context = t;
@@ -986,7 +1007,7 @@ static void runtime_lifecycle(void)
     RuntimeCase t;
     unsigned i;
     const char *failure_order[] = {
-        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[orsvihnsg!DRjRA-WQ]", "kuwq+[orsvihnsgGymsKDRFjRA-WQ]"};
+        "kD", "kuDJ", "kuwDJ", "kuwqDWJ", "kuwq+[orsvihnsg!DRjRA-WQJ]", "kuwq+[orsvihnsgGymsKDRFjRA-WQJ]"};
     for (i = PREPARE_FAILED; i <= CACHE_FAILED; ++i)
     {
         runtime_init(&t);
@@ -1005,13 +1026,25 @@ static void runtime_lifecycle(void)
     runtime_init(&t);
     t.archive.fail = FAIL_OPEN;
     CHECK(!mm_movie_runtime_open(&t.runtime, &t.client, &t.working, 99, 1, &t.services));
-    CHECK(!strcmp(t.archive.log, "kuwq+[oDj-WQ]") && !t.busy && t.discarded == 1);
+    CHECK(!strcmp(t.archive.log, "kuwq+[oDj-WQJ]") && !t.busy && t.discarded == 1);
+
+    runtime_init(&t);
+    t.services.prepare_container = NULL;
+    CHECK(!mm_movie_runtime_open(&t.runtime, &t.client, &t.bundle, 7, 1, &t.services));
+    CHECK(!strcmp(t.archive.log, "bD") && !t.saved.containerNamed && !t.saved.container.document);
+
+    runtime_init(&t);
+    t.services.prepare_container = NULL;
+    CHECK(mm_movie_runtime_open(&t.runtime, &t.client, &t.working, 7, 1, &t.services));
+    CHECK(!t.saved.containerNamed && !mm_movie_container_commit(&t.saved.container) && t.title_path == &t.working);
+    mm_movie_runtime_dispose(&t.runtime, &t.playback, &t.services);
 
     runtime_init(&t);
     CHECK(mm_movie_runtime_open(&t.runtime, &t.client, NULL, 99, 1, &t.services));
     CHECK(!strcmp(t.archive.log, "kuwq+") && !t.busy && !t.title_path && !t.movie.resources && t.movie.actors.stride);
+    CHECK(mm_movie_container_commit(&t.saved.container) && !mm_movie_container_commit(&t.saved.container));
     mm_movie_runtime_dispose(&t.runtime, &t.playback, &t.services);
-    CHECK(!strcmp(t.archive.log, "kuwq+j-WQ"));
+    CHECK(!strcmp(t.archive.log, "kuwq+j-WQJ"));
 
     for (i = 0; i < 3; ++i)
     {
@@ -1030,7 +1063,7 @@ static void runtime_lifecycle(void)
         t.disable_fades = i != 0;
         t.playback.fadeChangedVolume = i == 2;
         mm_movie_runtime_dispose(&t.runtime, &t.playback, &t.services);
-        CHECK(!strcmp(t.archive.log, i == 1 ? "+aRFpjzRA-WQL" : "+aRFpVjzRA-WQL"));
+        CHECK(!strcmp(t.archive.log, i == 1 ? "+aRFpjzRA-WQLJ" : "+aRFpVjzRA-WQLJ"));
         CHECK(!t.playback.fadeOriginalVolume && !t.scenes.open && t.scenes.index == -1 &&
               t.client.refs == 1 && !t.world.refs && !t.clock.refs && t.palette.refs == 1 &&
               !t.runtime.sounds.initialized && !t.runtime.sounds.clock && t.sound_stops == 3 &&

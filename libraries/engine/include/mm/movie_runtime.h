@@ -14,13 +14,16 @@ extern "C"
         MMAlarmPlayback transport;
         MMFrameSoundQueue sounds;
     } MMMovieRuntime;
+    typedef int (*MMMovieContainerPrepare)(void *context, void *original, void *working, int bundled,
+                                           MMMovieContainer *);
     typedef struct MMMovieRuntimeServices
     {
         void *context;
         const MMMovieOwnerServices *owner;
         const MMMovieSaveServices *save;
         const MMMovieSceneServices *scenes;
-        int (*prepare)(void *, void *original, void **working);
+        MMMovieContainerPrepare prepare_container;
+        void *container_working_path;
         int (*init_undo)(void *);
         void *(*create_world)(void *, void *client, int half);
         const MMStorageAllocator *sound_allocator;
@@ -36,15 +39,17 @@ extern "C"
         void (*set_volume)(void *, MMI32);
         void (*update_roll_call)(void *client);
     } MMMovieRuntimeServices;
-    /* Runtime starts zeroed. Factories transfer a single reference and prepare
-     * returns a borrowed working path (NULL for a blank document). Open retains
-     * the client. On failure it discards the partial document before ending
+    /* Runtime starts zeroed. Factories transfer a single reference. The optional
+     * container provider transfers a document on success and writes the working
+     * path for bundled movies. Open retains the client. On failure it discards
+     * the partial document before ending
      * the long operation. Service storage and the long-op provider must
      * survive document destruction. */
     int mm_movie_runtime_open(MMMovieRuntime *, void *client, void *path, MMU32 root, int half,
                               const MMMovieRuntimeServices *);
     /* Drop the archive/cache and save reference before stopping playback.
      * Scene and roll-call teardown still have access to the host references.
+     * Release the container after these working resources and host references.
      * Callbacks may observe state but must not replace its owned references. */
     void mm_movie_runtime_dispose(MMMovieRuntime *, MMPlaybackState *, const MMMovieRuntimeServices *);
     void mm_movie_runtime_set_ref(void **slot, void *value, void (*retain)(void *), void (*release)(void *));
