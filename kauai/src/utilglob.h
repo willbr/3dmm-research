@@ -77,11 +77,10 @@ extern Shuffler vsflUtil;
 extern Random vrndUtil;
 
 /***************************************************************************
-    Global standard Kauai codec, compression manager, and pointer to
+    Global standard compression manager and pointer to
     a compression manager. The blck-level compression uses vpcodmUtil.
     Clients are free to redirect this to their own compression manager.
 ***************************************************************************/
-extern KauaiCodec vkcdcUtil;
 extern CodecManager vcodmUtil;
 extern PCodecManager vpcodmUtil;
 

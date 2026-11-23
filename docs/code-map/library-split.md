@@ -1334,14 +1334,13 @@ The generated x86 assembly sources remain available to their generator tools;
 `KauaiCodec` now dispatches to the shared portable C implementation on every
 architecture.
 
-`mm_packed_encode` shares the eight-byte big-endian envelope, codec
-selection/query, input-size-minus-one estimate and minimum-saving policy.
-It retains pre-conversion failure counts and publishes callback counts on
-conversion failure. Native registration order and custom codec callbacks remain
-supported; algorithm dispatch is no longer implemented in `codkauai.cpp`.
-`CodecManager` object/registration lifetime and primitive HQ allocation/lock/resize
-services remain C++ host services. The HQ conversion transaction itself now
-uses C89 policy, described below.
+`mm_packed_encode` shares the eight-byte big-endian envelope,
+input-size-minus-one estimate and minimum-saving policy. It retains
+pre-conversion failure counts and publishes callback counts on conversion
+failure. The C registry selects KCDC/KCD2 directly for Studio's default
+manager and stored previews. Kauai supplies tracked HQ services, scratch
+allocation, diagnostics, and any registered extension callbacks. The HQ
+conversion transaction uses the same C89 implementation for both handle providers.
 
 `engine-codec-test` checks a frozen native hash covering 768 capacity/format/input
 cases and decoded results, independent wire fixtures for each offset tier,
@@ -7230,13 +7229,15 @@ the native unchanged-string behavior.
 `codec_registry.c` owns codec token storage and references. Lookup tries the
 default codec first, then registrations newest first. Duplicate registrations
 own separate references; failed registration retains none. Disposal releases
-the default first, then registrations in reverse order. Native codec dispatch,
-reference primitives and allocation diagnostics remain callbacks. Neither the
-registry nor compact runtime cache requires a native DynamicArray object.
+the default first, then registrations in reverse order. The built-in profile
+uses KCDC/KCD2 before extension lookup. A manager with an explicit default
+codec retains the custom default and newest-registration ordering. Registered
+codecs use host conversion and reference callbacks.
 
 `engine-metadata-test` checks sorted cache updates/deletes, owner swaps, allocation
-failures/SPEED fallback, pinned name storage and failed growth, codec ordering and
-reference balance. Its frozen 480-case string snapshot is 29,532 bytes (FNV32
+failures/SPEED fallback, pinned name storage and failed growth, codec ordering,
+standalone and hosted packed conversion, and reference balance. Its frozen
+480-case string snapshot is 29,532 bytes (FNV32
 `54d0f109`), matching the real native memory and file-backed paths over four
 encodings, maximum lengths, malformed/truncated data and nonzero offsets.
 Additional cases cover read/write failure stages and UTF-16/big-endian output.

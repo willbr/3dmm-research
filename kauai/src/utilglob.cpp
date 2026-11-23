@@ -45,13 +45,9 @@ Mutex &vmutxMem = *new Mutex;
 Shuffler vsflUtil;
 Random vrndUtil;
 
-// Standard Kauai codec
-KauaiCodec vkcdcUtil;
-
-// Standard compression manager - gets initialized with the standard
-// Kauai codec. Clients can add additional codecs or redirect vpcodmUtil
-// to a different compression manager with their own codecs
-CodecManager vcodmUtil(&vkcdcUtil, kcfmtKauai2);
+// Standard compression manager with the C89 KCDC and KCD2 codecs.
+// Clients can add codecs or redirect vpcodmUtil to a different manager.
+CodecManager vcodmUtil(kcfmtKauai2);
 PCodecManager vpcodmUtil = &vcodmUtil;
 
 // Standard scalable application clok.

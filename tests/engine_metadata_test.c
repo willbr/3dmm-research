@@ -1,5 +1,6 @@
 #include "mm/chunk_metadata.h"
 #include "mm/codec_registry.h"
+#include "mm/codec.h"
 #include "mm/string_wire.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -432,6 +433,69 @@ static int can_do(void *c, void *codec, int encode, MMI32 format)
     ctx->queried[ctx->queries++] = value->id;
     return value->format == format && (encode ? value->encode : value->decode);
 }
+
+static int convert_codec(void *c, void *codec, int encode, MMI32 format, const void *input,
+                         MMU32 bytes, void *output, MMU32 capacity, MMI32 *written)
+{
+    Codec *value = (Codec *)codec;
+    (void)c;
+    CHECK(value->format == format);
+    if (encode)
+    {
+        CHECK(bytes == 64 && capacity >= 1);
+        *(unsigned char *)output = (unsigned char)value->id;
+        *written = 1;
+    }
+    else
+    {
+        CHECK(bytes == 1 && capacity == 64 && *(const unsigned char *)input == value->id);
+        memset(output, value->id, capacity);
+        *written = (MMI32)capacity;
+    }
+    return 1;
+}
+
+static void packed_codecs(void)
+{
+    CodecContext context;
+    Codec standard = {1, 1, 1, 1, MM_CODEC_KCDC};
+    Codec older = {1, 2, 1, 1, 101}, newer = {1, 3, 1, 1, 101};
+    MMCodecServices services = {NULL, retain_codec, release_codec, can_do, convert_codec};
+    MMCodecRegistry registry;
+    unsigned char source[64], packed[64], reference[64], decoded[64];
+    MMI32 size, expected, written;
+    memset(&context, 0, sizeof(context));
+    services.context = &context;
+    memset(source, 3, sizeof(source));
+    CHECK(mm_codec_registry_init_builtin(&registry, &services, NULL, MM_CODEC_KCD2) == MM_STORAGE_OK);
+    CHECK(mm_codec_registry_add(&registry, &standard) == MM_STORAGE_OK &&
+          mm_codec_registry_add(&registry, &older) == MM_STORAGE_OK &&
+          mm_codec_registry_add(&registry, &newer) == MM_STORAGE_OK);
+    CHECK(mm_codec_registry_can_code(&registry, 1, MM_CODEC_KCDC));
+    CHECK(!context.queries);
+    CHECK(mm_codec_registry_code(NULL, MM_CODEC_KCDC, source, sizeof(source), reference, sizeof(reference),
+                                 &expected, NULL) == MM_DATA_OK);
+    CHECK(mm_codec_registry_code(&registry, MM_CODEC_KCDC, source, sizeof(source), packed, sizeof(packed),
+                                 &size, NULL) == MM_DATA_OK && size == expected &&
+          !memcmp(reference, packed, (size_t)size));
+    CHECK(mm_codec_registry_code(&registry, 0, packed, size, decoded, sizeof(decoded), &written, NULL) ==
+          MM_DATA_OK && written == sizeof(source) && !memcmp(source, decoded, sizeof(source)));
+    CHECK(!context.queries);
+    CHECK(mm_codec_registry_code(&registry, 101, source, sizeof(source), packed, sizeof(packed),
+                                 &size, NULL) == MM_DATA_OK && size == 9 && packed[8] == 3);
+    CHECK(mm_codec_registry_code(&registry, 0, packed, size, decoded, sizeof(decoded), &written, NULL) ==
+          MM_DATA_OK && written == sizeof(source) && !memcmp(source, decoded, sizeof(source)));
+    CHECK(mm_codec_registry_code(NULL, 0, packed, size, NULL, 0, &written, NULL) == MM_DATA_CODEC);
+    CHECK(mm_codec_registry_dispose(&registry) == MM_STORAGE_OK);
+
+    CHECK(mm_codec_registry_init(&registry, &services, NULL, &older, 101) == MM_STORAGE_OK);
+    CHECK(mm_codec_registry_add(&registry, &newer) == MM_STORAGE_OK);
+    CHECK(!mm_codec_registry_can_code(&registry, 1, MM_CODEC_KCDC));
+    CHECK(mm_codec_registry_code(&registry, 101, source, sizeof(source), packed, sizeof(packed),
+                                 &size, NULL) == MM_DATA_OK && size == 9 && packed[8] == 2);
+    CHECK(mm_codec_registry_dispose(&registry) == MM_STORAGE_OK && standard.refs == 1 &&
+          older.refs == 1 && newer.refs == 1);
+}
 static void codecs(void)
 {
     Allocation allocation;
@@ -450,6 +514,7 @@ static void codecs(void)
     services.retain = retain_codec;
     services.release = release_codec;
     services.can_do = can_do;
+    services.convert = NULL;
     CHECK(mm_codec_registry_init(&registry, &services, &memory, &a, 101) == MM_STORAGE_OK && a.refs == 2);
     CHECK(mm_codec_registry_add(&registry, &b) == MM_STORAGE_OK &&
           mm_codec_registry_add(&registry, &c) == MM_STORAGE_OK);
@@ -488,5 +553,6 @@ int main(void)
     string_wire();
     names();
     codecs();
+    packed_codecs();
     return 0;
 }

@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_storage.h"
 #include "mm/handle_memory.h"
-#include "mm/codec.h"
+#include "mm/codec_registry.h"
 #include <stdlib.h>
 
 typedef struct ChunkBytes
@@ -475,23 +475,9 @@ int mm_chunk_payload_cache_stream(MMChunkPayloadCache *cache, MMBlockIO *io, MMR
     return cache && cache->position != (size_t)-1 && payload_stream(&cache->block, io, stream);
 }
 
-static void *find_codec(void *context, MMI32 format)
-{
-    return format == MM_CODEC_KCDC || format == MM_CODEC_KCD2 ? context : NULL;
-}
-
-static int decode(void *codec, MMI32 format, const void *input, MMU32 bytes, void *output,
-                  MMU32 capacity, MMI32 *written)
-{
-    (void)codec;
-    return mm_codec_decode(format, input, bytes, output, capacity, written) == MM_DATA_OK;
-}
-
 int mm_chunk_packed_decode(const void *input, MMU32 bytes, void *output, MMU32 capacity, MMI32 *written)
 {
-    MMPackedDecoder decoder = {NULL, find_codec, decode};
-    decoder.context = &decoder;
-    return mm_packed_decode(&decoder, input, bytes, output, capacity, written);
+    return mm_codec_registry_code(NULL, 0, input, bytes, output, capacity, written, NULL);
 }
 
 typedef union ChunkHandlePrefix

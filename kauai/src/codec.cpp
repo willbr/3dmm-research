@@ -24,12 +24,29 @@ RTCLASS(Codec)
 namespace {
 const MMCodecServices *CodecServices()
 {
-    static const MMCodecServices services = {nullptr,
-    [](void *, void *codec) { static_cast<PCodec>(codec)->AddRef(); },
-    [](void *, void *codec) { auto native = static_cast<PCodec>(codec); ReleasePpo(&native); },
-    [](void *, void *codec, int encode, MMI32 format) -> int { return static_cast<PCodec>(codec)->FCanDo(encode != 0, format); }};
+    static const MMCodecServices services = {
+        nullptr,
+        [](void *, void *codec) { static_cast<PCodec>(codec)->AddRef(); },
+        [](void *, void *codec) { auto native = static_cast<PCodec>(codec); ReleasePpo(&native); },
+        [](void *, void *codec, int encode, MMI32 format) -> int {
+            return static_cast<PCodec>(codec)->FCanDo(encode != 0, format);
+        },
+        [](void *, void *codec, int encode, MMI32 format, const void *input, MMU32 bytes,
+           void *output, MMU32 capacity, MMI32 *written) -> int {
+            LegacyLong count = *written;
+            const bool ok = static_cast<PCodec>(codec)->FConvert(encode != 0, format, const_cast<void *>(input),
+                                                                bytes, output, capacity, &count);
+            *written = static_cast<MMI32>(count);
+            return ok;
+        }};
     return &services;
 }
+}
+CodecManager::CodecManager(LegacyLong cfmt)
+{
+    AssertDo(mm_codec_registry_init_builtin(&_registry, CodecServices(), KauaiCopyAllocator(), cfmt) == MM_STORAGE_OK,
+             "invalid built-in codec registry");
+    AssertThis(0);
 }
 CodecManager::CodecManager(PCodec pcodc, LegacyLong cfmt)
 {
@@ -77,12 +94,7 @@ bool CodecManager::FRegisterCodec(PCodec pcodc)
 bool CodecManager::FCanDo(LegacyLong cfmt, bool fEncode)
 {
     AssertThis(0);
-    PCodec pcodc;
-
-    if (cfmtNil == cfmt)
-        return fFalse;
-
-    return _FFindCodec(fEncode, cfmt, &pcodc);
+    return mm_codec_registry_can_code(&_registry, fEncode, cfmt) != 0;
 }
 
 /***************************************************************************
@@ -96,20 +108,6 @@ int ReadPackedHeader(void *context, MMU32 offset, void *bytes, size_t count)
     return static_cast<PDataBlock>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count), offset, true);
 }
 } // namespace
-void *CodecManager::_FindDecoder(void *context, MMI32 format)
-{
-    PCodec codec = nullptr;
-    if (format == cfmtNil) return nullptr;
-    return static_cast<CodecManager *>(context)->_FFindCodec(false, format, &codec) ? codec : nullptr;
-}
-int CodecManager::_ConvertDecoder(void *codec, MMI32 format, const void *input, MMU32 bytes,
-                                  void *output, MMU32 capacity, MMI32 *written)
-{
-    LegacyLong count = *written;
-    const bool ok = static_cast<PCodec>(codec)->FConvert(false, format, const_cast<void *>(input), bytes, output, capacity, &count);
-    *written = static_cast<MMI32>(count);
-    return ok;
-}
 bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, LegacyLong *pcfmt)
 {
     AssertThis(0);
@@ -121,32 +119,6 @@ bool CodecManager::FGetCfmtFromBlck(PDataBlock pblck, LegacyLong *pcfmt)
     if (mm_packed_format(&input, &format) != MM_DATA_OK) return false;
     *pcfmt = format;
     return true;
-}
-
-void *CodecManager::_FindEncoder(void *context, MMI32 format)
-{
-    PCodec codec = nullptr;
-    if (format == cfmtNil) return nullptr;
-    return static_cast<CodecManager *>(context)->_FFindCodec(true, format, &codec) ? codec : nullptr;
-}
-int CodecManager::_ConvertEncoder(void *codec, MMI32 format, const void *input, MMU32 bytes,
-                                  void *output, MMU32 capacity, MMI32 *written)
-{
-    LegacyLong count = *written;
-    const bool ok = static_cast<PCodec>(codec)->FConvert(true, format, const_cast<void *>(input), bytes, output, capacity, &count);
-    *written = static_cast<MMI32>(count);
-    return ok;
-}
-
-/***************************************************************************
-    Look for a codec that can handle the given format.
-***************************************************************************/
-bool CodecManager::_FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc)
-{
-    AssertThis(0); AssertVarMem(ppcodc); Assert(cfmtNil != cfmt, "nil cfmt");
-    auto codec = static_cast<PCodec>(mm_codec_registry_find(&_registry, fEncode, cfmt));
-    if (!codec) return fFalse;
-    *ppcodc = codec; return fTrue;
 }
 
 /***************************************************************************
@@ -190,11 +162,14 @@ bool CodecManager::_FCode(LegacyLong cfmt, void *pvSrc, LegacyLong cbSrc, void *
     AssertVarMem(pcbDst);
 
     MMI32 count = 0;
-    const MMPackedDecoder encoder = {this, _FindEncoder, _ConvertEncoder};
-    const MMPackedDecoder decoder = {this, _FindDecoder, _ConvertDecoder};
-    const int result = cfmt != cfmtNil ?
-        mm_packed_encode(&encoder, cfmt, pvSrc, cbSrc, pvDst, cbDst, &count) :
-        mm_packed_decode(&decoder, pvSrc, cbSrc, pvDst, cbDst, &count);
+    int builtinStatus;
+    const int result = mm_codec_registry_code(&_registry, cfmt, pvSrc, cbSrc, pvDst, cbDst, &count, &builtinStatus);
+    if (builtinStatus != MM_DATA_OK)
+    {
+        TrashVar(&count);
+        if (cfmt == cfmtNil) Bug("bad compressed data");
+        else if (builtinStatus == MM_DATA_MEMORY) Warn("failed to allocate memory for links");
+    }
     if (result != MM_DATA_ARGUMENT && result != MM_DATA_NOT_ENCODED) *pcbDst = count;
     if (result == MM_DATA_WRONG_SIZE) Bug("codec produced wrong size");
     return result == MM_DATA_OK;

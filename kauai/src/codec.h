@@ -50,19 +50,15 @@ class CodecManager : public CodecManager_PAR
     MARKMEM
 
   protected:
-    static void *_FindDecoder(void *, MMI32);
-    static int _ConvertDecoder(void *, MMI32, const void *, MMU32, void *, MMU32, MMI32 *);
-    static void *_FindEncoder(void *, MMI32);
-    static int _ConvertEncoder(void *, MMI32, const void *, MMU32, void *, MMU32, MMI32 *);
     struct HandleCodeContext { CodecManager *manager; LegacyLong format; };
     static int _CodeHandleBytes(void *, const void *, MMU32, void *, MMU32, MMI32 *);
     MMCodecRegistry _registry;
 
-    virtual bool _FFindCodec(bool fEncode, LegacyLong cfmt, PCodec *ppcodc);
     virtual bool _FCodePhq(LegacyLong cfmt, HQ *phq);
     virtual bool _FCode(LegacyLong cfmt, void *pvSrc, LegacyLong cbSrc, void *pvDst, LegacyLong cbDst, LegacyLong *pcbDst);
 
   public:
+    explicit CodecManager(LegacyLong cfmt);
     CodecManager(PCodec pcodc, LegacyLong cfmt);
     ~CodecManager(void);
 

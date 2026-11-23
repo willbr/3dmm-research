@@ -25567,3 +25567,43 @@ cue, and the first 400 ms of embedded MIDI matched the retained port samples.
 
 Evidence is under `tmp/c89-packed-resources`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 packed codec selection (23 November 2026)
+
+The C registry selects the built-in KCDC and KCD2 codecs for stored previews,
+native archives, and Studio's standard compression manager. A registered codec
+still receives the original payload, output bounds, and written count through
+the Kauai host. The standalone fixtures exercise built-in precedence, newest
+registration, and an explicit custom default. The host fixtures compare the
+registered and built-in encoders and check that both scratch-allocation
+failures release tracked memory.
+
+Chomp generated a byte-identical 377-byte archive containing one KCDC chunk,
+one KCD2 chunk, and one short unpacked chunk across the earlier Studio SDL
+build and the rebuilt classic, SDL, and headless tools. Its SHA-256 was
+`827f48433470d10eb08b59e4940a6148e88ea30a3c7054714b14620068a702e7`.
+The x86 and x64 codec snapshots matched over 768 cases. The 228 selected native
+tests, 37 standalone engine checks, 23 strict C89 checks, and 12 selected SDL
+tests passed. Native and SDL save traces, eight VMM outputs, ten preview
+fingerprints, the resource-cache trace, and the headless Marcus startup
+canvas matched their baselines. The external core, archive, and preview
+consumers passed.
+
+Fresh suite `20261123T202755Z-d87dec63` completed eight captures and replay
+suite `20261123T202914Z-e72be816` completed four with verified input hashes.
+Studio and Marcus matched all 60 Actor Audio frame positions and camera
+indices and 59 of 60 seek canvases against retained retail and V3DMM. They
+matched all 60 seek canvases and scene states against the prior port build.
+The first 100 ms of all four Actor Audio spans and the embedded WAVE cue
+matched the retained port samples.
+
+The first 400 ms of the embedded MIDI cue matched the retained samples
+except for the final two stereo frames of the fresh Marcus capture. That
+400 ms window matched the earlier Marcus variant in
+`20261123T193721Z-e4228cc1` byte for byte. The fresh SDL capture reproduced
+the previously observed later PCM16 peak of 7,609. Replay matched both
+ports' 400 ms references. The two new captures per port in
+`20261123T203100Z-bd94f982` also matched those 400 ms references.
+
+Evidence is under `tmp/c89-packed-codec`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

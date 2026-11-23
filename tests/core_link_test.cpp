@@ -1041,15 +1041,27 @@ static void TestDataStreams()
     }
     LegacyLong untouchedCount = 123;
     Check(!vpcodmUtil->FCompress(source, 9, pvNil, 0, &untouchedCount) && untouchedCount == 123);
+    {
+        KauaiCodec codec;
+        CodecManager registered(nullptr, kcfmtKauai2);
+        byte packed[4100];
+        LegacyLong registeredCount, standardCount, decodedCount;
+        Check(!registered.FCanDo(kcfmtKauai2, true));
+        Check(registered.FRegisterCodec(&codec) && registered.FCanDo(kcfmtKauai2, true));
+        Check(registered.FCompress(source, sizeof(source), packed, sizeof(packed), &registeredCount));
+        Check(vpcodmUtil->FCompress(source, sizeof(source), actual, sizeof(actual), &standardCount));
+        Check(registeredCount == standardCount && !std::memcmp(packed, actual, standardCount));
+        Check(registered.FDecompress(packed, registeredCount, actual, sizeof(actual), &decodedCount));
+        Check(decodedCount == sizeof(source) && !std::memcmp(actual, source, sizeof(source)));
+    }
 #ifdef DEBUG
-    KauaiCodec codec;
     for (int failure = 0; failure < 2; ++failure)
     {
         const auto initialAllocations = vdmglob.dmaglPv.cv;
         vdmglob.dmaglPv.cactDo = failure;
         vdmglob.dmaglPv.cactFail = 1;
         LegacyLong count;
-        const bool ok = codec.FConvert(true, kcfmtKauai2, source, sizeof(source), actual, sizeof(actual), &count);
+        const bool ok = vpcodmUtil->FCompress(source, sizeof(source), actual, sizeof(actual), &count, kcfmtKauai2);
         const bool consumed = vdmglob.dmaglPv.cactFail == 0;
         vdmglob.dmaglPv.cactFail = vdmglob.dmaglPv.cactDo = 0;
         Check(!ok && consumed && vdmglob.dmaglPv.cv == initialAllocations);

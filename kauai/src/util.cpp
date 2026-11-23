@@ -24,7 +24,6 @@ void MarkUtilMem(void)
 
     MarkMemObj(&vsflUtil);
     MarkMemObj(&vrndUtil);
-    MarkMemObj(&vkcdcUtil);
     MarkMemObj(&vcodmUtil);
     MarkMemObj(vpcodmUtil);
 
