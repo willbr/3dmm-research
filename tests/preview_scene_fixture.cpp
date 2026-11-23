@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <string>
 #include "soc_core.h"
+#include "scene_archive_fixture.h"
 #include "actor_track_fixture.h"
 #include "rich_text_data.h"
 ASSERTNAME
@@ -284,7 +285,7 @@ int main(int argc, char **argv)
         ReleasePpo(&file);
         return ok ? 0 : 1;
     }
-    SceneData scene;
+    auto scene = SceneArchiveFixture::State();
     ChunkNumber sceneNumber;
     scene.firstFrame = batch ? -2 : 1;
     scene.lastFrame = movie ? 30 : 10;
@@ -292,7 +293,7 @@ int main(int argc, char **argv)
     // first scene so ordinary playback actually exercises the compositor.
     if (dissolve)
         scene.transition = transDissolve;
-    bool ok = scene.FCreate(file, &sceneNumber);
+    bool ok = SceneArchiveFixture::Create(file, &sceneNumber, scene);
     auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
     auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
     if (!frames || !starts)
@@ -478,12 +479,12 @@ int main(int argc, char **argv)
     }
     if (audio)
         ok = ok && AudioCues(file, sceneNumber, frames);
-    ok = ok && SceneData::FWriteEvents(file, sceneNumber, frames, starts) && file->FSave(kctgMvie);
+    ok = ok && SceneArchiveFixture::WriteEvents(file, sceneNumber, frames, starts) && file->FSave(kctgMvie);
     // Preview mode compares against a background-only scene. Movie mode keeps
     // the actors and authors a different camera sequence in the second scene.
     ChunkNumber emptyScene;
     scene.transition = transCut;
-    ok = ok && scene.FCreate(file, &emptyScene);
+    ok = ok && SceneArchiveFixture::Create(file, &emptyScene, scene);
     if (!movie)
         for (int i = 0; i < 5; ++i)
             starts->Delete(0);
@@ -508,7 +509,7 @@ int main(int argc, char **argv)
             ok = ok && AudioCues(file, emptyScene, secondFrames);
     }
     ok =
-        ok && SceneData::FWriteEvents(file, emptyScene, movie ? secondFrames : frames, starts) && file->FSave(kctgMvie);
+        ok && SceneArchiveFixture::WriteEvents(file, emptyScene, movie ? secondFrames : frames, starts) && file->FSave(kctgMvie);
     ReleasePpo(&secondFrames);
     if (movie)
     {

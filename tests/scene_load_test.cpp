@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "scene_archive_fixture.h"
 #include "scene_sound.h"
 #undef size
 ASSERTNAME
@@ -94,7 +95,7 @@ struct Access : Scene
             Value(g->rows.count);
             for (long i = 0; i < g->rows.count; ++i)
             {
-                auto e = ReadSceneTrackEvent(g, i);
+                auto e = SceneArchiveFixture::ReadTrackEvent(g, i);
                 Value(e.nfrm);
                 Value(e.sevt);
                 MMI32 bytes;
@@ -142,14 +143,14 @@ static ChunkNumber Fixture(PChunkyFile file, int scenario, bool swap)
 {
     ChunkNumber number;
     CHECK(file->FAdd(0, kctgScen, &number));
-    SceneData d;
+    auto d = SceneArchiveFixture::State();
     d.firstFrame = 3;
     d.lastFrame = 19;
     d.transition = transDissolve;
     String name;
     name.SetSzs(PszLit("Load fixture"));
-    d.SetName(&name);
-    CHECK(d.FWrite(file, number));
+    CHECK(mm_movie_title_set(&d.name, name.Prgch(), name.Cch()));
+    CHECK(SceneArchiveFixture::Write(file, number, d));
     auto frames = GeneralGroup::PggNew(sizeof(SceneEvent)), starts = GeneralGroup::PggNew(sizeof(SceneEvent));
     CHECK(frames && starts);
     auto add = [&](PGeneralGroup g, SceneEventType kind, void *p, long bytes) {

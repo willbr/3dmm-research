@@ -101,34 +101,47 @@ int mm_scene_track_set(MMSceneTrack *track, MMI32 index, const MMSceneTrackEvent
 
 static MMU32 wire_width(void *group)
 {
-    return ((const MMSceneTrack *)group)->rows.fixed_bytes;
+    return ((const MMGroup *)group)->fixed_bytes;
 }
 
 static MMU32 wire_count(void *group)
 {
-    return ((const MMSceneTrack *)group)->rows.count;
+    return ((const MMGroup *)group)->count;
+}
+
+static const unsigned char *wire_row(const MMGroup *group, MMU32 index, MMI32 *bytes)
+{
+    MMGroupLocation loc;
+    if (mm_group_read_slot(group, index, &loc) != MM_GROUP_SLOT_PRESENT)
+        return NULL;
+    if (bytes)
+        *bytes = loc.bytes - MM_SCENE_EVENT_BYTES;
+    return group->storage->buffers[0].data + loc.offset;
 }
 
 static void wire_fixed(void *group, MMU32 index, unsigned char bytes[8])
 {
-    MMSceneTrackEvent event = {0};
-    mm_scene_track_get((const MMSceneTrack *)group, (MMI32)index, &event);
-    memcpy(bytes, &event, MM_SCENE_EVENT_BYTES);
+    const unsigned char *row = wire_row(group, index, NULL);
+    if (row)
+        memcpy(bytes, row, MM_SCENE_EVENT_BYTES);
+    else
+        memset(bytes, 0, MM_SCENE_EVENT_BYTES);
 }
 
 static MMI32 wire_payload_size(void *group, MMU32 index)
 {
     MMI32 bytes = -1;
-    mm_scene_track_payload((const MMSceneTrack *)group, (MMI32)index, &bytes);
+    wire_row(group, index, &bytes);
     return bytes;
 }
 
 static const void *wire_payload(void *group, MMU32 index)
 {
-    return mm_scene_track_payload((const MMSceneTrack *)group, (MMI32)index, NULL);
+    const unsigned char *row = wire_row(group, index, NULL);
+    return row ? row + MM_SCENE_EVENT_BYTES : NULL;
 }
 
-MMSceneGroupServices mm_scene_track_wire_groups(void)
+MMSceneGroupServices mm_scene_group_wire_services(void)
 {
     MMSceneGroupServices groups = {wire_width, wire_count, wire_fixed, wire_payload_size, wire_payload};
     return groups;
@@ -178,14 +191,4 @@ int mm_scene_group_write(MMGroup *group, int system, int big, const MMStorageWri
     if (swap)
         mm_group_swap_locations(group);
     return ok;
-}
-
-MMU32 mm_scene_track_wire_size(const MMSceneTrack *track)
-{
-    return mm_scene_group_wire_size(&track->rows);
-}
-
-int mm_scene_track_write(MMSceneTrack *track, int system, const MMStorageWriter *writer)
-{
-    return mm_scene_group_write(&track->rows, system, native_big(), writer);
 }

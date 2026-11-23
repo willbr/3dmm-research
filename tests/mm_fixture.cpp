@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "soc_core.h"
+#include "scene_archive_fixture.h"
 #include <cstdio>
 #include <cstdlib>
 ASSERTNAME
@@ -42,12 +43,12 @@ int main(int argc, char **argv)
     ChunkNumber created;
     Check(MovieData::FCreateRoot(file, &created));
     file->Move(kctgMvie, created, kctgMvie, root);
-    SceneData scene;
+    auto scene = SceneArchiveFixture::State();
     scene.lastFrame = variant == 2 ? 13 : 12;
     String sceneName;
     sceneName.SetSzs(PszLit("Scene \"one\"\\\n"));
-    scene.SetName(&sceneName);
-    Check(scene.FWrite(file, 5));
+    Check(mm_movie_title_set(&scene.name, sceneName.Prgch(), sceneName.Cch()));
+    Check(SceneArchiveFixture::Write(file, 5, scene));
     const MMActorHeader actor = {kboCur, koskCur, {}, 23, 1, 12, 1, 0, kctgTmpl, 8};
     const auto archive = file->WriteIndex();
     Check(mm_actor_write_header(6, &actor, &archive));

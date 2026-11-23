@@ -364,10 +364,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Runtime and wire roll-call names/extras, editing buffers, GST
   loading/translation and serialization use owning C storage. The runtime
   actor table lives directly in the C movie state.
-- Scene metadata and counted names now live in C state. Archive-backed header read/write,
-  event-layout validation, frame/start child replacement, create sequencing and
-  failure cleanup use C89. Native file/group adapters and runtime scene-object,
-  playback and editing ownership still remain.
+- Scene metadata, counted names, transitions and live track headers use the C89
+  records directly. The shared C89 codec validates and writes frame and start
+  event groups for Studio saves and archive-backed fixtures. It also handles
+  header I/O, creation and child replacement with rollback. The C++ scene data
+  translation unit has been removed from the build. Studio still binds native
+  chunk-title I/O and runtime scene objects through its caller facade.
 - Actor persistence now uses C89 from live Studio save and load through header
   normalization, checked ID adjustment, PATH and GGAE storage, embedded tag
   opening, template selection, and legacy lifetime recovery. The 40/44-byte

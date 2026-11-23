@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "scene_archive_fixture.h"
 #include "scene_sound.h"
 #include "scene_edit_undo.h"
 #include "scene_chop_undo.h"
@@ -99,7 +100,7 @@ struct Access : Scene
         CHECK(packet);
         auto g = (p->*&Access::_FrameTrack)();
         SceneEvent event = {1, sevtPlaySnd};
-        CHECK(InsertSceneTrackEvent(g, g->rows.count, mm_scene_sound_size(packet->ctagc), packet, event));
+        CHECK(SceneArchiveFixture::InsertTrackEvent(g, g->rows.count, mm_scene_sound_size(packet->ctagc), packet, event));
         FreePpv(reinterpret_cast<void **>(&packet));
         (p->*&Access::_owner).runtime.next_event = g->rows.count;
     }
@@ -128,7 +129,7 @@ struct Access : Scene
             Value(g->rows.count);
             for (long i = 0; i < g->rows.count; ++i)
             {
-                auto e = ReadSceneTrackEvent(g, i);
+                auto e = SceneArchiveFixture::ReadTrackEvent(g, i);
                 Value(e.sevt);
                 if (e.sevt != sevtSetBkgd)
                     Value(e.nfrm);

@@ -343,6 +343,7 @@ class GeneralGroup : public GeneralGroup_PAR
 
     // duplication
     PGeneralGroup PggDup(void);
+    MMGroup CoreRows() { return _GroupView(); }
 
     // methods required by parent class
     virtual bool FAdd(LegacyLong cb, LegacyLong *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);

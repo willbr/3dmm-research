@@ -17,6 +17,7 @@
 #include "mm/playback.h"
 #include <miniz.h>
 #include "soc_core.h"
+#include "scene_archive_fixture.h"
 #include "actor_track_fixture.h"
 #include <SDL3/SDL.h>
 #include <limits>
@@ -456,9 +457,9 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
     CHECK(file);
     ChunkNumber root, sceneNumber;
     CHECK(MovieData::FCreateRoot(file, &root));
-    SceneData scene;
+    auto scene = SceneArchiveFixture::State();
     scene.firstFrame = 0; scene.lastFrame = 3; scene.transition = transCut;
-    CHECK(scene.FCreate(file, &sceneNumber) && file->FAdoptChild(kctgMvie, root, kctgScen, sceneNumber, 0));
+    CHECK(SceneArchiveFixture::Create(file, &sceneNumber, scene) && file->FAdoptChild(kctgMvie, root, kctgScen, sceneNumber, 0));
     auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
     auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
     CHECK(starts && frames);
@@ -469,7 +470,7 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
         CHECK(file->FAdoptChild(kctgScen, sceneNumber, kctgTbox, box, slot));
         CHECK(starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &event));
     }
-    CHECK(SceneData::FWriteEvents(file, sceneNumber, frames, starts));
+    CHECK(SceneArchiveFixture::WriteEvents(file, sceneNumber, frames, starts));
     CHECK(file->FSave(kctgSoc));
     ReleasePpo(&starts); ReleasePpo(&frames); ReleasePpo(&file);
     player = marcus_create();
@@ -703,12 +704,12 @@ void Fixture(const char *path)
     auto title = Caption(file, false), credits = Caption(file, true), edge = Caption(file, false, true);
     for (int index = 0; index < 5; ++index)
     {
-        SceneData scene;
+        auto scene = SceneArchiveFixture::State();
         scene.firstFrame = -2;
         scene.lastFrame = 4;
         scene.transition = static_cast<TRANS>(index + 1 < transLim ? index + 1 : transCut);
         ChunkNumber number;
-        CHECK(scene.FCreate(file, &number));
+        CHECK(SceneArchiveFixture::Create(file, &number, scene));
         CHECK(file->FAdoptChild(kctgMvie, root, kctgScen, number, index));
         CHECK(file->FAdoptChild(kctgScen, number, kctgMsnd, wave, 7));
         CHECK(file->FAdoptChild(kctgScen, number, kctgMsnd, midi, 8));
@@ -745,7 +746,7 @@ void Fixture(const char *path)
         event.nfrm = 2;
         pause = {witUntilSnd, 0};
         CHECK(frames->FInsert(frames->IvMac(), sizeof(pause), &pause, &event));
-        CHECK(SceneData::FWriteEvents(file, number, frames, starts));
+        CHECK(SceneArchiveFixture::WriteEvents(file, number, frames, starts));
         ReleasePpo(&starts);
         ReleasePpo(&frames);
     }
@@ -792,10 +793,10 @@ void CarryIntegration(const char *path, const char *resources, const char *conte
     const int first[] = {-2, 100, -10, 0}, last[] = {0, 105, -5, 5};
     for (int index = 0; index < 4; ++index)
     {
-        SceneData scene;
+        auto scene = SceneArchiveFixture::State();
         scene.firstFrame = first[index]; scene.lastFrame = last[index]; scene.transition = transCut;
         ChunkNumber number;
-        CHECK(scene.FCreate(file, &number) && file->FAdoptChild(kctgMvie, root, kctgScen, number, index));
+        CHECK(SceneArchiveFixture::Create(file, &number, scene) && file->FAdoptChild(kctgMvie, root, kctgScen, number, index));
         CHECK(file->FAdoptChild(kctgScen, number, kctgMsnd, index ? otherSound : longSound, 7));
         auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
         auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
@@ -804,7 +805,7 @@ void CarryIntegration(const char *path, const char *resources, const char *conte
             SceneSound(frames, 0, longSound + 123, 7, false);
         else if (index == 1)
             SceneSound(frames, first[index], longSound + 123, 7, false, false, false, stySpeech);
-        CHECK(SceneData::FWriteEvents(file, number, frames, starts));
+        CHECK(SceneArchiveFixture::WriteEvents(file, number, frames, starts));
         ReleasePpo(&starts); ReleasePpo(&frames);
     }
     CHECK(file->FSave(kctgSoc));
@@ -991,12 +992,12 @@ void PlaybackCadence(const char *path, const char *resources, const char *conten
     CHECK(file);
     ChunkNumber root, number;
     CHECK(MovieData::FCreateRoot(file, &root));
-    SceneData scene;
+    auto scene = SceneArchiveFixture::State();
     scene.firstFrame = 0; scene.lastFrame = 1000; scene.transition = transCut;
-    CHECK(scene.FCreate(file, &number) && file->FAdoptChild(kctgMvie, root, kctgScen, number, 0));
+    CHECK(SceneArchiveFixture::Create(file, &number, scene) && file->FAdoptChild(kctgMvie, root, kctgScen, number, 0));
     auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
     auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
-    CHECK(starts && frames && SceneData::FWriteEvents(file, number, frames, starts));
+    CHECK(starts && frames && SceneArchiveFixture::WriteEvents(file, number, frames, starts));
     ReleasePpo(&starts); ReleasePpo(&frames);
     CHECK(file->FSave(kctgSoc));
     ReleasePpo(&file);

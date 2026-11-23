@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "scene_archive_fixture.h"
 #include "engine_movie_graph.h"
 #include "scene_sound.h"
 #undef size
@@ -104,8 +105,8 @@ struct Tags
 };
 static void Written(PChunkyFile file, ChunkNumber number)
 {
-    SceneData data;
-    CHECK(data.FRead(file, number));
+    auto data = SceneArchiveFixture::State();
+    CHECK(SceneArchiveFixture::Read(file, number, data));
     Value(data.firstFrame);
     Value(data.lastFrame);
     Value(data.transition);
@@ -136,14 +137,14 @@ static ChunkNumber Fixture(PChunkyFile file, int scenario, bool swap)
 {
     ChunkNumber number;
     CHECK(file->FAdd(0, kctgScen, &number));
-    SceneData d;
+    auto d = SceneArchiveFixture::State();
     d.firstFrame = 3;
     d.lastFrame = 19;
     d.transition = transDissolve;
     String name;
     name.SetSzs(PszLit("Load fixture"));
-    d.SetName(&name);
-    CHECK(d.FWrite(file, number));
+    CHECK(mm_movie_title_set(&d.name, name.Prgch(), name.Cch()));
+    CHECK(SceneArchiveFixture::Write(file, number, d));
     auto frames = GeneralGroup::PggNew(sizeof(SceneEvent)), starts = GeneralGroup::PggNew(sizeof(SceneEvent));
     CHECK(frames && starts);
     auto add = [&](PGeneralGroup g, SceneEventType kind, void *p, long bytes) {

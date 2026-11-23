@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "scene_archive_fixture.h"
 #include "actor_track_fixture.h"
 #include "engine_action_tables_fixture.h"
 #include "scene_sound.h"
@@ -354,7 +355,7 @@ struct Access : Scene
         CHECK(packet);
         auto events = (p->*&Access::_FrameTrack)();
         SceneEvent e = {back ? 1 : 7, sevtPlaySnd};
-        CHECK(InsertSceneTrackEvent(events, back ? 0 : events->rows.count, mm_scene_sound_size(packet->ctagc), packet, e));
+        CHECK(SceneArchiveFixture::InsertTrackEvent(events, back ? 0 : events->rows.count, mm_scene_sound_size(packet->ctagc), packet, e));
         FreePpv(reinterpret_cast<void **>(&packet));
         if (back)
             ++(p->*&Access::_owner).runtime.next_event;
@@ -377,7 +378,7 @@ struct Access : Scene
         {
             SceneEvent e = {frame, sevtChngCamera};
             long camera = 0;
-            CHECK(InsertSceneTrackEvent(events, events->rows.count, sizeof(camera), &camera, e));
+            CHECK(SceneArchiveFixture::InsertTrackEvent(events, events->rows.count, sizeof(camera), &camera, e));
         }
         (p->*&Access::_owner).runtime.next_event = 4;
     }
@@ -389,7 +390,7 @@ struct Access : Scene
         Value(events->rows.count);
         for (long i = 0; i < events->rows.count; ++i)
         {
-            auto e = ReadSceneTrackEvent(events, i);
+            auto e = SceneArchiveFixture::ReadTrackEvent(events, i);
             Value(e.nfrm);
             Value(e.sevt);
         }
@@ -430,7 +431,7 @@ struct Access : Scene
         Value(starts->rows.count);
         for (long i = 0; i < starts->rows.count; ++i)
         {
-            auto e = ReadSceneTrackEvent(starts, i);
+            auto e = SceneArchiveFixture::ReadTrackEvent(starts, i);
             Value(e.sevt);
             if (e.sevt == sevtAddActr)
             {
@@ -776,7 +777,7 @@ int main()
                 block.Free();
                 CHECK(archive.Find(kctgFrmGg, n, &block));
                 short out = 0x7777;
-                auto loaded = SceneData::PggReadEvents(&block, &out, false);
+                auto loaded = SceneArchiveFixture::ReadEvents(&block, &out, false);
                 Value(loaded != nullptr);
                 Value(out);
                 CHECK((loaded != nullptr) == bool(valid));
@@ -786,7 +787,7 @@ int main()
                     loaded->GetFixed(0, &e);
                     Record(&e, sizeof(e));
                 }
-                auto optional = SceneData::PggReadEvents(&block, nullptr, false);
+                auto optional = SceneArchiveFixture::ReadEvents(&block, nullptr, false);
                 CHECK((optional != nullptr) == bool(valid));
                 ReleasePpo(&optional);
                 ReleasePpo(&loaded);
@@ -799,7 +800,7 @@ int main()
         DataBlock block;
         CHECK(archive.AddBytes(&invalid, 1, kctgFrmGg, &n) && archive.Find(kctgFrmGg, n, &block));
         short order = 0x7777;
-        auto failed = SceneData::PggReadEvents(&block, &order, false);
+        auto failed = SceneArchiveFixture::ReadEvents(&block, &order, false);
         CHECK(!failed && order == 0x7777);
         Value(failed != nullptr);
         Value(order);
@@ -843,10 +844,10 @@ int main()
         Value(scene->FSetTransition(transDissolve));
         Access::ControlState(scene);
         movie->ClearUndo();
-        SceneData metadata;
+        auto metadata = SceneArchiveFixture::State();
         metadata.firstFrame = 3;
         metadata.lastFrame = 9;
-        metadata.SetName(&name);
+        CHECK(mm_movie_title_set(&metadata.name, name.Prgch(), name.Cch()));
         ChunkNumber number;
         MovieArchiveHost host{archive.reader, archive.writer};
         const auto editor = host.Editor();

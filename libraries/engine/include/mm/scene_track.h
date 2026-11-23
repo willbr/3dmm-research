@@ -26,12 +26,9 @@ extern "C" {
     int mm_scene_track_insert(MMSceneTrack *, MMI32 index, MMI32 bytes, const void *, const MMSceneTrackEvent *);
     int mm_scene_track_put(MMSceneTrack *, MMI32 index, MMI32 bytes, const void *);
     int mm_scene_track_set(MMSceneTrack *, MMI32 index, const MMSceneTrackEvent *);
-    /* The wire writer takes a track of encoded payloads in host byte order. */
-    MMSceneGroupServices mm_scene_track_wire_groups(void);
-    MMU32 mm_scene_track_wire_size(const MMSceneTrack *);
-    int mm_scene_track_write(MMSceneTrack *, int system, const MMStorageWriter *);
     /* The dense group's event bytes already use the requested wire order.
      * Its location table stays in host order, including after failed writes. */
+    MMSceneGroupServices mm_scene_group_wire_services(void);
     MMU32 mm_scene_group_wire_size(const MMGroup *);
     int mm_scene_group_write(MMGroup *, int system, int big_endian, const MMStorageWriter *);
 #ifdef __cplusplus

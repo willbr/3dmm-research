@@ -24156,3 +24156,41 @@ Text Acid candidate `20261123T121241Z-4b3d158f` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched retail and V3DMM frame order in seek and playback.
 Evidence is under `tmp/c89-actor-archive-bindings`.
+
+## C89 scene archive bindings (23 November 2026)
+
+Studio reads and changes saved transitions and counted scene names through
+the C89 functions. Studio saves and archive-backed fixtures share the dense
+event-group validator and writer, including frame and start child replacement.
+The C++ scene data translation unit is out of the native, SDL and x86 worker
+builds. Existing fixtures still use their native archive bindings to create
+packed, foreign-endian and malformed inputs.
+
+The 526-byte scene archive trace and all eight native scene traces matched
+byte for byte. The scene-load fixture still reaches its pre-existing debug
+fingerprint assertion after emitting the same 63,224 bytes (`0D666753`).
+The archive fixtures cover both byte orders, malformed sound events and
+preservation of both prior event children after a failed replacement.
+
+235 native checks, 13 SDL checks and three x86 worker fixtures passed.
+All ten Preview fingerprints and the headless Marcus startup image matched
+the previous build.
+
+Native and SDL movie save/load traces matched. Headless Studio authored and
+reopened the same 27,056-byte movie. The edited and copied 3D text archives
+matched the retained saves. Both ports reopened the copied save in
+`20261123T122532Z-756bac96` and matched the scene, frame and canvas from retail
+and V3DMM in `20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T122532Z-bc4cc613` matched all 60 prior seek
+canvases and scene states per port. Both ports matched retail and V3DMM frame
+order in seek and playback. Studio matched all 240 actor snapshots at the
+recorded precision. Both ports matched 59 of 60 retail and V3DMM seek
+canvases, with the same difference at scene 0, frame 4.
+
+Text Acid candidate `20261123T122532Z-ccf1cc00` matched baseline
+`20261123T121241Z-4b3d158f` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched retail and V3DMM frame order in seek and playback.
+
+Evidence is under `tmp/c89-scene-archive-bindings`.

@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "scene_archive_fixture.h"
 #undef size
 ASSERTNAME
 void FrameMain(void)
@@ -105,7 +106,7 @@ struct Access : Scene
         auto packet = Sound(count);
         SceneEvent event = {2, sevtPlaySnd};
         auto frames = (scene->*&Access::_FrameTrack)();
-        CHECK(InsertSceneTrackEvent(frames, 0, packet.size(), packet.data(), event));
+        CHECK(SceneArchiveFixture::InsertTrackEvent(frames, 0, packet.size(), packet.data(), event));
         auto services = _OwnerServices();
         mm_scene_owner_unwind(&(scene->*&Access::_owner), &services);
     }
@@ -145,7 +146,7 @@ struct Access : Scene
             CHECK(actor);
             SceneEvent event = {i, sevtAddActr};
             PActor p = actor;
-            CHECK(InsertSceneTrackEvent(starts, starts->rows.count, sizeof(p), &p, event));
+            CHECK(SceneArchiveFixture::InsertTrackEvent(starts, starts->rows.count, sizeof(p), &p, event));
             if (i == 1)
                 CHECK(mm_scene_member_append(&(s->*&Access::_owner), MM_SCENE_SELECTION, p));
         }
@@ -155,7 +156,7 @@ struct Access : Scene
         CHECK(bitmap);
         auto frame = Sound(count);
         SceneEvent event = {2, sevtPlaySnd};
-        CHECK(InsertSceneTrackEvent(frames, 0, frame.size(), frame.data(), event));
+        CHECK(SceneArchiveFixture::InsertTrackEvent(frames, 0, frame.size(), frame.data(), event));
         auto background = Sound(count + 1);
         void *sound = nullptr;
         CHECK(FAllocPv(&sound, background.size(), fmemNil, mprNormal));

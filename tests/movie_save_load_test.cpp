@@ -20,6 +20,7 @@
 
 #include <vector>
 #include "soc.h"
+#include "scene_archive_fixture.h"
 #include "handle_services.h"
 #include "engine_action_tables_fixture.h"
 #include "actor_frame_fixture.h"
@@ -2690,7 +2691,7 @@ int __cdecl main(int argc, char **argv)
             BAIL("saved movie has no scene");
         const auto titles = KauaiChunkOwnerTitleIO();
         const auto io = mm_scene_file_io(archive.reader, &archive.writer, &titles);
-        SceneData metadata;
+        auto metadata = SceneArchiveFixture::State();
         if (!mm_scene_read(&metadata, scene, &io))
             BAIL("core scene read failed");
         metadata.transition = transFadeToBlack;

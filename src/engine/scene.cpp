@@ -62,6 +62,13 @@
 #include <cstring>
 
 ASSERTNAME
+
+static_assert(transNil == -1 && transCut == 0 && transLim == MM_SCENE_TRANSITION_LIMIT,
+              "scene transition encoding");
+static_assert(kboCur == MM_SCENE_GROUP_NATIVE_ORDER && kboOther == MM_SCENE_GROUP_OTHER_ORDER,
+              "scene group byte order markers");
+static_assert(kctgScen == MM_SCENE_CHUNK && kctgFrmGg == MM_SCENE_FRAME_GROUP && kctgStartGg == MM_SCENE_START_GROUP,
+              "scene archive types");
 static_assert(kctgActr == MM_SCENE_ACTOR_CHUNK, "Scene actor link type");
 
 //
@@ -358,7 +365,7 @@ void Scene::MarkMem(void)
 void Scene::AssertValid(LegacyUlong grf)
 {
     MMU32 isev;
-    SceneEvent sev;
+    MMSceneTrackEvent event = {};
 
     Scene_PAR::AssertValid(fobjAllocated);
 
@@ -374,8 +381,8 @@ void Scene::AssertValid(LegacyUlong grf)
 
     for (isev = 0; isev < _FrameTrack()->rows.count; isev++)
     {
-        sev = ReadSceneTrackEvent(_FrameTrack(), isev);
-        switch (sev.sevt)
+        AssertDo(mm_scene_track_get(_FrameTrack(), isev, &event), "invalid frame event index");
+        switch (event.kind)
         {
         case sevtPlaySnd:
         case sevtPause:
@@ -388,8 +395,8 @@ void Scene::AssertValid(LegacyUlong grf)
 
     for (isev = 0; isev < _StartTrack()->rows.count; isev++)
     {
-        sev = ReadSceneTrackEvent(_StartTrack(), isev);
-        switch (sev.sevt)
+        AssertDo(mm_scene_track_get(_StartTrack(), isev, &event), "invalid start event index");
+        switch (event.kind)
         {
         case sevtAddActr:
         case sevtSetBkgd:
@@ -439,6 +446,23 @@ bool Scene::FSetTransition(TRANS trans)
     return mm_scene_transition_edit(trans, &s) != 0;
 }
 
+void Scene::GetName(PString pstn)
+{
+    const auto &name = _owner.data.name;
+    pstn->SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(&name))), name.count);
+}
+
+void Scene::SetNameCore(PString pstn)
+{
+    AssertDo(mm_movie_title_set(&_owner.data.name, pstn->Prgch(), pstn->Cch()), "bad scene name");
+}
+
+void SceneUndoTitle::SetName(PString pstn)
+{
+    AssertPo(pstn, 0);
+    AssertDo(mm_movie_title_set(&_title.name, pstn->Prgch(), pstn->Cch()), "bad Scene undo name");
+}
+
 /****************************************************
  *
  * Sets the name of the scene and creates an undo object.
@@ -450,12 +474,6 @@ bool Scene::FSetTransition(TRANS trans)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-void SceneUndoTitle::SetName(PString pstn)
-{
-    AssertPo(pstn, 0);
-    AssertDo(mm_movie_title_set(&_title.name, pstn->Prgch(), pstn->Cch()), "bad Scene undo name");
-}
-
 bool Scene::FSetName(PString pstn)
 {
     AssertThis(0);
@@ -2671,8 +2689,9 @@ void Scene::StopPlaying()
 ************************************************************ PETED ***********/
 bool Scene::FTransOnFile(MMResourceCache *pcrf, ChunkNumber cno, TRANS *ptrans)
 {
+    const auto titles = KauaiChunkOwnerTitleIO();
     MMI32 value;
-    if (!SceneData::FReadTransition(pcrf, cno, &value))
+    if (!mm_scene_transition_read_cache(pcrf, cno, sizeof(achar), &value, &titles))
         return fFalse;
     *ptrans = static_cast<TRANS>(value);
     return fTrue;
@@ -2694,7 +2713,8 @@ bool Scene::FTransOnFile(MMResourceCache *pcrf, ChunkNumber cno, TRANS *ptrans)
 ************************************************************ PETED ***********/
 bool Scene::FSetTransOnFile(MMResourceCache *pcrf, ChunkNumber cno, TRANS trans)
 {
-    return SceneData::FWriteTransition(pcrf, cno, trans);
+    const auto titles = KauaiChunkOwnerTitleIO();
+    return mm_scene_transition_write_cache(pcrf, cno, sizeof(achar), trans, &titles) != 0;
 }
 
 //

@@ -3,6 +3,7 @@
 // A real host supplies assertion reporting; no GUI/application replacements.
 #if defined(TEST_ENGINE_CORE)
 #include "soc_core.h"
+#include "scene_archive_fixture.h"
 #include "handle_services.h"
 #include "actor_track_fixture.h"
 #include "movie_archive_fixture.h"
@@ -1848,9 +1849,9 @@ static void TestMoviePersistence()
         // template; persistence treats their payloads as opaque, never UI.
         byte payload[] = {1, 3, 5, 7, 9};
         ChunkNumber scene, actorTemplate;
-        SceneData sceneState;
+        auto sceneState = SceneArchiveFixture::State();
         sceneState.lastFrame = 12;
-        String sceneName(PszLit("Headless scene")); sceneState.SetName(&sceneName);
+        String sceneName(PszLit("Headless scene")); Check(mm_movie_title_set(&sceneState.name, sceneName.Prgch(), sceneName.Cch()));
         MovieArchiveHost host{archive.reader, archive.writer};
         const auto editor = host.Editor();
         Check(mm_scene_archive_create(&editor, &sceneState, &scene));
@@ -2127,16 +2128,16 @@ static void TestScenePersistence()
 {
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
     Check(file != pvNil);
-    SceneData scene;
+    auto scene = SceneArchiveFixture::State();
     scene.firstFrame = 3;
     scene.lastFrame = 18;
     scene.transition = transDissolve;
-    String sceneName(PszLit("Scene data")); scene.SetName(&sceneName);
+    String sceneName(PszLit("Scene data")); Check(mm_movie_title_set(&scene.name, sceneName.Prgch(), sceneName.Cch()));
     ChunkNumber number;
-    Check(scene.FCreate(file, &number));
+    Check(SceneArchiveFixture::Create(file, &number, scene));
     FILE *sceneSnapshot = nullptr;
     if (const char *path = std::getenv("MM_SCENE_DATA_SNAPSHOT")) { sceneSnapshot = std::fopen(path, "wb"); Check(sceneSnapshot); }
-    const auto recordScene = [&](SceneData &state) {
+    const auto recordScene = [&](const MMSceneState &state) {
         if (!sceneSnapshot) return;
         uint32_t fields[] = {static_cast<uint32_t>(state.firstFrame), static_cast<uint32_t>(state.lastFrame),
                              static_cast<uint32_t>(state.currentFrame), static_cast<uint32_t>(state.transition),
@@ -2177,18 +2178,20 @@ static void TestScenePersistence()
     CopyPb(&soundTag, sound + 20, sizeof(soundTag));
     event = {9, sevtPlaySnd};
     Check(frames->FInsert(2, sizeof(sound), sound, &event));
-    Check(SceneData::FWriteEvents(file, number, frames, starts));
-    SceneData loaded;
-    Check(loaded.FRead(file, number));
+    Check(SceneArchiveFixture::WriteEvents(file, number, frames, starts));
+    auto loaded = SceneArchiveFixture::State();
+    Check(SceneArchiveFixture::Read(file, number, loaded));
     Check(loaded.firstFrame == 3 && loaded.lastFrame == 18 && loaded.currentFrame == 2);
-    loaded.GetName(&sceneName); Check(loaded.transition == transDissolve && sceneName.FEqualSz(PszLit("Scene data")));
+    sceneName.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(&loaded.name))),
+                      loaded.name.count);
+    Check(loaded.transition == transDissolve && sceneName.FEqualSz(PszLit("Scene data")));
     recordScene(loaded);
     ChildChunkIdentification child;
     Check(file->FGetKidChidCtg(kctgScen, number, 0, kctgFrmGg, &child));
     DataBlock block;
     Check(file->FFind(kctgFrmGg, child.cki.cno, &block));
     short bo;
-    PGeneralGroup decoded = SceneData::PggReadEvents(&block, &bo, false);
+    PGeneralGroup decoded = SceneArchiveFixture::ReadEvents(&block, &bo, false);
     Check(decoded != pvNil && decoded->IvMac() == 3 && bo == kboCur);
     SceneEventPause recovered;
     decoded->Get(1, &recovered);
@@ -2205,7 +2208,7 @@ static void TestScenePersistence()
     CopyPb(&count, truncatedSound + 12, sizeof(count));
     event = {9, sevtPlaySnd};
     Check(frames->FInsert(3, sizeof(truncatedSound), truncatedSound, &event));
-    Check(!SceneData::FWriteEvents(file, number, frames, starts));
+    Check(!SceneArchiveFixture::WriteEvents(file, number, frames, starts));
     ChildChunkIdentification unchanged;
     Check(file->FGetKidChidCtg(kctgScen, number, 0, kctgFrmGg, &unchanged));
     Check(unchanged.cki.cno == child.cki.cno);
@@ -2229,7 +2232,7 @@ static void TestScenePersistence()
         vmutxMem.Leave();
         LegacyLong chunksBefore = file->Ccki();
         LegacyLong linksBefore = file->Ckid(kctgScen, number);
-        bool saved = SceneData::FWriteEvents(file, number, frames, starts);
+        bool saved = SceneArchiveFixture::WriteEvents(file, number, frames, starts);
         vmutxMem.Enter();
         vdmglob.dmaglPv.cactFail = vdmglob.dmaglHq.cactFail = vdmglob.dmaglBase.cactFail = 0;
         vmutxMem.Leave();
@@ -2253,9 +2256,9 @@ static void TestScenePersistence()
     Check(block.FReadRgb(&prefix, sizeof(prefix), 0));
     SwapBytesBom(&prefix, kbomScenh);
     Check(block.FWriteRgb(&prefix, sizeof(prefix), 0));
-    Check(loaded.FRead(file, number) && loaded.transition == transDissolve);
+    Check(SceneArchiveFixture::Read(file, number, loaded) && loaded.transition == transDissolve);
     loaded.transition = transBlack;
-    Check(loaded.FWrite(file, number));
+    Check(SceneArchiveFixture::Write(file, number, loaded));
     recordScene(loaded);
     event = {3, sevtChngCamera};
     SwapBytesBom(&event, kbomSev);
@@ -2264,7 +2267,7 @@ static void TestScenePersistence()
     Check(foreign != pvNil && foreign->FInsert(0, sizeof(camera), &camera, &event));
     Check(block.FSetTemp(foreign->CbOnFile()));
     Check(foreign->FWrite(&block, kboOther));
-    decoded = SceneData::PggReadEvents(&block, &bo, false);
+    decoded = SceneArchiveFixture::ReadEvents(&block, &bo, false);
     Check(decoded != pvNil && bo == kboOther && decoded->IvMac() == 1);
     ReleasePpo(&decoded);
     ReleasePpo(&foreign);

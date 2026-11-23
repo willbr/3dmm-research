@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "scene_archive_fixture.h"
 #undef size
 ASSERTNAME
 void FrameMain(void)
@@ -99,7 +100,7 @@ struct Access : Scene
             SceneEvent event = {times[i], i == 1 || i == 3 || i == 5 ? sevtPlaySnd : sevtPause};
             Header sound = {100 - i * 5, i == 5 ? stySfx : styMidi, 0, 0};
             int32_t pause[2] = {i == 2 ? witUntilClick : witForTime, i + 1};
-            CHECK(InsertSceneTrackEvent(frames, frames->rows.count, event.sevt == sevtPlaySnd ? sizeof(sound) : sizeof(pause),
+            CHECK(SceneArchiveFixture::InsertTrackEvent(frames, frames->rows.count, event.sevt == sevtPlaySnd ? sizeof(sound) : sizeof(pause),
                                   event.sevt == sevtPlaySnd ? static_cast<void *>(&sound) : pause, event));
         }
     }

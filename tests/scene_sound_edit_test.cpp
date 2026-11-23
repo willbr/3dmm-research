@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "scene_archive_fixture.h"
 #include "scene_sound.h"
 #include "scene_sound_undo.h"
 #include "movie_archive_fixture.h"
@@ -123,7 +124,7 @@ struct Access : Scene
         Value(observed->references->count);
         for (int i = 0; i < group->rows.count; ++i)
         {
-            auto e = ReadSceneTrackEvent(group, i);
+            auto e = SceneArchiveFixture::ReadTrackEvent(group, i);
             Value(e.nfrm);
             Value(e.sevt);
             if (e.sevt != sevtPlaySnd)

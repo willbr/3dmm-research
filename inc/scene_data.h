@@ -27,12 +27,12 @@ enum WaitReason
 };
 enum SceneEventType
 {                   // StartEv	FrmEv	Param
-    sevtAddActr,    //    X		  		pactr/chid
-    sevtPlaySnd,    // 	  		  X		SceneSoundEvent (Scene Sound Event)
-    sevtAddTbox,    // 	  X				ptbox/chid
-    sevtChngCamera, // 			  X		icam
-    sevtSetBkgd,    // 	  X				Background Tag
-    sevtPause       // 			  X		type, duration
+    sevtAddActr = MM_SCENE_ADD_ACTOR,        // Start event: actor or child ID.
+    sevtPlaySnd = MM_SCENE_PLAY_SOUND,       // Frame event: sound packet.
+    sevtAddTbox = MM_SCENE_ADD_TEXT,         // Start event: text box or child ID.
+    sevtChngCamera = MM_SCENE_CHANGE_CAMERA, // Frame event: camera index.
+    sevtSetBkgd = MM_SCENE_SET_BACKGROUND,  // Start event: background tag.
+    sevtPause = MM_SCENE_PAUSE              // Frame event: type and duration.
 };
 
 //
@@ -50,11 +50,7 @@ struct SceneEvent
     int32_t nfrm;        // frame number of the event.
     SceneEventType sevt; // event type
 };
-static_assert(sizeof(SceneEvent) == 8, "SceneEvent on-disk layout drift");
-
-SceneEvent ReadSceneTrackEvent(const MMSceneTrack *track, MMI32 index);
-int InsertSceneTrackEvent(MMSceneTrack *track, MMI32 index, MMI32 bytes, const void *data, const SceneEvent &event);
-void SetSceneTrackEvent(MMSceneTrack *track, MMI32 index, const SceneEvent &event);
+static_assert(sizeof(SceneEvent) == MM_SCENE_EVENT_BYTES, "SceneEvent on-disk layout drift");
 
 const auto kbomSev = 0xF0000000;
 const auto kbomSceneLong = 0xC0000000;
@@ -70,26 +66,8 @@ struct SceneOnFile
     int32_t nfrmFirst;
     TRANS trans;
 };
-static_assert(sizeof(SceneOnFile) == 16, "SceneOnFile on-disk layout drift");
+static_assert(sizeof(SceneOnFile) == MM_SCENE_HEADER_BYTES, "SceneOnFile on-disk layout drift");
 
 const auto kbomScenh = 0x5FC00000;
 
-void GetSceneName(const MMMovieTitle &name, PString out);
-void SetSceneName(MMMovieTitle &name, PString value);
-
-// Native archive adapter for storing or inspecting a detached scene header.
-struct SceneData : MMSceneState
-{
-    SceneData() { mm_scene_init(this, sizeof(achar)); }
-    void GetName(PString out) const { GetSceneName(name, out); }
-    void SetName(PString value) { SetSceneName(name, value); }
-    bool FRead(PChunkyFile file, ChunkNumber number);
-    bool FWrite(PChunkyFile file, ChunkNumber number);
-    bool FCreate(PChunkyFile file, ChunkNumber *number);
-    static bool FReadTransition(MMResourceCache *, ChunkNumber, MMI32 *);
-    static bool FWriteTransition(MMResourceCache *, ChunkNumber, MMI32);
-    // Wire groups contain chunk IDs and fixed-width TAGs, never object pointers.
-    static PGeneralGroup PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents);
-    static bool FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts);
-};
 #endif

@@ -6,6 +6,7 @@
 #include <vector>
 #undef size
 #include "preview_admission_fixture.h"
+#include "scene_archive_fixture.h"
 ASSERTNAME
 struct MediaTrace : AdmissionTrace
 {
@@ -165,12 +166,12 @@ static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
     box.state.story = true;
     box.SetBounds(-8, -4, 24, 32);
     ChunkNumber number;
-    SceneData metadata;
+    auto metadata = SceneArchiveFixture::State();
     metadata.firstFrame = -3;
     metadata.lastFrame = 6;
     metadata.transition = transFadeToWhite;
     if (!text.FWrite(file, &rich) || !file->FAdd(0, kctgTbox, &number) || !box.FWrite(file, number) ||
-        !file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 0) || !metadata.FCreate(file, scene) ||
+        !file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 0) || !SceneArchiveFixture::Create(file, scene, metadata) ||
         !file->FAdoptChild(kctgScen, *scene, kctgTbox, number, 0))
         return false;
     if (kind == 10)
@@ -185,7 +186,7 @@ static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
     SceneEvent event = {-3, sevtAddTbox};
     MMU32 slot = 0;
     bool ok = starts && frames && starts->FInsert(0, sizeof(slot), &slot, &event) &&
-              SceneData::FWriteEvents(file, *scene, frames, starts);
+              SceneArchiveFixture::WriteEvents(file, *scene, frames, starts);
     ReleasePpo(&starts);
     ReleasePpo(&frames);
     return ok;

@@ -240,14 +240,8 @@ class Scene : public Scene_PAR
     // Edit functions
     //
     void SetMvie(PMovie pmvie); // Sets the associated movie.
-    void GetName(PString pstn)    // Gets name of current scene.
-    {
-        GetSceneName(_owner.data.name, pstn);
-    }
-    void SetNameCore(PString pstn) // Sets name of current scene.
-    {
-        SetSceneName(_owner.data.name, pstn);
-    }
+    void GetName(PString pstn);
+    void SetNameCore(PString pstn);
     bool FSetName(PString pstn); // Sets name of current scene, and undo
     bool FChopCore(void);     // Chops off the rest of the scene.
     bool FChop(void);         // Chops off the rest of the scene and undo

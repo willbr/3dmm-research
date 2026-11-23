@@ -1,6 +1,8 @@
 // Authored text-box playback diagnostic. New project code.
 #pragma once
 
+#include "scene_archive_fixture.h"
+
 namespace TextAcid
 {
 struct Box
@@ -114,14 +116,14 @@ bool Write(PChunkyFile file)
         return false;
     for (unsigned page = 0; page < (pages.size)(); ++page)
     {
-        SceneData scene;
+        auto scene = SceneArchiveFixture::State();
         scene.firstFrame = 1;
         scene.lastFrame = 60;
         scene.transition = transCut;
         ChunkNumber number;
         auto frames = GeneralGroup::PggNew(sizeof(SceneEvent));
         auto starts = GeneralGroup::PggNew(sizeof(SceneEvent));
-        bool ok = frames && starts && scene.FCreate(file, &number);
+        bool ok = frames && starts && SceneArchiveFixture::Create(file, &number, scene);
         TAGOnFile background = {2, 0, kctgBkgd, 0};
         SceneEvent event = {1, sevtSetBkgd};
         ok = ok && starts->FInsert(0, sizeof(background), &background, &event);
@@ -132,7 +134,7 @@ bool Write(PChunkyFile file)
             ok = WriteBox(file, pages[page][slot], &box) && file->FAdoptChild(kctgScen, number, kctgTbox, box, slot) &&
                  starts->FInsert(starts->IvMac(), sizeof(slot), &slot, &event);
         }
-        ok = ok && SceneData::FWriteEvents(file, number, frames, starts) &&
+        ok = ok && SceneArchiveFixture::WriteEvents(file, number, frames, starts) &&
              file->FAdoptChild(kctgMvie, root, kctgScen, number, page);
         ReleasePpo(&frames);
         ReleasePpo(&starts);

@@ -132,6 +132,10 @@ extern "C"
      * Payload groups passed to write are native endian, synchronous and borrowed. */
     int mm_scene_archive_write_events(const struct MMMovieArchiveEditor *, MMU32 scene, void *frames,
                                       void *starts, const MMSceneEventGroups *);
+    struct MMGroup;
+    /* Dense groups containing wire payloads in host order. */
+    int mm_scene_archive_write_groups(const struct MMMovieArchiveEditor *, MMU32 scene,
+                                      struct MMGroup *frames, struct MMGroup *starts);
     struct MMSceneTrack;
     int mm_scene_archive_write_tracks(const struct MMMovieArchiveEditor *, MMU32 scene,
                                       struct MMSceneTrack *frames, struct MMSceneTrack *starts);

@@ -1176,24 +1176,31 @@ int mm_scene_archive_write_events(const MMMovieArchiveEditor *editor, MMU32 scen
            write_event_pair(editor, scene, frames, starts, groups);
 }
 
-static MMU32 track_wire_size(void *track)
+static MMU32 wire_group_size(void *group)
 {
-    return mm_scene_track_wire_size(track);
+    return mm_scene_group_wire_size(group);
 }
 
-static int write_track(void *track, int system, const MMStorageWriter *writer)
+static int write_wire_group(void *group, int system, const MMStorageWriter *writer)
 {
-    return mm_scene_track_write(track, system, writer);
+    const unsigned short one = 1;
+    return mm_scene_group_write(group, system, *(const unsigned char *)&one == 0, writer);
+}
+
+int mm_scene_archive_write_groups(const MMMovieArchiveEditor *editor, MMU32 scene,
+                                  MMGroup *frames, MMGroup *starts)
+{
+    MMSceneEventGroups groups;
+    groups.groups = mm_scene_group_wire_services();
+    groups.wire_size = wire_group_size;
+    groups.write = write_wire_group;
+    return mm_scene_archive_write_events(editor, scene, frames, starts, &groups);
 }
 
 int mm_scene_archive_write_tracks(const MMMovieArchiveEditor *editor, MMU32 scene,
-                                   MMSceneTrack *frames, MMSceneTrack *starts)
+                                  MMSceneTrack *frames, MMSceneTrack *starts)
 {
-    MMSceneEventGroups groups;
-    groups.groups = mm_scene_track_wire_groups();
-    groups.wire_size = track_wire_size;
-    groups.write = write_track;
-    return mm_scene_archive_write_events(editor, scene, frames, starts, &groups);
+    return mm_scene_archive_write_groups(editor, scene, &frames->rows, &starts->rows);
 }
 
 typedef struct SceneEventBytes
