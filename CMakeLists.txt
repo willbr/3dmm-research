@@ -383,7 +383,6 @@ endif()
 add_executable(movie-save-load-test EXCLUDE_FROM_ALL)
 target_sources(movie-save-load-test PRIVATE
     "${PROJECT_SOURCE_DIR}/tests/movie_save_load_test.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tdf.cpp"
 )
 target_link_libraries(movie-save-load-test PRIVATE engine)
 if(WIN32 AND SOC_X86 AND AudioMan_FOUND)
@@ -1225,7 +1224,6 @@ target_sources(engine-core
     "${PROJECT_SOURCE_DIR}/src/engine/portfolio_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tagman.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/tdt.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/tmpl.cpp"
 )
 target_include_directories(engine-core PUBLIC

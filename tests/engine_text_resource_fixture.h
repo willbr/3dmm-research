@@ -3,12 +3,31 @@
 #include "engine_action_tables_fixture.h"
 #include "private_archive_host.h"
 #include "template_renderer.h"
+#include "text_template_fixture.h"
 static MMFontOwner *TextResourceNoFont(void *context,const MMTag *)
 { ++*static_cast<int *>(context); return nullptr; }
 struct TextResourceFixtureAccess
 {
     static PThreeDText Create() { return mm_template_owner_create(&EngineTemplate::Host(), 1); }
-    static bool Initialize(PThreeDText t, PChunkyResourceFile cache,ChunkNumber n) { return EngineText::Initialize(t, cache->CoreCache(), kctgTmpl, n, nullptr); }
+    static bool Initialize(PThreeDText t, PChunkyResourceFile cache, ChunkNumber n)
+    {
+        return mm_brender_text_initialize(t, cache->CoreCache(), kctgTmpl, n, nullptr) != 0;
+    }
+    static PDynamicArray Tags(PChunkyFile file, ChunkNumber number, bool *error)
+    {
+        MMTextResourceServices services = {};
+        mm_kauai_text_read_services(&services);
+        services.publish_error = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
+        services.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
+        services.release_tag_list = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
+        services.append_tag = [](void *, void *list, const MMTag *value) -> int {
+            TAG tag;
+            TagFromCore(&tag, *value);
+            return static_cast<PDynamicArray>(list)->FAdd(&tag);
+        };
+        const MMTextResourceSource source = {nullptr, file, file->ReadChunkAccess()};
+        return static_cast<PDynamicArray>(mm_text_tags(&source, kctgTmpl, number, error, &services));
+    }
     static bool Provider(PThreeDText t,void *context)
     { const auto provider = mm_template_owner_font(t); return provider->context == context && provider->fetch == TextResourceNoFont; }
     static MMActionResource *Seed(PThreeDText t)
@@ -47,11 +66,13 @@ static bool TextDraftMatchesNative(const TAG &font)
     name.SetSzs(PszLit("Saved 3D text"));
     auto native = ChunkyFile::PcflCreateTemp();
     auto draft = ChunkyFile::PcflCreateTemp();
-    TAG liveFont = font;
-    auto object = EngineText::PtdtNew(&name, 9, &liveFont);
+    auto object = NewFixtureText(&name, 9, font);
+    const MMStringValue title = {name.Pst(), sizeof(achar)};
+    const MMTextDescriptor descriptor = {9, TextFontTag(font)};
+    const auto draftWriter = draft ? draft->WriteIndex() : MMArchiveWriter{};
     ChunkNumber a = 0, b = 0;
-    bool ok = native && draft && object && EngineText::FWrite(object, native, kctgTmpl, &a) &&
-              EngineText::FWriteDraft(draft, &name, 9, font, &b) && a == b &&
+    bool ok = native && draft && object && WriteFixtureText(object, native->WriteOwnerIndex(), &a) &&
+              mm_text_write_draft(&title, &descriptor, &b, &draftWriter) && a == b &&
               native->FSave(kctgSoc) && draft->FSave(kctgSoc);
     if (ok)
     {
@@ -91,6 +112,7 @@ static bool TestTextResources()
     auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr;
     bool ok=cache!=nullptr; int attempts=0,successful=0;
     TAG oldTag={ksidUseCrf,cache->CoreCache(),kctgTdf,17},newTag={123,reinterpret_cast<MMResourceCache *>(0x1357),kctgTdf,29};
+    const MMTag newFont = TextFontTag(newTag);
     ok = ok && TextDraftMatchesNative(newTag);
     for (int text=0;ok && text<2;++text) for (int shape=0;ok && shape<2;++shape) for (int operation=0;ok && operation<3;++operation)
     for (int mask=0;ok && mask<(operation==1?8:1);++mask) for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<12;++failure)
@@ -99,12 +121,25 @@ static bool TestTextResources()
         const LegacyLong base=vdmglob.dmaglBase.cv,hq=vdmglob.dmaglHq.cv,pv=vdmglob.dmaglPv.cv;
 #endif
         String source,changed; source.SetSzs(text?"Old\xe9":""); changed.SetSzs(text?"":"New"); int calls=0;
-        auto t=operation?EngineText::PtdtNew(&source,shape?9:0,&oldTag):nullptr; PThreeDText copy=nullptr; MMActionResource *held=nullptr;
-        if (t) { EngineText::SetFontResolver(t, &calls,TextResourceNoFont); held=TextResourceFixtureAccess::Seed(t); ok=held!=nullptr; }
+        auto t = operation ? NewFixtureText(&source, shape ? 9 : 0, oldTag) : nullptr;
+        PThreeDText copy = nullptr;
+        MMActionResource *held = nullptr;
+        if (t)
+        {
+            const MMTemplateFontProvider provider = {&calls, TextResourceNoFont};
+            mm_template_owner_bind_font(t, &provider, 1);
+            held = TextResourceFixtureAccess::Seed(t);
+            ok = held != nullptr;
+        }
         inject(kind,failure,true); bool success=false;
-        if (!operation) { t=EngineText::PtdtNew(&source,shape?9:0,&newTag); success=t!=nullptr; }
-        else if (operation==1) success=EngineText::FChange(t, mask&1?&changed:nullptr,mask&2?(shape?0:9):tdtsNil,mask&4?&newTag:nullptr);
-        else { copy=EngineText::PtdtDup(t); success=copy!=nullptr; }
+        if (!operation) { t = NewFixtureText(&source, shape ? 9 : 0, newTag); success = t != nullptr; }
+        else if (operation == 1)
+        {
+            const MMStringValue name = {changed.Pst(), sizeof(achar)};
+            success = mm_brender_text_change(t, mask & 1 ? &name : nullptr, mask & 2 ? (shape ? 0 : 9) : tdtsNil,
+                                             mask & 4 ? &newFont : nullptr) != 0;
+        }
+        else { copy = mm_brender_text_duplicate(t); success = copy != nullptr; }
         inject(kind,failure,false); ++attempts; successful+=success;
         bool provider=copy && TextResourceFixtureAccess::Provider(copy,&calls);
         if (provider) { LegacyLong cels; ok=!EngineTemplate::FGetCcelActn(copy, tdaRest,&cels) && calls==1 && ok; }
@@ -123,8 +158,9 @@ static bool TestTextResources()
         const LegacyLong base=vdmglob.dmaglBase.cv,hq=vdmglob.dmaglHq.cv,pv=vdmglob.dmaglPv.cv;
 #endif
         auto target=ChunkyFile::PcflCreateTemp(); auto crf=target?ChunkyResourceFile::PcrfNew(target,1024*1024):nullptr;
-        String name; name.SetSzs(PszLit("wire")); auto authored=EngineText::PtdtNew(&name,6,&newTag); ChunkNumber number=0;
-        ok=crf && authored && EngineText::FWrite(authored, target, kctgTmpl, &number); mm_template_owner_release(authored);
+        String name; name.SetSzs(PszLit("wire")); auto authored = NewFixtureText(&name, 6, newTag); ChunkNumber number=0;
+        ok = crf && authored && WriteFixtureText(authored, target->WriteOwnerIndex(), &number);
+        mm_template_owner_release(authored);
         ChildChunkIdentification child; DataBlock block;
         ok=ok && target->FGetKidChidCtg(kctgTmpl,number,0,kctgTdt,&child) && target->FFind(child.cki.ctg,child.cki.cno,&block);
         std::vector<byte> wire(variant==5?536:24); ok=ok && block.FReadRgb(wire.data(),24,0); block.Free();
@@ -139,7 +175,7 @@ static bool TestTextResources()
         inject(kind,failure,true);
         if (!stage) success=TextResourceFixtureAccess::Initialize(t, crf, number);
         else if (stage==1) { void *out=nullptr; success=EngineTemplate::Read(crf->CoreCache(),kctgTmpl,number,block.CoreBlock(),&out,&estimate); if (success) t=static_cast<PThreeDText>(out); }
-        else { tags=EngineText::PgltagFetch(target,kctgTmpl,number,&error); success=!error; }
+        else { tags = TextResourceFixtureAccess::Tags(target, number, &error); success = !error; }
         inject(kind,failure,false); ++attempts; successful+=success;
         LegacyLong fields[]={variant,stage,kind,failure,success,error,estimate,t!=nullptr,tags?tags->IvMac():-1};
         ok=record(fields,sizeof(fields)) && TextResourceFixtureAccess::Record(t,snapshot,cache) && ok;
@@ -155,8 +191,8 @@ static bool TestTextResources()
 #ifdef DEBUG
         const LegacyLong base=vdmglob.dmaglBase.cv,hq=vdmglob.dmaglHq.cv,pv=vdmglob.dmaglPv.cv;
 #endif
-        String name; name.SetSzs(text?"Saved":""); auto t=EngineText::PtdtNew(&name,9,&newTag); auto target=ChunkyFile::PcflCreateTemp(); ChunkNumber number=0x13579;
-        ok=t && target && ok; inject(kind,failure,true); bool success=EngineText::FWrite(t, target,kctgTmpl,&number); inject(kind,failure,false); ++attempts; successful+=success;
+        String name; name.SetSzs(text?"Saved":""); auto t = NewFixtureText(&name, 9, newTag); auto target=ChunkyFile::PcflCreateTemp(); ChunkNumber number=0x13579;
+        ok=t && target && ok; inject(kind,failure,true); bool success = WriteFixtureText(t, target->WriteOwnerIndex(), &number); inject(kind,failure,false); ++attempts; successful+=success;
         LegacyLong fields[]={text,kind,failure,success,static_cast<LegacyLong>(number),target->CckiCtg(kctgTmpl),target->CckiCtg(kctgTdt)}; ok=record(fields,sizeof(fields)) && ok;
         for (auto type:{kctgTmpl,kctgTdt}) for (int i=0;ok && i<target->CckiCtg(type);++i)
         {
@@ -172,7 +208,7 @@ static bool TestTextResources()
 #endif
         if (!ok) std::fprintf(stderr,"Text writing failed: %d %d %d\n",text,kind,failure);
     }
-    String text; auto t=EngineText::PtdtNew(&text,0,&oldTag); text.SetSzs(PszLit("dirty"));
+    String text; auto t = NewFixtureText(&text, 0, oldTag); text.SetSzs(PszLit("dirty"));
     ok=t && !EngineTemplate::FGetActnName(t, 0,&text) && !text.Cch() && ok;
     auto names=StringTable_GST::PgstNew(4); LegacyLong ids[]={7,0,7}; const char *labels[]={"Pulse","Rest","Later duplicate"};
     for (int i=0;ok && i<3;++i) { text.SetSzs(const_cast<char *>(labels[i])); ok=names && names->FAddStn(&text,&ids[i]); }

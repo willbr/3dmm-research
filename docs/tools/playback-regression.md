@@ -24458,3 +24458,38 @@ observations per port. Its authored frame order and settled canvas matched
 retail and V3DMM.
 
 Evidence is under `tmp/c89-material-owner-bindings`.
+
+## C89 3D text preview and font authoring (23 November 2026)
+
+Studio stages the edited 3D text template and posed body in the shared C89
+BRender binding. The preview keeps its body identity and visibility through
+an edit. The font authoring tool passes typed glyph children to the shared
+archive writer. The C++ text and font modules are out of the engine build.
+
+The native fixture makes the font provider fail during an edit, checks the
+original template and body, then retries successfully with the same edit.
+The 279,277-byte text resource, 4,392,481-byte text generation, 210,880-byte
+font authoring, and both native movie traces matched byte for byte. Studio
+authored and reopened the same 27,056-byte movie. The historical `tdfmake`
+source passed the native syntax check.
+
+The 227 native suite checks, 17 SDL checks and three x86 worker fixtures
+passed. The native suite includes the strict C89 syntax checks. All ten
+Preview fingerprints, eight native scene traces and both SDL movie traces matched.
+Marcus relaunched headlessly with the same startup image. The existing
+`scene-load` debug assertion repeated with the 63,224-byte trace and
+fingerprint `0D666753`.
+
+Candidate `20261123T141117Z-0d68cc31` completed both headless port seeks on
+the copied 3D text save. Its archive SHA-256 and both seek canvases matched
+the retained retail and V3DMM observations.
+
+Candidate `20261123T141117Z-773c8b54` completed eight headless port runs.
+Actor Audio matched all 60 previous seek canvases per port. Both ports
+matched the retail and V3DMM frame order and camera indices, with the same
+seek canvas difference at scene 0, frame 4. Studio matched all 240 actor
+snapshots at the recorded precision. The dissolve case matched all 60
+previous seek canvases and 59 steady playback observations per port. The
+settled dissolve canvas matched retail and V3DMM.
+
+Evidence is under `tmp/c89-text-preview-owner`.

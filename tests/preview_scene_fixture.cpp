@@ -13,6 +13,7 @@
 #include "movie_state_fixture.h"
 #include "actor_track_fixture.h"
 #include "rich_text_data.h"
+#include "text_template_fixture.h"
 ASSERTNAME
 void WarnProc(schar *, LegacyLong, schar *)
 {
@@ -371,9 +372,9 @@ int main(int argc, char **argv)
             String text;
             text.SetSzs(PszLit("3D"));
             TAG font = {source, pvNil, kctgTdf, 0};
-            auto templateText = EngineText::PtdtNew(&text, tdtsNormal, &font);
+            auto templateText = NewFixtureText(&text, tdtsNormal, font);
             ChunkNumber templateNumber;
-            const bool written = templateText && EngineText::FWrite(templateText, file, kctgTmpl, &templateNumber);
+            const bool written = templateText && WriteFixtureText(templateText, file->WriteOwnerIndex(), &templateNumber);
             mm_template_owner_release(templateText);
             if (!written)
             {

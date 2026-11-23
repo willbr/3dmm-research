@@ -41,6 +41,11 @@ void mm_brender_text_action_names_clear(void);
 
 struct MMBodyOwner;
 struct MMMaterialOwner;
+/* Edit a preview on copies. Failure leaves the template reference and live
+ * body intact. Success replaces the owned template and keeps the live body's
+ * identity and visibility while installing the new shape and pose. */
+int mm_brender_text_edit_preview(MMTemplateOwner **, struct MMBodyOwner *, const MMStringValue *, MMI32 shape,
+                                 const MMTag *, MMI32 action, MMI32 cel);
 struct MMBodyOwner *mm_brender_template_body(MMTemplateOwner *);
 int mm_brender_template_default_costume(MMTemplateOwner *, struct MMBodyOwner *);
 struct MMMaterialOwner *mm_brender_template_costume(MMTemplateOwner *, MMI32 id);

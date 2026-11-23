@@ -111,10 +111,11 @@ static bool TestMovieContentCore()
             if (auto actor = movie->Pscen()->PactrSelected())
             {
                 String text;
-                LegacyLong shape;
+                const auto descriptor = mm_template_owner_descriptor(actor->Ptmpl());
                 TAG font;
-                EngineText::GetInfo(static_cast<PThreeDText>(actor->Ptmpl()), &text, &shape, &font);
-                LegacyLong row[] = {shape,
+                text.SetSt(static_cast<PPascalString>(mm_template_owner_name(actor->Ptmpl()).buffer));
+                TagFromCore(&font, descriptor->font);
+                LegacyLong row[] = {descriptor->shape,
                                     font.sid,
                                     LegacyLong(font.ctg),
                                     LegacyLong(font.cno),

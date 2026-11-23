@@ -12,7 +12,6 @@
 #include "mtrl.h"
 #include "body.h"
 #include "tmpl.h"
-#include "tdf.h"
 #include "tdt.h"
 #include "movie_data.h"
 #include "scene_data.h"

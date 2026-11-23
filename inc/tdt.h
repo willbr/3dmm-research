@@ -14,6 +14,7 @@
 #ifndef ThreeDText_H
 #define ThreeDText_H
 #include "mm/text_resource.h"
+#include <cstring>
 
 // 3-D Text Shapes - the positions and orientations of the letters
 enum
@@ -57,26 +58,15 @@ enum
 
 using PThreeDText = MMTemplateOwner *;
 
-namespace EngineText
-{
-MMTextGenerationServices GenerationServices();
-bool Initialize(PThreeDText, MMResourceCache *, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
-void SetFontResolver(PThreeDText, void *context, MMFontOwner *(*)(void *, const MMTag *));
-MMActionResource *FetchAction(PThreeDText, LegacyLong);
-PModel FetchModel(PThreeDText, ChildChunkID);
-bool ActionName(PThreeDText, LegacyLong, PString);
+static_assert(int(tdtsLim) == int(MM_TEXT_SHAPE_COUNT) && int(tdaLim) == int(MM_TEXT_ACTION_COUNT) &&
+              tdtsCircleZ == 6 && tdaWalk == 13 && tdaStretch == 15, "text enums");
 
-PThreeDText PtdtNew(PString, LegacyLong shape, PTAG font);
-PThreeDText PtdtNew(PString, LegacyLong shape, PTAG font, const MMTemplateFontProvider &);
-PDynamicArray PgltagFetch(PChunkyFile, ChunkTagOrType, ChunkNumber, bool *error);
-PThreeDText PtdtDup(PThreeDText);
-void GetInfo(PThreeDText, PString, LegacyLong *shape, PTAG font);
-bool FChange(PThreeDText, PString, LegacyLong shape = tdtsNil, PTAG font = pvNil);
-bool FWrite(PThreeDText, PChunkyFile, ChunkTagOrType, ChunkNumber *);
-bool FWrite(PThreeDText, const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *);
-bool FWriteDraft(PChunkyFile, PString, LegacyLong shape, const TAG &font, ChunkNumber *);
-bool FAdjustBody(PThreeDText, PBody);
-bool FSetDefaultCost(PThreeDText, PBody);
+// A 3D text descriptor keeps all borrowed tag fields, including the cache slot.
+inline MMTag TextFontTag(const TAG &tag)
+{
+    MMTag value = {tag.sid, nullptr, tag.ctg, tag.cno};
+    std::memcpy(&value.cache, &tag.cache, sizeof(value.cache));
+    return value;
 }
 
 #endif

@@ -341,6 +341,33 @@ int mm_brender_text_adjust_body(MMTemplateOwner *owner, MMBodyOwner *body)
     return mm_text_adjust_body(owner, body, &services);
 }
 
+int mm_brender_text_edit_preview(MMTemplateOwner **owner, MMBodyOwner *body, const MMStringValue *name,
+                                 MMI32 shape, const MMTag *font, MMI32 action, MMI32 cel)
+{
+    const MMBodyEditServices *services = &mm_kauai_body_renderer()->edit;
+    MMTemplateOwner *replacement;
+    MMBodyOwner *copy = NULL;
+    if (!mm_template_owner_is_text(*owner))
+        return 0;
+    replacement = mm_brender_text_duplicate(*owner);
+    if (!replacement)
+        return 0;
+    copy = mm_body_duplicate(body, services);
+    if (!copy || !mm_brender_text_change(replacement, name, shape, font) ||
+        !mm_brender_text_adjust_body(replacement, copy) ||
+        !mm_brender_template_set_cel(replacement, copy, action, cel, NULL))
+    {
+        mm_template_owner_release(replacement);
+        mm_body_owner_release(copy);
+        return 0;
+    }
+    mm_template_owner_release(*owner);
+    *owner = replacement;
+    mm_body_restore(body, copy, services);
+    mm_body_owner_release(copy);
+    return 1;
+}
+
 MMMaterialOwner *mm_brender_template_costume(MMTemplateOwner *owner, MMI32 id)
 {
     mm_kauai_template_validate(owner);

@@ -707,34 +707,15 @@ bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
     AssertNilOrPo(pstn, 0);
     AssertNilOrVarMem(ptagTdf);
 
-    PThreeDText ptdtNew = pvNil;
-    PBody pbodyNew = pvNil;
+    const MMStringValue name = {pstn ? pstn->Pst() : nullptr, sizeof(achar)};
+    const MMTag font = ptagTdf ? TextFontTag(*ptagTdf) : MMTag{};
+    if (!mm_brender_text_edit_preview(&_ptmpl, _pbody, pstn ? &name : nullptr, tdts,
+                                      ptagTdf ? &font : nullptr, _anid, _celn))
+        return fFalse;
 
-    ptdtNew = EngineText::PtdtDup(((PThreeDText)_ptmpl));
-    if (pvNil == ptdtNew)
-        goto LFail;
-    pbodyNew = EngineBody::Duplicate(_pbody);
-    if (pvNil == pbodyNew)
-        goto LFail;
-
-    if (!EngineText::FChange(ptdtNew, pstn, tdts, ptagTdf))
-        goto LFail;
-    if (!EngineText::FAdjustBody(ptdtNew, pbodyNew))
-        goto LFail;
-    if (!EngineTemplate::FSetActnCel(ptdtNew, pbodyNew, _anid, _celn))
-        goto LFail;
-
-    mm_template_owner_release(_ptmpl);
-    _ptmpl = ptdtNew;
-    EngineBody::Restore(_pbody, pbodyNew);
-    mm_body_owner_release(pbodyNew);
     _SetScale();
     _UpdateView();
     return fTrue;
-LFail:
-    mm_template_owner_release(ptdtNew);
-    mm_body_owner_release(pbodyNew);
-    return fFalse;
 }
 
 /***************************************************************************
@@ -801,7 +782,13 @@ void ActorPreviewEntity::GetTdtInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTd
     AssertNilOrVarMem(ptdts);
     AssertNilOrVarMem(ptagTdf);
 
-    EngineText::GetInfo(((PThreeDText)_ptmpl), pstn, ptdts, ptagTdf);
+    const auto descriptor = mm_template_owner_descriptor(_ptmpl);
+    if (pstn)
+        pstn->SetSt(static_cast<PPascalString>(mm_template_owner_name(_ptmpl).buffer));
+    if (ptdts)
+        *ptdts = descriptor->shape;
+    if (ptagTdf)
+        TagFromCore(ptagTdf, descriptor->font);
 }
 
 /***************************************************************************

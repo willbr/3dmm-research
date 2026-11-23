@@ -123,17 +123,17 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     ChildChunkID chidMax = 0;
     PModel pmodl = nullptr;
     ChunkNumber cnoModl;
-    PChunkyResourceFile pcrf;
+    PChunkyResourceFile pcrf = nullptr;
     PZString psz;
     long cch;
     long lw;
     PDynamicArray pglkid;
-    ChildChunkIdentification kid;
+    MMChunkChild kid;
     bool fFoundSpace = fFalse;  // 0x20
     bool fFoundSpace2 = fFalse; // 0xa0
     long cmodl = 0;
 
-    pglkid = DynamicArray::PglNew(size(ChildChunkIdentification));
+    pglkid = DynamicArray::PglNew(sizeof(MMChunkChild));
     if (pglkid == pvNil)
         goto LFail;
     pcrf = ChunkyResourceFile::PcrfNew(pcflDst, 0);
@@ -175,7 +175,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
         fni.GetStnPath(&path);
         pmodl = mm_model_dat(path.Psz(), mm_kauai_model_host());
         if (pvNil == pmodl)
-            return fFalse;
+            goto LFail;
         mm_model_owner_adjust_glyph(pmodl);
         if (!WriteGlyphModel(pcflDst, pmodl, &cnoModl))
             goto LFail;
@@ -183,9 +183,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
         pmodl = nullptr;
         if (!pcflDst->FPackData(kctgBmdl, cnoModl))
             goto LFail;
-        kid.chid = chid;
-        kid.cki.ctg = kctgBmdl;
-        kid.cki.cno = cnoModl;
+        kid = {kctgBmdl, cnoModl, chid};
         if (!pglkid->FAdd(&kid))
             goto LFail;
         cmodl++;
@@ -197,14 +195,12 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     {
         pmodl = mm_model_new(0, nullptr, 0, nullptr, mm_kauai_model_host());
         if (pvNil == pmodl)
-            return fFalse;
+            goto LFail;
         if (!WriteGlyphModel(pcflDst, pmodl, &cnoModl))
             goto LFail;
         mm_model_owner_release(pmodl);
         pmodl = nullptr;
-        kid.chid = (ChildChunkID)ChLit(' ');
-        kid.cki.ctg = kctgBmdl;
-        kid.cki.cno = cnoModl;
+        kid = {kctgBmdl, cnoModl, (ChildChunkID)ChLit(' ')};
         if (!pglkid->FAdd(&kid))
             goto LFail;
         fprintf(stderr, "Added a space character\n");
@@ -214,20 +210,23 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     {
         pmodl = mm_model_new(0, nullptr, 0, nullptr, mm_kauai_model_host());
         if (pvNil == pmodl)
-            return fFalse;
+            goto LFail;
         if (!WriteGlyphModel(pcflDst, pmodl, &cnoModl))
             goto LFail;
         mm_model_owner_release(pmodl);
         pmodl = nullptr;
-        kid.chid = 0xa0;
-        kid.cki.ctg = kctgBmdl;
-        kid.cki.cno = cnoModl;
+        kid = {kctgBmdl, cnoModl, 0xa0};
         if (!pglkid->FAdd(&kid))
             goto LFail;
         fprintf(stderr, "Added a nonbreaking space character\n");
     }
-    if (!EngineFont::Author(pcrf, pglkid))
-        goto LFail;
+    {
+        const auto children = static_cast<const MMChunkChild *>(pglkid->PvLock(0));
+        const bool written = mm_brender_font_author(pcrf->CoreCache(), children, pglkid->IvMac(), nullptr) != 0;
+        pglkid->Unlock();
+        if (!written)
+            goto LFail;
+    }
 
     ReleasePpo(&pcrf);
     ReleasePpo(&pglkid);

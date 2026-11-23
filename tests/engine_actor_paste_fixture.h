@@ -1,5 +1,6 @@
 #ifndef ENGINE_ACTOR_PASTE_FIXTURE_H
 #define ENGINE_ACTOR_PASTE_FIXTURE_H
+#include "text_template_fixture.h"
 static bool TestActorPaste(PMovie parent)
 {
     FILE *snapshot=nullptr;
@@ -34,8 +35,9 @@ static bool TestActorPaste(PMovie parent)
         if (ok && (mode&16))
         {
             String text; text.SetSzs(PszLit("Paste")); TAG font={1,nullptr,kctgTdf,0};
-            auto tdt=EngineText::PtdtNew(&text,tdtsNormal,&font);
-            ok=tdt && EngineText::FWrite(tdt, mm_resource_cache_writer(source), kctgTmpl, &templateNumber); mm_template_owner_release(tdt);
+            auto tdt=NewFixtureText(&text,tdtsNormal,font);
+            ok=tdt && WriteFixtureText(tdt,mm_resource_cache_writer(source),&templateNumber);
+            mm_template_owner_release(tdt);
             if (ok) { textTemplate=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(
                 source, kctgTmpl, templateNumber, EngineTemplate::Read, mm_template_owner_services())); ok=textTemplate!=nullptr; }
         }

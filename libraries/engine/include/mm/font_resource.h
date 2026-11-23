@@ -27,8 +27,6 @@ typedef struct MMFontResourceServices
     void (*invalidate)(void *,void *out,size_t);
     void (*bad_font)(void *);
     void (*bad_order)(void *);
-    MMI32 (*child_count)(void *,void *children);
-    void (*child_at)(void *,void *children,MMI32,MMChunkChild *);
     MMResourceBlockReader model_reader;
     const MMResourceObjectServices *model_objects;
     MMI32 (*model_width)(void *,void *model);
@@ -73,7 +71,8 @@ void *mm_font_owner_model(const MMFontOwner *, MMU32 id, const MMFontResourceSer
  * last 'i' entry. Failure releases the currently fetched model (native leaked
  * it on adoption failure), frees arrays, then invalidates the optional 8-byte
  * chunk output. Success publishes output after freeing both arrays. */
-int mm_font_author(MMResourceCache *,const MMChunkEdit *,void *children,void *chunk_out,const MMFontResourceServices *);
+int mm_font_author(MMResourceCache *, const MMChunkEdit *, const MMChunkChild *glyphs, MMI32 count,
+                   MMFontChunk *chunk_out, const MMFontResourceServices *);
 /* Child lookup deliberately does not filter chunk type. */
 void *mm_font_model(const MMResourceObject *,MMU32 id,const MMFontResourceServices *);
 #ifdef __cplusplus

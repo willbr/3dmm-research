@@ -39,7 +39,7 @@ PTagManager vptagm;
 
 ASSERTNAME
 
-static const MMTemplateFontProvider &StudioFontProvider()
+const MMTemplateFontProvider &TagManager::TextFontProvider()
 {
     static const MMTemplateFontProvider provider = {
         nullptr,
@@ -54,11 +54,6 @@ static const MMTemplateFontProvider &StudioFontProvider()
     return provider;
 }
 
-PThreeDText EngineText::PtdtNew(PString text, LegacyLong shape, PTAG font)
-{
-    return PtdtNew(text, shape, font, StudioFontProvider());
-}
-
 PTemplate EngineTemplate::Fetch(PTAG tag)
 {
     AssertVarMem(tag);
@@ -68,7 +63,7 @@ PTemplate EngineTemplate::Fetch(PTAG tag)
 PTemplate EngineTemplate::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number, bool *error)
 {
     auto owner = Fetch(file->CoreCache(), type, number, error);
-    mm_template_owner_bind_font(owner, &StudioFontProvider(), 0);
+    mm_template_owner_bind_font(owner, &TagManager::TextFontProvider(), 0);
     return owner;
 }
 
@@ -781,7 +776,7 @@ PTemplate TagManager::FetchTemplate(const MMTag &value, const TAG *asset)
     }
     NativeTagHost host = {this, nullptr, asset};
     const auto services = _Services(&host);
-    return mm_brender_template_fetch_tag(&value, &services, &StudioFontProvider());
+    return mm_brender_template_fetch_tag(&value, &services, &TextFontProvider());
 }
 MMBackgroundOwner *TagManager::FetchBackground(const MMTag &value, const TAG *asset)
 {

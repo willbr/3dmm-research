@@ -29,6 +29,7 @@ void mm_brender_asset_font_bind(MMFontResourceServices *);
 int mm_brender_font_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 MMFontOwner *mm_brender_font_fetch(MMResourceCache *, MMU32 type, MMU32 number);
 MMModelOwner *mm_brender_font_glyph(const MMFontOwner *, MMU32 id);
+int mm_brender_font_author(MMResourceCache *, const MMChunkChild *glyphs, MMI32 count, MMFontChunk *);
 
 int mm_brender_model_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 MMModelOwner *mm_brender_model_fetch(MMResourceCache *, MMU32 type, MMU32 number);

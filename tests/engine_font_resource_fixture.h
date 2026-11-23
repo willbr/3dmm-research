@@ -94,16 +94,24 @@ static bool TestFontResources()
         const LegacyLong base=vdmglob.dmaglBase.cv,hq=vdmglob.dmaglHq.cv,pv=vdmglob.dmaglPv.cv;
 #endif
         auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr;
-        auto kids=DynamicArray::PglNew(sizeof(ChildChunkIdentification)); ChunkNumber models[2]={};
+        MMChunkChild kids[3];
+        MMI32 count = 0;
+        ChunkNumber models[2] = {};
         const auto writer = file ? file->WriteOwnerIndex() : MMArchiveWriter{};
-        ok = cache && kids && file->FAdd(0, kctgBmdl, &models[0]) && mm_model_owner_write(space, &writer, kctgBmdl, models[0]) &&
+        ok = cache && file->FAdd(0, kctgBmdl, &models[0]) && mm_model_owner_write(space, &writer, kctgBmdl, models[0]) &&
              file->FAdd(0, kctgBmdl, &models[1]) && mm_model_owner_write(letter, &writer, kctgBmdl, models[1]);
-        if (shape) { ChildChunkIdentification child={{kctgBmdl,models[0]},32}; ok=kids->FAdd(&child) && ok;
-            if (shape==1) { child={{kctgBmdl,models[1]},105}; ok=kids->FAdd(&child) && ok; }
-            child={{kctgBmdl,variant?models[1]+1000:models[1]},65}; ok=kids->FAdd(&child) && ok; }
-        ChunkIdentification created={};
-        inject(kind,failure,true); bool written=EngineFont::Author(cache,kids,&created); inject(kind,failure,false); ++attempts; if (written) ++authored;
-        LegacyLong values[]={shape,variant,kind,failure,written,static_cast<LegacyLong>(created.ctg),static_cast<LegacyLong>(created.cno),file->CckiCtg(kctgTdf),file->CckiRef(kctgBmdl,models[0]),file->CckiRef(kctgBmdl,models[1])};
+        if (shape)
+        {
+            kids[count++] = {kctgBmdl, models[0], 32};
+            if (shape == 1)
+                kids[count++] = {kctgBmdl, models[1], 105};
+            kids[count++] = {kctgBmdl, variant ? models[1] + 1000 : models[1], 65};
+        }
+        MMFontChunk created = {};
+        inject(kind,failure,true);
+        bool written = mm_brender_font_author(cache->CoreCache(), kids, count, &created) != 0;
+        inject(kind,failure,false); ++attempts; if (written) ++authored;
+        LegacyLong values[]={shape,variant,kind,failure,written,static_cast<LegacyLong>(created.type),static_cast<LegacyLong>(created.number),file->CckiCtg(kctgTdf),file->CckiRef(kctgBmdl,models[0]),file->CckiRef(kctgBmdl,models[1])};
         ok=record(values,sizeof(values)) && ok;
         for (int i=0;ok && i<file->CckiCtg(kctgTdf);++i)
         {
@@ -132,7 +140,7 @@ static bool TestFontResources()
         }
         // The C author releases its fetched model even if adoption fails.
         for (auto number:models) { auto model=mm_brender_model_fetch(cache->CoreCache(), kctgBmdl, number); ok=model && mm_model_owner_references(model)==1 && ok; mm_model_owner_release(model); }
-        ReleasePpo(&kids); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
+        ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv;
 #endif

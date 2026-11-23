@@ -235,10 +235,10 @@ void *mm_font_owner_model(const MMFontOwner *owner, MMU32 id, const MMFontResour
     return mm_font_model(&owner->binding, id, services);
 }
 
-int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *children, void *out,
-                   const MMFontResourceServices *s)
+int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, const MMChunkChild *glyphs, MMI32 count,
+                   MMFontChunk *out, const MMFontResourceServices *s)
 {
-    MMI32 count,i,letter=-1,n,width,height,maximum=0;
+    MMI32 i,letter=-1,n,width,height,maximum=0;
     MMU32 largest=0,number=0,bytes=0;
     void *widths=NULL,*heights=NULL,*model=NULL;
     MMChunkChild child,replacement;
@@ -247,12 +247,11 @@ int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *childr
     MMBlockIO io;
     unsigned char header[12]; int big=s->host_big_endian;
     int ok = 0, initialized = mm_owned_block_init(&block, cache->services.handles, cache->services.block_files) == MM_DATA_OK;
-    if (!cache->file || !initialized)
+    if (!cache->file || !initialized || count < 0 || (count && !glyphs))
         goto done;
-    count=s->child_count(s->context,children);
     for (i=0;i<count;++i)
     {
-        s->child_at(s->context,children,i,&child); if (child.slot>largest) largest=child.slot;
+        child=glyphs[i]; if (child.slot>largest) largest=child.slot;
         if (child.slot==105) letter=i;
     }
     if (largest>=0x0ffffffeUL) goto done;
@@ -263,7 +262,7 @@ int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *childr
         goto done;
     for (i=0;i<count;++i)
     {
-        s->child_at(s->context,children,i,&child);
+        child=glyphs[i];
         model = mm_resource_cache_fetch_owned_chunk(cache, child.type, child.number, s->model_reader,
                                                      s->model_objects);
         if (!model) goto done;
@@ -271,7 +270,7 @@ int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *childr
         if (!s->model_width(s->context,model) && child.slot==32 && letter!=-1)
         {
             s->release(s->context,model); model=NULL;
-            s->child_at(s->context,children,letter,&replacement);
+            replacement=glyphs[letter];
             model = mm_resource_cache_fetch_owned_chunk(cache, replacement.type, replacement.number, s->model_reader,
                                                          s->model_objects);
             if (!model) goto done;
@@ -296,7 +295,7 @@ done:
         {
             chunk.type = MM_FONT_TYPE;
             chunk.number = number;
-            memcpy(out, &chunk, sizeof(chunk));
+            *out = chunk;
         }
         else
             s->invalidate(s->context, out, sizeof(chunk));

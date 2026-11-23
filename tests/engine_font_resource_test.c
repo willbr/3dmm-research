@@ -110,8 +110,6 @@ static void free_memory(void *p,void *bytes,MMU32 size)
 static void invalidate(void *p,void *out,size_t n) { ++t(p)->invalidations; memset(out,0xab,n); }
 static void bad_font(void *p) { ++t(p)->bad; }
 static void bad_order(void *p) { ++t(p)->order_bad; }
-static MMI32 child_count(void *p,void *children) { assert(p==children); return t(p)->children; }
-static void child_at(void *p,void *children,MMI32 i,MMChunkChild *out) { assert(p==children && i>=0 && i<t(p)->children); *out=t(p)->kids[i]; }
 static MMU32 index_count(void *p) { return 3 + (MMU32)t(p)->added; }
 static int index_entry(void *p,MMU32 i,MMChunkEntry *out)
 {
@@ -297,7 +295,7 @@ static MMFontResourceServices setup(Test *x,int host,int other)
     s.context=x; s.host_big_endian=host; s.system=17; s.leading=32768; s.object_bytes=80;
     s.state=state; s.create=create; s.release=release; s.decode=decode;
     s.allocator=&x->allocator; s.invalidate=invalidate; s.bad_font=bad_font; s.bad_order=bad_order;
-    s.child_count=child_count; s.child_at=child_at; s.model_reader=read_model;
+    s.model_reader=read_model;
     s.model_width=model_width; s.model_height=model_height; s.missing_model=missing_model;
     x->services=s; return s;
 }
@@ -385,7 +383,7 @@ int main(void)
     assert(mm_font_initialize(&x.font,borrow_font(&x),&s) && x.live==2); mm_font_dispose(&x.font,&s); empty(&x);
     for (fail=0;fail<=13;++fail)
     {
-        s=setup(&x,0,0); x.author=1; x.fail=fail; ok=mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s); assert(ok==!fail);
+        s=setup(&x,0,0); x.author=1; x.fail=fail; ok=mm_font_author(&x.cache,&x.edit,x.kids,x.children,&x.chunk,&s); assert(ok==!fail);
         assert(!x.live && x.frees==(fail==1?0:fail==2?1:2) && !x.models[0].refs.count && !x.models[1].refs.count);
         if (ok) { assert(x.chunk.type==MM_FONT_TYPE && x.chunk.number==0 && x.adoptions==3 && x.written_size==860);
             assert(x.rows[3].child_count==3 && x.rows[0].parent_count==1 && x.rows[1].parent_count==2);
@@ -401,21 +399,21 @@ int main(void)
         empty(&x);
     }
     s=setup(&x,0,0); x.author=1; x.children=0;
-    assert(mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && x.written_size==20 && get(x.written+4,0)==1 &&
+    assert(mm_font_author(&x.cache,&x.edit,x.kids,x.children,&x.chunk,&s) && x.written_size==20 && get(x.written+4,0)==1 &&
            !get(x.written+8,0) && !get(x.written+12,0) && !get(x.written+16,0)); empty(&x);
     s=setup(&x,0,0); x.author=1; x.children=2; x.kids[1]=x.kids[2];
-    assert(mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && !get(x.written+12+32*4,0)); empty(&x);
+    assert(mm_font_author(&x.cache,&x.edit,x.kids,x.children,&x.chunk,&s) && !get(x.written+12+32*4,0)); empty(&x);
     s=setup(&x,0,0); x.author=1; x.children=4;
-    assert(mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && get(x.written+12+32*4,0)==196608 && get(x.written+8,0)==294912); empty(&x);
+    assert(mm_font_author(&x.cache,&x.edit,x.kids,x.children,&x.chunk,&s) && get(x.written+12+32*4,0)==196608 && get(x.written+8,0)==294912); empty(&x);
     s=setup(&x,0,0); x.author=1; x.kids[0].slot=0xffffffffUL;
-    assert(!mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && !x.phase && !x.live && !x.added); empty(&x);
+    assert(!mm_font_author(&x.cache,&x.edit,x.kids,x.children,&x.chunk,&s) && !x.phase && !x.live && !x.added); empty(&x);
     s=setup(&x,0,0); x.author=1; x.extent_unavailable=1;
-    assert(!mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s));
+    assert(!mm_font_author(&x.cache,&x.edit,x.kids,x.children,&x.chunk,&s));
     assert(!x.added && !x.written_size && x.frees==2 && x.invalidations==1); empty(&x);
     s=setup(&x,1,0); x.author=1; x.children=0;
-    assert(mm_font_author(&x.cache,&x.edit,&x,NULL,&s) && x.written[0]==0 && x.written[1]==1 && get(x.written+4,1)==1 && !x.invalidations); empty(&x);
+    assert(mm_font_author(&x.cache,&x.edit,NULL,0,NULL,&s) && x.written[0]==0 && x.written[1]==1 && get(x.written+4,1)==1 && !x.invalidations); empty(&x);
     s=setup(&x,0,0); x.author=1; x.fail=5;
-    assert(!mm_font_author(&x.cache,&x.edit,&x,NULL,&s) && !x.live && !x.models[0].refs.count && !x.invalidations); empty(&x);
+    assert(!mm_font_author(&x.cache,&x.edit,x.kids,x.children,NULL,&s) && !x.live && !x.models[0].refs.count && !x.invalidations); empty(&x);
     s=setup(&x,0,0); x.fail=1;
     assert(!mm_font_model(&x.font_binding,65,&s) && !x.missing);
     model=mm_font_model(&x.font_binding,65,&s);

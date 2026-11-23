@@ -2128,7 +2128,11 @@ labels, normalizes their text encoding and resolves action IDs in stored
 order. The C89 template owner creates, duplicates and edits Studio's 3D text
 through the shared BRender binding. It copies counted text and the font tag
 directly, binds the font provider on success, and restores the previous text
-and descriptor if generation fails. Marcus, its Preview helper and regression
+and descriptor if generation fails. The preview stages the edited template and
+posed body together and keeps the displayed body's identity and visibility
+when publishing the edit. Font authoring writes typed glyph children through
+the same archive and model bindings. The C++ text and font modules are out
+of the engine build. Marcus, its Preview helper and regression
 runner build and link without engine-core. Studio still uses native engine
 and archive interfaces around the shared engine.
 Studio's movie insertion and replacement transactions author and write the

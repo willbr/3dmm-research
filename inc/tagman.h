@@ -152,6 +152,7 @@ typedef class TagManager *PTagManager;
 extern PTagManager vptagm;
 #define TagManager_PAR BASE
 struct MMTemplateOwner;
+struct MMTemplateFontProvider;
 struct MMBackgroundOwner;
 #define kclsTagManager 'TAGM'
 class TagManager : public TagManager_PAR
@@ -197,6 +198,7 @@ class TagManager : public TagManager_PAR
 
   public:
     static const MMTagServices &CoreServices();
+    static const MMTemplateFontProvider &TextFontProvider();
     static PTagManager PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, LegacyLong cbCache);
     ~TagManager(void);
     void SetSourceResolver(TagSourceResolver resolver)

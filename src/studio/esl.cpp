@@ -283,7 +283,9 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
         AssertIn(tdtsNew, 0, tdtsLim);
         AssertVarMem(ptagTdfNew);
 
-        ptdt = EngineText::PtdtNew(pstnNew, tdtsNew, ptagTdfNew);
+        const MMStringValue name = {pstnNew->Pst(), sizeof(achar)};
+        const MMTag font = TextFontTag(*ptagTdfNew);
+        ptdt = mm_brender_text_create(&name, tdtsNew, &font, &TagManager::TextFontProvider());
         if (pvNil == ptdt)
             return fFalse;
         _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, pvNil, 0, fFalse, _prca);
@@ -298,7 +300,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
         // because the user may experimentally change the ThreeDText, then hit Cancel.
         if (!cost.FGet(pactr->Pbody()))
             return fFalse;
-        ptdt = EngineText::PtdtDup(((PThreeDText)pactr->Ptmpl()));
+        ptdt = mm_brender_text_duplicate(pactr->Ptmpl());
         if (pvNil == ptdt)
             return fFalse;
         _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, &cost, 0, fFalse, _prca);
@@ -619,7 +621,10 @@ bool EaselText::_FAcceptChanges(bool *pfDismissEasel)
             goto LFail;
 
         // first apply ThreeDText changes
-        EngineText::GetInfo(ptdtOld, &stnOld, &tdtsOld, &tagTdfOld);
+        stnOld.SetSt(static_cast<PPascalString>(mm_template_owner_name(ptdtOld).buffer));
+        const auto descriptor = mm_template_owner_descriptor(ptdtOld);
+        tdtsOld = descriptor->shape;
+        TagFromCore(&tagTdfOld, descriptor->font);
         _pape->GetTdtInfo(&stnNew, &tdtsNew, &tagTdfNew);
         if (!stnOld.FEqual(&stnNew) || tdtsOld != tdtsNew || fcmpEq != TagManager::FcmpCompareTags(&tagTdfOld, &tagTdfNew))
         {

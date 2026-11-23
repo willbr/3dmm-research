@@ -93,6 +93,25 @@ MMModelOwner *mm_brender_font_glyph(const MMFontOwner *font, MMU32 id)
     return mm_font_owner_model(font, id, &services);
 }
 
+int mm_brender_font_author(MMResourceCache *cache, const MMChunkChild *glyphs, MMI32 count, MMFontChunk *out)
+{
+    const MMArchiveWriter writer = mm_resource_cache_writer(cache);
+    const MMFontOwnerHost *host = mm_kauai_font_host();
+    MMFontResourceServices services = {0};
+    if (!writer.payloads)
+    {
+        if (out)
+            host->invalidate(NULL, out, sizeof(*out));
+        return 0;
+    }
+    mm_brender_asset_font_bind(&services);
+    services.system = writer.system;
+    services.leading = 32768;
+    services.allocator = host->metrics;
+    services.invalidate = host->invalidate;
+    return mm_font_author(cache, &writer.edit, glyphs, count, out, &services);
+}
+
 static void *texture_pixelmap(void *context, void *texture)
 {
     (void)context;
