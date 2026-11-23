@@ -237,6 +237,56 @@ MMResourceCache *mm_native_archive_source_cache(const MMNativeArchiveSource *sou
     return mm_resource_cache_create(&wire, budget, &services, owner, storage);
 }
 
+void mm_native_archive_input_close(MMNativeArchiveInput *input)
+{
+    mm_archive_reader_close(input->reader);
+    if (input->live)
+        mm_resource_cache_release(input->live);
+    mm_native_archive_source_clear(&input->stored);
+    memset(input, 0, sizeof(*input));
+}
+
+int mm_native_archive_input_open(MMNativeArchiveInput *input, int mode, const MMArchiveReaderOptions *options,
+                                 const MMNativeArchiveInputHost *host)
+{
+    MMNativeArchiveInput next = {0};
+    int selected = 0, status = MM_ARCHIVE_INVALID_PAYLOAD;
+    if (mode != MM_NATIVE_ARCHIVE_STORED && host->open_live)
+        next.live = host->open_live(host->context, mode == MM_NATIVE_ARCHIVE_LIVE, &selected, &next.live_reader);
+    if (selected)
+    {
+        if (!next.live)
+            return MM_NATIVE_ARCHIVE_INPUT_OPEN;
+        status = mm_archive_reader_open_owner(next.live_reader, options, &next.reader);
+    }
+    else
+    {
+        if (next.live)
+            mm_resource_cache_release(next.live);
+        next.live = NULL;
+        next.live_reader = NULL;
+        status = host->open_stored(host->context, &next.stored);
+        if (status == MM_ARCHIVE_READ_OK)
+            status = mm_native_archive_source_reader(&next.stored, options, &next.reader);
+    }
+    if (status == MM_ARCHIVE_READ_OK)
+    {
+        next.mode = mode;
+        mm_native_archive_input_close(input);
+        *input = next;
+        return MM_NATIVE_ARCHIVE_INPUT_OK;
+    }
+    mm_native_archive_input_close(&next);
+    if (status == MM_ARCHIVE_MEMORY)
+        return MM_NATIVE_ARCHIVE_INPUT_MEMORY;
+    return selected ? MM_NATIVE_ARCHIVE_INPUT_LIVE_INDEX : MM_NATIVE_ARCHIVE_INPUT_OPEN;
+}
+
+MMMovieSessionGraph mm_native_archive_input_graph(const MMNativeArchiveInput *input)
+{
+    return input->live ? mm_movie_owner_graph(input->live_reader) : mm_archive_reader_graph(input->reader);
+}
+
 MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *path, int mode,
                                                 const MMPrivateArchiveProfile *profile)
 {

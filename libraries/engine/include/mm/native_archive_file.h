@@ -37,6 +37,39 @@ MMResourceCache *mm_native_archive_source_cache(const MMNativeArchiveSource *, M
                                                  const MMResourceServices *,
                                                  const MMStorageAllocator *owner, const MMStorageAllocator *storage);
 
+enum { MM_NATIVE_ARCHIVE_STORED, MM_NATIVE_ARCHIVE_PREVIEW, MM_NATIVE_ARCHIVE_LIVE };
+enum
+{
+    MM_NATIVE_ARCHIVE_INPUT_OK, MM_NATIVE_ARCHIVE_INPUT_OPEN, MM_NATIVE_ARCHIVE_INPUT_LIVE_INDEX,
+    MM_NATIVE_ARCHIVE_INPUT_MEMORY
+};
+
+typedef struct MMNativeArchiveInput
+{
+    MMNativeArchiveSource stored;
+    MMResourceCache *live;
+    struct MMChunkOwnerRead *live_reader;
+    MMArchiveReader *reader;
+    int mode;
+} MMNativeArchiveInput;
+
+typedef struct MMNativeArchiveInputHost
+{
+    void *context;
+    /* Return an owned cache and its borrowed reader, or select the stored file.
+     * Setting selected without returning a cache reports a live-open failure. */
+    MMResourceCache *(*open_live)(void *, int prefer_working, int *selected, struct MMChunkOwnerRead **);
+    int (*open_stored)(void *, MMNativeArchiveSource *);
+} MMNativeArchiveInputHost;
+
+/* Initialize input to zero. A failed open leaves it intact. A successful
+ * input owns the reader and its live cache or stored file and index.
+ * Host callbacks run synchronously and must not unwind. */
+int mm_native_archive_input_open(MMNativeArchiveInput *, int mode, const MMArchiveReaderOptions *,
+                                 const MMNativeArchiveInputHost *);
+void mm_native_archive_input_close(MMNativeArchiveInput *);
+MMMovieSessionGraph mm_native_archive_input_graph(const MMNativeArchiveInput *);
+
 /* Open a read-only, editable or fresh private archive using the same file provider. */
 MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *, int mode,
                                                  const MMPrivateArchiveProfile *);

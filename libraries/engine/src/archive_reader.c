@@ -510,7 +510,7 @@ int mm_archive_reader_catalog(MMArchiveReader *reader, MMArchiveCatalogVisit vis
         status = MM_ARCHIVE_CATALOG_ENTRY;
         if (mm_chunk_at(chunks, i, &entry) != MM_CHUNK_OK)
             goto done;
-        if (capacity < entry.child_count)
+        if (visit && capacity < entry.child_count)
         {
             status = MM_ARCHIVE_CATALOG_MEMORY;
             if ((size_t)entry.child_count != entry.child_count ||
@@ -524,16 +524,23 @@ int mm_archive_reader_catalog(MMArchiveReader *reader, MMArchiveCatalogVisit vis
         }
         for (j = 0; j < entry.child_count; ++j)
         {
-            MMChunkChild *child = &links[j].child;
-            if (mm_chunk_child_at(chunks, i, j, child) != MM_CHUNK_OK)
+            MMChunkChild child;
+            if (mm_chunk_child_at(chunks, i, j, &child) != MM_CHUNK_OK)
             {
                 if (failed_parent)
                     *failed_parent = entry;
                 status = MM_ARCHIVE_CATALOG_CHILD;
                 goto done;
             }
-            links[j].target_present = mm_chunk_find(chunks, child->type, child->number, &target) == MM_CHUNK_OK;
+            if (visit)
+            {
+                links[j].child = child;
+                links[j].target_present = mm_chunk_find(chunks, child.type, child.number, &target) == MM_CHUNK_OK;
+            }
         }
+        status = MM_ARCHIVE_CATALOG_OK;
+        if (!visit)
+            continue;
         if (entry.child_count > 1)
             qsort(links, entry.child_count, sizeof(*links), compare_catalog_links);
         name.count = 0;

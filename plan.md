@@ -114,6 +114,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   legacy file through a typed C89 cache and read the current chunk graph.
   The archive API links the Kauai file and text adapters and the C89 engine
   directly.
+- The C89 native archive input owns the reader and its live cache or
+  immutable file and index. Preview uses it to open movies, resources and
+  content packs. Marcus prepares its movie directory on that reader before
+  handing it to the renderer. Preview looks up action names by chunk ID.
+  Archive inspection still exposes the full catalogue through its public API.
 - Preview's renderer caches now have C89 owners for both immutable indexes
   and live archive graphs. C retains their source until the last dependent
   object is released. Typed model, texture, template and material readers

@@ -23695,3 +23695,35 @@ Text Acid candidate `20261123T093505Z-b6827fa3` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-object-clipboard`.
+
+## C89 Preview archive startup (23 November 2026)
+
+The C89 native archive input retains a live cache or a validated immutable
+file and index. It releases the reader before releasing that backing.
+Marcus reads movie metadata through the candidate reader before Preview
+takes ownership. Preview opens its movies, resources and content packs
+through the runtime input, and looks up action names by chunk ID.
+
+The native index fixture checks that stored input skips live lookup and
+that failed live and stored opens preserve the previous reader. The
+Preview session fixture rejects a prepared movie and checks the previous
+session's rendered pixels. It also checks that a successful transfer
+consumes the public Archive input. The Marcus and preview helper linker
+PDBs show the C archive input and its host adapter as the runtime modules.
+The public Archive inspection and transfer remain available to API callers.
+
+All 228 selected native checks, 12 SDL checks and three x86 worker fixtures
+passed, including 13 strict C89 checks in the native selection. The
+headless Marcus startup image and the Preview admission and session traces
+matched the previous build.
+
+Actor Audio candidate `20261123T094907Z-fb9ff924` matched baseline
+`20261123T090959Z-a049b4b4` on all 60 seek canvases and scene states per
+port. Both ports matched the retained retail and V3DMM authored frame
+order in seek and continuous playback.
+
+Text Acid candidate `20261123T094907Z-974fb352` matched baseline
+`20261123T093505Z-b6827fa3` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-runtime-archive`.

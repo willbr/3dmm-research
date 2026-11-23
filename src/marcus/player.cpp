@@ -2467,10 +2467,6 @@ extern "C"
             auto materialized = input->Materialize(index);
             auto content = std::make_unique<MarcusContent>(materialized, directory);
             const auto document = content->movie.u8string();
-            // Validate the graph and ordered scene list before replacing the live renderer.
-            MM::Archive archive;
-            if (!archive.OpenForPreview(document, error))
-                return false;
             MarcusScenes sceneInfo, baseSceneInfo;
             ActorNames baseNames, names;
             struct MovieOpen : MarcusMovieOpen
@@ -2483,49 +2479,58 @@ extern "C"
             MarcusSourceRegistry sourceIds;
             if (player->internalOpenDepth)
                 mm_movie_source_ids_limit(&sourceIds, player->sourceIds.next);
-            const auto openError = MarcusReadMovieOpen(movie, archive.Reader(), sceneInfo, sourceIds, baseNames);
-            if (openError) { error.message = openError; return false; }
-            baseSceneInfo = sceneInfo;
-            if (!marcus_actor_names_copy(&names, &baseNames))
-                throw std::bad_alloc();
+            std::shared_ptr<MarcusStoryboards> loadedBoards;
+            // Stage the authored metadata before transferring the reader to Preview.
+            auto prepare = [&](MMArchiveReader *reader, MM::Error &prepareError) {
+                const auto openError = MarcusReadMovieOpen(movie, reader, sceneInfo, sourceIds, baseNames);
+                if (openError) { prepareError.message = openError; return false; }
+                baseSceneInfo = sceneInfo;
+                if (!marcus_actor_names_copy(&names, &baseNames))
+                    throw std::bad_alloc();
+                const auto sources = marcus_movie_open_sources(&movie);
+                for (MMU32 i = 0; i < movie.source_count; ++i)
+                    content->PrepareSource(std::string(sources[i].name, sources[i].name_bytes));
+                loadedBoards = std::make_shared<MarcusStoryboards>();
+                struct BoardLoad
+                {
+                    MarcusStoryboards &boards;
+                    MMMovieSourceIds &ids;
+                    MMI32 retail;
+                    const char *resources, *directory;
+                    MM::Error &error;
+                    std::exception_ptr failure;
+                } load{*loadedBoards, sourceIds, movie.retail_source, resources, directory, prepareError, {}};
+                const auto boardStatus = marcus_board_read_archive(reader,
+                    [](void *p, MMU32 scene, const MarcusBoardWire *board) -> int {
+                        auto &load = *static_cast<BoardLoad *>(p);
+                        try
+                        {
+                            MMI32 source;
+                            if (!mm_movie_source_ids_take(&load.ids, load.retail, &source))
+                            { load.error.message = "No background source IDs are available."; return 0; }
+                            // Regenerate from the editable planes to repair older palettes.
+                            const auto resource = MarcusBoardContent(*board, load.resources, load.directory);
+                            load.boards.Set(scene, source, resource, *board);
+                            return 1;
+                        }
+                        catch (...) { load.failure = std::current_exception(); return 0; }
+                    }, &load);
+                if (load.failure)
+                    std::rethrow_exception(load.failure);
+                if (boardStatus != MARCUS_BOARD_WIRE_OK)
+                {
+                    if (boardStatus != MARCUS_BOARD_READ_STOPPED || prepareError.message.empty())
+                        prepareError.message = MarcusBoardReadError(boardStatus);
+                    return false;
+                }
+                return true;
+            };
+            if (!player->preview.OpenPrepared(document, resources, error, player->preserveEditFraming, &prepare,
+                    [](void *p, MMArchiveReader *reader, MM::Error &e) {
+                        return (*static_cast<decltype(prepare) *>(p))(reader, e);
+                    }))
+                return false;
             const auto sources = marcus_movie_open_sources(&movie);
-            for (MMU32 i = 0; i < movie.source_count; ++i)
-                content->PrepareSource(std::string(sources[i].name, sources[i].name_bytes));
-            const auto loadedBoards = std::make_shared<MarcusStoryboards>();
-            struct BoardLoad
-            {
-                MarcusStoryboards &boards;
-                MMMovieSourceIds &ids;
-                MMI32 retail;
-                const char *resources, *directory;
-                MM::Error &error;
-                std::exception_ptr failure;
-            } load{*loadedBoards, sourceIds, movie.retail_source, resources, directory, error, {}};
-            const auto boardStatus = marcus_board_read_archive(archive.Reader(),
-                [](void *p, MMU32 scene, const MarcusBoardWire *board) -> int {
-                    auto &load = *static_cast<BoardLoad *>(p);
-                    try
-                    {
-                        MMI32 source;
-                        if (!mm_movie_source_ids_take(&load.ids, load.retail, &source))
-                        { load.error.message = "No background source IDs are available."; return 0; }
-                        // Regenerate from the editable planes to repair older palettes.
-                        const auto resource = MarcusBoardContent(*board, load.resources, load.directory);
-                        load.boards.Set(scene, source, resource, *board);
-                        return 1;
-                    }
-                    catch (...) { load.failure = std::current_exception(); return 0; }
-                }, &load);
-            if (load.failure)
-                std::rethrow_exception(load.failure);
-            if (boardStatus != MARCUS_BOARD_WIRE_OK)
-            {
-                if (boardStatus != MARCUS_BOARD_READ_STOPPED || error.message.empty())
-                    error.message = MarcusBoardReadError(boardStatus);
-                return false;
-            }
-            if (!player->preview.Open(std::move(archive), resources, error, player->preserveEditFraming))
-                return false;
             player->timingJob.reset();
             player->timingInput = std::move(materialized);
             player->playback.SetFonts(player->timingInput->fonts);

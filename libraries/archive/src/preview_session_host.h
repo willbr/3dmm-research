@@ -5,7 +5,8 @@ struct Preview::Impl::SessionHost
 {
     Preview *preview;
     Impl *impl;
-    Archive *input = nullptr;
+    void *input = nullptr;
+    TakeArchive take = nullptr;
     Error *error = nullptr;
     std::exception_ptr exception;
     template <class F> int Guard(F f)
@@ -71,7 +72,7 @@ struct Preview::Impl::SessionHost
             return 1;
         });
     }
-    static bool WithinBudget(const Archive &archive, Error &error)
+    static bool WithinBudget(const Internal::ArchiveInput &archive, Error &error)
     {
         MMChunkEntry failed;
         const int result = mm_preview_archive_budget(archive.Reader(), &failed);
@@ -97,7 +98,7 @@ struct Preview::Impl::SessionHost
         };
         s.healthy = [](void *) -> int { return !Internal::AssertionFailed(); };
         s.report = [](void *v, int r) { return static_cast<SessionHost *>(v)->Report(r); };
-        s.input_present = [](void *v) -> int { return static_cast<SessionHost *>(v)->input->CanPreview(); };
+        s.input_present = [](void *v) -> int { return static_cast<SessionHost *>(v)->take != nullptr; };
         s.candidate_new = [](void *v, void **out) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
@@ -108,12 +109,14 @@ struct Preview::Impl::SessionHost
         s.state = [](void *, void *p) { return &static_cast<Impl *>(p)->session; };
         s.take_assets = [](void *v, void *p) {
             auto &h = *static_cast<SessionHost *>(v);
-            static_cast<Impl *>(p)->assets._impl.swap(h.input->_impl);
+            if (h.take)
+                h.take(h.input, static_cast<Impl *>(p)->assets);
         };
         s.open_resources = [](void *v, void *p, const void *path) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
-                return static_cast<Impl *>(p)->resources.OpenResources(*static_cast<const std::string *>(path), *h.error);
+                return static_cast<Impl *>(p)->resources.Open(
+                    *static_cast<const std::string *>(path), *h.error, MM_NATIVE_ARCHIVE_PREVIEW);
             });
         };
         s.has_assets = [](void *, void *p) -> int { return static_cast<Impl *>(p)->assets.CanPreview(); };
@@ -177,7 +180,8 @@ struct Preview::Impl::SessionHost
         s.source_open = [](void *v, void *p, const void *path) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
-                return static_cast<Source *>(p)->archive.OpenForPreview(*static_cast<const std::string *>(path), *h.error);
+                return static_cast<Source *>(p)->archive.Open(
+                    *static_cast<const std::string *>(path), *h.error, MM_NATIVE_ARCHIVE_PREVIEW);
             });
         };
         s.source_budget = [](void *v, void *p) -> int {

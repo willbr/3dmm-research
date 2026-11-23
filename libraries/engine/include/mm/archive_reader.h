@@ -110,6 +110,8 @@ typedef int (*MMArchiveCatalogVisit)(void *, const MMChunkEntry *, void *encoded
  * number. Absent targets remain visible. Each row, encoded name and child
  * array is borrowed until the callback returns. Zero name bytes means no
  * readable name. Callbacks must not re-enter the reader. Return zero to stop.
+ * A null visitor checks entries and child references without building rows
+ * or decoding names. Missing targets remain allowed on this path.
  * On a child read failure, failed_parent
  * receives its entry if supplied. Stage output to discard a failed prefix. */
 int mm_archive_reader_catalog(MMArchiveReader *, MMArchiveCatalogVisit, void *context, MMChunkEntry *failed_parent);

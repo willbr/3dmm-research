@@ -278,7 +278,8 @@ struct PreviewAudio
 // from Studio's renderer. The public boundary contains no native/UI types.
 class Preview
 {
-    bool OpenCore(Archive &&, const std::string &, Error &, bool, bool);
+    using TakeArchive = void (*)(void *, Internal::ArchiveInput &);
+    bool OpenCore(void *, TakeArchive, const std::string &, Error &, bool, bool);
     struct LightInput
     {
         const MMPreviewLightValues *values;
@@ -297,6 +298,11 @@ class Preview
     // resourcesPath supplies TMAP/0 shading and GLCR/0 palette from 3dmovie.chk.
     // Failed Open retains the previous session.
     bool Open(const std::string &archivePath, const std::string &resourcesPath, Error &error);
+    // Let a host prepare movie metadata through the candidate's C reader before
+    // taking the renderer session. The callback may read but cannot retain it.
+    using PrepareArchive = bool (*)(void *, MMArchiveReader *, Error &);
+    bool OpenPrepared(const std::string &archivePath, const std::string &resourcesPath, Error &error,
+                      bool preserveFraming, void *context, PrepareArchive);
     // Consume an already indexed movie archive instead of scanning it again.
     bool Open(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming = false);
     // Register an external source archive. Source IDs are preserved from TAGs;

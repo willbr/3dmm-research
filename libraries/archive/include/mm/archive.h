@@ -15,6 +15,7 @@ struct MMResourceCache;
 
 namespace MM
 {
+namespace Internal { class ArchiveInput; }
 struct Id
 {
     std::uint32_t type = 0, number = 0;
@@ -164,11 +165,8 @@ class Archive
 {
     friend class Preview;
     bool CanPreview() const;
-    MMResourceCache *NewResourceCache(std::int32_t budget) const;
-    bool OpenResources(const std::string &utf8Path, Error &);
-    MMMovieSessionGraph PlaybackGraph() const;
-    MMMovieSession *MovieSession() const;
-    enum class OpenMode { live, inspection, preview, resources };
+    void TransferTo(Internal::ArchiveInput &) noexcept;
+    enum class OpenMode { live, inspection, preview };
     bool OpenCore(const std::string &utf8Path, Error &, OpenMode);
     bool ReadMovieMetadata(MovieDirectory &, MovieOpenInfo *, Error &);
     struct Impl;

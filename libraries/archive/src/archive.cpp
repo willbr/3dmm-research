@@ -1,21 +1,16 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/archive.h"
+#include "archive_input.h"
 #include "diagnostics.h"
 #include <algorithm>
-#include <codecvt>
-#include <cstdio>
 #include <exception>
-#include <locale>
 #include <stdexcept>
 #include "kauai_core.h"
 #include "mm/actor_data.h"
 #include "mm/movie_data.h"
 #include "mm/scene_data.h"
 #include "engine_movie_source.h"
-#include "mm/native_archive_file.h"
 #include "mm/sound_resource.h"
-#include "platform_text.h"
-#include "resource_archive_host.h"
 #undef size
 ASSERTNAME
 
@@ -24,22 +19,10 @@ namespace MM
 struct Archive::Impl
 {
     Options options;
-    MMResourceCache *live = nullptr;
-    MMChunkOwnerRead *liveReader = nullptr;
-    MMNativeArchiveSource stored = {};
-    bool canPreview = false;
-    std::string path;
+    Internal::ArchiveInput input;
     std::vector<Chunk> chunks;
-    MMArchiveReader *reader = nullptr;
     explicit Impl(Options value) : options(value)
     {
-    }
-    ~Impl()
-    {
-        mm_archive_reader_close(reader);
-        if (live)
-            mm_resource_cache_release(live);
-        mm_native_archive_source_clear(&stored);
     }
     bool Check(int status, std::size_t index, Error &error) const;
     bool Load(std::size_t index, MMReadStream &stream, Error &error);
@@ -54,57 +37,11 @@ constexpr std::uint32_t FourCC(const char (&code)[5])
             std::uint32_t(static_cast<unsigned char>(code[3]));
 }
 
-std::string Utf8(const void *value, std::size_t unitsCount)
-{
-    const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
-    const auto bytes = unitsCount * sizeof(achar);
-    const auto count = KauaiText::ToUtf16(value, bytes, encoding, nullptr, 0);
-    std::vector<uint16_t> units(count);
-    if (!count || !KauaiText::ToUtf16(value, bytes, encoding, units.data(), count))
-        return {};
-    std::u16string text(units.begin(), units.end());
-    return std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().to_bytes(text);
-}
 std::string Utf8(String &value)
 {
-    return Utf8(value.Psz(), value.Cch());
+    return Internal::ArchiveTextUtf8(value.Psz(), value.Cch());
 }
 
-bool NativePath(const std::string &input, String &path, std::string &error)
-{
-    if (input.empty() || input.find('\0') != std::string::npos)
-    {
-        error = "Enter a file path.";
-        return false;
-    }
-    std::string native = input;
-#ifdef _WIN32
-    const auto units = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>().from_bytes(input);
-    const auto count = KauaiText::ToAnsi(units.data(), units.size() * 2, KauaiText::Encoding::Utf16LE, nullptr, 0);
-    native.resize(count);
-    if (!count || !KauaiText::ToAnsi(units.data(), units.size() * 2, KauaiText::Encoding::Utf16LE, &native[0], count))
-    {
-        error = "Cannot convert this path to the legacy Windows file encoding.";
-        return false;
-    }
-    const auto backCount =
-        KauaiText::ToUtf16(native.data(), native.size(), KauaiText::Encoding::WindowsAnsi, nullptr, 0);
-    std::vector<uint16_t> back(backCount);
-    KauaiText::ToUtf16(native.data(), native.size(), KauaiText::Encoding::WindowsAnsi, back.data(), backCount);
-    if (back.size() != units.size() || !std::equal(back.begin(), back.end(), units.begin()))
-    {
-        error = "This path is not representable in the legacy Windows file encoding. Move the file to a simpler path.";
-        return false;
-    }
-#endif
-    if (native.size() > static_cast<std::size_t>(kcchMaxStn))
-    {
-        error = "The core file API supports paths up to 255 bytes.";
-        return false;
-    }
-    path.SetSzs(const_cast<char *>(native.c_str()));
-    return true;
-}
 } // namespace
 Archive::Archive(Options options) : _impl(new Impl(options))
 {
@@ -112,29 +49,17 @@ Archive::Archive(Options options) : _impl(new Impl(options))
 Archive::~Archive() = default;
 bool Archive::CanPreview() const
 {
-    return _impl->canPreview;
+    return _impl->input.CanPreview();
 }
-MMResourceCache *Archive::NewResourceCache(std::int32_t budget) const
+void Archive::TransferTo(Internal::ArchiveInput &destination) noexcept
 {
-    if (_impl->live)
-        return NewTypedSiblingCache(_impl->live, budget);
-    if (!_impl->canPreview)
-        return nullptr;
-    return NewTypedSourceCache(&_impl->stored, budget);
+    _impl->input.Swap(destination);
+    _impl->options = {};
+    std::vector<Chunk>().swap(_impl->chunks);
 }
 MMArchiveReader *Archive::Reader() const
 {
-    return _impl->reader;
-}
-MMMovieSessionGraph Archive::PlaybackGraph() const
-{
-    if (_impl->live)
-        return mm_movie_owner_graph(_impl->liveReader);
-    return mm_archive_reader_graph(_impl->reader);
-}
-MMMovieSession *Archive::MovieSession() const
-{
-    return mm_archive_reader_movie(_impl->reader);
+    return _impl->input.Reader();
 }
 void Archive::Close()
 {
@@ -146,17 +71,7 @@ const std::vector<Chunk> &Archive::Chunks() const
 }
 const std::string &Archive::Path() const
 {
-    return _impl->path;
-}
-std::string TypeLabel(std::uint32_t type)
-{
-    std::string result;
-    for (int shift = 24; shift >= 0; shift -= 8)
-    {
-        const auto ch = (type >> shift) & 255;
-        result += ch >= 32 && ch < 127 ? static_cast<char>(ch) : '.';
-    }
-    return result;
+    return _impl->input.Path();
 }
 std::string TypeDisplayName(std::uint32_t type)
 {
@@ -292,12 +207,6 @@ std::string TypeDisplayName(std::uint32_t type)
         code.pop_back();
     return std::string(description) + " (" + code + ")";
 }
-std::string Identity(const Id &id)
-{
-    char buffer[64];
-    std::snprintf(buffer, sizeof(buffer), "%s / %08x", TypeLabel(id.type).c_str(), static_cast<unsigned>(id.number));
-    return buffer;
-}
 namespace
 {
 bool Fail(Error &error, ErrorCode code, const char *message, const Id *id = nullptr)
@@ -369,11 +278,6 @@ bool Archive::OpenForPreview(const std::string &utf8Path, Error &error)
     return OpenCore(utf8Path, error, OpenMode::preview);
 }
 
-bool Archive::OpenResources(const std::string &utf8Path, Error &error)
-{
-    return OpenCore(utf8Path, error, OpenMode::resources);
-}
-
 bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
 {
     error = {};
@@ -381,63 +285,17 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
     try
     {
         std::unique_ptr<Impl> opened(new Impl(_impl->options));
-        String path;
-        Filename filename;
-        std::string message;
-        if (!NativePath(utf8Path, path, message))
-            return Fail(error, ErrorCode::invalid_path, message.c_str());
-        if (!filename.FBuildFromPath(&path))
-            return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-        MMArchiveReaderOptions readerOptions = {
-            opened->options.maxDecodedBytes,
-            opened->options.maxStringTableBytes,
-            koskCur,
-            [](void *, const void *input, size_t bytes, int source, void *output, size_t capacity) -> size_t {
-                return CchTranslateRgb(const_cast<void *>(input), bytes, source, static_cast<achar *>(output),
-                                       capacity);
-            },
-            nullptr,
-            [](void *) -> int { return !Internal::AssertionFailed(); },
-            nullptr,
-            KauaiEncodeLegacyChunkName,
-        };
-        bool useLive = false;
-        if (mode != OpenMode::inspection)
-            opened->live = OpenSharedTypedCache(&filename, mode == OpenMode::live, useLive, &opened->liveReader);
-        int status;
-        if (useLive)
-        {
-            if (!opened->live)
-                return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-            status = mm_archive_reader_open_owner(opened->liveReader, &readerOptions, &opened->reader);
-        }
-        else
-        {
-            status = OpenNativeArchiveSource(&filename, &opened->stored);
-            if (status == MM_ARCHIVE_READ_OK)
-                status = mm_native_archive_source_reader(&opened->stored, &readerOptions, &opened->reader);
-        }
-        if (status == MM_ARCHIVE_MEMORY)
-            throw std::bad_alloc();
-        if (status != MM_ARCHIVE_READ_OK)
-            return useLive ? Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.") :
-                             Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-        opened->canPreview = mode != OpenMode::inspection;
-        opened->path = utf8Path;
+        const int kind = mode == OpenMode::inspection ? MM_NATIVE_ARCHIVE_STORED :
+                         mode == OpenMode::live ? MM_NATIVE_ARCHIVE_LIVE : MM_NATIVE_ARCHIVE_PREVIEW;
+        if (!opened->input.Open(utf8Path, error, kind, opened->options, false))
+            return false;
         CatalogHost host{opened->chunks, {}};
-        MMChunkEntry failed;
-        const int catalog = mm_archive_reader_catalog(opened->reader, CatalogHost::Visit, &host, &failed);
+        MMChunkEntry failed{};
+        const int catalog = mm_archive_reader_catalog(opened->input.Reader(), CatalogHost::Visit, &host, &failed);
         if (host.exception)
             std::rethrow_exception(host.exception);
-        if (catalog == MM_ARCHIVE_CATALOG_MEMORY)
-            throw std::bad_alloc();
-        if (catalog == MM_ARCHIVE_CATALOG_CHILD)
-        {
-            const Id parent{failed.type, failed.number};
-            return Fail(error, ErrorCode::corrupt_archive, "Cannot read a child reference.", &parent);
-        }
         if (catalog != MM_ARCHIVE_CATALOG_OK)
-            return Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.");
+            return Internal::ArchiveCatalogError(catalog, failed, error);
         if (Internal::AssertionFailed())
             return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected the archive index.");
         _impl.swap(opened);
@@ -486,7 +344,7 @@ bool Archive::Impl::Check(int status, std::size_t index, Error &error) const
 
 bool Archive::Impl::Load(std::size_t index, MMReadStream &stream, Error &error)
 {
-    const int status = index < chunks.size() ? mm_archive_reader_payload(reader, static_cast<MMU32>(index), &stream) :
+    const int status = index < chunks.size() ? mm_archive_reader_payload(input.Reader(), static_cast<MMU32>(index), &stream) :
                                               MM_ARCHIVE_INVALID_POSITION;
     return Check(status, index, error);
 }
@@ -528,7 +386,7 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
     {
         MMArchiveRecord decoded;
         const int status = index < _impl->chunks.size() ?
-                               mm_archive_reader_record(_impl->reader, static_cast<MMU32>(index), &decoded) :
+                               mm_archive_reader_record(_impl->input.Reader(), static_cast<MMU32>(index), &decoded) :
                                MM_ARCHIVE_INVALID_POSITION;
         if (!_impl->Check(status, index, error))
             return false;
@@ -645,23 +503,23 @@ bool Archive::ReadMovieMetadata(MovieDirectory &directory, MovieOpenInfo *open, 
 {
     error = {};
     Internal::ClearDiagnostic();
-    if (!_impl->reader)
+    if (!_impl->input.Reader())
         return Fail(error, ErrorCode::invalid_argument, "Open an archive before listing its movie scenes.");
     try
     {
         DirectoryHost host;
         host.open = open;
         host.chunks = &_impl->chunks;
-        host.access = mm_archive_reader_access(_impl->reader);
+        host.access = mm_archive_reader_access(_impl->input.Reader());
         const auto sink = host.Sink();
         MMArchiveDirectoryError detail;
         MMArchiveMovieIds ids;
         const MMArchiveMovieOpenSink movieSink{sink, [](void *context, MMI32 id, const void *text, MMU32 units) {
             auto &host = *static_cast<DirectoryHost *>(context);
-            return host.Append([&] { host.open->actorNames.push_back({id, Utf8(text, units)}); });
+            return host.Append([&] { host.open->actorNames.push_back({id, Internal::ArchiveTextUtf8(text, units)}); });
         }};
-        const int status = open ? mm_archive_reader_movie_open(_impl->reader, &movieSink, &ids, &detail)
-                                : mm_archive_reader_directory(_impl->reader, &sink, &detail);
+        const int status = open ? mm_archive_reader_movie_open(_impl->input.Reader(), &movieSink, &ids, &detail)
+                                : mm_archive_reader_directory(_impl->input.Reader(), &sink, &detail);
         if (host.exception)
             std::rethrow_exception(host.exception);
         const Id root = {MM_MOVIE_CHUNK, detail.root};
@@ -729,7 +587,7 @@ bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t 
     try
     {
         const MMMovieStringTable *strings;
-        if (!_impl->Check(mm_archive_reader_strings(_impl->reader, static_cast<MMU32>(index), &strings),
+        if (!_impl->Check(mm_archive_reader_strings(_impl->input.Reader(), static_cast<MMU32>(index), &strings),
                           index, error))
             return false;
         MMMovieStringPage range;
@@ -745,7 +603,7 @@ bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t 
                 return Fail(error, ErrorCode::corrupt_archive, "Invalid General String Table entry.", &id);
             StringTableEntry entry;
             entry.index = i;
-            entry.text = Utf8(row.text, row.units);
+            entry.text = Internal::ArchiveTextUtf8(row.text, row.units);
             entry.extra.assign(row.extra, row.extra + range.extra_bytes);
             result.entries.push_back(std::move(entry));
         }

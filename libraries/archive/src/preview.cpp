@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/preview.h"
 #include "mm/preview_rasterizer.h"
+#include "archive_input.h"
 #include "scene_renderer.h"
 #include "model_renderer.h"
 #include "scene_pick.h"
@@ -63,7 +64,7 @@ struct Preview::Impl
     struct SessionHost;
     struct Source
     {
-        Archive archive;
+        Internal::ArchiveInput archive;
         MMResourceCache *cache = nullptr;
         ~Source()
         {
@@ -71,7 +72,7 @@ struct Preview::Impl
                 mm_resource_cache_release(cache);
         }
     };
-    Archive assets, resources;
+    Internal::ArchiveInput assets, resources;
     MMResourceCache *cache = nullptr;
     PreviewInfo info;
     unsigned char palette[1024] = {};
@@ -992,25 +993,29 @@ catch (const std::bad_alloc &)
 }
 bool Preview::Open(const std::string &archivePath, const std::string &resourcesPath, Error &error)
 {
-    Archive archive;
-    if (!archive.OpenForPreview(archivePath, error))
-        return false;
-    return Open(std::move(archive), resourcesPath, error);
+    return OpenPrepared(archivePath, resourcesPath, error, false, nullptr, nullptr);
 }
-bool Preview::Open(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming)
+bool Preview::OpenPrepared(const std::string &archivePath, const std::string &resourcesPath, Error &error,
+                           bool preserveFraming, void *context, PrepareArchive prepare)
 {
-    return OpenCore(std::move(archive), resourcesPath, error, preserveFraming, true);
+    Internal::ArchiveInput archive;
+    if (!archive.Open(archivePath, error, MM_NATIVE_ARCHIVE_PREVIEW) ||
+        (prepare && !prepare(context, archive.Reader(), error)))
+        return false;
+    return OpenCore(&archive, [](void *p, Internal::ArchiveInput &output) {
+        static_cast<Internal::ArchiveInput *>(p)->Swap(output);
+    }, resourcesPath, error, preserveFraming, true);
 }
 bool Preview::OpenEmpty(const std::string &resourcesPath, Error &error)
 {
-    Archive empty;
-    return OpenCore(std::move(empty), resourcesPath, error, false, false);
+    return OpenCore(nullptr, nullptr, resourcesPath, error, false, false);
 }
 void Preview::ClearScene() { _impl->ClearAsset(); }
-bool Preview::OpenCore(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming, bool requireAsset)
+bool Preview::OpenCore(void *input, TakeArchive take, const std::string &resourcesPath,
+                       Error &error, bool preserveFraming, bool requireAsset)
 try
 {
-    Impl::SessionHost host = {this, _impl.get(), &archive, &error};
+    Impl::SessionHost host = {this, _impl.get(), input, take, &error};
     auto services = host.Services();
     return host.Result(mm_preview_session_open(&_impl->session, &resourcesPath, requireAsset, preserveFraming, &services));
 }
@@ -1067,7 +1072,7 @@ catch (const std::bad_alloc &)
 bool Preview::AddContent(std::int32_t sourceId, const std::string &path, Error &error)
 try
 {
-    Impl::SessionHost host = {this, _impl.get(), nullptr, &error};
+    Impl::SessionHost host = {this, _impl.get(), nullptr, nullptr, &error};
     auto services = host.Services();
     return host.Result(mm_preview_session_add(&_impl->session, sourceId, &path, &services), true);
 }

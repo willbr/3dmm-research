@@ -1278,7 +1278,7 @@ target_link_libraries(kidspace-descriptor-test PRIVATE kauai-core)
 
 # Public archive boundary: legacy include paths/definitions stay private.
 add_library(mm-archive STATIC EXCLUDE_FROM_ALL
-  libraries/archive/src/archive.cpp libraries/archive/src/diagnostics.cpp
+  libraries/archive/src/archive.cpp libraries/archive/src/archive_input.cpp libraries/archive/src/diagnostics.cpp
   libraries/archive/src/legacy_diagnostics.cpp)
 add_library(MM::Archive ALIAS mm-archive)
 target_include_directories(mm-archive PUBLIC "${PROJECT_SOURCE_DIR}/libraries/archive/include")
@@ -1286,7 +1286,7 @@ target_compile_features(mm-archive PUBLIC cxx_std_14)
 target_include_directories(mm-archive PRIVATE "${PROJECT_SOURCE_DIR}/inc")
 target_link_libraries(mm-archive PRIVATE kauai-core mm-native-archive-file)
 add_library(mm-preview STATIC EXCLUDE_FROM_ALL
-  libraries/archive/src/preview.cpp libraries/archive/src/preview_actor.cpp
+  libraries/archive/src/preview.cpp libraries/archive/src/preview_actor.cpp libraries/archive/src/preview_archive.cpp
   libraries/archive/src/preview_presentation.cpp libraries/archive/src/preview_draft.c)
 add_library(MM::Preview ALIAS mm-preview)
 set_target_properties(mm-preview PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)

@@ -136,19 +136,9 @@ struct Preview::Impl::AdmissionHost
         s.publish_action = [](void *v, MMU32 action, const MMPreviewLiveAction *entry) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                const std::string *name = nullptr;
-                if (entry->has_chunk)
-                {
-                    const auto &chunks = h.impl->assets.Chunks();
-                    const Id id = {kctgActn, entry->chunk_number};
-                    const auto match = std::find_if(chunks.begin(), chunks.end(), [&](const Chunk &chunk) {
-                        return chunk.id == id && !chunk.name.empty();
-                    });
-                    if (match != chunks.end())
-                        name = &match->name;
-                }
+                const auto name = entry->has_chunk ? h.impl->assets.ChunkName(kctgActn, entry->chunk_number) : std::string();
                 PreviewAction a;
-                a.name = name ? std::to_string(action) + ": " + *name : "Action " + std::to_string(action);
+                a.name = name.empty() ? "Action " + std::to_string(action) : std::to_string(action) + ": " + name;
                 a.celCount = entry->cels;
                 h.impl->info.actions.push_back(std::move(a));
                 return 1;

@@ -39,6 +39,15 @@ int main(int argc, char **argv)
         !result(first.Select({0x544d504c, 0x2010}, error), true, first) || !render())
         return 1;
     before = image;
+    bool prepared = false;
+    if (first.OpenPrepared(argv[2], argv[1], error, true, &prepared,
+            [](void *p, MMArchiveReader *reader, MM::Error &failure) {
+                *static_cast<bool *>(p) = reader != nullptr;
+                failure.message = "Preparation rejected the movie.";
+                return false;
+            }) || !prepared || error.message != "Preparation rejected the movie." ||
+        !first.Render(view, image, error) || image.rgba != before.rgba)
+        return 1;
     if (!result(first.Open(argv[3], "missing-preview-resources.chk", error), false, first) || !render() ||
         image.rgba != before.rgba)
         return 1;
@@ -48,6 +57,7 @@ int main(int argc, char **argv)
         image.rgba != before.rgba || !result(second.OpenEmpty("missing-preview-resources.chk", error), false, second) ||
         !wireMovie.OpenForPreview(argv[2], error) || !wireMovie.ReadMovieDirectory(directory, error) ||
         directory.hasRoot || !result(first.Open(std::move(wireMovie), argv[1], error), true, first) ||
+        wireMovie.Reader() || !wireMovie.Path().empty() || !wireMovie.Chunks().empty() ||
         !result(first.Select({0x5343454e, 0}, error), false, first) ||
         !result(first.AddContent(2, argv[3], error), true, first) || !sources() ||
         !result(first.AddContent(1, argv[3], error), true, first) ||

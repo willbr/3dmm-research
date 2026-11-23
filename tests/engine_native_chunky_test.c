@@ -407,6 +407,29 @@ static int check_seek(const MMReadStream *stream, const MMChunkPolicy *policy, S
     return ok;
 }
 
+typedef struct NativeArchiveTest
+{
+    const char *path;
+    int live_calls, stored_calls, select_live, prefer_working;
+} NativeArchiveTest;
+
+static MMResourceCache *test_live_source(void *p, int working, int *selected, MMChunkOwnerRead **reader)
+{
+    NativeArchiveTest *test = p;
+    ++test->live_calls;
+    test->prefer_working = working;
+    *selected = test->select_live;
+    *reader = NULL;
+    return NULL;
+}
+
+static int test_stored_source(void *p, MMNativeArchiveSource *source)
+{
+    NativeArchiveTest *test = p;
+    ++test->stored_calls;
+    return mm_native_archive_source_open(source, test->path, 0, MM_CHUNK_NAME_WIRE_BYTES);
+}
+
 static int check_index(void *file, const char *path, MMU32 type, int movie, SeekInput *seek, int actors,
                        int auto_content, int bodies)
 {
@@ -414,7 +437,9 @@ static int check_index(void *file, const char *path, MMU32 type, int movie, Seek
     MMChunkPolicy policy = {0, 0, 516}; /* Legacy counted name plus terminator and encoding. */
     const MMArchiveReaderOptions options = {0x7fffffffUL, 0x7fffffffUL, 0x0303, NULL, NULL, NULL, NULL, NULL};
     MMReadStream stream;
-    MMNativeArchiveSource source = {0};
+    MMNativeArchiveInput input = {0};
+    NativeArchiveTest source = {0};
+    MMNativeArchiveInputHost host = {NULL, test_live_source, test_stored_source};
     MMArchiveReader *reader;
     MMChunkAccess access;
     MMChunkEntry entry;
@@ -434,16 +459,28 @@ static int check_index(void *file, const char *path, MMU32 type, int movie, Seek
         return check_movie(&stream, &policy);
     if (seek)
         return check_seek(&stream, &policy, seek, actors, auto_content, bodies);
-    if (mm_native_archive_source_open(&source, path, policy.expanded_runtime, policy.max_name_bytes) !=
-            MM_ARCHIVE_READ_OK ||
-        mm_native_archive_source_reader(&source, &options, &reader) != MM_ARCHIVE_READ_OK)
+    source.path = path;
+    host.context = &source;
+    if (mm_native_archive_input_open(&input, MM_NATIVE_ARCHIVE_STORED, &options, &host) !=
+            MM_NATIVE_ARCHIVE_INPUT_OK || source.live_calls || source.stored_calls != 1)
     {
-        mm_native_archive_source_clear(&source);
+        mm_native_archive_input_close(&input);
         return 0;
     }
+    reader = input.reader;
+    source.select_live = 1;
+    ok = mm_native_archive_input_open(&input, MM_NATIVE_ARCHIVE_LIVE, &options, &host) ==
+            MM_NATIVE_ARCHIVE_INPUT_OPEN && source.live_calls == 1 && source.prefer_working &&
+         source.stored_calls == 1 && input.reader == reader;
+    source.select_live = 0;
+    source.path = "";
+    ok = ok && mm_native_archive_input_open(&input, MM_NATIVE_ARCHIVE_PREVIEW, &options, &host) ==
+            MM_NATIVE_ARCHIVE_INPUT_OPEN && source.live_calls == 2 && !source.prefer_working &&
+         source.stored_calls == 2 && input.reader == reader;
 
     access = mm_archive_reader_access(reader);
-    ok = mm_chunk_type_at(&access, type, 0, &entry, &position) == MM_CHUNK_OK &&
+    ok = ok && mm_archive_reader_catalog(reader, NULL, NULL, NULL) == MM_ARCHIVE_CATALOG_OK &&
+         mm_chunk_type_at(&access, type, 0, &entry, &position) == MM_CHUNK_OK &&
          mm_archive_reader_read_stored(reader, &entry, prefix, sizeof(prefix)) &&
          mm_archive_reader_payload(reader, position, &payload) == MM_ARCHIVE_READ_OK &&
          mm_read_exact(&payload, 0, prefix, sizeof(prefix)) &&
@@ -452,8 +489,7 @@ static int check_index(void *file, const char *path, MMU32 type, int movie, Seek
     if (ok)
         printf("%lu indexed chunks, first requested type at chunk 0x%08lx (%lu stored bytes)\n",
                (unsigned long)access.count, (unsigned long)entry.number, (unsigned long)entry.bytes);
-    mm_archive_reader_close(reader);
-    mm_native_archive_source_clear(&source);
+    mm_native_archive_input_close(&input);
     return ok;
 }
 
