@@ -83,10 +83,30 @@ static void arithmetic(void)
     assert(mm_sound_volume_scale(0xffffffffUL, 131072) == 0xffffffffUL);
     assert(mm_sound_volume_scale(0xffffffffUL, 32768) == 0x7fff7fffUL);
 }
+typedef struct MixerSample
+{
+    int refs, retains, releases;
+} MixerSample;
+static void mixer_sample_retain(const void *p)
+{
+    MixerSample *sample = (MixerSample *)p;
+    assert(sample->refs > 0);
+    ++sample->refs;
+    ++sample->retains;
+}
+static void mixer_sample_release(const void *p)
+{
+    MixerSample *sample = (MixerSample *)p;
+    assert(sample->refs > 0);
+    --sample->refs;
+    ++sample->releases;
+}
 static void mixer(void)
 {
     Fixture f;
     MMAudioAllocator a;
+    MixerSample sample = {1, 0, 0};
+    const MMAudioSampleServices refs = {mixer_sample_retain, mixer_sample_release};
     MMAudioMixer m;
     MMAudioCounter id, other;
     float samples[] = {0.25f, -0.5f, 0.75f, -0.25f}, out[10];
@@ -96,7 +116,7 @@ static void mixer(void)
     a.context = &f;
     a.allocate = allocate;
     a.release = release;
-    mm_audio_mixer_init(&m, &a);
+    mm_audio_mixer_init_samples(&m, &a, &refs);
     f.fail = 1;
     id = mm_audio_mixer_add(&m);
     assert(!id.low && !id.high);
@@ -106,16 +126,19 @@ static void mixer(void)
     memset(v, 0, sizeof(v));
     v[0].id = 1;
     v[0].plays = 2;
-    v[0].sample = samples;
+    v[0].sample = &sample;
     v[0].stereo = samples;
     v[0].frames = 2;
     v[0].volume = 1;
     assert(mm_audio_mixer_sync(&m, id, v, 1));
+    mixer_sample_release(&sample); /* The published voice is the remaining owner. */
+    assert(sample.refs == 1);
     allocations = f.allocations;
     mm_audio_mixer_render(&m, out, 3);
     assert(out[0] == .25f && out[2] == .75f && out[4] == .25f && f.allocations == allocations);
     f.fail = 1;
     assert(!mm_audio_mixer_sync(&m, id, v, 1));
+    assert(sample.refs == 1 && sample.retains == 1 && sample.releases == 1);
     f.fail = 0;
     mm_audio_mixer_render(&m, out, 1);
     assert(out[0] == .75f && mm_audio_mixer_done(&m, id, 1));
@@ -124,6 +147,7 @@ static void mixer(void)
     assert(out[0] == 0);
     v[1] = v[0];
     assert(!mm_audio_mixer_sync(&m, id, v, 2));
+    assert(sample.refs == 1 && sample.retains == 2 && sample.releases == 2);
     v[0].id = 2;
     v[0].offset_ms = 0xffffffffUL;
     assert(mm_audio_mixer_sync(&m, id, v, 1));
@@ -157,10 +181,15 @@ static void mixer(void)
     m.next = mm_audio_counter(0xffffffffUL, 0xffffffffUL);
     other = mm_audio_mixer_add(&m);
     assert(other.high == 0xffffffffUL);
+    v[1] = v[0];
+    v[1].id = 4;
+    assert(mm_audio_mixer_sync(&m, other, v, 2) && sample.refs == 3);
+    mm_audio_mixer_remove(&m, other);
+    assert(sample.refs == 1);
     other = mm_audio_mixer_add(&m);
     assert(!other.low && !other.high);
     mm_audio_mixer_dispose(&m);
-    assert(f.live == 0);
+    assert(f.live == 0 && sample.refs == 0 && sample.retains + 1 == sample.releases);
 }
 static void movie_release(void *p)
 {

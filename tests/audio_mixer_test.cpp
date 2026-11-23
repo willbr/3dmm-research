@@ -16,23 +16,23 @@ using namespace KauaiAudio;
             std::exit(1);                                                                                              \
         }                                                                                                              \
     } while (0)
-static std::shared_ptr<const Sample> Samples(std::initializer_list<float> frames)
+static Sample Samples(std::initializer_list<float> frames)
 {
-    auto sample = std::make_shared<Sample>();
+    auto pcm = static_cast<float *>(std::malloc(frames.size() * 2 * sizeof(float)));
+    CHECK(pcm);
+    std::size_t at = 0;
     for (auto value : frames)
     {
-        sample->stereo.push_back(value);
-        sample->stereo.push_back(-value);
+        pcm[at++] = value;
+        pcm[at++] = -value;
     }
+    Sample sample(mm_audio_sample_adopt(pcm, frames.size(), std::free));
+    CHECK(sample);
     return sample;
 }
-static Voice Sound(int id, std::shared_ptr<const Sample> sample, int plays = 1)
+static MMAudioVoice Sound(int id, const Sample &sample, int plays = 1)
 {
-    Voice voice;
-    voice.id = id;
-    voice.sample = std::move(sample);
-    voice.plays = plays;
-    return voice;
+    return mm_audio_sample_voice(sample.get(), id, plays);
 }
 static void Expect(Mixer &mixer, std::initializer_list<float> frames)
 {
@@ -51,7 +51,7 @@ int main()
     const auto a = Samples({0.25f, 0.5f}), b = Samples({0.75f, -0.5f});
     const auto queue = mixer.AddQueue();
     CHECK(queue);
-    std::vector<Voice> voices = {Sound(1, a, 2), Sound(2, b)};
+    std::vector<MMAudioVoice> voices = {Sound(1, a, 2), Sound(2, b)};
     CHECK(mixer.Sync(queue, voices));
     Expect(mixer, {0.25f, 0.5f, 0.25f});
     CHECK(!mixer.Done(queue, 1));
@@ -84,22 +84,24 @@ int main()
     invalid = loop;
     invalid.plays = -1;
     CHECK(!mixer.Sync(queue, {invalid}));
-    invalid = loop;
-    invalid.sample = b;
+    invalid = Sound(loop.id, b, loop.plays);
     CHECK(!mixer.Sync(queue, {invalid}));
     Expect(mixer, {0.125f}); // Rejected updates retained the previous volume/position.
     loop.stopped = true;
     CHECK(mixer.Sync(queue, {loop}));
     CHECK(mixer.Done(queue, 3));
     Expect(mixer, {0});
-    auto offsetSample = std::make_shared<Sample>();
+    auto pcm = static_cast<float *>(std::malloc(192 * sizeof(float)));
+    CHECK(pcm);
     for (int i = 0; i < 96; ++i)
     {
-        offsetSample->stereo.push_back(i < 48 ? 0.25f : 0.75f);
-        offsetSample->stereo.push_back(i < 48 ? -0.25f : -0.75f);
+        pcm[2 * i] = i < 48 ? 0.25f : 0.75f;
+        pcm[2 * i + 1] = -pcm[2 * i];
     }
+    const Sample offsetSample(mm_audio_sample_adopt(pcm, 96, std::free));
+    CHECK(offsetSample);
     auto offset = Sound(4, offsetSample, 2);
-    offset.offsetMs = 3;
+    offset.offset_ms = 3;
     CHECK(mixer.Sync(queue, {offset}));
     std::vector<float> output(48 * 2);
     mixer.Render(output.data(), 48);

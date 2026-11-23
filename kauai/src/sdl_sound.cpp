@@ -23,11 +23,13 @@ class SDLWave : public SDLWave_PAR
 {
     RTCLASS_INLINE(SDLWave)
   public:
-    std::shared_ptr<const KauaiAudio::Sample> sample;
+    KauaiAudio::Sample sample;
     static int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **result, MMI32 *bytes)
     {
+        // Preserve the cache charge of the former shared PCM handle.
+        constexpr auto cacheBytes = sizeof(SDLWave) - sizeof(KauaiAudio::Sample) + sizeof(std::shared_ptr<void>);
         MMSoundPayloadServices s = {};
-        s.object_bytes = sizeof(SDLWave);
+        s.object_bytes = cacheBytes;
         s.decode_block = KauaiDecodeBlockHandle;
         s.create = [](void *) -> void * { return NewObj SDLWave; };
         s.release = [](void *, void *object) { static_cast<SDLWave *>(object)->Release(); };
@@ -42,10 +44,10 @@ class SDLWave : public SDLWave_PAR
             }
         };
         s.allocation_size = [](void *, void *object, MMI32 *bytes) -> int {
-            const auto count = static_cast<SDLWave *>(object)->sample->stereo.size();
-            if (count > (INT32_MAX - sizeof(SDLWave)) / sizeof(float))
+            const auto frames = mm_audio_sample_frames(static_cast<SDLWave *>(object)->sample.get());
+            if (frames > (INT32_MAX - cacheBytes) / (2 * sizeof(float)))
                 return 0;
-            *bytes = static_cast<MMI32>(count * sizeof(float) + sizeof(SDLWave));
+            *bytes = static_cast<MMI32>(frames * 2 * sizeof(float) + cacheBytes);
             return 1;
         };
         s.decoded = [](void *) { ++decodedSounds; };
@@ -66,19 +68,17 @@ class SDLWaveQueue : public SDLWaveQueue_PAR
     {
         try
         {
-            std::vector<KauaiAudio::Voice> voices;
+            std::vector<MMAudioVoice> voices;
             for (MMI32 i = _entries.current; i < mm_sound_queue_count(&_entries); ++i)
             {
                 const auto item = mm_sound_queue_get(&_entries, i);
-                KauaiAudio::Voice voice;
-                voice.id = item.id;
-                voice.sample = static_cast<SDLWave *>(static_cast<PBaseCacheableObject>(item.object))->sample;
+                const auto wave = static_cast<SDLWave *>(static_cast<PBaseCacheableObject>(item.object));
+                auto voice = mm_audio_sample_voice(wave->sample.get(), item.id, std::max<MMI32>(0, item.plays));
                 voice.volume = std::max<LegacyLong>(0, item.volume) / float(kvlmFull);
-                voice.plays = std::max<LegacyLong>(0, item.plays);
-                voice.offsetMs = item.offset;
+                voice.offset_ms = item.offset;
                 voice.paused = item.pause > 0;
                 voice.stopped = item.pause < 0;
-                voices.push_back(std::move(voice));
+                voices.push_back(voice);
             }
             output->Engine().Sync(id, voices);
         }

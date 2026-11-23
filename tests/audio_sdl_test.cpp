@@ -22,47 +22,48 @@ int main()
         for (unsigned frames : {1u, 7u, 1001u})
         {
             const auto wave = WaveFixture::Pcm8(std::vector<std::uint8_t>(frames, 128), rate);
-            std::shared_ptr<const KauaiAudio::Sample> decoded;
+            KauaiAudio::Sample decoded;
             double seconds = -1;
             CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), decoded));
             CHECK(KauaiAudio::WaveSeconds(wave.data(), wave.size(), seconds));
-            CHECK(seconds == double(decoded->stereo.size() / 2) / KauaiAudio::SampleRate);
+            CHECK(seconds == double(mm_audio_sample_frames(decoded.get())) / KauaiAudio::SampleRate);
         }
     {
         const auto wave = WaveFixture::Adpcm();
-        std::shared_ptr<const KauaiAudio::Sample> decoded;
+        KauaiAudio::Sample decoded;
         double seconds = -1;
         CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), decoded));
         CHECK(KauaiAudio::WaveSeconds(wave.data(), wave.size(), seconds));
-        CHECK(seconds == double(decoded->stereo.size() / 2) / KauaiAudio::SampleRate);
+        CHECK(seconds == double(mm_audio_sample_frames(decoded.get())) / KauaiAudio::SampleRate);
         CHECK(!KauaiAudio::WaveSeconds("bad", 3, seconds) && seconds == 0);
     }
     auto bytes = WaveFixture::Pcm({-32768, 0, 16384, 32767});
-    std::shared_ptr<const KauaiAudio::Sample> sample;
-    CHECK(KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && sample->stereo.size() == 8);
+    KauaiAudio::Sample sample;
+    CHECK(KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && mm_audio_sample_frames(sample.get()) == 4);
     const float expected[] = {-1, 0, 0.5f, 32767.0f / 32768};
     for (int i = 0; i < 4; ++i)
-        CHECK(sample->stereo[2 * i] == expected[i] && sample->stereo[2 * i + 1] == expected[i]);
+        CHECK(mm_audio_sample_data(sample.get())[2 * i] == expected[i] &&
+              mm_audio_sample_data(sample.get())[2 * i + 1] == expected[i]);
     bytes = WaveFixture::Pcm8(std::vector<std::uint8_t>(22050, 128), 22050);
-    CHECK(KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && sample->stereo.size() == 96000);
-    for (auto value : sample->stereo)
-        CHECK(value == 0);
+    CHECK(KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && mm_audio_sample_frames(sample.get()) == 48000);
+    for (std::size_t i = 0; i < mm_audio_sample_frames(sample.get()) * 2; ++i)
+        CHECK(mm_audio_sample_data(sample.get())[i] == 0);
     bytes = WaveFixture::Adpcm();
-    CHECK(KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && sample->stereo.size() == 8);
+    CHECK(KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && mm_audio_sample_frames(sample.get()) == 4);
+    const auto pcm = mm_audio_sample_data(sample.get());
     for (int i = 0; i < 4; ++i)
-        CHECK(sample->stereo[2 * i] == (i ? 1.0f : -1.0f) / 32 && sample->stereo[2 * i + 1] == sample->stereo[2 * i]);
-    auto retained = sample;
-    CHECK(!KauaiAudio::DecodeWave("bad", 3, sample) && sample == retained);
+        CHECK(pcm[2 * i] == (i ? 1.0f : -1.0f) / 32 && pcm[2 * i + 1] == pcm[2 * i]);
+    const auto retained = sample.get();
+    CHECK(!KauaiAudio::DecodeWave("bad", 3, sample) && sample.get() == retained);
     bytes[0] = 'X';
-    CHECK(!KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && sample == retained);
+    CHECK(!KauaiAudio::DecodeWave(bytes.data(), bytes.size(), sample) && sample.get() == retained);
     KauaiAudio::Output output;
     CHECK(output.Open());
     auto queue = output.Engine().AddQueue();
     CHECK(queue);
-    KauaiAudio::Voice voice;
-    voice.id = 1;
-    voice.sample = sample;
-    CHECK(output.Engine().Sync(queue, {voice}));
+    const auto voice = mm_audio_sample_voice(sample.get(), 1, 1);
+    CHECK(output.Engine().Sync(queue, &voice, 1));
+    sample.reset();
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
     while (!output.Engine().Done(queue, 1) && std::chrono::steady_clock::now() < deadline)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));

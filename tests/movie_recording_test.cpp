@@ -70,8 +70,8 @@ int main()
           destination->FFind(child.cki.ctg, child.cki.cno, &block));
     std::vector<std::uint8_t> wave(block.Cb());
     CHECK(block.FReadRgb(wave.data(), static_cast<long>(wave.size()), 0));
-    std::shared_ptr<const KauaiAudio::Sample> sample;
-    CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), sample) && !sample->stereo.empty());
+    KauaiAudio::Sample sample;
+    CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), sample) && mm_audio_sample_frames(sample.get()));
     CHECK(KauaiAudio::RecorderStats().completed == 1 && KauaiAudio::RecorderStats().previewed == 2);
     CHECK(recorder->FStart() && !recorder->FHaveSound());
     // Destruction while recording must stop capture and balance manager suspend.

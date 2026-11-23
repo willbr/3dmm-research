@@ -101,8 +101,9 @@ int main()
     std::vector<std::uint8_t> repeated;
     CHECK(KauaiAudio::PrepareWaveImport(original.data(), original.size(), repeated) && repeated == imported);
     Compatible(imported, 11025);
-    std::shared_ptr<const KauaiAudio::Sample> playback;
-    CHECK(KauaiAudio::DecodeWave(imported.data(), imported.size(), playback) && playback->stereo.size() == 96000);
+    KauaiAudio::Sample playback;
+    CHECK(KauaiAudio::DecodeWave(imported.data(), imported.size(), playback) &&
+          mm_audio_sample_frames(playback.get()) == 48000);
     std::vector<std::uint8_t> retained;
     CHECK(KauaiAudio::PrepareWaveImport(imported.data(), imported.size(), retained) && retained == imported);
     const auto saved = imported;

@@ -5,7 +5,7 @@
 #include "mm/wave_import.h"
 namespace KauaiAudio
 {
-bool DecodeWave(const void *data, std::size_t bytes, std::shared_ptr<const Sample> &sample);
+bool DecodeWave(const void *data, std::size_t bytes, Sample &sample);
 // Match DecodeWave's output frame count without resampling or allocating float PCM.
 bool WaveSeconds(const void *data, std::size_t bytes, double &seconds);
 // Preserve compatible source bytes when compression would not save space;

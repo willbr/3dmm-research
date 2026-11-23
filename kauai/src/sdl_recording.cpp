@@ -100,7 +100,7 @@ bool Recorder::Stop()
 {
     if (impl->playing)
     {
-        impl->output.Engine().Sync(impl->queue, {});
+        impl->output.Engine().Sync(impl->queue, nullptr, 0);
         impl->playing = false;
     }
     if (!impl->recording)
@@ -141,16 +141,14 @@ bool Recorder::Play(float volume)
     {
         if (impl->recording || !HaveSound() || !Stop() || !impl->output.Open())
             return false;
-        std::shared_ptr<const Sample> sample;
+        Sample sample;
         if (!DecodeWave(impl->wave.data(), impl->wave.size(), sample))
             return false;
         if (!impl->queue)
             impl->queue = impl->output.Engine().AddQueue();
-        Voice voice;
-        voice.id = 1;
-        voice.sample = sample;
+        const auto voice = mm_audio_sample_voice(sample.get(), 1, 1);
         impl->output.Engine().SetVolume(volume);
-        if (!impl->queue || !impl->output.Engine().Sync(impl->queue, {voice}))
+        if (!impl->queue || !impl->output.Engine().Sync(impl->queue, &voice, 1))
             return false;
         impl->playing = true;
         ++previewed;

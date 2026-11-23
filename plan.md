@@ -2291,6 +2291,10 @@ with an empty record.
 Queued sound instances and the playback cursor also live in C89 storage.
 SDL WAVE, AudioMan, and both MIDI adapters use those entries under their
 existing queue locks for playback, pause, completion, and cleanup.
+Studio and Marcus adopt SDL's decoded stereo PCM through a C89 sample owner.
+The portable mixer retains each published voice's sample and releases it on
+replacement or queue removal. Marcus playback and waveform readers use the
+same decoded buffer interface.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

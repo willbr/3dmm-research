@@ -12,7 +12,7 @@ struct MediaReader
     MM::Preview &preview;
     const MM::PreviewSoundCue &cue;
     MM::PreviewAudio audio{};
-    std::shared_ptr<const KauaiAudio::Sample> sample{};
+    KauaiAudio::Sample sample{};
     std::exception_ptr failure{};
 
     template <class Effect> int Run(Effect effect)
@@ -49,8 +49,8 @@ struct MediaReader
                 return reader.Run([&] {
                     if (!KauaiAudio::DecodeWave(reader.audio.wave.data(), reader.audio.wave.size(), reader.sample))
                         return false;
-                    *stereo = reader.sample->stereo.data();
-                    *frames = reader.sample->stereo.size() / 2;
+                    *stereo = mm_audio_sample_data(reader.sample.get());
+                    *frames = mm_audio_sample_frames(reader.sample.get());
                     return true;
                 });
             }};

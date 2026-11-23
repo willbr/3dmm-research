@@ -9,7 +9,7 @@ extern "C"
 #endif
     typedef struct MMAudioVoice
     {
-        MMI32 id, plays;
+        MMI32 id, plays; /* Zero plays loops indefinitely. */
         const void *sample;
         const float *stereo;
         size_t frames;
@@ -23,19 +23,28 @@ extern "C"
         void *(*allocate)(void *, size_t);
         void (*release)(void *, void *);
     } MMAudioAllocator;
+    typedef struct MMAudioSampleServices
+    {
+        void (*retain)(const void *sample);
+        void (*release)(const void *sample);
+    } MMAudioSampleServices;
     typedef struct MMAudioQueue MMAudioQueue;
     typedef struct MMAudioMixer
     {
         MMAudioQueue *queues;
         MMAudioCounter next, started, completed, rendered_frames;
         MMAudioAllocator allocator;
+        MMAudioSampleServices samples;
         float volume;
         unsigned groups;
         int suspended;
     } MMAudioMixer;
-    /* Serialized by the host. Sample identity and PCM storage are borrowed until
-     * replacement/removal. Sync is transactional. Render allocates nothing. */
+    /* Serialized by the host. Without sample services PCM is borrowed until
+     * replacement/removal. With both callbacks the mixer owns a reference for
+     * each published voice. Callbacks cannot fail or reenter the mixer. Sync is
+     * transactional. Render neither allocates nor changes sample references. */
     void mm_audio_mixer_init(MMAudioMixer *, const MMAudioAllocator *);
+    void mm_audio_mixer_init_samples(MMAudioMixer *, const MMAudioAllocator *, const MMAudioSampleServices *);
     void mm_audio_mixer_dispose(MMAudioMixer *);
     MMAudioCounter mm_audio_mixer_add(MMAudioMixer *);
     void mm_audio_mixer_remove(MMAudioMixer *, MMAudioCounter);

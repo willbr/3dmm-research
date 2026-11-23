@@ -12,14 +12,22 @@ static void Record(const void *p, std::size_t n)
 int main()
 {
     Mixer mixer;
-    auto sample = std::make_shared<Sample>();
+    auto pcm = static_cast<float *>(std::malloc(997 * 2 * sizeof(float)));
+    if (!pcm)
+        return 1;
     for (int i = 0; i < 997; ++i)
     {
-        sample->stereo.push_back(float(i % 31 - 15) / 32);
-        sample->stereo.push_back(float(i % 19 - 9) / 16);
+        pcm[2 * i] = float(i % 31 - 15) / 32;
+        pcm[2 * i + 1] = float(i % 19 - 9) / 16;
+    }
+    const Sample sample(mm_audio_sample_adopt(pcm, 997, std::free));
+    if (!sample)
+    {
+        std::free(pcm);
+        return 1;
     }
     std::uint64_t queues[7];
-    std::vector<Voice> voices[7];
+    std::vector<MMAudioVoice> voices[7];
     for (auto &queue : queues)
         queue = mixer.AddQueue();
     unsigned random = 12345;
@@ -31,11 +39,8 @@ int main()
         auto &items = voices[q];
         if (action < 3)
         {
-            Voice voice;
-            voice.sample = sample;
-            voice.id = step + 1;
-            voice.plays = (random >> 10) % 4;
-            voice.offsetMs = (random >> 20) % 100;
+            auto voice = mm_audio_sample_voice(sample.get(), step + 1, (random >> 10) % 4);
+            voice.offset_ms = (random >> 20) % 100;
             voice.volume = float((random >> 15) % 7) / 4;
             items.push_back(voice);
         }

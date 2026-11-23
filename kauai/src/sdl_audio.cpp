@@ -9,7 +9,6 @@
 #include <SDL3/SDL_main.h>
 #include <algorithm>
 #include <array>
-#include <cmath>
 #include <climits>
 #include <new>
 namespace KauaiAudio
@@ -156,7 +155,7 @@ bool WaveSeconds(const void *data, std::size_t bytes, double &seconds)
     seconds = double(available / (2 * sizeof(float))) / SampleRate;
     return true;
 }
-bool DecodeWave(const void *data, std::size_t bytes, std::shared_ptr<const Sample> &sample)
+bool DecodeWave(const void *data, std::size_t bytes, Sample &sample)
 {
     if (!data || bytes < 12 || bytes > INT_MAX)
         return false;
@@ -174,25 +173,15 @@ bool DecodeWave(const void *data, std::size_t bytes, std::shared_ptr<const Sampl
         SDL_free(converted);
         return false;
     }
-    try
-    {
-        auto result = std::make_shared<Sample>();
-        const auto begin = reinterpret_cast<const float *>(converted);
-        if (convertedBytes)
-            result->stereo.assign(begin, begin + convertedBytes / sizeof(float));
-        SDL_free(converted);
-        converted = nullptr;
-        for (auto &value : result->stereo)
-            if (!std::isfinite(value))
-                value = 0;
-        sample = std::move(result);
-        return true;
-    }
-    catch (const std::bad_alloc &)
+    auto owner = mm_audio_sample_adopt(reinterpret_cast<float *>(converted), convertedBytes / (2 * sizeof(float)),
+                                       [](void *p) { SDL_free(p); });
+    if (!owner)
     {
         SDL_free(converted);
         return false;
     }
+    sample.reset(owner);
+    return true;
 }
 struct Output::Impl
 {

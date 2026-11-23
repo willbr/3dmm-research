@@ -30,10 +30,13 @@ int main()
             const auto &wave = recorder.Wave();
             CHECK(wave[20] == 1 && wave[22] == channels && wave[34] == bits);
             CHECK(wave.size() == 44 + ((551 - 8) * channels * (bits / 8) + 1) / 2 * 2);
-            std::shared_ptr<const KauaiAudio::Sample> sample;
-            CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), sample) && !sample->stereo.empty());
-            for (float value : sample->stereo)
-                CHECK(value == 0);
+            KauaiAudio::Sample sample;
+            CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), sample));
+            const auto frames = mm_audio_sample_frames(sample.get());
+            const auto pcm = mm_audio_sample_data(sample.get());
+            CHECK(frames);
+            for (std::size_t i = 0; i < frames * 2; ++i)
+                CHECK(pcm[i] == 0);
             CHECK(recorder.Play());
             while (recorder.Playing() && std::chrono::steady_clock::now() < deadline)
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));

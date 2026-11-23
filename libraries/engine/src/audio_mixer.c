@@ -52,6 +52,12 @@ void mm_audio_mixer_init(MMAudioMixer *m, const MMAudioAllocator *a)
     m->next.low = 1;
     m->volume = 1;
 }
+void mm_audio_mixer_init_samples(MMAudioMixer *m, const MMAudioAllocator *a, const MMAudioSampleServices *samples)
+{
+    mm_audio_mixer_init(m, a);
+    if (samples && samples->retain && samples->release)
+        m->samples = *samples;
+}
 void mm_audio_mixer_dispose(MMAudioMixer *m)
 {
     while (m->queues)
@@ -76,6 +82,15 @@ MMAudioCounter mm_audio_mixer_add(MMAudioMixer *m)
     *tail = q;
     return id;
 }
+static void release_voices(MMAudioMixer *m, Playing *voices, size_t count)
+{
+    size_t i;
+    if (m->samples.release)
+        for (i = 0; i < count; ++i)
+            m->samples.release(voices[i].voice.sample);
+    if (voices)
+        m->allocator.release(m->allocator.context, voices);
+}
 void mm_audio_mixer_remove(MMAudioMixer *m, MMAudioCounter id)
 {
     MMAudioQueue **link, *q;
@@ -84,8 +99,7 @@ void mm_audio_mixer_remove(MMAudioMixer *m, MMAudioCounter id)
         {
             q = *link;
             *link = q->next;
-            if (q->voices)
-                m->allocator.release(m->allocator.context, q->voices);
+            release_voices(m, q->voices, q->count);
             m->allocator.release(m->allocator.context, q);
             return;
         }
@@ -93,8 +107,8 @@ void mm_audio_mixer_remove(MMAudioMixer *m, MMAudioCounter id)
 int mm_audio_mixer_sync(MMAudioMixer *m, MMAudioCounter id, const MMAudioVoice *v, size_t n)
 {
     MMAudioQueue *q = find(m, id);
-    Playing *p = NULL;
-    size_t i, j;
+    Playing *p = NULL, *previous;
+    size_t i, j, previous_count;
     if (!q || (n && !v) || n > (size_t)-1 / sizeof(*p))
         return 0;
     if (n)
@@ -128,11 +142,15 @@ int mm_audio_mixer_sync(MMAudioMixer *m, MMAudioCounter id, const MMAudioVoice *
         }
         p[i].voice = v[i];
     }
-    if (q->voices)
-        m->allocator.release(m->allocator.context, q->voices);
+    if (m->samples.retain)
+        for (i = 0; i < n; ++i)
+            m->samples.retain(p[i].voice.sample);
+    previous = q->voices;
+    previous_count = q->count;
     q->voices = p;
     q->count = n;
     q->head = 0;
+    release_voices(m, previous, previous_count);
     return 1;
 fail:
     if (p)

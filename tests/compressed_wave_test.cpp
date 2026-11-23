@@ -51,14 +51,16 @@ static void Compare(const std::string &folder, const char *name, int channels, i
     }
     // Playback and importing both use this decoder, then SDL's resampler.
 #ifndef KAUAI_TEST_CODEC_CORE_ONLY
-    std::shared_ptr<const KauaiAudio::Sample> sample;
+    KauaiAudio::Sample sample;
     CHECK(KauaiAudio::DecodeWave(wave.data(), wave.size(), sample));
-    CHECK(!sample->stereo.empty());
+    const auto frames = mm_audio_sample_frames(sample.get());
+    CHECK(frames);
     double seconds = -1;
     CHECK(KauaiAudio::WaveSeconds(wave.data(), wave.size(), seconds));
-    CHECK(seconds == double(sample->stereo.size() / 2) / KauaiAudio::SampleRate);
-    for (float value : sample->stereo)
-        CHECK(std::isfinite(value) && value >= -1.01f && value <= 1.01f);
+    CHECK(seconds == double(frames) / KauaiAudio::SampleRate);
+    const auto pcm = mm_audio_sample_data(sample.get());
+    for (std::size_t i = 0; i < frames * 2; ++i)
+        CHECK(std::isfinite(pcm[i]) && pcm[i] >= -1.01f && pcm[i] <= 1.01f);
     std::vector<std::uint8_t> imported;
     CHECK(KauaiAudio::PrepareWaveImport(wave.data(), wave.size(), imported));
     CHECK(KauaiAudio::DecodeWave(imported.data(), imported.size(), sample));

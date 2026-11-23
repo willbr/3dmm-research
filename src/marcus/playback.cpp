@@ -55,7 +55,7 @@ MMGraphicsMoviePaletteSource TransitionPalettes(const Preview &preview)
 }
 struct DecodedAudio
 {
-    std::shared_ptr<const KauaiAudio::Sample> sample;
+    KauaiAudio::Sample sample;
     std::vector<PreviewMidiEvent> midi;
 };
 static_assert(KauaiAudio::SampleRate == MARCUS_PLAYBACK_AUDIO_RATE, "Movie decoder and output sample rate");
@@ -89,8 +89,8 @@ int ReadAudioMedia(void *p, MMMovieAudioMedia *out)
             {
                 if (!KauaiAudio::DecodeWave(data.wave.data(), data.wave.size(), media->sample))
                     return Fail(ctx.error, std::string("Cannot decode movie WAVE audio: ") + SDL_GetError());
-                clip.stereo = media->sample->stereo.data();
-                clip.sample_frames = media->sample->stereo.size() / 2;
+                clip.stereo = mm_audio_sample_data(media->sample.get());
+                clip.sample_frames = mm_audio_sample_frames(media->sample.get());
             }
         }
         *out = {clip, media.release(),

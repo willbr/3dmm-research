@@ -58,8 +58,9 @@ int main()
     std::vector<std::uint8_t> imported(block.Cb());
     CHECK(block.FReadRgb(imported.data(), static_cast<long>(imported.size()), 0));
     CHECK(imported.size() < original.size() && KauaiAudio::LegacyWaveFormat(imported.data(), imported.size()));
-    std::shared_ptr<const KauaiAudio::Sample> playback;
-    CHECK(KauaiAudio::DecodeWave(imported.data(), imported.size(), playback) && playback->stereo.size() == 96000);
+    KauaiAudio::Sample playback;
+    CHECK(KauaiAudio::DecodeWave(imported.data(), imported.size(), playback) &&
+          mm_audio_sample_frames(playback.get()) == 48000);
     const auto chunkCount = destination->Ccki();
     auto bad = FileObject::PfilCreateTemp();
     CHECK(bad);

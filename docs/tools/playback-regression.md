@@ -25021,3 +25021,37 @@ suite `20261123T171150Z-1c03419f`.
 
 Evidence is under `tmp/c89-sound-queue-state`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 decoded PCM ownership (23 November 2026)
+
+Studio and Marcus adopt SDL's converted stereo buffer in a C89 sample owner.
+The owner preserves the decoded frame count and replaces nonfinite samples
+with silence. Studio's mixer retains one sample reference for each accepted
+voice. A rejected update keeps the current voices, audio position, and
+references intact. The mixer releases displaced samples after publishing the
+new voices. Render still allocates nothing. Marcus's media cache, waveform
+reader, and recorded-sound preview use the same decoded buffer interface.
+
+The standalone C fixture checks retained references across failed updates,
+multiple voices sharing one sample, queue removal, and mixer shutdown.
+SDL's device test drops its decoder reference immediately after queueing.
+A direct C probe verified that adoption preserves the original buffer
+address, converts NaN and infinity to silence, and frees the buffer once.
+The 4,000-step mixer trace retained fingerprint `D1FA52C3`.
+
+The 228 selected native, 48 SDL, five focused SDL audio, and 23 standalone
+C89 checks passed. All 14 native syntax checks, the x86 fixtures, and the
+external consumer passed. Classic Studio rebuilt. The native save/load and
+scene traces, the headless Marcus startup canvas, the SDL authoring and
+save traces, and the VMM workflow outputs matched their baselines.
+
+Fresh suite `20261123T172256Z-ee8e5bf7` completed eight captures, and replay
+suite `20261123T172413Z-72ad2deb` completed four. All input hashes were
+verified. Actor Audio matched all 60 retail and V3DMM frame positions and
+camera indices and 59 seek canvases. Its PCM16 peak was 4,080 or 4,081,
+as in the preceding queue change. The embedded audio fixture matched each
+retained port sample for sample for the 100 ms WAVE cue and first 400 ms
+of MIDI in both modes.
+
+Evidence is under `tmp/c89-pcm-sample-owner`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

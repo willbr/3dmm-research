@@ -1,9 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "audio_mixer.h"
-#include "mm/audio_mixer.h"
-#include <map>
 #include <mutex>
-#include <new>
 namespace KauaiAudio
 {
 namespace
@@ -21,11 +18,10 @@ struct Mixer::Impl
 {
     mutable std::recursive_mutex mutex;
     MMAudioMixer state;
-    // Keep borrowed PCM alive. Playback state and queue ordering belong to C.
-    std::map<std::uint64_t, std::vector<Voice>> samples;
     Impl()
     {
-        mm_audio_mixer_init(&state, nullptr);
+        const MMAudioSampleServices samples = {mm_audio_sample_retain, mm_audio_sample_release};
+        mm_audio_mixer_init_samples(&state, nullptr, &samples);
     }
     ~Impl()
     {
@@ -47,53 +43,21 @@ void Mixer::Unlock()
 std::uint64_t Mixer::AddQueue()
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    const auto id = Number(mm_audio_mixer_add(&impl->state));
-    if (!id)
-        return 0;
-    try
-    {
-        impl->samples.emplace(id, std::vector<Voice>{});
-        return id;
-    }
-    catch (const std::bad_alloc &)
-    {
-        mm_audio_mixer_remove(&impl->state, Counter(id));
-        return 0;
-    }
+    return Number(mm_audio_mixer_add(&impl->state));
 }
 void Mixer::RemoveQueue(std::uint64_t id)
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
     mm_audio_mixer_remove(&impl->state, Counter(id));
-    impl->samples.erase(id);
 }
-bool Mixer::Sync(std::uint64_t id, const std::vector<Voice> &voices)
+bool Mixer::Sync(std::uint64_t id, const MMAudioVoice *voices, std::size_t count)
 {
     std::lock_guard<std::recursive_mutex> lock(impl->mutex);
-    auto found = impl->samples.find(id);
-    if (found == impl->samples.end())
-        return false;
-    try
-    {
-        std::vector<Voice> retained(voices);
-        std::vector<MMAudioVoice> input;
-        input.reserve(voices.size());
-        for (const auto &v : voices)
-        {
-            if (!v.sample || v.sample->stereo.size() % 2)
-                return false;
-            input.push_back({v.id, v.plays, v.sample.get(), v.sample->stereo.data(), v.sample->stereo.size() / 2,
-                             v.volume, v.offsetMs, v.paused, v.stopped});
-        }
-        if (!mm_audio_mixer_sync(&impl->state, Counter(id), input.data(), input.size()))
-            return false;
-        found->second.swap(retained);
-        return true;
-    }
-    catch (const std::bad_alloc &)
-    {
-        return false;
-    }
+    return mm_audio_mixer_sync(&impl->state, Counter(id), voices, count) != 0;
+}
+bool Mixer::Sync(std::uint64_t id, const std::vector<MMAudioVoice> &voices)
+{
+    return Sync(id, voices.data(), voices.size());
 }
 bool Mixer::Done(std::uint64_t id, std::int32_t voice) const
 {

@@ -70,9 +70,10 @@ int sound_recording_waveform(MarcusSoundRecording *r, int count, MarcusWaveformC
         std::size_t bytes; auto data = SDL_LoadFile(r->path.c_str(), &bytes);
         if (!data) return Fail(r, SDL_GetError());
         std::unique_ptr<void, decltype(&SDL_free)> owned(data, SDL_free);
-        std::shared_ptr<const KauaiAudio::Sample> sample;
+        KauaiAudio::Sample sample;
         if (!KauaiAudio::DecodeWave(data, bytes, sample)) return Fail(r, "Cannot read the recorded audio.");
-        MarcusWaveformEnvelope peaks; peaks.Build(sample->stereo.data(), sample->stereo.size() / 2);
+        MarcusWaveformEnvelope peaks;
+        peaks.Build(mm_audio_sample_data(sample.get()), mm_audio_sample_frames(sample.get()));
         *seconds = peaks.Seconds(); peaks.Read(0, *seconds / count, count, columns); return 1;
     }
     catch (const std::exception &e) { return Fail(r, e.what()); }
