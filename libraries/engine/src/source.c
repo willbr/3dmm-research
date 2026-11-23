@@ -15,8 +15,7 @@ static MMArray view(MMSourceCatalogue *c)
 int mm_source_init(MMSourceCatalogue *c, const MMSourceOwners *owners,
                          const MMStorageAllocator *allocator)
 {
-    if (!c || !owners || !owners->new_paths || !owners->copy_paths || !owners->release_paths ||
-        !owners->release_manager)
+    if (!c || !owners || !owners->new_paths || !owners->copy_paths || !owners->release_paths)
         return MM_STORAGE_ARGUMENT;
     memset(c, 0, sizeof(*c));
     if (mm_storage_init(&c->storage, allocator) != MM_STORAGE_OK)
@@ -45,8 +44,7 @@ int mm_source_dispose(MMSourceCatalogue *c)
     for (i = 0; i < c->count; ++i)
     {
         mm_source_at(c, i, &record);
-        if (record.manager)
-            c->owners.release_manager(record.manager);
+        mm_resource_manager_destroy(record.manager);
     }
     for (i = 0; i < c->count; ++i)
     {
@@ -68,8 +66,7 @@ int mm_source_invalidate(MMSourceCatalogue *c, MMI32 sid)
         mm_source_at(c, i, &record);
         if (record.sid != sid)
             continue;
-        if (record.manager)
-            c->owners.release_manager(record.manager);
+        mm_resource_manager_destroy(record.manager);
         c->owners.release_paths(record.paths);
         a = view(c);
         mm_array_delete(&a, i, 1);
@@ -147,8 +144,36 @@ static int local(MMSourceCatalogue *c, MMSourceRecord *r, MMU32 i, const MMSourc
     }
     return 1;
 }
-void *mm_source_manager(MMSourceCatalogue *c, MMI32 sid, int local_only, void *paths,
-                              const MMSourceServices *s)
+static MMResourceManager *build_manager(const MMSourceRecord *source, int media, const MMSourceServices *s,
+                                        const MMSourceBuildServices *build)
+{
+    MMResourceManager *manager = mm_resource_manager_create(build->owner, build->storage);
+    MMResourceCache *cache;
+    MMU32 index;
+    int archive, status;
+    if (!manager)
+        return NULL;
+    archive = s->archive_source(s->context, source->sid);
+    if (!archive && !build->begin(s->context, source->paths, media))
+        goto fail;
+    for (index = 0; build->next(s->context, source->sid, index, archive); ++index)
+    {
+        cache = build->open(s->context, build->budget, media);
+        if (!cache)
+            goto fail;
+        status = mm_resource_manager_add_cache(manager, cache, NULL);
+        mm_resource_cache_release(cache);
+        if (status != MM_STORAGE_OK)
+            goto fail;
+    }
+    return manager;
+fail:
+    mm_resource_manager_destroy(manager);
+    return NULL;
+}
+
+MMResourceManager *mm_source_manager(MMSourceCatalogue *c, MMI32 sid, int local_only, void *paths,
+                                       const MMSourceServices *s, const MMSourceBuildServices *build)
 {
     MMSourceRecord r;
     MMU32 i;
@@ -168,7 +193,7 @@ setup:
     {
         if (!r.manager)
         {
-            r.manager = s->new_manager(s->context, sid, paths, 0);
+            r.manager = build_manager(&r, 0, s, build);
             if (!r.manager)
                 return NULL;
             publish(c, i, &r);
@@ -199,7 +224,7 @@ setup:
     {
         if (local_only)
             return NULL;
-        r.manager = s->new_manager(s->context, sid, paths, 1);
+        r.manager = build_manager(&r, 1, s, build);
         if (!r.manager)
             return NULL;
         publish(c, i, &r);
@@ -268,31 +293,4 @@ int mm_source_find_file(MMSourceCatalogue *c, MMI32 sid, int ask, void *paths,
         return 1;
     s->clear_output(s->context);
     return 0;
-}
-MMResourceManager *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *s,
-                                   const MMStorageAllocator *owner, const MMStorageAllocator *storage)
-{
-    MMResourceManager *manager = mm_resource_manager_create(owner, storage);
-    MMResourceCache *cache;
-    MMU32 index;
-    int archive, status;
-    if (!manager)
-        return NULL;
-    archive = s->archive_source(s->context, sid);
-    if (!archive && !s->begin(s->context))
-        goto fail;
-    for (index = 0; s->next(s->context, sid, index, archive); ++index)
-    {
-        cache = s->open(s->context, budget);
-        if (!cache)
-            goto fail;
-        status = mm_resource_manager_add_cache(manager, cache, NULL);
-        mm_resource_cache_release(cache);
-        if (status != MM_STORAGE_OK)
-            goto fail;
-    }
-    return manager;
-fail:
-    mm_resource_manager_destroy(manager);
-    return NULL;
 }

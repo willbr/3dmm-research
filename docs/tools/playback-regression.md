@@ -24650,3 +24650,42 @@ earlier run `20261123T145612Z-8a896c0b` failed the input integrity check
 because Studio was relinked during capture.
 
 Evidence is under `tmp/c89-native-tag-host`.
+
+## C89 source catalogue ownership (23 November 2026)
+
+The source catalogue now creates, publishes, and destroys its typed
+resource managers. Studio supplies directory enumeration, explicit
+archive paths, and file opening. Local lookup, removable media lookup,
+invalidation, and shutdown use the same C89 ownership rules.
+
+The source fixture exercises lookup through directory and explicit
+archive sets, and checks the local and removable open flags. It injects
+manager allocation, enumeration, cache insertion, and archive-open
+failures. After the second open fails, the first cache is released and
+lookup can retry the source. A successful retry is then invalidated
+through the catalogue and releases both caches.
+
+The standalone C89 checks and external consumer passed. The x64 and x86
+tag, source-name, and source-cache traces matched byte for byte. Nine body
+and movie traces, eight scene traces, ten asset preview fingerprints, and
+the Marcus headless startup image also matched their baselines. The
+pre-existing `scene-load` assertion again followed a 63,224-byte trace
+with fingerprint `0D666753`. The three x86 ASM worker fixtures passed.
+
+The native suite passed 227 selected checks. SDL Studio passed 21
+targeted checks. Its authoring fixture saved and reopened a 27,056-byte
+`.3mm` with the same SHA-256 as the prior run.
+
+The Actor Audio and Dissolve run `20261123T151143Z-51278301` completed
+eight captures with verified inputs. Both ports matched prior seek canvases
+and states. Actor Audio reproduced the retained frame order, camera
+indices, and Studio actor snapshots. Dissolve matched the prior steady
+observations and the settled canvas in retail and V3DMM.
+
+The Text Acid run `20261123T151143Z-1ac2d3d8` completed four captures with
+verified inputs. Both ports matched 240 prior seek canvases with caption
+and camera states and 371 continuous presentations after consecutive
+duplicates were removed. The retained retail and V3DMM frame order
+matched all 240 authored frames in both modes.
+
+Evidence is under `tmp/c89-source-catalogue`.

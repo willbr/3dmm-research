@@ -62,6 +62,12 @@ class NativeSourcePaths : public BASE
   public:
     Filename local, media;
 };
+struct NativeSourceArchives
+{
+    Filename current;
+    FileNameEnumerator files;
+    FileType type = kftgContent;
+};
 struct NativeSourceHost
 {
     PTagManager manager;
@@ -69,6 +75,7 @@ struct NativeSourceHost
     PString leaf;
     const TAG *asset;
     FileType type = ftgNil;
+    NativeSourceArchives *archives = nullptr;
 };
 struct NativeDiscoveryHost
 {
@@ -91,8 +98,7 @@ MMSourceOwners TagManager::_SourceOwners()
                 to->local = from->local;
                 to->media = from->media;
             },
-            [](void *p) { static_cast<NativeSourcePaths *>(p)->Release(); },
-            [](void *p) { mm_resource_manager_destroy(static_cast<MMResourceManager *>(p)); }};
+            [](void *p) { static_cast<NativeSourcePaths *>(p)->Release(); }};
 }
 MMSourceServices TagManager::_SourceServices(void *context)
 {
@@ -139,11 +145,6 @@ MMSourceServices TagManager::_SourceServices(void *context)
     s.retry = [](void *c, MMI32 sid) -> int {
         auto h = static_cast<NativeSourceHost *>(c);
         return h->manager->_FRetry(sid, h->asset);
-    };
-    s.new_manager = [](void *c, MMI32 sid, void *p, int media) -> void * {
-        auto paths = static_cast<NativeSourcePaths *>(p);
-        return static_cast<NativeSourceHost *>(c)->manager->_BuildSourceManager(sid, media ? &paths->media : &paths->local,
-                                                                         media != 0);
     };
     s.output = [](void *c, void *p, int media) {
         auto paths = static_cast<NativeSourcePaths *>(p);
@@ -507,50 +508,37 @@ bool TagManager::_FRetry(LegacyLong sid, const TAG *asset)
 }
 
 /***************************************************************************
-    Builds the resource manager for the content in the source directory.
-***************************************************************************/
-MMResourceManager *TagManager::_BuildSourceManager(LegacyLong sid, PFilename directory, bool media)
-{
-    AssertThis(0);
-    Assert(sid >= 0, "Invalid sid");
-    AssertPo(directory, ffniDir);
-    struct Host
-    {
-        PTagManager manager;
-        PFilename directory;
-        bool media;
-        Filename current;
-        FileNameEnumerator files;
-        FileType type = kftgContent;
-    } host = {this, directory, media};
-    const MMSourceBuildServices services = {
-        &host,
-        [](void *c, MMI32 sid) -> int { return static_cast<Host *>(c)->manager->HasArchiveSource(sid); },
-        [](void *c) -> int {
-            auto h = static_cast<Host *>(c);
-            return h->files.FInit(h->directory, &h->type, 1);
-        },
-        [](void *c, MMI32 sid, MMU32 i, int archive) -> int {
-            auto h = static_cast<Host *>(c);
-            return archive ? h->manager->SourceArchive(sid, h->type, i, &h->current) : h->files.FNextFni(&h->current);
-        },
-        [](void *c, MMI32 budget) {
-            const auto h = static_cast<Host *>(c);
-            return OpenSourceResourceCache(&h->current, budget, h->media);
-        }};
-    return mm_source_build(sid, _cbCache, &services, KauaiResourceObjectAllocator(), KauaiCopyAllocator());
-}
-
-/***************************************************************************
     Looks up or builds the resource manager for a source. Unless localOnly
     is set, lookups may access removable media.
 ***************************************************************************/
 MMResourceManager *TagManager::_GetSourceManager(LegacyLong sid, bool localOnly, const TAG *asset)
 {
+    AssertThis(0);
+    Assert(sid >= 0, "Invalid sid");
+    NativeSourceArchives archives;
     NativeSourceHost host = {this, nullptr, nullptr, asset};
+    host.archives = &archives;
     NativeSourcePaths paths;
     const auto services = _SourceServices(&host);
-    return static_cast<MMResourceManager *>(mm_source_manager(&_sources, sid, localOnly, &paths, &services));
+    const MMSourceBuildServices build = {
+        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), _cbCache,
+        [](void *c, void *p, int media) -> int {
+            auto a = static_cast<NativeSourceHost *>(c)->archives;
+            auto paths = static_cast<NativeSourcePaths *>(p);
+            auto directory = media ? &paths->media : &paths->local;
+            AssertPo(directory, ffniDir);
+            return a->files.FInit(directory, &a->type, 1);
+        },
+        [](void *c, MMI32 sid, MMU32 i, int archive) -> int {
+            auto h = static_cast<NativeSourceHost *>(c);
+            auto a = h->archives;
+            return archive ? h->manager->SourceArchive(sid, a->type, i, &a->current) : a->files.FNextFni(&a->current);
+        },
+        [](void *c, MMI32 budget, int media) {
+            auto a = static_cast<NativeSourceHost *>(c)->archives;
+            return OpenSourceResourceCache(&a->current, budget, media != 0);
+        }};
+    return mm_source_manager(&_sources, sid, localOnly, &paths, &services, &build);
 }
 
 /***************************************************************************
@@ -790,7 +778,7 @@ void TagManager::AssertValid(LegacyUlong flags)
         auto paths = static_cast<NativeSourcePaths *>(r.paths);
         AssertPo(&paths->local, ffniDir | ffniEmpty);
         AssertPo(&paths->media, ffniDir | ffniEmpty);
-        const auto manager = static_cast<MMResourceManager *>(r.manager);
+        const auto manager = r.manager;
         AssertNilOrVarMem(manager);
         Assert(!manager || manager->count <= manager->storage.buffers[0].capacity / sizeof(MMResourceCache *),
                "bad source cache count");
@@ -812,7 +800,7 @@ void TagManager::MarkMem(void)
         MMSourceRecord r;
         AssertDo(mm_source_at(&_sources, i, &r) == MM_STORAGE_OK, "bad source index");
         MarkMemObj(static_cast<NativeSourcePaths *>(r.paths));
-        if (const auto manager = static_cast<MMResourceManager *>(r.manager))
+        if (const auto manager = r.manager)
         {
             MarkPv(manager);
             MarkPv(manager->storage.buffers[0].data);

@@ -189,7 +189,6 @@ class TagManager : public TagManager_PAR
     bool _FDetermineIfContentOnFni(PFilename pfni, bool *pfContentOnFni);
 
     bool _FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists);
-    MMResourceManager *_BuildSourceManager(LegacyLong sid, PFilename pfniInfo, bool media);
     MMResourceManager *_GetSourceManager(LegacyLong sid, bool fDontHitCD = fFalse, const TAG *asset = nullptr);
 
   public:

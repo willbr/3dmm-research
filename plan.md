@@ -2251,8 +2251,10 @@ the selected path, bitmap palette and scoped error stack. The scrolling
 regression calls the same C89 playback clock used by Studio and Marcus.
 The C++ portfolio data and scroll modules are out of the engine build.
 Source-manager construction retains, orders, and releases archive caches in
-C89. Studio's source tags and the archive input used by Preview and Marcus
-share C89 live-cache selection. The C89 source lookup falls back to a stored
+C89. The source catalogue creates and destroys typed resource managers on
+lookup, invalidation, and shutdown. The host supplies archive enumeration
+and opening services. Studio's source tags and the archive input used by
+Preview and Marcus share C89 live-cache selection. C89 falls back to a stored
 index when live selection leaves that choice open. The Studio tag host
 provides native path, drive, prompt, and diagnostic services. The old
 `engine-core` target now groups the C89 engine and native bindings as an

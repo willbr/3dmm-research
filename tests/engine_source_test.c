@@ -26,11 +26,11 @@ typedef struct BuildCache
 typedef struct Host
 {
     MMSourceCatalogue catalogue;
-    int access, exists, content, archive, media, retry, install, fail_path, fail_alloc, fail_build, fail_probe,
-        fail_manager;
-    int paths, managers, allocations, probes, builds, retries, news, outputs, output, leaf_calls, leaf_at, prepare,
+    int access, exists, content, archive, media, retry, install, fail_path, fail_alloc, fail_build, fail_probe;
+    int paths, managers, allocations, probes, builds, retries, outputs, output, leaf_calls, leaf_at, prepare,
         cleared, issues;
-    int create_fail, begin_fail, open_failure_at, add_fail, file_count, next_calls, begins;
+    int create_fail, begin_fail, open_failure_at, add_fail, file_count, next_calls, begins, archive_count, expect_media;
+    MMStorageAllocator manager_allocator;
     BuildCache files[2];
     char log[256];
     int used;
@@ -68,13 +68,6 @@ static void release_paths(void *p)
     event(active, 'p');
     free(p);
 }
-static void release_manager(void *p)
-{
-    Host *h = (Host *)p;
-    CHECK(h->managers > 0);
-    --h->managers;
-    event(h, 'm');
-}
 static void *resize(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
 {
     Host *h = (Host *)p;
@@ -99,6 +92,26 @@ static void release_memory(void *p, void *v, MMU32 bytes)
     (void)bytes;
     --h->allocations;
     free(v);
+}
+static void *allocate_manager(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
+{
+    Host *h = p;
+    void *result;
+    event(h, 'N');
+    if (h->create_fail)
+        return NULL;
+    result = resize(p, old, before, bytes, priority);
+    if (result)
+        ++h->managers;
+    return result;
+}
+static void free_manager(void *p, void *data, MMU32 bytes)
+{
+    Host *h = p;
+    CHECK(h->managers > 0);
+    --h->managers;
+    event(h, 'm');
+    release_memory(p, data, bytes);
 }
 static int access_source(void *p, MMI32 sid, void *paths, int kind)
 {
@@ -175,18 +188,6 @@ static int retry(void *p, MMI32 sid)
     }
     return h->retry;
 }
-static void *new_manager(void *p, MMI32 sid, void *paths, int media)
-{
-    Host *h = (Host *)p;
-    (void)sid;
-    CHECK((media ? ((Paths *)paths)->media : ((Paths *)paths)->local) != 0);
-    event(h, media ? 'M' : 'L');
-    ++h->news;
-    if (h->fail_manager)
-        return NULL;
-    ++h->managers;
-    return h;
-}
 static void output(void *p, void *paths, int media)
 {
     Host *h = (Host *)p;
@@ -225,11 +226,13 @@ static MMSourceServices init(Host *h)
     memset(h, 0, sizeof(*h));
     active = h;
     h->prepare = 1;
+    h->manager_allocator.context = h;
+    h->manager_allocator.resize = allocate_manager;
+    h->manager_allocator.release = free_manager;
     owners.context = h;
     owners.new_paths = new_paths;
     owners.copy_paths = copy_paths;
     owners.release_paths = release_paths;
-    owners.release_manager = release_manager;
     a.context = h;
     a.resize = resize;
     a.release = release_memory;
@@ -244,7 +247,6 @@ static MMSourceServices init(Host *h)
     s.content = content;
     s.find_media = find_media;
     s.retry = retry;
-    s.new_manager = new_manager;
     s.output = output;
     s.moved_open_source = moved;
     s.prepare_file = prepare;
@@ -255,54 +257,58 @@ static MMSourceServices init(Host *h)
 static void finish(Host *h)
 {
     CHECK(mm_source_dispose(&h->catalogue) == MM_STORAGE_OK);
-    CHECK(!h->paths && !h->managers && !h->allocations && !h->catalogue.count);
+    CHECK(!h->paths && !h->managers && !h->allocations && !h->file_count && !h->catalogue.count);
     CHECK(mm_source_dispose(&h->catalogue) == MM_STORAGE_OK);
 }
+static MMResourceManager *lookup(Host *, MMI32, int, Paths *, const MMSourceServices *);
+
 static void lookup_cases(void)
 {
     Host h;
     MMSourceServices s;
     Paths work;
     MMSourceRecord record;
+    MMResourceManager *manager;
     int exists;
     s = init(&h);
     h.access = MM_SOURCE_DISABLED;
     h.retry = 1;
-    CHECK(!mm_source_manager(&h.catalogue, 42, 1, &work, &s) && !h.catalogue.count && !h.retries);
-    CHECK(!mm_source_manager(&h.catalogue, 42, 0, &work, &s) && !h.catalogue.count && h.retries == 1);
+    CHECK(!lookup(&h, 42, 1, &work, &s) && !h.catalogue.count && !h.retries);
+    CHECK(!lookup(&h, 42, 0, &work, &s) && !h.catalogue.count && h.retries == 1);
     finish(&h);
     s = init(&h);
-    CHECK(!mm_source_manager(&h.catalogue, 42, 1, &work, &s) && h.catalogue.count == 1 && !h.retries &&
+    CHECK(!lookup(&h, 42, 1, &work, &s) && h.catalogue.count == 1 && !h.retries &&
           h.builds == 1);
-    CHECK(!mm_source_manager(&h.catalogue, 42, 1, &work, &s) && h.builds == 1);
+    CHECK(!lookup(&h, 42, 1, &work, &s) && h.builds == 1);
     h.install = 1;
     reset(&h);
-    CHECK(mm_source_manager(&h.catalogue, 42, 0, &work, &s) == &h && h.retries == 1 && h.builds == 2 &&
-          h.news == 1);
-    CHECK(!strcmp(h.log, "ADRXBHCL"));
+    manager = lookup(&h, 42, 0, &work, &s);
+    CHECK(manager && h.retries == 1 && h.builds == 2 && h.managers == 1);
+    CHECK(!strcmp(h.log, "ADRXBHCNHLQ"));
     reset(&h);
-    CHECK(mm_source_manager(&h.catalogue, 42, 1, &work, &s) == &h && !strcmp(h.log, "A"));
+    CHECK(lookup(&h, 42, 1, &work, &s) == manager && !strcmp(h.log, "A"));
     h.access = MM_SOURCE_MISSING;
     reset(&h);
-    CHECK(!mm_source_manager(&h.catalogue, 42, 1, &work, &s) && !strcmp(h.log, "A"));
+    CHECK(!lookup(&h, 42, 1, &work, &s) && !strcmp(h.log, "A"));
     CHECK(h.managers == 1);
     CHECK(mm_source_invalidate(&h.catalogue, 42) == MM_STORAGE_OK && !h.paths && !h.managers &&
           !h.catalogue.count);
     finish(&h);
     s = init(&h);
-    h.media = 1;
-    CHECK(mm_source_manager(&h.catalogue, 42, 0, &work, &s) == &h && !strcmp(h.log, "ABDM"));
+    h.media = h.expect_media = 1;
+    manager = lookup(&h, 42, 0, &work, &s);
+    CHECK(manager && !strcmp(h.log, "ABDNHMQ"));
     reset(&h);
-    CHECK(mm_source_manager(&h.catalogue, 42, 1, &work, &s) == &h && !strcmp(h.log, "A"));
+    CHECK(lookup(&h, 42, 1, &work, &s) == manager && !strcmp(h.log, "A"));
     h.media = 0;
     reset(&h);
-    CHECK(!mm_source_manager(&h.catalogue, 42, 0, &work, &s) && !strcmp(h.log, "ADR") && h.managers == 1);
+    CHECK(!lookup(&h, 42, 0, &work, &s) && !strcmp(h.log, "ADR") && h.managers == 1);
     finish(&h);
     s = init(&h);
     h.exists = 1;
     h.archive = 1;
     h.fail_probe = 1;
-    CHECK(mm_source_manager(&h.catalogue, 42, 1, &work, &s) == &h && !h.probes && !strcmp(h.log, "ABHL"));
+    CHECK(lookup(&h, 42, 1, &work, &s) && !h.probes && !strcmp(h.log, "ABHNHQ"));
     finish(&h);
     s = init(&h);
     h.exists = 1;
@@ -317,16 +323,16 @@ static void lookup_cases(void)
     finish(&h);
     s = init(&h);
     h.fail_path = 1;
-    CHECK(!mm_source_manager(&h.catalogue, 42, 1, &work, &s) && !h.paths && !h.catalogue.count);
+    CHECK(!lookup(&h, 42, 1, &work, &s) && !h.paths && !h.catalogue.count);
     h.fail_path = 0;
     h.fail_alloc = 1;
-    CHECK(!mm_source_manager(&h.catalogue, 42, 1, &work, &s) && !h.paths && !h.catalogue.count);
+    CHECK(!lookup(&h, 42, 1, &work, &s) && !h.paths && !h.catalogue.count);
     h.fail_alloc = 0;
     h.exists = h.content = 1;
-    h.fail_manager = 1;
-    CHECK(!mm_source_manager(&h.catalogue, 42, 1, &work, &s) && h.catalogue.count == 1 && !h.managers);
-    h.fail_manager = 0;
-    CHECK(mm_source_manager(&h.catalogue, 42, 1, &work, &s) == &h && h.builds == 1);
+    h.create_fail = 1;
+    CHECK(!lookup(&h, 42, 1, &work, &s) && h.catalogue.count == 1 && !h.managers);
+    h.create_fail = 0;
+    CHECK(lookup(&h, 42, 1, &work, &s) && h.builds == 1);
     finish(&h);
 }
 static void paths_cases(void)
@@ -362,7 +368,7 @@ static void paths_cases(void)
     s = init(&h);
     h.exists = h.content = 1;
     for (i = 0; i < 8; ++i)
-        CHECK(mm_source_manager(&h.catalogue, i + 1, 1, &work, &s) == &h);
+        CHECK(lookup(&h, i + 1, 1, &work, &s) != NULL);
     CHECK(h.managers == 8 && h.catalogue.count == 8);
     CHECK(mm_source_invalidate(&h.catalogue, 3) == MM_STORAGE_OK && h.catalogue.count == 7 &&
           h.managers == 7);
@@ -374,40 +380,28 @@ static void paths_cases(void)
     finish(&h);
     CHECK(!strcmp(h.log, "mmmmmmmppppppp"));
 }
-static void *allocate_manager(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
-{
-    Host *h = (Host *)p;
-    event(h, 'N');
-    if (h->create_fail)
-        return NULL;
-    ++h->managers;
-    return resize(p, old, before, bytes, priority);
-}
-static void free_manager(void *p, void *data, MMU32 bytes)
-{
-    release_manager(p);
-    release_memory(p, data, bytes);
-}
 static void *allocate_rows(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
 {
     Host *h = p;
     event(h, 'A');
     return h->add_fail ? NULL : resize(p, old, before, bytes, priority);
 }
-static int begin(void *p)
+static int begin(void *p, void *paths, int media)
 {
     Host *h = (Host *)p;
+    const Paths *source = paths;
+    CHECK(media == h->expect_media && (media ? source->media == 20 : source->local == 10));
     ++h->begins;
-    event(h, 'I');
+    event(h, media ? 'M' : 'L');
     return !h->begin_fail;
 }
 static int next(void *p, MMI32 sid, MMU32 index, int archive)
 {
     Host *h = (Host *)p;
-    CHECK(sid == 42 && archive == h->archive);
+    CHECK(sid >= 0 && archive == h->archive);
     ++h->next_calls;
     event(h, 'Q');
-    return index < 2;
+    return index < (MMU32)h->archive_count;
 }
 static void release_file(void *p)
 {
@@ -417,11 +411,11 @@ static void release_file(void *p)
     --h->file_count;
     event(h, 'f');
 }
-static MMResourceCache *open_file(void *p, MMI32 budget)
+static MMResourceCache *open_file(void *p, MMI32 budget, int media)
 {
     Host *h = (Host *)p;
     BuildCache *file;
-    CHECK(budget == 128);
+    CHECK(budget == 128 && media == h->expect_media);
     event(h, 'O');
     if (h->open_failure_at == h->next_calls)
         return NULL;
@@ -435,42 +429,55 @@ static MMResourceCache *open_file(void *p, MMI32 budget)
     ++h->file_count;
     return &file->cache;
 }
+static MMResourceManager *lookup(Host *h, MMI32 sid, int local_only, Paths *paths, const MMSourceServices *s)
+{
+    MMStorageAllocator rows = {NULL, allocate_rows, release_memory};
+    MMSourceBuildServices build = {NULL, NULL, 128, begin, next, open_file};
+    rows.context = h;
+    build.owner = &h->manager_allocator;
+    build.storage = &rows;
+    return mm_source_manager(&h->catalogue, sid, local_only, paths, s, &build);
+}
 static void build_cases(void)
 {
     Host h;
-    MMSourceBuildServices s;
+    Paths paths;
+    MMSourceServices s;
+    MMSourceRecord record;
     MMResourceManager *manager;
-    MMStorageAllocator owner = {NULL, allocate_manager, free_manager};
-    MMStorageAllocator rows = {NULL, allocate_rows, release_memory};
     int mode;
-    owner.context = rows.context = &h;
-    for (mode = 0; mode < 7; ++mode)
+    for (mode = 0; mode < 8; ++mode)
     {
-        init(&h);
+        s = init(&h);
+        h.media = h.expect_media = mode == 7;
+        h.exists = h.content = !h.media;
+        h.archive_count = 2;
         h.create_fail = mode == 1;
         h.begin_fail = mode == 2;
         h.open_failure_at = mode == 3 ? 1 : mode == 6 ? 2 : 0;
         h.add_fail = mode == 4;
         h.archive = mode == 5;
-        s.context = &h;
-        s.archive_source = archives;
-        s.begin = begin;
-        s.next = next;
-        s.open = open_file;
-        manager = mm_source_build(42, 128, &s, &owner, &rows);
-        CHECK((manager != NULL) == (mode == 0 || mode == 5));
+        manager = lookup(&h, 42, !h.media, &paths, &s);
+        CHECK((manager != NULL) == (mode == 0 || mode == 5 || mode == 7));
+        CHECK(mm_source_at(&h.catalogue, 0, &record) == MM_STORAGE_OK && record.manager == manager);
         if (manager)
         {
             CHECK(manager->count == 2 && h.file_count == 2 && h.next_calls == 3 && h.begins == !h.archive);
             CHECK(mm_resource_manager_at(manager, 0) == &h.files[0].cache && h.files[0].references.count == 1);
             CHECK(mm_resource_manager_at(manager, 1) == &h.files[1].cache && h.files[1].references.count == 1);
-            mm_resource_manager_destroy(manager);
         }
-        CHECK(!h.managers && !h.file_count);
+        else
+            CHECK(!h.managers && !h.file_count);
         if (mode == 4)
-            CHECK(!strcmp(h.log, "NHIQOAAfm"));
+            CHECK(!strcmp(h.log, "ABHCNHLQOAAfm"));
         if (mode == 6)
-            CHECK(!strcmp(h.log, "NHIQOAQOfm"));
+        {
+            CHECK(!strcmp(h.log, "ABHCNHLQOAQOfm"));
+            h.open_failure_at = h.next_calls = 0;
+            manager = lookup(&h, 42, 1, &paths, &s);
+            CHECK(manager && manager->count == 2 && h.builds == 1);
+            CHECK(mm_source_invalidate(&h.catalogue, 42) == MM_STORAGE_OK && !h.file_count && !h.managers);
+        }
         finish(&h);
     }
 }

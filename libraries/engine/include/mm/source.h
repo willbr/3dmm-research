@@ -19,7 +19,8 @@ extern "C"
     {
         MMI32 sid;
         int local_content; /* 0=no, 1=yes, 2=unknown */
-        void *manager, *paths;
+        MMResourceManager *manager;
+        void *paths;
     } MMSourceRecord;
     typedef struct MMSourceOwners
     {
@@ -27,7 +28,6 @@ extern "C"
         void *(*new_paths)(void *);
         void (*copy_paths)(void *destination, const void *source);
         void (*release_paths)(void *);
-        void (*release_manager)(void *);
     } MMSourceOwners;
     typedef struct MMSourceCatalogue
     {
@@ -35,6 +35,16 @@ extern "C"
         MMSourceOwners owners;
         MMU32 count;
     } MMSourceCatalogue;
+    typedef struct MMSourceBuildServices
+    {
+        const MMStorageAllocator *owner, *storage;
+        MMI32 budget;
+        /* Explicit archive sets skip directory enumeration. False next ends the scan. */
+        int (*begin)(void *, void *paths, int media);
+        int (*next)(void *, MMI32 sid, MMU32 index, int archive);
+        /* Open transfers one cache reference to the catalogue. */
+        MMResourceCache *(*open)(void *, MMI32 budget, int media);
+    } MMSourceBuildServices;
     typedef struct MMSourceServices
     {
         void *context;
@@ -47,14 +57,13 @@ extern "C"
         int (*content)(void *, void *paths, int *exists);
         int (*find_media)(void *, MMI32 sid, void *paths, int *changed);
         int (*retry)(void *, MMI32 sid);
-        void *(*new_manager)(void *, MMI32 sid, void *paths, int media);
         void (*output)(void *, void *paths, int media);
         void (*moved_open_source)(void *); /* Optional legacy diagnostic, not a failure. */
         int (*prepare_file)(void *);
         int (*find_leaf)(void *);
         void (*clear_output)(void *);
     } MMSourceServices;
-    /* Catalogue uniquely owns paths and manager references. Initialized record cannot
+    /* Catalogue uniquely owns paths and managers. Initialized catalogue cannot
      * move/copy. Work paths are caller-owned scratch in the same path-service domain;
      * queries copy stored paths to scratch and publish at legacy mutation points.
      * Callbacks may append other sources but, after acquisition, cannot invalidate
@@ -65,8 +74,8 @@ extern "C"
     int mm_source_dispose(MMSourceCatalogue *);
     int mm_source_at(const MMSourceCatalogue *, MMU32, MMSourceRecord *);
     int mm_source_invalidate(MMSourceCatalogue *, MMI32 sid);
-    void *mm_source_manager(MMSourceCatalogue *, MMI32 sid, int local_only, void *work_paths,
-                                  const MMSourceServices *);
+    MMResourceManager *mm_source_manager(MMSourceCatalogue *, MMI32 sid, int local_only, void *work_paths,
+                                         const MMSourceServices *, const MMSourceBuildServices *);
     int mm_source_local_content(MMSourceCatalogue *, MMI32 sid, void *work_paths, int *exists,
                                       const MMSourceServices *);
     int mm_source_local_path(MMSourceCatalogue *, MMI32 sid, void *work_paths,
@@ -75,19 +84,6 @@ extern "C"
                                    const MMSourceServices *);
     int mm_source_find_file(MMSourceCatalogue *, MMI32 sid, int ask, void *work_paths,
                                   const MMSourceServices *);
-    typedef struct MMSourceBuildServices
-    {
-        void *context;
-        int (*archive_source)(void *, MMI32 sid);
-        int (*begin)(void *);
-        int (*next)(void *, MMI32 sid, MMU32 index, int archive);
-        MMResourceCache *(*open)(void *, MMI32 budget);
-    } MMSourceBuildServices;
-    /* Ordered archive sets bypass directory enumeration. False next means normal
-     * end, as in legacy enumeration. Open transfers one cache reference. This
-     * operation returns an owned manager or releases all partial state on failure. */
-    MMResourceManager *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *,
-                                      const MMStorageAllocator *owner, const MMStorageAllocator *storage);
 #ifdef __cplusplus
 }
 #endif
