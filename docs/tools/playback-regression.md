@@ -23959,3 +23959,39 @@ Text Acid candidate `20261123T111509Z-360fa3b1` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-template-font-binding`.
+
+## C89 actor template replacement (23 November 2026)
+
+Studio now uses the C89 template and body owners to replace an actor's
+template. Studio and Marcus Preview call the same BRender operations to
+reshape a text body and select its current cel. Studio positions the live
+body with the old template before adopting the candidate and removing
+costume events for deleted body sets. The actor owner fixture checks
+that sequence and covers fetch, adjustment and cel selection failures.
+
+The movie-content fixture drives Studio's 3D text edits, including
+removing the text. Its 91,484-byte trace matched the prior native and SDL
+builds. The 94,208-byte native actor owner trace and 29,440-byte native
+save trace also matched. Actor creation matched in both builds. Text
+generation and template resource traces matched in the native build.
+
+All 230 selected native checks, 13 SDL checks and three x86 worker fixtures
+passed. The native selection includes 13 strict C89 checks. The headless
+Marcus startup image matched the previous build.
+
+Headless Studio authored, saved and reopened its actor and caption
+fixture. The resulting 27,056-byte movie matched the retained save.
+The edited and copied 3D text archives also matched byte for byte. Both
+ports reopened the copied save in `20261123T112629Z-93e05e2a` and matched
+the frame and canvas from retail and V3DMM in `20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T112629Z-7a6cdb78` matched baseline
+`20261123T111509Z-a173c92c` on all 60 seek canvases and scene states per
+port. Both ports matched the retained retail and V3DMM authored frame
+order in seek and playback.
+
+Text Acid candidate `20261123T112629Z-66d583bb` matched baseline
+`20261123T111509Z-360fa3b1` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-template-replacement`.

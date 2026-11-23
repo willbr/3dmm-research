@@ -87,17 +87,16 @@ void mm_actor_owner_restore_undo(void *actor,void *snapshot,const MMActorOwnerSe
  * dispose motion storage. No wrapper-field destructor is required for ownership. */
 void mm_actor_owner_dispose(void *actor,const MMActorOwnerServices *);
 
+struct MMTemplateOwner;
+struct MMBodyOwner;
 typedef struct MMActorTemplateServices
 {
     void *context;
     const MMTagServices *tags;
     void *(*fetch)(void *, const MMTag *);
-    void (*release)(void *, void *object);
-    int (*text)(void *, void *object);
-    int (*adjust_body)(void *, void *object, void *body);
-    int (*select_cel)(void *, void *object, void *body, MMI32 action, MMI32 cel);
+    int (*adjust_body)(struct MMTemplateOwner *, struct MMBodyOwner *);
+    int (*pose)(struct MMTemplateOwner *, struct MMBodyOwner *, MMI32 action, MMI32 cel, void *distance);
     void (*position)(void *);
-    MMI32 (*body_sets)(void *, void *body);
 } MMActorTemplateServices;
 
 /* Replace the Studio template and discard costume rows whose body sets no

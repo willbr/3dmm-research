@@ -3,6 +3,8 @@
 #include "mm/actor_group_undo.h"
 #include "mm/actor_transform_edit.h"
 #include "mm/actor_undo.h"
+#include "mm/body_create.h"
+#include "mm/text_resource.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -175,7 +177,9 @@ typedef struct Replacement
 {
     MMActorRuntime runtime;
     MMActorEventTable *events;
-    int old, next, body, old_tag, new_tag, costume_tags;
+    MMTemplateOwner *old, *next;
+    MMBodyOwner *body;
+    int old_tag, new_tag, costume_tags;
     int failure, step, removed;
 } Replacement;
 
@@ -191,60 +195,53 @@ static void *fetch_replacement(void *p, const MMTag *tag)
     CHECK(++r->step == 1 && tag->cache == &r->new_tag);
     if (r->failure == 1)
         return NULL;
-    ++r->next;
-    return &r->next;
+    mm_template_owner_retain(r->next);
+    return r->next;
 }
 
-static void release_replacement(void *p, void *object)
+static MMBodyState *replacement_body_state(void *p, void *body)
 {
-    Replacement *r = (Replacement *)p;
-    CHECK(r->runtime.template_object == &r->old);
-    CHECK((r->failure == 2 && object == &r->next) || (!r->failure && r->step == 4 && object == &r->old));
-    release_tag(object);
+    (void)p;
+    return mm_body_owner_state(body);
 }
 
-static int is_text_replacement(void *p, void *object)
+static void replacement_free(void *p, void **memory)
 {
-    CHECK(object == &((Replacement *)p)->next);
-    return 1;
+    (void)p;
+    CHECK(!*memory);
 }
 
-static int adjust_replacement(void *p, void *object, void *body)
+static int adjust_replacement(MMTemplateOwner *next, MMBodyOwner *body)
 {
-    Replacement *r = (Replacement *)p;
-    CHECK(++r->step == 2 && object == &r->next && body == &r->body);
+    Replacement *r = mm_template_owner_provider(next)->context;
+    CHECK(++r->step == 2 && next == r->next && body == r->body);
     if (r->failure == 2)
         return 0;
-    r->body = 2;
+    mm_body_owner_state(body)->shape.set_count = 2;
     return 1;
 }
 
-static int select_replacement(void *p, void *object, void *body, MMI32 action, MMI32 cel)
+static int select_replacement(MMTemplateOwner *next, MMBodyOwner *body, MMI32 action, MMI32 cel, void *distance)
 {
-    Replacement *r = (Replacement *)p;
-    CHECK(++r->step == 3 && object == &r->next && body == &r->body && r->body == 2);
-    CHECK(action == 3 && cel == 4);
+    Replacement *r = mm_template_owner_provider(next)->context;
+    CHECK(++r->step == 3 && next == r->next && body == r->body);
+    CHECK(mm_body_owner_state(body)->shape.set_count == 2 && action == 3 && cel == 4 && !distance);
     return r->failure != 3;
 }
 
 static void position_replacement(void *p)
 {
     Replacement *r = (Replacement *)p;
-    CHECK(++r->step == 4 && r->runtime.template_object == &r->old && r->old == 1);
-}
-
-static MMI32 replacement_sets(void *p, void *body)
-{
-    Replacement *r = (Replacement *)p;
-    CHECK(body == &r->body && r->runtime.template_object == &r->next);
-    CHECK(!r->old && !r->old_tag && r->new_tag == 2);
-    return r->body;
+    CHECK(++r->step == 4 && r->runtime.template_object == r->old);
+    CHECK(mm_template_owner_references(r->old) == 2 && r->old_tag == 1 && r->new_tag == 1);
 }
 
 static void close_costume(void *p, MMI32 index, const MMTagServices *tags)
 {
     Replacement *r = (Replacement *)p;
     (void)tags;
+    CHECK(r->runtime.template_object == r->next && mm_template_owner_references(r->old) == 1);
+    CHECK(!r->old_tag && r->new_tag == 2);
     CHECK(index == (r->removed ? 0 : 3));
     mm_actor_track_close_tag(r->events, index, &replacement_tags);
 }
@@ -258,16 +255,19 @@ static void remove_costume(void *p, MMI32 index)
 
 static void template_replacement(void)
 {
+    const MMTemplateOwnerHost host = {NULL, 1, NULL};
     Replacement r;
-    MMActorTemplateServices s = {NULL, &replacement_tags, fetch_replacement, release_replacement,
-                                 is_text_replacement, adjust_replacement, select_replacement,
-                                 position_replacement, replacement_sets};
+    MMBodyCreateServices body_services = {0};
+    MMActorTemplateServices s = {NULL, &replacement_tags, fetch_replacement, adjust_replacement,
+                                 select_replacement, position_replacement};
     MMActorEditServices edits = {0};
     MMActorEvent event = {0};
     MMActorCostume costume = {0};
     MMTag tag = {0};
     int failure, i;
     s.context = edits.context = edits.tables.context = &r;
+    body_services.state = replacement_body_state;
+    body_services.free_memory = replacement_free;
     edits.tables.close_event_tag = close_costume;
     edits.tables.delete_event = remove_costume;
     for (failure = 0; failure <= 3; ++failure)
@@ -276,12 +276,20 @@ static void template_replacement(void)
         mm_actor_runtime_init(&r.runtime);
         r.events = mm_actor_events_create(NULL, 0, 0);
         r.failure = failure;
-        r.old = r.old_tag = r.new_tag = 1;
-        r.body = 4;
-        r.runtime.template_object = &r.old;
+        r.old = mm_template_owner_create(&host, 0);
+        r.next = mm_template_owner_create(&host, 1);
+        r.body = mm_body_owner_create(NULL, &body_services);
+        CHECK(r.old && r.next && r.body);
+        mm_template_owner_state(r.next)->flags = MM_TEMPLATE_TEXT;
+        mm_template_owner_provider(r.next)->context = &r;
+        mm_body_owner_state(r.body)->shape.set_count = 4;
+        mm_body_owner_state(r.body)->shape.hidden = 1;
+        r.old_tag = r.new_tag = 1;
+        mm_template_owner_retain(r.old);
+        r.runtime.template_object = r.old;
         r.runtime.template_tag.sid = 0;
         r.runtime.template_tag.cache = &r.old_tag;
-        r.runtime.body = &r.body;
+        r.runtime.body = r.body;
         r.runtime.state.action = 3;
         r.runtime.state.cel = 4;
         r.runtime.state.nextEvent = 4;
@@ -298,13 +306,20 @@ static void template_replacement(void)
         }
         CHECK(mm_actor_replace_template(&r.runtime, r.events, &tag, &s, &edits) == !failure);
         CHECK(r.step == (failure ? failure : 4) && r.removed == (failure ? 0 : 2));
-        CHECK(r.body == (!failure || failure == 3 ? 2 : 4));
-        CHECK(r.next == (!failure || failure == 3));
-        CHECK(r.runtime.template_object == (failure ? &r.old : &r.next));
+        CHECK(mm_body_owner_state(r.body)->shape.set_count == (!failure || failure == 3 ? 2 : 4));
+        CHECK(mm_template_owner_references(r.old) == (failure ? 2 : 1));
+        CHECK(mm_template_owner_references(r.next) == (!failure || failure == 3 ? 2 : 1));
+        CHECK(r.runtime.template_object == (failure ? r.old : r.next));
         CHECK(r.costume_tags == (failure ? 3 : 1));
         CHECK(r.runtime.state.nextEvent == (failure ? 4 : 2));
         CHECK(r.runtime.state.actionEvent == (failure ? 2 : 1));
         mm_tag_close(&r.runtime.template_tag, &replacement_tags);
+        mm_template_owner_release(r.runtime.template_object);
+        if (failure == 3)
+            mm_template_owner_release(r.next);
+        mm_template_owner_release(r.next);
+        mm_template_owner_release(r.old);
+        mm_body_owner_release(r.body);
         for (i = mm_actor_events_count(r.events) - 1; i >= 0; --i)
             mm_actor_track_close_tag(r.events, i, &replacement_tags);
         mm_actor_events_release(r.events);

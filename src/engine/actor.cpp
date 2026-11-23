@@ -1702,19 +1702,12 @@ bool Actor::FChangeTagTmpl(const MMTag &tag)
     services.context = this;
     services.tags = &EngineActorTagServices();
     services.fetch = _FetchTemplate;
-    services.release = [](void *, void *object) { mm_template_owner_release(static_cast<PTemplate>(object)); };
-    services.text = [](void *, void *object) -> int { return EngineTemplate::FIsTdt(static_cast<PTemplate>(object)); };
-    services.adjust_body = [](void *, void *object, void *body) -> int {
-        return EngineText::FAdjustBody(static_cast<PThreeDText>(object), static_cast<PBody>(body));
-    };
-    services.select_cel = [](void *, void *object, void *body, MMI32 action, MMI32 cel) -> int {
-        return EngineTemplate::FSetActnCel(static_cast<PTemplate>(object), static_cast<PBody>(body), action, cel);
-    };
+    services.adjust_body = mm_brender_text_adjust_body;
+    services.pose = mm_brender_template_set_cel;
     services.position = [](void *p) {
         auto actor = static_cast<PActor>(p);
         actor->_PositionBody(&actor->_owner.runtime.state.position);
     };
-    services.body_sets = [](void *, void *body) -> MMI32 { return EngineBody::SetCount(static_cast<PBody>(body)); };
     const auto edits = _EventEditServices();
     return mm_actor_replace_template(&_owner.runtime, _owner.track.events, &tag, &services, &edits) != 0;
 }

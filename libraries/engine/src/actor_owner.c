@@ -1,6 +1,8 @@
 /* Actor ownership/undo restoration converted from actor.cpp and actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_owner.h"
+#include "mm/body_create.h"
+#include "mm/text_resource.h"
 #include <assert.h>
 #include <string.h>
 
@@ -87,27 +89,29 @@ int mm_actor_replace_template(MMActorRuntime *r, MMActorEventTable *events, cons
     MMActorEvent event;
     MMActorCostume costume;
     MMI32 i, sets;
-    void *next = s->fetch(s->context, tag);
+    int text;
+    MMBodyOwner *body = r->body;
+    MMTemplateOwner *next = s->fetch(s->context, tag);
     if (!next)
         return 0;
-    if (s->text(s->context, next) && !s->adjust_body(s->context, next, r->body))
+    text = (mm_template_owner_state(next)->flags & MM_TEMPLATE_TEXT) != 0;
+    if (text && !s->adjust_body(next, body))
     {
-        s->release(s->context, next);
+        mm_template_owner_release(next);
         return 0;
     }
-    if (!s->select_cel(s->context, next, r->body, r->state.action, r->state.cel))
+    if (!s->pose(next, body, r->state.action, r->state.cel, NULL))
         return 0;
     s->position(s->context);
-    if (r->template_object)
-        s->release(s->context, r->template_object);
+    mm_template_owner_release(r->template_object);
     r->template_object = next;
     mm_tag_close(&r->template_tag, s->tags);
     r->template_tag = *tag;
     mm_tag_dup(&r->template_tag, s->tags);
 
-    if (!s->text(s->context, next))
+    if (!text)
         return 1;
-    sets = s->body_sets(s->context, r->body);
+    sets = mm_body_owner_state(body)->shape.set_count;
     for (i = mm_actor_events_count(events) - 1; i >= 0; --i)
     {
         mm_actor_events_get_fixed(events, i, &event);
