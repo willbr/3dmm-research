@@ -12,7 +12,6 @@ extern "C" {
 #endif
 
 /* Native memory, codec, file and diagnostic providers. */
-int mm_kauai_resource_name(const MMResourceCache *, MMU32 type, MMU32 number, const MMStringValue *);
 const MMFontOwnerHost *mm_kauai_font_host(void);
 void mm_kauai_font_missing_model(void *, MMU32 id);
 const MMModelOwnerHost *mm_kauai_model_host(void);

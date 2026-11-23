@@ -23,7 +23,7 @@ const MMSoundResourceHost *mm_kauai_movie_sound_host(void)
                          MMSoundOwner *sound) -> int {
             const auto storage = mm_sound_owner_name(sound);
             if (cache)
-                return ReadResourceName(cache, type, number, storage);
+                return mm_resource_cache_name_value(cache, type, number, &storage);
             String name;
             const bool found = static_cast<PChunkyFile>(file)->FGetName(type, number, &name);
             mm_string_value_copy(&storage, name.Pst());

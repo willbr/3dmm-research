@@ -73,7 +73,7 @@ int main()
         auto empty = ChunkyFile::PcflCreateTemp();
         auto manager = ChunkyResourceManager::PcrmNew(2);
         CHECK(resources && empty && manager && manager->FAddCfl(empty, 0));
-        auto cache = NewTypedSiblingCache(resources->CoreCache(), 4096);
+        auto cache = mm_resource_cache_typed_sibling(resources->CoreCache(), 4096);
         CHECK(cache && mm_resource_manager_add_cache(manager->CoreManager(), cache, nullptr) == MM_STORAGE_OK);
         mm_resource_cache_release(cache);
         ReleasePpo(&resources);

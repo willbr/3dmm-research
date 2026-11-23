@@ -107,6 +107,17 @@ static int initialize_template(void *context, void *object, MMU32 type, MMU32 nu
     return mm_template_initialize(object, context, type, number, block, &services);
 }
 
+static int read_template_name(void *cache, void *object, MMU32 type, MMU32 number)
+{
+    const MMStringValue name = mm_template_owner_name(object);
+    return mm_resource_cache_name_value(cache, type, number, &name);
+}
+
+static void *create_action_cache(void *cache)
+{
+    return mm_resource_cache_typed_sibling(cache, 0);
+}
+
 void mm_brender_template_read_services(MMTemplateCreateServices *s, MMResourceCache *cache)
 {
     s->context = cache;
@@ -114,6 +125,8 @@ void mm_brender_template_read_services(MMTemplateCreateServices *s, MMResourceCa
     s->create = new_template;
     s->release = release_template;
     s->initialize = initialize_template;
+    s->read_name = read_template_name;
+    s->create_cache = create_action_cache;
     s->release_cache = release_cache;
     s->fetch_custom = fetch_custom;
     s->release_custom = release_material;
@@ -559,7 +572,7 @@ static void sound_exists(void *context, void *out, int present)
 static int action_name(void *context, void *cache, MMU32 type, MMU32 number, void *out)
 {
     (void)context;
-    return mm_kauai_resource_name(cache, type, number, out);
+    return mm_resource_cache_name_value(cache, type, number, out);
 }
 
 static void runtime_services(MMTemplateRuntimeServices *s, MMTemplateOwner *owner)

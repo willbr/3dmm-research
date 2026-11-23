@@ -57,7 +57,7 @@ int main()
     auto emptyFile = ChunkyFile::PcflCreateTemp();
     CHECK(resources && emptyFile);
     auto empty = ChunkyResourceFile::PcrfNew(emptyFile, 0);
-    auto typed = NewTypedSiblingCache(resources->CoreCache(), 1024 * 1024);
+    auto typed = mm_resource_cache_typed_sibling(resources->CoreCache(), 1024 * 1024);
     auto catalog = mm_resource_manager_create(nullptr, nullptr);
     CHECK(empty && typed && catalog);
     CHECK(mm_resource_manager_add_cache(catalog, empty->CoreCache(), nullptr) == MM_STORAGE_OK &&

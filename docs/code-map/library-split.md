@@ -6971,6 +6971,10 @@ including release through the BASE interface. The chunk provider uses the
 same extent and packed-bit lookup as the native `FFind` path. GenericHQ uses
 C block operations to unpack and adopt its handle. GenericHQ and generic-object
 wrappers still supply native object ownership.
+The C cache creates typed siblings with an independent object table and a
+retained source. Kauai supplies its tracked allocator and diagnostic hooks.
+The cache also reads titles using the archive's name codec and writes them
+directly into counted C values for template, background, and sound readers.
 Container adapters, source discovery and engine objects remain migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,

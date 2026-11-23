@@ -143,7 +143,7 @@ void ArchiveInput::Swap(ArchiveInput &other) noexcept
 MMResourceCache *ArchiveInput::NewResourceCache(MMI32 budget) const
 {
     if (input.live)
-        return NewTypedSiblingCache(input.live, budget);
+        return mm_resource_cache_typed_sibling(input.live, budget);
     return CanPreview() ? NewTypedSourceCache(&input.stored, budget) : nullptr;
 }
 

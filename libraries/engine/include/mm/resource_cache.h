@@ -16,6 +16,8 @@ extern "C"
     struct MMChunkEndpoint;
     struct MMChunkFileCopy;
     struct MMResourceCopyServices;
+    struct MMMovieTitle;
+    struct MMStringValue;
     struct MMChunkOwnerRead;
     struct MMArchiveWriter;
     /* The typed callback also identifies the cache entry. */
@@ -66,6 +68,12 @@ extern "C"
         MMResourceBlockReader reader;
         MMI32 priority;
     } MMResourceRequest;
+    typedef struct MMResourceTypedHost
+    {
+        const MMStorageAllocator *owner, *storage;
+        void (*mark_owner)(MMResourceCache *);
+        void (*issue)(void *, int kind, MMU32 type, MMU32 number);
+    } MMResourceTypedHost;
     typedef struct MMResourceServices
     {
         void *context;
@@ -92,6 +100,7 @@ extern "C"
         void (*mark_owner)(MMResourceCache *);
         void (*destroy_owner)(void *owner);
         void (*issue)(void *, int kind, MMU32 type, MMU32 number);
+        const MMResourceTypedHost *typed; /* Optional, borrowed diagnostics and allocators for typed siblings. */
     } MMResourceServices;
     /* Select exactly one source. A wire index and backing file describe the
      * same immutable archive. */
@@ -135,11 +144,19 @@ extern "C"
     MMResourceCache *mm_resource_cache_create(const MMResourceSource *, MMI32 budget, const MMResourceServices *,
                                                const MMStorageAllocator *owner, const MMStorageAllocator *storage);
     MMResourceSource mm_resource_cache_source(const MMResourceCache *);
+    /* Keep source services while selecting C owner diagnostics and typed readers. */
+    void mm_resource_services_for_typed_cache(MMResourceServices *);
+    /* Own an independent cache of the same source. No cached objects are copied. */
+    MMResourceCache *mm_resource_cache_typed_sibling(const MMResourceCache *, MMI32 budget);
     void mm_resource_cache_mark(MMResourceCache *);
     /* Copy a serialized name. A live source supplies its current name; wire
      * sources can convert legacy names through the caller's codec. */
     int mm_resource_cache_read_name(const MMResourceCache *, MMU32 type, MMU32 number, MMChunkLegacyName, void *,
                                      void *wire, MMU32 capacity, MMU32 *bytes);
+    /* Read a nonempty name via the cache's archive codec. Missing or malformed
+     * names clear the title or counted value. The value uses native code units. */
+    int mm_resource_cache_read_title(const MMResourceCache *, MMU32 type, MMU32 number, struct MMMovieTitle *);
+    int mm_resource_cache_name_value(const MMResourceCache *, MMU32 type, MMU32 number, const struct MMStringValue *);
     /* Borrow the current graph for synchronous lookup. Reacquire after edits. */
     MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *);
     /* Borrow the live archive. Stored indices have no live reader or writer. */

@@ -1,4 +1,6 @@
 #include "mm/resource_cache.h"
+#include "mm/chunk_copy.h"
+#include "mm/string_value.h"
 #include "mm/tag.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -686,6 +688,53 @@ static void last_detached_reference(void)
     release(object);
     CHECK(closes == 1 && closed_file == 0);
 }
+static int fixture_name(void *p, MMU32 type, MMU32 number, void *out, MMU32 capacity, MMU32 *bytes)
+{
+    static const unsigned char valid[] = {3, 3, 2, 'A', 'z', 0};
+    static const unsigned char malformed[] = {3, 3, 2, 'A', 'z', 'x'};
+    static const unsigned char empty[] = {3, 3, 0, 0};
+    (void)p;
+    if (type != 1 || !number || number > 3 || capacity < sizeof(valid))
+        return 0;
+    *bytes = number == 3 ? sizeof(empty) : sizeof(valid);
+    memcpy(out, number == 1 ? valid : number == 2 ? malformed : empty, *bytes);
+    return 1;
+}
+
+static void typed_sibling_cases(void)
+{
+    Host h;
+    MMStorageAllocator storage;
+    MMResourceTypedHost typed = {0};
+    MMResourceCopyServices codec = {0};
+    MMResourceCache *sibling;
+    unsigned char data[MM_STRING_MAX + 2];
+    MMStringValue name = {NULL, 1, NULL, NULL};
+    name.buffer = data;
+    init(&h, 100);
+    storage = allocator(&h);
+    typed.owner = typed.storage = &storage;
+    codec.text_unit = 1;
+    codec.titles.encoding = MM_TEXT_WINDOWS;
+    h.cache.services.typed = &typed;
+    h.cache.services.copy = &codec;
+    h.cache.services.live_name = fixture_name;
+    h.fail = 1;
+    CHECK(!mm_resource_cache_typed_sibling(&h.cache, 50) && h.file_refs == 2);
+    h.fail = 0;
+    sibling = mm_resource_cache_typed_sibling(&h.cache, 50);
+    CHECK(sibling && h.file_refs == 3 && sibling->budget == 50 && !sibling->count);
+    CHECK(!sibling->services.objects.state && !sibling->services.context && !sibling->services.compare_reader);
+    mm_resource_cache_release(&h.cache);
+    CHECK(h.file_refs == 2 && mm_resource_cache_name_value(sibling, 1, 1, &name));
+    CHECK(data[0] == 2 && !memcmp(data + 1, "Az", 3));
+    CHECK(!mm_resource_cache_name_value(sibling, 1, 2, &name) && !data[0] && !data[1]);
+    CHECK(!mm_resource_cache_name_value(sibling, 1, 3, &name) && !data[0]);
+    CHECK(!mm_resource_cache_name_value(sibling, 1, 4, &name) && !data[0]);
+    mm_resource_cache_release(sibling);
+    CHECK(h.file_refs == 1 && !h.allocations);
+}
+
 static void wire_index_lifetime(void)
 {
     static const unsigned char prefix[128] = {
@@ -704,6 +753,7 @@ static void wire_index_lifetime(void)
     MMResourceSource source = {NULL, NULL, NULL};
     Host h, backing = {0};
     Object *object;
+    MMResourceCache *sibling;
     MMOwnedBlock block;
     MMChunkAccess graph;
     MMU32 position;
@@ -734,9 +784,13 @@ static void wire_index_lifetime(void)
     object = fetch(&h, 7, reader_a, &error);
     CHECK(object && !error && !h.block_scans && backing.active_blocks == 1);
     detach(object);
+    sibling = mm_resource_cache_typed_sibling(&h.cache, 50);
+    CHECK(sibling && backing.active_blocks == 2);
     mm_resource_cache_release(&h.cache);
-    CHECK(backing.active_blocks == 1 && object->state.cache == &h.cache);
+    CHECK(backing.active_blocks == 2 && object->state.cache == &h.cache);
     release(object);
+    CHECK(backing.active_blocks == 1 && mm_resource_cache_contains(sibling, 1, 7, 0));
+    mm_resource_cache_release(sibling);
     CHECK(!backing.active_blocks && h.file_refs == 1 && !h.objects && !h.issues && !h.allocations);
 }
 typedef struct ManagerHost
@@ -939,6 +993,7 @@ int main(void)
     mixed_objects();
     typed_cache_owner();
     last_detached_reference();
+    typed_sibling_cases();
     wire_index_lifetime();
     manager_cases();
     owned_manager_cases();

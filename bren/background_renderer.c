@@ -49,7 +49,7 @@ static int read_name(void *context, MMU32 type, MMU32 number)
 {
     const BackgroundRead *read = context;
     const MMStringValue name = mm_background_owner_name(read->owner);
-    return mm_kauai_resource_name(read->cache, type, number, &name);
+    return mm_resource_cache_name_value(read->cache, type, number, &name);
 }
 
 static int load_background(void *context, void *object, MMU32 type, MMU32 number)

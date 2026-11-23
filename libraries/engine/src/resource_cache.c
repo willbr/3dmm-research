@@ -1,7 +1,9 @@
 /* Resource caching converted from Kauai crf.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/resource_cache.h"
+#include "mm/chunk_copy.h"
 #include "mm/chunk_storage.h"
+#include "mm/string_value.h"
 #include <stdlib.h>
 #include <string.h>
 #define SCOPE_TYPE 0x52534320UL
@@ -227,6 +229,30 @@ MMResourceSource mm_resource_cache_source(const MMResourceCache *c)
     return source;
 }
 
+void mm_resource_services_for_typed_cache(MMResourceServices *services)
+{
+    const MMResourceTypedHost *host = services->typed;
+    services->context = NULL;
+    memset(&services->objects, 0, sizeof(services->objects));
+    services->compare_reader = NULL;
+    services->mark_owner = host ? host->mark_owner : NULL;
+    services->issue = host ? host->issue : NULL;
+}
+
+MMResourceCache *mm_resource_cache_typed_sibling(const MMResourceCache *cache, MMI32 budget)
+{
+    MMResourceSource source;
+    MMResourceServices services;
+    const MMResourceTypedHost *host;
+    if (!cache)
+        return NULL;
+    source = mm_resource_cache_source(cache);
+    services = cache->services;
+    host = services.typed;
+    mm_resource_services_for_typed_cache(&services);
+    return mm_resource_cache_create(&source, budget, &services, host ? host->owner : NULL, host ? host->storage : NULL);
+}
+
 void mm_resource_cache_mark(MMResourceCache *c)
 {
     if (c && c->services.mark_owner && !c->marking)
@@ -255,6 +281,34 @@ int mm_resource_cache_read_name(const MMResourceCache *c, MMU32 type, MMU32 numb
         return 0;
     memcpy(wire, name, length);
     *bytes = length;
+    return 1;
+}
+
+int mm_resource_cache_read_title(const MMResourceCache *c, MMU32 type, MMU32 number, MMMovieTitle *title)
+{
+    const MMResourceCopyServices *codec = c ? c->services.copy : NULL;
+    unsigned char wire[MM_CHUNK_NAME_WIRE_BYTES];
+    MMU32 bytes;
+    if (!title)
+        return 0;
+    memset(title, 0, sizeof(*title));
+    return codec && mm_movie_title_init(title, codec->text_unit) &&
+           mm_resource_cache_read_name(c, type, number, codec->legacy_name, codec->titles.context,
+                                       wire, sizeof(wire), &bytes) &&
+           mm_movie_title_read_wire(title, wire, bytes, &codec->titles) && title->count != 0;
+}
+
+int mm_resource_cache_name_value(const MMResourceCache *c, MMU32 type, MMU32 number, const MMStringValue *out)
+{
+    MMMovieTitle title;
+    if (!out || !out->buffer || (out->unit != 1 && out->unit != 2))
+        return 0;
+    if (!mm_resource_cache_read_title(c, type, number, &title) || title.unit != out->unit)
+    {
+        mm_string_value_clear(out);
+        return 0;
+    }
+    mm_string_value_set(out, mm_movie_title_text(&title), (MMI32)title.count);
     return 1;
 }
 

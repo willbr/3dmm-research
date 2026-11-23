@@ -52,10 +52,6 @@ void mm_kauai_template_read_services(MMTemplateCreateServices *s)
     s->debug_checks = DebugShip(1, 0);
     s->decode = KauaiDecodeBlockHandle;
     s->table_allocator = Group::CollectionAllocator();
-    s->read_name = [](void *cache, void *object, MMU32 type, MMU32 number) -> int {
-        const auto storage = mm_template_owner_name(static_cast<MMTemplateOwner *>(object));
-        return mm_kauai_resource_name(static_cast<MMResourceCache *>(cache), type, number, &storage);
-    };
     s->object_size = [](void *, int text) -> MMI32 {
         // Preserve cache charges for the former native object layouts.
         const size_t prefix = sizeof(void *) == 8 ? 40 : 28 + DebugShip(4, 0);
@@ -66,9 +62,6 @@ void mm_kauai_template_read_services(MMTemplateCreateServices *s)
                                                2 * sizeof(void *) : 0));
     };
     s->invalidate = [](void *, void *out, size_t count) { TrashPvCb(out, static_cast<LegacyLong>(count)); };
-    s->create_cache = [](void *cache) -> void * {
-        return NewTypedSiblingCache(static_cast<MMResourceCache *>(cache), 0);
-    };
     s->diagnostic = [](void *, int code) {
         switch (code)
         {
@@ -79,11 +72,6 @@ void mm_kauai_template_read_services(MMTemplateCreateServices *s)
         case MM_TEMPLATE_WRONG_SET: Assert(false, "ibset's don't match"); break;
         }
     };
-}
-
-int mm_kauai_resource_name(const MMResourceCache *cache, MMU32 type, MMU32 number, const MMStringValue *out)
-{
-    return ReadResourceName(cache, type, number, *out);
 }
 
 void mm_kauai_text_action_name_missing(void *)

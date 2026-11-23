@@ -231,7 +231,7 @@ int TypedManagerCases()
     CHECK(file && Put(file, 1, 7, 4, 8));
     auto wrapped = ChunkyResourceFile::PcrfNew(file, 0);
     CHECK(wrapped);
-    auto typed = NewTypedSiblingCache(wrapped->CoreCache(), 100);
+    auto typed = mm_resource_cache_typed_sibling(wrapped->CoreCache(), 100);
     ReleasePpo(&wrapped);
     ReleasePpo(&file);
     auto manager = ChunkyResourceManager::PcrmNew(1);

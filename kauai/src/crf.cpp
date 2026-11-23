@@ -143,37 +143,46 @@ const MMResourceCopyServices *ResourceCopyProfile(bool kauaiBacking)
     return kauaiBacking ? &kauai : &ordinary;
 }
 
+const MMResourceTypedHost *TypedCacheHost()
+{
+    static const MMResourceTypedHost host = {
+        KauaiResourceObjectAllocator(), KauaiCopyAllocator(),
+#ifdef DEBUG
+        [](MMResourceCache *cache) {
+            MarkPv(cache->owner);
+            MarkPv(cache->storage.buffers[0].data);
+            if (cache->wire_index)
+            {
+                if (cache->services.block_files == KauaiBlockFileServices())
+                    MarkMemObj(static_cast<PFileObject>(cache->wire_file));
+            }
+            else if (cache->services.mark_source)
+                cache->services.mark_source(cache);
+            for (MMU32 i = cache->count; i-- > 0;)
+            {
+                MMResourceEntry row;
+                AssertDo(mm_resource_cache_at(cache, i, &row) == MM_STORAGE_OK, "bad typed cache row");
+                if (row.objects && row.objects->mark_memory)
+                    row.objects->mark_memory(row.object);
+            }
+        },
+#else
+        nullptr,
+#endif
+        [](void *, int kind, MMU32, MMU32) {
+            if (kind == MM_RESOURCE_LOAD_FAILED)
+                PushErc(ercCrfCantLoad);
+            else
+                Bug("invalid typed resource cache operation");
+        }
+    };
+    return &host;
+}
+
 MMResourceServices TypedCacheServices(MMResourceServices services)
 {
-    services.context = nullptr;
-    services.objects = {};
-    services.compare_reader = nullptr;
-    services.issue = [](void *, int kind, MMU32, MMU32) {
-        if (kind == MM_RESOURCE_LOAD_FAILED)
-            PushErc(ercCrfCantLoad);
-        else
-            Bug("invalid typed resource cache operation");
-    };
-#ifdef DEBUG
-    services.mark_owner = [](MMResourceCache *cache) {
-        MarkPv(cache->owner);
-        MarkPv(cache->storage.buffers[0].data);
-        if (cache->wire_index)
-        {
-            if (cache->services.block_files == KauaiBlockFileServices())
-                MarkMemObj(static_cast<PFileObject>(cache->wire_file));
-        }
-        else if (cache->services.mark_source)
-            cache->services.mark_source(cache);
-        for (MMU32 i = cache->count; i-- > 0;)
-        {
-            MMResourceEntry row;
-            AssertDo(mm_resource_cache_at(cache, i, &row) == MM_STORAGE_OK, "bad typed cache row");
-            if (row.objects && row.objects->mark_memory)
-                row.objects->mark_memory(row.object);
-        }
-    };
-#endif
+    services.typed = TypedCacheHost();
+    mm_resource_services_for_typed_cache(&services);
     return services;
 }
 
@@ -212,28 +221,10 @@ MMResourceCache *NewTypedSourceCache(const MMNativeArchiveSource *source, int bu
                                            KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
 
-MMResourceCache *NewTypedSiblingCache(const MMResourceCache *cache, MMI32 budget)
-{
-    return NewTypedCache(mm_resource_cache_source(cache), cache->services, budget);
-}
-
 bool ReadResourceName(const MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number, PString name)
 {
-    byte wire[kcbMaxDataStn];
-    MMU32 count;
-    if (!mm_resource_cache_read_name(cache, type, number, KauaiEncodeLegacyChunkName, nullptr, wire, sizeof(wire),
-                                     &count) || !name->FSetData(wire, count))
-        name->SetNil();
-    return name->Cch() > 0;
-}
-
-bool ReadResourceName(const MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number,
-                      const MMStringValue &out)
-{
-    String name;
-    const bool found = ReadResourceName(cache, type, number, &name);
-    mm_string_value_copy(&out, name.Pst());
-    return found;
+    const MMStringValue out = {name->Pst(), sizeof(achar)};
+    return mm_resource_cache_name_value(cache, type, number, &out) != 0;
 }
 
 namespace
@@ -269,6 +260,7 @@ MMResourceServices PrivateCacheProfile()
 {
     MMResourceServices s = {};
     s.handles = KauaiHandleServices();
+    s.copy = ResourceCopyProfile(false);
 #ifdef DEBUG
     s.mark_source = [](MMResourceCache *cache) {
         const auto reader = mm_private_archive_reader(static_cast<MMPrivateArchive *>(cache->file));
@@ -360,6 +352,7 @@ MMResourceServices ChunkyResourceFile::_Services()
     auto s = _privateArchive ? PrivateCacheProfile() : LegacyCacheServices();
     if (_privateArchive)
         mm_private_archive_cache_services(_privateArchive, s.handles, &s);
+    s.typed = TypedCacheHost();
     s.context = this;
     s.objects = *BaseCacheableObject::ObjectServices();
     s.compare_reader = [](MMResourceBlockReader a, MMResourceBlockReader b) -> int {

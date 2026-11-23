@@ -2065,7 +2065,7 @@ bool Application::_FPlaySplashSound(void)
 {
     AssertBaseThis(0);
 
-    auto cache = NewTypedSiblingCache(_bootResources, 0);
+    auto cache = mm_resource_cache_typed_sibling(_bootResources, 0);
     if (!cache)
         return fFalse;
     vpsndm->SiiPlay({cache, nullptr}, kctgMidi, kcnoMidiSplash, ksqnNone, kvlmFull, 1, 0, 0, sclNonLoop);

@@ -2346,6 +2346,9 @@ drafts use the same C file services.
 The Windows code-page, case mapping, and collation providers now build as C89.
 Archive readers and private editors get the shared C archive text profile,
 including the writer for legacy counted names.
+The shared C resource cache creates typed siblings and decodes names directly
+into the counted values used by template, background, and sound readers.
+Legacy allocation and diagnostics remain host services.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining
 body, template, resource and object dependencies by the operation that still

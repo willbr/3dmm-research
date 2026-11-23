@@ -16,6 +16,7 @@ struct MMPrivateArchive
     MMReference references;
     MMPrivateArchiveProfile profile;
     MMChunkTitleIO titles;
+    MMResourceCopyServices copy;
     MMMovieArchiveFile editor;
     int writable, editor_ready;
     MMChunkLink link;
@@ -180,6 +181,8 @@ void mm_private_archive_cache_services(MMPrivateArchive *archive, const MMHandle
     services->live_copy_target = cache_copy_target;
     services->live_reader = cache_reader;
     services->live_writer = cache_writer;
+    if (!services->copy)
+        services->copy = &archive->copy;
     if (reader->storage->io.is_writable)
         services->live_reopen = cache_reopen;
 }
@@ -286,6 +289,9 @@ static int bind_editor(MMPrivateArchive *archive)
     archive->titles.convert = convert_title;
     archive->titles.read = mm_chunk_owner_title_read;
     archive->titles.write = mm_chunk_owner_title_write;
+    archive->copy.titles = archive->titles;
+    archive->copy.legacy_name = archive->profile.legacy_name;
+    archive->copy.text_unit = archive->profile.unit;
     archive->editor_ready = mm_movie_archive_file_init(&archive->editor, reader, &writer, &archive->titles);
     return archive->editor_ready;
 }

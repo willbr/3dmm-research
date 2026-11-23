@@ -10,7 +10,7 @@ class MovieContentTagAccess : public TagManager
         auto &sources = vptagm->*member;
         auto manager = mm_resource_manager_create(KauaiResourceObjectAllocator(), KauaiCopyAllocator());
         auto paths = sources.owners.new_paths(sources.owners.context);
-        auto sibling = NewTypedSiblingCache(resources, 1024 * 1024);
+        auto sibling = mm_resource_cache_typed_sibling(resources, 1024 * 1024);
         const bool added = manager && sibling &&
                            mm_resource_manager_add_cache(manager, sibling, nullptr) == MM_STORAGE_OK;
         if (sibling)

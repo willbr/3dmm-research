@@ -25504,3 +25504,33 @@ the first 400 ms of embedded MIDI matched the retained port samples.
 
 Evidence is under `tmp/c89-native-text`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 typed resource siblings and names (23 November 2026)
+
+Template readers create their action caches through the C resource cache.
+The sibling retains the same live archive or stored backing and starts with
+an empty object table. Kauai supplies tracked allocation and diagnostics.
+Template, background, and sound readers use the cache's archive text codec
+to read directly into counted values.
+
+The standalone fixture covers allocation failure, an independent sibling
+budget, live and stored backing retention, and empty, missing, and malformed
+names. The native cache trace matched all 1,624 bytes of the frozen baseline
+with SHA-256 `2E6FDD86E329D725DD7AAA158BDF460564DBBEEE7972773675AC93A66D2177FB`.
+
+SDL and classic Studio rebuilt. The 228 selected native tests, 34 standalone
+engine checks, and 23 strict C89 checks passed. The external core, archive,
+and preview consumers passed. Native save and scene traces, SDL save traces,
+VMM outputs, ten asset preview fingerprints, x86 source traces, and the
+headless Marcus startup canvas matched their baselines.
+
+Fresh suite `20261123T200323Z-74dd056a` completed eight captures and replay
+suite `20261123T200457Z-f68192d6` completed four. Both verified their input
+hashes. Studio and Marcus matched all 60 Actor Audio frame positions and
+camera indices and 59 of 60 seek canvases against retained retail and V3DMM.
+Both matched all 60 seek canvases and scene states against the prior port
+build. The first 100 ms of all four Actor Audio spans, the embedded WAVE
+cue, and the first 400 ms of embedded MIDI matched the retained port samples.
+
+Evidence is under `tmp/c89-resource-cache`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.
