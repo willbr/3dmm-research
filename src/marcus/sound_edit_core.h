@@ -4,6 +4,7 @@
 #include "sound_sheet.h"
 #include "mm/movie_sound_archive.h"
 #include "mm/private_archive.h"
+#include "mm/sound_resource.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +30,7 @@ typedef struct MarcusSoundImport
 {
     const char *path, *extension;
     MMChunkNameValue title;
-    int (*wave)(const MMReadStream *, MMI32, const MMChunkNameValue *, MMU32 *, const MMArchiveWriter *);
+    MMSoundWaveImport wave;
 } MarcusSoundImport;
 
 /* The caller owns the candidate and discards it on failure. NULL means success. */

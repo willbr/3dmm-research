@@ -36,8 +36,9 @@ extern "C"
                              int adpcm, unsigned char *output, MMU32 capacity, MMU32 *size);
     int mm_wave_import_adpcm(MMU32 samples);
     int mm_wave_import_keep(int legacy, MMU32 original, MMU32 encoded);
+    enum { MM_WAVE_IMPORT_RATE = 11025 };
     /* Decode/resample are external codec/device services. The controller owns
-     * import selection, C encoding and cleanup. Conversion may publish storage on
+     * import selection, mono sample rate, C encoding and cleanup. Conversion may publish storage on
      * failure; release_samples is called for every non-NULL returned pointer.
      * Selected bytes borrow either input or initialized scratch and are
      * published only on success. A failed call may alter scratch. */
@@ -45,7 +46,7 @@ extern "C"
     {
         void *context;
         int (*load)(void *, const void *, MMU32, MMU32 *decoded_bytes);
-        int (*convert_u8)(void *, unsigned char **, MMI32 *count);
+        int (*convert_u8)(void *, MMI32 rate, unsigned char **, MMI32 *count);
         void (*release_samples)(void *, unsigned char *);
     } MMWaveImportServices;
     /* An owning audio buffer uses the supplied allocator (NULL = C heap) without

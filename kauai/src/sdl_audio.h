@@ -11,7 +11,8 @@ bool WaveSeconds(const void *data, std::size_t bytes, double &seconds);
 // Preserve compatible source bytes when compression would not save space;
 // otherwise use legacy 11.025 kHz mono PCM for short clips or MS ADPCM.
 bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uint8_t> &wave);
-int ImportWave(const MMReadStream &, MMI32 style, const MMChunkNameValue &, MMU32 *number, const MMArchiveWriter &);
+extern "C" int ImportWave(void *, const MMReadStream *, MMI32 style, const MMChunkNameValue *, MMU32 *number,
+                          const MMArchiveWriter *);
 class Output
 {
     struct Impl;

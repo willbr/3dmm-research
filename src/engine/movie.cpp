@@ -39,6 +39,7 @@ Actors, Text boxes, etc.
 #include "mm/actor_archive.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_sound_archive.h"
+#include "engine_sound_writer.h"
 #include "mm/private_archive.h"
 ASSERTNAME
 
@@ -942,23 +943,8 @@ MMMovieSoundServices Movie::SoundServices(const MMMovieSaveServices *save)
     s.working_save = save;
     s.tags = &TagManager::CoreServices();
     s.invalidate_number = [](MMU32 *number) { (void)number; TrashVar(number); };
-    s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
-    s.copy_midi = [](void *p, void *destination, MMU32 *out, void *name) -> int {
-        const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(destination));
-        ChunkNumber value;
-        std::memcpy(&value, out, sizeof(value));
-        bool ok = EngineSound::CopyMidi(static_cast<PFileObject>(p), writer, &value, static_cast<PString>(name));
-        std::memcpy(out, &value, sizeof(value));
-        return ok;
-    };
-    s.copy_wave = [](void *p, void *destination, MMI32 style, MMU32 *out, void *name) -> int {
-        const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(destination));
-        ChunkNumber value;
-        std::memcpy(&value, out, sizeof(value));
-        bool ok = EngineSound::CopyWave(static_cast<PFileObject>(p), writer, style, &value, static_cast<PString>(name));
-        std::memcpy(out, &value, sizeof(value));
-        return ok;
-    };
+    s.bind_import = EngineSoundImportHost::Bind;
+    s.bad_import = [](void *) { PushErc(ercSocBadSoundFile); };
     s.has_bad_sound_error=[](void *) { return int(vpers->FIn(ercSocBadSoundFile)); };
     s.mark_gc=[](void *p) { static_cast<PMovie>(p)->_fGCSndsOnClose=true; };
     s.diagnostic = MovieSoundIssue;
@@ -1070,9 +1056,10 @@ bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno,
     SaveHost host(this);
     const auto save = _SaveServices(&host);
     const auto services = SoundServices(&save);
+    EngineSoundImportHost input(pfilSrc);
     MMU32 number;
     std::memcpy(&number, pcno, sizeof(number));
-    const bool ok = mm_movie_sound_import(pfilSrc, sty, &number, pstn, &services) != 0;
+    const bool ok = mm_movie_sound_import(&input, sty, &number, pstn, &services) != 0;
     std::memcpy(pcno, &number, sizeof(number));
     return ok;
 }

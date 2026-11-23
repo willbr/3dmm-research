@@ -121,6 +121,7 @@ int mm_wave_native_import(const MMReadStream *source, MMI32 style, const MMChunk
                           const MMNativeWaveServices *s, const MMArchiveWriter *writer)
 {
     MMNativeWaveFormat format;
+    const MMNativeWaveFormat target = {MM_WAVE_IMPORT_RATE, 1, 8};
     MMWaveBuffer input;
     MMReadStream encoded;
     NativeWavePayload payload;
@@ -141,13 +142,11 @@ int mm_wave_native_import(const MMReadStream *source, MMI32 style, const MMChunk
             !s->open_memory(s->context, input.data, source->length, &format))
             goto bad;
     }
-    if (format.rate != 11025 || format.bits != 8 || format.channels != 1)
+    if (format.rate != target.rate || format.bits != target.bits || format.channels != target.channels)
     {
-        if (!s->convert(s->context))
+        if (!s->convert(s->context, &target))
             goto bad;
-        format.rate = 11025;
-        format.bits = 8;
-        format.channels = 1;
+        format = target;
     }
     samples = s->samples(s->context);
     if (samples == 0xffffffffUL || !format.channels || !format.bits || format.bits % 8 ||

@@ -85,8 +85,6 @@ static const char *import_audio(MMPrivateArchive *file, const MarcusSoundImport 
 {
     SDL_IOStream *input = SDL_IOFromFile(audio->path, "rb");
     const char *error = NULL;
-    MMReadStream source = {NULL, 0, read_audio};
-    MMArchiveWriter writer = mm_private_archive_writer(file);
     Sint64 length;
     int midi, written;
     if (!input)
@@ -99,11 +97,15 @@ static const char *import_audio(MMPrivateArchive *file, const MarcusSoundImport 
         error = "Music cues use MIDI files; WAV/MP3 audio uses Effects or Speech.";
     else
     {
-        source.context = input;
-        source.length = (MMU32)length;
-        writer.big_endian = 0;
-        written = midi ? mm_sound_import_midi(&source, &audio->title, sound, &writer) :
-                         audio->wave(&source, style, &audio->title, sound, &writer);
+        const MMArchiveWriter writer = mm_private_archive_writer(file);
+        MMSoundImportSource source = {0};
+        source.stream.context = input;
+        source.stream.length = (MMU32)length;
+        source.stream.read_at = read_audio;
+        source.name = audio->title;
+        source.midi = midi;
+        source.wave = audio->wave;
+        written = mm_sound_import(&source, style, sound, &writer);
         if (midi && written == MM_SOUND_BAD_MIDI)
             error = "Cannot import this MIDI file.";
         else if (!midi && written == MM_WAVE_BAD_AUDIO)

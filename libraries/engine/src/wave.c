@@ -367,12 +367,12 @@ int mm_wave_prepare(const void *data, MMU32 bytes, const MMWaveImportServices *s
         *size = bytes;
         return 1;
     }
-    if (!s->convert_u8(s->context, &samples, &count) || count <= 0 || !samples)
+    if (!s->convert_u8(s->context, MM_WAVE_IMPORT_RATE, &samples, &count) || count <= 0 || !samples)
         goto done;
     adpcm = mm_wave_import_adpcm((MMU32)count);
-    if (!mm_wave_encode(samples, (MMU32)count, 11025, 1, 8, adpcm, NULL, 0, &encoded) ||
+    if (!mm_wave_encode(samples, (MMU32)count, MM_WAVE_IMPORT_RATE, 1, 8, adpcm, NULL, 0, &encoded) ||
         !mm_wave_buffer_reserve(scratch, encoded) ||
-        !mm_wave_encode(samples, (MMU32)count, 11025, 1, 8, adpcm, scratch->data, encoded, &encoded))
+        !mm_wave_encode(samples, (MMU32)count, MM_WAVE_IMPORT_RATE, 1, 8, adpcm, scratch->data, encoded, &encoded))
         goto done;
     chosen = scratch->data;
     if (mm_wave_import_keep(legacy, bytes, encoded))

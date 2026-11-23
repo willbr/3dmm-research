@@ -112,65 +112,53 @@ bool EngineSound::WriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty,
     The *pcno is returned
 
 ***************************************************************************/
+MMSoundImportSource EngineSoundImportHost::Input(PString name)
+{
+    AssertPo(file, 0);
+    AssertNilOrPo(name, 0);
+    file->GetFni(&filename);
+    String leaf;
+    if (!name)
+    {
+        filename.GetLeaf(&leaf);
+        name = &leaf;
+    }
+    return {EngineReadStream::FromFile(*file), ChunkyFile::EncodeName(name, wire),
+            filename.Ftg() == kftgMidi, this, Wave};
+}
+
+static bool CopySoundFile(PFileObject file, PChunkyFile destination, bool midi, MMI32 style,
+                          ChunkNumber *number, PString name)
+{
+    AssertPo(destination, 0);
+    AssertVarMem(number);
+    EngineSoundImportHost host(file);
+    auto source = host.Input(name);
+    source.midi = midi;
+    const auto writer = destination->WriteIndex();
+    const int result = mm_sound_import(&source, style, number, &writer);
+    if (result < 0)
+        PushErc(ercSocBadSoundFile);
+    return result > 0;
+}
+
 bool EngineSound::CopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn)
 {
-    return CopyMidi(pfilSrc, pcflDest->WriteIndex(), pcno, pstn);
+    return CopySoundFile(pfilSrc, pcflDest, true, styMidi, pcno, pstn);
 }
 
-bool EngineSound::CopyMidi(PFileObject pfilSrc, const MMArchiveWriter &archive, ChunkNumber *pcno, PString pstn)
-{
-    AssertPo(pfilSrc, 0);
-    AssertNilOrPo(pstn, 0);
-    String leaf;
-    if (!pstn)
-    {
-        Filename filename;
-        pfilSrc->GetFni(&filename);
-        filename.GetLeaf(&leaf);
-        pstn = &leaf;
-    }
-    const EngineSoundWriter writer(archive, pstn);
-    const auto source = EngineReadStream::FromFile(*pfilSrc);
-    const int result = mm_sound_import_midi(&source, &writer.name, pcno, &writer.archive);
-    if (result == MM_SOUND_BAD_MIDI)
-        PushErc(ercSocBadSoundFile);
-    return result > 0;
-}
-
-/***************************************************************************
-
-    Copy the wave file to a chunk in the current movie
-
-***************************************************************************/
 bool EngineSound::CopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn)
 {
-    AssertPo(pcflDest, 0);
-    return CopyWave(pfilSrc, pcflDest->WriteIndex(), sty, pcno, pstn);
+    return CopySoundFile(pfilSrc, pcflDest, false, sty, pcno, pstn);
 }
 
-bool EngineSound::CopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, long sty, ChunkNumber *pcno, PString pstn)
+int EngineSoundImportHost::Wave(void *host, const MMReadStream *source, MMI32 sty,
+                               const MMChunkNameValue *name, MMU32 *pcno, const MMArchiveWriter *writer)
 {
-    AssertPo(pfilSrc, 0);
     AssertIn(sty, 0, styLim);
-    AssertVarMem(pcno);
     Assert(sty != styMidi, "Illegal sty argument");
-    AssertNilOrPo(pstn, 0);
-
-    Filename filename;
-    pfilSrc->GetFni(&filename);
-    String leaf;
-    if (!pstn)
-    {
-        filename.GetLeaf(&leaf);
-        pstn = &leaf;
-    }
-    const EngineSoundWriter writer(archive, pstn);
-    const auto source = EngineReadStream::FromFile(*pfilSrc);
 #ifdef KAUAI_SDL3
-    const int result = KauaiAudio::ImportWave(source, sty, writer.name, pcno, writer.archive);
-    if (result == MM_WAVE_BAD_AUDIO)
-        PushErc(ercSocBadSoundFile);
-    return result > 0;
+    return KauaiAudio::ImportWave(host, source, sty, name, pcno, writer);
 #else
     struct Context
     {
@@ -195,7 +183,7 @@ bool EngineSound::CopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, 
             return 1;
         }
     } context;
-    filename.GetStnPath(&context.path);
+    static_cast<EngineSoundImportHost *>(host)->filename.GetStnPath(&context.path);
     MMNativeWaveServices s = {};
     s.context = &context;
     s.open_file = [](void *p, MMNativeWaveFormat *format) -> int {
@@ -206,14 +194,14 @@ bool EngineSound::CopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, 
         auto &c = *static_cast<Context *>(p);
         return c.ReadFormat(AllocSoundFromMemory(&c.sound, data, bytes), format);
     };
-    s.convert = [](void *p) -> int {
+    s.convert = [](void *p, const MMNativeWaveFormat *target) -> int {
         auto &c = *static_cast<Context *>(p);
         auto &f = c.format;
-        f.nSamplesPerSec = 11025;
-        f.nAvgBytesPerSec = 11025;
-        f.wBitsPerSample = 8;
-        f.nChannels = 1;
-        f.nBlockAlign = 1;
+        f.nSamplesPerSec = target->rate;
+        f.wBitsPerSample = static_cast<WORD>(target->bits);
+        f.nChannels = static_cast<WORD>(target->channels);
+        f.nBlockAlign = static_cast<WORD>(f.nChannels * (f.wBitsPerSample / 8));
+        f.nAvgBytesPerSec = f.nSamplesPerSec * f.nBlockAlign;
         LPSOUND converted = nullptr;
         if (FAILED(AllocConvertFilter(&converted, c.sound, &f)))
             return 0;
@@ -246,8 +234,8 @@ bool EngineSound::CopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, 
             return 0;
         auto &f = *c.encodedFormat;
         f.wFormatTag = WAVE_FORMAT_ADPCM;
-        f.nChannels = 1;
-        f.nSamplesPerSec = 11025;
+        f.nChannels = c.format.nChannels;
+        f.nSamplesPerSec = c.format.nSamplesPerSec;
         f.cbSize = static_cast<WORD>(size - sizeof(WAVEFORMATEX));
         if (acmFormatSuggest(nullptr, &c.format, &f, size,
                              ACM_FORMATSUGGESTF_WFORMATTAG | ACM_FORMATSUGGESTF_NCHANNELS |
@@ -289,7 +277,7 @@ bool EngineSound::CopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, 
         FreePpv(reinterpret_cast<void **>(&c.samples));
         FreePpv(reinterpret_cast<void **>(&c.encoded));
     };
-    return mm_wave_native_import(&source, sty, &writer.name, pcno, &s, &writer.archive) != 0;
+    return mm_wave_native_import(source, sty, name, pcno, &s, writer);
 #endif
 }
 

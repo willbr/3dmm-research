@@ -40,7 +40,7 @@ extern "C"
         const MMStorageAllocator *allocator; /* Optional fallback input allocator. */
         int (*open_file)(void *, MMNativeWaveFormat *);
         int (*open_memory)(void *, unsigned char *, MMU32, MMNativeWaveFormat *);
-        int (*convert)(void *);
+        int (*convert)(void *, const MMNativeWaveFormat *target);
         MMU32 (*samples)(void *);
         int (*activate)(void *);
         int (*allocate_samples)(void *, MMU32);

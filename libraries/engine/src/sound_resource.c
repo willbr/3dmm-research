@@ -375,6 +375,15 @@ int mm_sound_import_midi(const MMReadStream *source, const MMChunkNameValue *nam
     return result;
 }
 
+int mm_sound_import(const MMSoundImportSource *source, MMI32 style, MMU32 *number, const MMArchiveWriter *writer)
+{
+    MMArchiveWriter archive = *writer;
+    archive.big_endian = 0;
+    if (source->midi)
+        return mm_sound_import_midi(&source->stream, &source->name, number, &archive);
+    return source->wave(source->context, &source->stream, style, &source->name, number, &archive);
+}
+
 int mm_sound_invalidate(MMSoundState *state, const MMResourceObject *binding, const MMChunkEdit *edit,
                         const MMSoundResourceServices *s)
 {

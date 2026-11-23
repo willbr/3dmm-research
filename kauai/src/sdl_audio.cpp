@@ -76,9 +76,9 @@ MMWaveImportServices WaveImportServices(WavePCM &pcm)
             return 0;
         }
     };
-    services.convert_u8 = [](void *context, unsigned char **samples, MMI32 *count) -> int {
+    services.convert_u8 = [](void *context, MMI32 rate, unsigned char **samples, MMI32 *count) -> int {
         auto &pcm = *static_cast<WavePCM *>(context);
-        const SDL_AudioSpec destination = {SDL_AUDIO_U8, 1, 11025};
+        const SDL_AudioSpec destination = {SDL_AUDIO_U8, 1, rate};
         int bytes = 0;
         const bool ok = SDL_ConvertAudioSamples(&pcm.source, pcm.Data(), static_cast<int>(pcm.bytes), &destination,
                                                 samples, &bytes);
@@ -90,12 +90,19 @@ MMWaveImportServices WaveImportServices(WavePCM &pcm)
 }
 } // namespace
 
-int ImportWave(const MMReadStream &source, MMI32 style, const MMChunkNameValue &name, MMU32 *number,
-               const MMArchiveWriter &writer)
+int ImportWave(void *, const MMReadStream *source, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
+               const MMArchiveWriter *writer)
 {
-    WavePCM pcm;
-    const auto services = WaveImportServices(pcm);
-    return mm_wave_decode_import(&source, style, &name, number, &services, &writer);
+    try
+    {
+        WavePCM pcm;
+        const auto services = WaveImportServices(pcm);
+        return mm_wave_decode_import(source, style, name, number, &services, writer);
+    }
+    catch (...)
+    {
+        return MM_WAVE_BAD_AUDIO;
+    }
 }
 
 bool PrepareWaveImport(const void *data, std::size_t bytes, std::vector<std::uint8_t> &wave)

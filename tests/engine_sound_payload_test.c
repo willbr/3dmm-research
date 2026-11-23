@@ -117,9 +117,10 @@ static int load(void *p, const void *data, MMU32 bytes, MMU32 *decoded)
     *decoded = i->fail == 2 ? 0 : 1501;
     return i->fail != 1;
 }
-static int convert(void *p, unsigned char **samples, MMI32 *count)
+static int convert(void *p, MMI32 rate, unsigned char **samples, MMI32 *count)
 {
     Import *i = (Import *)p;
+    assert(rate == 11025);
     ++i->converts;
     *samples = i->samples;
     *count = i->fail == 4 ? 0 : 1501;
@@ -641,7 +642,11 @@ static int open_memory(void *p, unsigned char *bytes, MMU32 count, MMNativeWaveF
     native_format(format);
     return file_step(f);
 }
-static int native_convert(void *p) { return file_step((WaveFile *)p); }
+static int native_convert(void *p, const MMNativeWaveFormat *target)
+{
+    assert(target->rate == 11025 && target->channels == 1 && target->bits == 8);
+    return file_step((WaveFile *)p);
+}
 static MMU32 sample_count(void *p)
 {
     (void)p;

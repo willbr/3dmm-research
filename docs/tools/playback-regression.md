@@ -24917,3 +24917,41 @@ eleven styled-caption seek frames in each port.
 
 Evidence is under `tmp/c89-caption-edit-bindings`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## Shared C89 sound file import (23 November 2026)
+
+Studio and Marcus use one C89 dispatcher for MIDI and sampled imports. The
+dispatcher writes the little-endian sound envelope even when the surrounding
+archive uses a different byte order. Studio binds the input stream, encoded
+title and decoder after its working cache becomes temporary. The C WAVE
+controllers supply the 11,025 Hz conversion target to SDL and classic AudioMan.
+
+All 228 native, 48 SDL and 23 standalone C89 checks passed, including strict
+syntax, SDL physical import, recorded speech, compressed WAVE fixtures, the
+external consumer and focused x86 checks. Classic Studio rebuilt. The C codec
+fixture checked the AudioMan conversion request and cleanup, and the native
+save/load fixture used the fallback AudioMan implementation.
+
+The native save/load fixture matched all nineteen traces, including the
+99,001-byte sound-resource trace and the 15,580-byte movie-sound trace. All
+eight scene traces, ten asset preview fingerprints, and the Marcus headless
+startup canvas matched. SDL Studio reproduced its previous sound trace and
+the 27,056-byte authored `.3mm`. Its eight-check VMM workflow matched the
+ordinary `.3mm`, five `.vmm` files and two canvas captures.
+
+Marcus imported, played, saved and reopened WAV and MIDI cues. The 3,200-byte
+sound movie and 2,645-byte actor movie matched their baselines. The sound
+storyboard bundle reopened with its sound and painted pixels. Its generated
+package names and background resource IDs differed between runs. All bytes
+of the embedded movie matched apart from the four-byte generated background
+reference, which resolved to the packaged background in each run.
+
+Actor Audio suite `20261123T164151Z-4877be57` completed four fresh captures
+with verified input hashes. Both ports matched their prior seek canvases
+and scene states, and all 60 retained retail and V3DMM frame positions and
+camera indices. Studio matched all 240 retained actor snapshots at six
+significant digits in position. Both ports retained the one seek canvas
+difference and reproduced the prior PCM16 peak of 4,081.
+
+Evidence is under `tmp/c89-shared-sound-import`. The playback suite is in
+`tmp/c89-working-archive/capture/playback.sqlite`.

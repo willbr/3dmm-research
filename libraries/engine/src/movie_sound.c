@@ -3,6 +3,7 @@
 #include "mm/movie_sound.h"
 #include "mm/chunk_copy.h"
 #include "mm/movie_save.h"
+#include "mm/sound_resource.h"
 #include <stddef.h>
 static int find_parent(const MMChunkAccess *chunks, MMU32 type, MMU32 number, MMU32 *position,
                        MMChunkEntry *entry)
@@ -282,7 +283,20 @@ int mm_movie_sound_import(void *source,MMI32 style,MMU32 *output,void *name,cons
     read_sound_state(s, &state);
     if (!(s->working_save ? mm_movie_save_temporary(s->working_save) : s->use_temp(s->context)))
         return 0;
-    if (s->is_midi(source))
+    if (s->bind_import)
+    {
+        MMSoundImportSource input;
+        MMArchiveWriter writer;
+        s->bind_import(source, name, &input);
+        writer = mm_resource_cache_writer(state.cache);
+        ok = mm_sound_import(&input, style, output, &writer);
+        if (ok < 0)
+        {
+            s->bad_import(s->context);
+            ok = 0;
+        }
+    }
+    else if (s->is_midi(source))
         ok = s->copy_midi(source, state.cache, output, name);
     else
         ok = s->copy_wave(source, state.cache, style, output, name);

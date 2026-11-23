@@ -96,6 +96,20 @@ int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const MMC
  * Returns MM_SOUND_BAD_MIDI on read/parse failure before creating any chunks,
  * otherwise returns the writer's result. */
 int mm_sound_import_midi(const MMReadStream *, const MMChunkNameValue *name, MMU32 *number, const MMArchiveWriter *);
+typedef int (*MMSoundWaveImport)(void *context, const MMReadStream *, MMI32 style,
+                                 const MMChunkNameValue *, MMU32 *number, const MMArchiveWriter *);
+typedef struct MMSoundImportSource
+{
+    MMReadStream stream;
+    MMChunkNameValue name;
+    int midi;
+    void *context;
+    MMSoundWaveImport wave;
+} MMSoundImportSource;
+/* Import into the native little-endian sound format. The input stream, title
+ * and sampled audio provider are borrowed. A negative result is a codec error.
+ * A provider may instead report its own diagnostic and return zero. */
+int mm_sound_import(const MMSoundImportSource *, MMI32 style, MMU32 *number, const MMArchiveWriter *);
 int mm_sound_invalidate(MMSoundState *,const MMResourceObject *,const MMChunkEdit *,const MMSoundResourceServices *);
 int mm_sound_owner_invalidate(MMSoundOwner *);
 MMI32 mm_sound_class(MMI32 style,int loop);

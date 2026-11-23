@@ -376,6 +376,14 @@ static void catalog(void)
     c.bytes[4] = 1;
     assert(!mm_sound_catalog_style(&source, 37, 0, &style) && style == -1);
 }
+static int import_wave(void *context, const MMReadStream *stream, MMI32 style, const MMChunkNameValue *name,
+                       MMU32 *number, const MMArchiveWriter *writer)
+{
+    Context *c = context;
+    assert(writer->big_endian == 0 && c->writer.big_endian == 1);
+    return mm_sound_write(stream, 1, style, name, number, writer);
+}
+
 static void writes(void)
 {
     const unsigned char payload[] = {4, 1, 2, 3, 4, 0x80, 0x90};
@@ -385,6 +393,7 @@ static void writes(void)
     const MMChunkNameValue name = {"sound", 5, 5};
     Context c;
     MMReadStream stream = {NULL, 0, read_source};
+    MMSoundImportSource import = {0};
     MMMidiParser parser;
     MMMidiEvent note;
     MMU32 number;
@@ -420,22 +429,37 @@ static void writes(void)
     {
         initialize(&c);
         assert(mm_memory_stream_init(&c.source, smf, sizeof(smf)));
+        c.writer.big_endian = 1;
         stream.length = failure == 1 ? 3 : sizeof(smf);
         c.fail = failure == 2 ? READ_SOURCE : failure == 3 ? ADD : failure == 4 ? WRITE_CHILD :
                  failure == 5 ? SET_NAME : 0;
         number = 99;
-        result = mm_sound_import_midi(&stream, &name, &number, &c.writer);
+        import.stream = stream;
+        import.name = name;
+        import.midi = 1;
+        result = mm_sound_import(&import, 3, &number, &c.writer);
+        assert(c.writer.big_endian == 1);
         assert(result == (!failure ? 1 : failure <= 2 ? MM_SOUND_BAD_MIDI : 0));
         assert(number == (failure >= 1 && failure <= 3 ? 99U : 0U) && c.deleted == (failure >= 3));
         assert(c.archive.index.count == (failure ? 0U : 2U) && !c.archive.file_refs);
         if (!failure)
         {
-            assert(c.child_type == MM_SOUND_MIDI);
+            assert(c.child_type == MM_SOUND_MIDI && c.bytes[0] == 1 && c.bytes[4] == MM_SOUND_STYLE_MUSIC);
             mm_midi_parser_init(&parser, c.output, c.payload_bytes, 0, 500000);
             assert(mm_midi_next(&parser, &note, 1) && note.timestamp == 0 && note.send[0] == 0x90);
             assert(mm_midi_next(&parser, &note, 1) && note.timestamp == 500 && note.send[0] == 0x80);
         }
     }
+    initialize(&c);
+    assert(mm_memory_stream_init(&c.source, payload, sizeof(payload)));
+    c.writer.big_endian = 1;
+    import.stream.length = sizeof(payload);
+    import.midi = 0;
+    import.context = &c;
+    import.wave = import_wave;
+    assert(mm_sound_import(&import, MM_SOUND_STYLE_SPEECH, &number, &c.writer));
+    assert(c.child_type == MM_SOUND_WAVE && c.bytes[0] == 1 && c.bytes[4] == MM_SOUND_STYLE_SPEECH);
+    assert(c.payload_bytes == sizeof(payload) && !memcmp(c.output, payload, sizeof(payload)));
     for (failure = 0; failure < 3; ++failure)
     {
         MMChunkChild child = {MM_SOUND_WAVE, 19, 0};

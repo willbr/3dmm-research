@@ -17,6 +17,7 @@ typedef struct MMMovieSoundState
     void *cache;
     MMU32 movie,scene;
 } MMMovieSoundState;
+struct MMSoundImportSource;
 typedef struct MMMovieSoundServices
 {
     void *context;
@@ -36,6 +37,8 @@ typedef struct MMMovieSoundServices
     int (*has_bad_sound_error)(void *);
     void (*mark_gc)(void *);
     void (*diagnostic)(void *,int);
+    void (*bind_import)(void *source_file, void *name, struct MMSoundImportSource *);
+    void (*bad_import)(void *);
 } MMMovieSoundServices;
 /* Locate the first unused sound slot. Other chunk types can use the same
  * slot. Returns a chunk status and publishes the slot only on success. */
@@ -71,7 +74,10 @@ int mm_movie_sound_child(MMU32 number,MMU32 *child,const MMMovieSoundServices *)
 /* Copy/import publish factory outputs without rollback. Failed root adoption
  * deletes the copied root but leaves the output number; failed save retains the
  * adoption. Missing scene diagnoses and continues (its result was unused).
- * Only successful physical-file import marks close-time sound GC. */
+ * File import binds borrowed stream and title data after the working cache is
+ * temporary. A bound import uses bad_import for negative codec results.
+ * Alternate hosts may use the is_midi and copy callbacks. Only a successful
+ * file import marks close-time sound GC. */
 int mm_movie_sound_copy(void *source_cache,MMU32 number,MMU32 *output,const MMMovieSoundServices *);
 int mm_movie_sound_import(void *source,MMI32 style,MMU32 *output,void *name,const MMMovieSoundServices *);
 /* Scan every sound, including roots not linked to the movie. Fewer than two

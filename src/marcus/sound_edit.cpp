@@ -29,12 +29,7 @@ struct AudioInput
         String name;
         filename.GetLeaf(&name);
         extension = full.extension().u8string();
-        value = {path, extension.c_str(), MarcusArchiveName(name, wire),
-            [](const MMReadStream *source, MMI32 style, const MMChunkNameValue *title,
-               MMU32 *number, const MMArchiveWriter *writer) -> int {
-                try { return KauaiAudio::ImportWave(*source, style, *title, number, *writer); }
-                catch (...) { return MM_WAVE_BAD_AUDIO; }
-            }};
+        value = {path, extension.c_str(), MarcusArchiveName(name, wire), KauaiAudio::ImportWave};
     }
 };
 }

@@ -62,10 +62,8 @@ PMovieSoundMSND Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 bool Info(PChunkyFile, ChunkTagOrType, ChunkNumber, bool *invalid = nullptr, long *style = nullptr,
           long *volume = nullptr);
 bool CopyMidi(PFileObject, PChunkyFile, ChunkNumber *, PString name = nullptr);
-bool CopyMidi(PFileObject, const MMArchiveWriter &, ChunkNumber *, PString);
 bool WriteMidi(PChunkyFile, PMidiStream, PString, ChunkNumber *);
 bool CopyWave(PFileObject, PChunkyFile, long style, ChunkNumber *, PString name = nullptr);
-bool CopyWave(PFileObject, const MMArchiveWriter &, long style, ChunkNumber *, PString);
 bool WriteWave(PFileObject, PChunkyFile, long style, PString, ChunkNumber *);
 
 inline const MMSoundState &State(PMovieSoundMSND sound) { return *mm_sound_owner_state(sound); }
