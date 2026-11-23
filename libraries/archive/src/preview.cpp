@@ -95,8 +95,8 @@ struct Preview::Impl
     bool IsVirtualScene(Id scene) const
     { return scene.type == kctgScen && mm_preview_live_scene(&live, scene.number); }
     bool SyncActors(Error &error);
-    bool ReadScenePresentation(Id, const PreviewPresentationOutput &, Error &);
-    bool StoredPresentation(ChunkNumber scene, const PreviewPresentationOutput &, bool soundSheet = false,
+    template <class Output> bool ReadScenePresentation(Id, const Output &, Error &);
+    template <class Output> bool StoredPresentation(ChunkNumber scene, const Output &, bool soundSheet = false,
                             bool includeCaptions = false) const;
     Id Asset() const
     {
@@ -783,8 +783,8 @@ catch (const std::bad_alloc &)
 {
     return Fail(error, ErrorCode::out_of_memory, "Cannot allocate scene picking.");
 }
-bool Preview::Impl::StoredPresentation(ChunkNumber scene, const PreviewPresentationOutput &out, bool soundSheet,
-                                       bool includeCaptions) const
+template <class Output>
+bool Preview::Impl::StoredPresentation(ChunkNumber scene, const Output &out, bool soundSheet, bool includeCaptions) const
 {
     auto reader = assets.Reader();
     if (!reader)
@@ -809,7 +809,12 @@ bool Preview::ReadPresentation(const PreviewPresentationOutput &output, Error &e
 {
     return _impl->ReadScenePresentation(_impl->Asset(), output, error);
 }
-bool Preview::Impl::ReadScenePresentation(Id scene, const PreviewPresentationOutput &output, Error &error)
+bool Preview::ReadPresentation(const MMPreviewOwnedPresentationOutput &output, Error &error)
+{
+    return _impl->ReadScenePresentation(_impl->Asset(), output, error);
+}
+template <class Output>
+bool Preview::Impl::ReadScenePresentation(Id scene, const Output &output, Error &error)
 try
 {
     error = {};

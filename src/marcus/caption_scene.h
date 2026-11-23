@@ -26,7 +26,7 @@ typedef struct MarcusCaptionScene
 {
     MMCaptionPresentation presentation;
     MarcusStoredCaption *rows, *draft;
-    size_t count, mask_bytes;
+    size_t count, capacity, mask_bytes;
 } MarcusCaptionScene;
 
 typedef int MarcusCaptionRead(const void *, size_t index, MarcusCaptionSource *);
@@ -37,6 +37,11 @@ void marcus_caption_scene_clear(MarcusCaptionScene *);
 /* Copy authored descriptors, text and formatting in scene order. The reader
  * lends its data through installation. Failure preserves the previous scene. */
 int marcus_caption_scene_load(MarcusCaptionScene *, size_t count, const void *, MarcusCaptionRead *);
+struct MMPreviewOwnedCaption;
+/* Take an authored caption during scene staging. Successful transfer zeros the
+ * source, and failure leaves ownership with the decoder. */
+int marcus_caption_scene_take(MarcusCaptionScene *, struct MMPreviewOwnedCaption *);
+int marcus_caption_scene_publish(MarcusCaptionScene *, MMI32 frame);
 void marcus_caption_scene_clear_draft(MarcusCaptionScene *);
 /* Replace the draft and lay it out against the scene's mask budget. A failed
  * draft leaves the authored rows intact and clears the draft preview. */

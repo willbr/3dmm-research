@@ -2,7 +2,8 @@
 #define MARCUS_PLAYBACK_SCENE_H
 
 #include "mm/frame_sound.h"
-#include "mm/preview_metadata.h"
+#include "mm/preview_media.h"
+#include "caption_scene.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,6 +15,15 @@ typedef struct MarcusPlaybackScene
     MMU32 cue_count, pause_count, actor_count;
     MMI32 transition;
 } MarcusPlaybackScene;
+
+typedef struct MarcusPlaybackPresentation
+{
+    MarcusPlaybackScene *sound;
+    MarcusCaptionScene *captions;
+} MarcusPlaybackPresentation;
+
+void marcus_playback_presentation_clear(MarcusPlaybackPresentation *);
+MMPreviewOwnedPresentationOutput marcus_playback_presentation_output(MarcusPlaybackPresentation *);
 
 typedef int MarcusPlaybackCueSink(void *, const MMPreviewCue *);
 

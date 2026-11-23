@@ -1837,6 +1837,11 @@ draft scroll position and reusable work-view RGBA layer. It installs rows
 in authored order, chooses the final caret stop at a wrap, and draws directly
 in the movie view or projects the cleared layer into the work view. Marcus
 supplies mask bytes, palette colours and host camera values.
+Stored captions and prepared edits now decode into an owned C89 record.
+Playback takes the text, font and property buffers from each decoded row and
+publishes the authored stack after the scene has finished loading. Preview
+callers that request C++ records receive the same decoded data through the
+existing interface.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

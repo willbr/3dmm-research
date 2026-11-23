@@ -1,4 +1,5 @@
 #include "caption_scene.h"
+#include "mm/preview_media.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -110,7 +111,7 @@ void marcus_caption_scene_clear(MarcusCaptionScene *scene)
     marcus_caption_scene_clear_draft(scene);
     clear_rows(scene->rows, scene->count);
     scene->rows = NULL;
-    scene->count = 0;
+    scene->count = scene->capacity = 0;
     mm_caption_presentation_clear(&scene->presentation);
 }
 
@@ -146,7 +147,57 @@ int marcus_caption_scene_load(MarcusCaptionScene *scene, size_t count, const voi
     marcus_caption_scene_clear_draft(scene);
     clear_rows(scene->rows, scene->count);
     scene->rows = rows;
-    scene->count = count;
+    scene->count = scene->capacity = count;
+    return 0;
+}
+
+int marcus_caption_scene_take(MarcusCaptionScene *scene, MMPreviewOwnedCaption *caption)
+{
+    const MMPreviewCaptionData *data = &caption->data;
+    MarcusStoredCaption *row;
+    MarcusCaptionInput *layout;
+    if (scene->count == scene->capacity)
+    {
+        const size_t limit = (size_t)-1 / sizeof(*scene->rows);
+        size_t capacity = scene->capacity;
+        if (capacity == limit)
+            return -1;
+        capacity = capacity ? (capacity <= limit / 2 ? 2 * capacity : limit) : 8;
+        row = realloc(scene->rows, capacity * sizeof(*row));
+        if (!row)
+            return -1;
+        scene->rows = row;
+        scene->capacity = capacity;
+    }
+    row = &scene->rows[scene->count++];
+    memset(row, 0, sizeof(*row));
+    row->source.first = data->first;
+    row->source.end = data->end;
+    row->source.chunk = caption->chunk;
+    row->source.background = data->background;
+    row->source.story = data->story;
+    row->properties = caption->properties;
+    layout = &row->source.layout;
+    layout->box.left = data->left;
+    layout->box.top = data->top;
+    layout->box.right = data->right;
+    layout->box.bottom = data->bottom;
+    layout->pixels = data->font_size;
+    layout->font = caption->font;
+    layout->text = caption->text;
+    layout->length = caption->length;
+    layout->properties = caption->property_count;
+    layout->property_context = row->properties;
+    layout->property = read_property;
+    memset(caption, 0, sizeof(*caption));
+    return 1;
+}
+
+int marcus_caption_scene_publish(MarcusCaptionScene *scene, MMI32 frame)
+{
+    if (!mm_caption_presentation_load(&scene->presentation, scene->count, read_row, scene->rows))
+        return MARCUS_CAPTION_RUNS_MEMORY;
+    mm_caption_presentation_observe(&scene->presentation, frame);
     return 0;
 }
 

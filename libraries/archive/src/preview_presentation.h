@@ -9,6 +9,8 @@ namespace Internal
 {
 PreviewPresentationOutput PresentationCollector(PreviewPresentation &);
 bool ReadPresentation(const MMMovieSessionGraph &, MMMovieGraphBytes stored, ChunkNumber scene,
+                      const MMPreviewOwnedPresentationOutput &output, bool soundSheet = false, bool includeCaptions = false);
+bool ReadPresentation(const MMMovieSessionGraph &, MMMovieGraphBytes stored, ChunkNumber scene,
                       const PreviewPresentationOutput &output, bool soundSheet = false, bool includeCaptions = false);
 bool ReadPresentation(const MMMovieSessionGraph &, MMMovieGraphBytes stored, ChunkNumber scene,
                       PreviewPresentation &output, bool soundSheet = false, bool includeCaptions = false);

@@ -52,6 +52,45 @@ int marcus_playback_scene_pause(MarcusPlaybackScene *scene, MMI32 frame, MMI32 k
     return append(&scene->pauses, sizeof(pause), &scene->pause_count, &pause);
 }
 
+void marcus_playback_presentation_clear(MarcusPlaybackPresentation *presentation)
+{
+    marcus_playback_scene_clear(presentation->sound);
+    marcus_caption_scene_clear(presentation->captions);
+}
+
+static void reset_presentation(void *p)
+{
+    marcus_playback_presentation_clear(p);
+}
+
+static void presentation_transition(void *p, MMI32 kind)
+{
+    ((MarcusPlaybackPresentation *)p)->sound->transition = kind;
+}
+
+static int presentation_caption(void *p, MMPreviewOwnedCaption *caption)
+{
+    return marcus_caption_scene_take(((MarcusPlaybackPresentation *)p)->captions, caption);
+}
+
+static int presentation_pause(void *p, MMI32 frame, MMI32 kind, MMI32 duration)
+{
+    return marcus_playback_scene_pause(((MarcusPlaybackPresentation *)p)->sound, frame, kind, duration);
+}
+
+static int presentation_cue(void *p, const MMPreviewCue *cue)
+{
+    return marcus_playback_scene_cue(((MarcusPlaybackPresentation *)p)->sound, cue);
+}
+
+MMPreviewOwnedPresentationOutput marcus_playback_presentation_output(MarcusPlaybackPresentation *presentation)
+{
+    MMPreviewOwnedPresentationOutput out = {
+        NULL, reset_presentation, presentation_transition, presentation_caption, presentation_pause, presentation_cue};
+    out.context = presentation;
+    return out;
+}
+
 typedef struct FrameEntry
 {
     MarcusPlaybackScene *scene;

@@ -645,7 +645,9 @@ static int check_caption_scene(MarcusPlayer *player)
     CaptionRunProbe probe = {255, 0, 0, 0, 0};
     MarcusCaptionFonts fonts = {NULL, caption_run_face, caption_run_measure, caption_run_mask};
     MarcusCaptionScene scene = {0};
+    MMPreviewOwnedCaption decoded = {0};
     const MarcusStoredCaption *original;
+    unsigned short *owned_text;
     MMU32 chunk;
     MMI32 height;
     int ok = 0;
@@ -673,8 +675,25 @@ static int check_caption_scene(MarcusPlayer *player)
     probe.fail_at = probe.calls + 1;
     CHECK(marcus_caption_scene_draft(&scene, &source, &fonts) == MARCUS_CAPTION_RUNS_RASTER);
     CHECK(!scene.draft && scene.count == 1 && scene.rows == original && scene.mask_bytes == 2);
+    marcus_caption_scene_clear(&scene);
+    decoded.text = malloc(sizeof(text));
+    CHECK(decoded.text);
+    owned_text = decoded.text;
+    memcpy(decoded.text, text, sizeof(text));
+    decoded.length = 4;
+    decoded.chunk = 123;
+    decoded.data.first = 1;
+    decoded.data.end = 10;
+    decoded.data.right = 180;
+    decoded.data.bottom = 40;
+    decoded.data.story = 1;
+    CHECK(marcus_caption_scene_take(&scene, &decoded) == 1 && !decoded.text);
+    CHECK(scene.rows[0].source.layout.text == owned_text && scene.rows[0].source.layout.text[0] == 'Z');
+    CHECK(marcus_caption_scene_publish(&scene, 1) == 0);
+    CHECK(mm_caption_presentation_hit(&scene.presentation, 10, 10, NULL, &chunk) && chunk == 123);
     ok = 1;
 failed:
+    mm_preview_owned_caption_dispose(&decoded);
     marcus_caption_scene_dispose(&scene);
     return ok && !scene.mask_bytes && probe.available == probe.released;
 }

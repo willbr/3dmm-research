@@ -23406,3 +23406,25 @@ The copied-text save matched the stored movie hash from
 both Studio and Marcus reopened it with the same seek canvas and playback
 frame as the retained retail and V3DMM captures. Evidence is under
 `tmp/c89-text-draft`.
+
+## C89 caption record ownership (23 November 2026)
+
+Stored captions and prepared caption drafts use the C89 decoder to own
+UTF-16 text, font names and the stable property table. Marcus playback
+takes those buffers directly and publishes the caption stack after scene
+loading succeeds. The C++ Preview interface converts complete rows for
+its callers. The host continues to supply legacy string conversion and
+font rasterization.
+
+The headless regression verifies buffer transfer and the published
+caption's hit bounds. All 228 selected native checks and 12 SDL checks
+passed, and the Marcus startup image matched the previous build.
+Six timing snapshots matched byte for byte across three caption fixtures
+at two playback settings. The rebuilt x86 worker passed the protocol,
+placement and shape fixtures.
+
+Text Acid candidate `20261123T003003Z-06da0caf` matched baseline
+`20261123T002628Z-80b230c8` on all 240 seek canvases and caption and camera
+states per port. Seek and continuous playback frame order matched retained
+retail and V3DMM captures `20261122T033140Z-2abe2197` and
+`20261122T033233Z-5e23a412`. Evidence is under `tmp/c89-caption-owner`.

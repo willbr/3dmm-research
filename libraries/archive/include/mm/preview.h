@@ -16,6 +16,7 @@ struct MMMovieTextJournal;
 struct MMPreviewCue;
 struct MMPreviewActorInfo;
 struct MMPreviewObjectRows;
+struct MMPreviewOwnedPresentationOutput;
 struct MMActorAnimation;
 
 namespace MM
@@ -372,6 +373,7 @@ class Preview
     bool ReadPresentation(PreviewPresentation &presentation, Error &error);
     bool ReadPresentation(Id scene, PreviewPresentation &presentation, Error &error);
     bool ReadPresentation(const PreviewPresentationOutput &output, Error &error);
+    bool ReadPresentation(const MMPreviewOwnedPresentationOutput &output, Error &error);
     // Saved scene thumbnail; no scene selection, rendering or playback changes.
     // Missing thumbnails succeed with an empty image.
     bool ReadSceneThumbnail(Id scene, PreviewImage &image, Error &error);

@@ -421,47 +421,23 @@ bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserv
     else
         Stop();
     marcus_caption_scene_clear(&impl->captionScene);
-    marcus_caption_raster_clear(&impl->captionRasters);
     struct SceneOutput
     {
-        MarcusPlaybackScene &scene;
-        std::vector<PreviewCaption> captions;
+        MarcusPlaybackPresentation target;
         bool committed = false;
         ~SceneOutput()
         {
             if (!committed)
-                marcus_playback_scene_clear(&scene);
+                marcus_playback_presentation_clear(&target);
         }
-    } output{impl->scene, {}};
-    const PreviewPresentationOutput presentation{
-        &output,
-        [](void *p) {
-            auto &out = *static_cast<SceneOutput *>(p);
-            marcus_playback_scene_clear(&out.scene);
-            out.captions.clear();
-        },
-        [](void *p, MMI32 transition) { static_cast<SceneOutput *>(p)->scene.transition = transition; },
-        [](void *p, PreviewCaption &caption) {
-            static_cast<SceneOutput *>(p)->captions.push_back(std::move(caption));
-            return 1;
-        },
-        [](void *p, MMI32 frame, MMI32 kind, MMI32 milliseconds) {
-            return marcus_playback_scene_pause(&static_cast<SceneOutput *>(p)->scene, frame, kind, milliseconds);
-        },
-        [](void *p, const MMPreviewCue *cue) {
-            return marcus_playback_scene_cue(&static_cast<SceneOutput *>(p)->scene, cue);
-        }};
-    if (!preview.ReadPresentation(presentation, error))
+    } output{{&impl->scene, &impl->captionScene}};
+    marcus_caption_raster_clear(&impl->captionRasters);
+    if (!preview.ReadPresentation(marcus_playback_presentation_output(&output.target), error))
         return false;
-    const int status = marcus_caption_scene_load(&impl->captionScene, output.captions.size(),
-        &output.captions, [](const void *p, std::size_t index, MarcusCaptionSource *out) -> int {
-            *out = CaptionSource((*static_cast<const std::vector<PreviewCaption> *>(p))[index]);
-            return 1;
-        });
+    const int status = marcus_caption_scene_publish(&impl->captionScene, preview.Info().currentFrame);
     if (status)
         return Impl::CaptionStatus(status, error);
     output.committed = true;
-    mm_caption_presentation_observe(&impl->captionScene.presentation, preview.Info().currentFrame);
     return true;
 }
 void MarcusPlayback::Stop()

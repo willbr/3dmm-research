@@ -488,6 +488,218 @@ int mm_preview_caption_graph(MMU32 number, const MMPreviewCaptionArchive *source
     return status == MM_MOVIE_OK ? caption.result : preview_read_failure(status);
 }
 
+void mm_preview_owned_caption_dispose(MMPreviewOwnedCaption *caption)
+{
+    size_t i;
+    for (i = 0; i < caption->property_count; ++i)
+        free((void *)caption->properties[i].font.name);
+    free(caption->properties);
+    free(caption->text);
+    free((void *)caption->font.name);
+    memset(caption, 0, sizeof(*caption));
+}
+
+typedef struct OwnedCaptionReader
+{
+    const MMPreviewCaptionCodec *codec;
+    MMPreviewOwnedCaption *caption;
+} OwnedCaptionReader;
+
+static void owned_caption_publish(void *p, const MMPreviewCaptionData *data)
+{
+    ((OwnedCaptionReader *)p)->caption->data = *data;
+}
+
+static int owned_load_font(void *p, const MMReadStream *stream, MMU32 offset)
+{
+    const MMPreviewCaptionCodec *codec = ((OwnedCaptionReader *)p)->codec;
+    return codec->load_font(codec->context, stream, offset);
+}
+
+static int owned_copy_font(const MMPreviewCaptionCodec *codec, const void *wire, MMU32 bytes, MMCaptionFont *out)
+{
+    MMCaptionFont font;
+    char *name;
+    int result = codec->font(codec->context, wire, bytes, &font);
+    if (result <= 0)
+        return result;
+    name = NULL;
+    if (font.length)
+    {
+        name = (char *)malloc(font.length);
+        if (!name)
+            return -1;
+        memcpy(name, font.name, font.length);
+    }
+    out->name = name;
+    out->length = font.length;
+    return 1;
+}
+
+static int owned_default_font(void *p, void *input)
+{
+    OwnedCaptionReader *reader = (OwnedCaptionReader *)p;
+    (void)input;
+    return owned_copy_font(reader->codec, NULL, 0, &reader->caption->font);
+}
+
+static int owned_utf16(void *p, const void *bytes, MMU32 size, int encoding, unsigned short *out,
+                       MMU32 capacity, MMU32 *count)
+{
+    const MMPreviewCaptionCodec *codec = ((OwnedCaptionReader *)p)->codec;
+    return codec->utf16(codec->context, bytes, size, encoding, out, capacity, count);
+}
+
+static int owned_text_buffer(void *p, MMU32 length, unsigned short **out)
+{
+    MMPreviewOwnedCaption *caption = ((OwnedCaptionReader *)p)->caption;
+    if (length)
+    {
+        if ((size_t)length > (size_t)-1 / sizeof(*caption->text))
+            return -1;
+        caption->text = (unsigned short *)calloc(length, sizeof(*caption->text));
+        if (!caption->text)
+            return -1;
+    }
+    caption->length = length;
+    *out = caption->text;
+    return 1;
+}
+
+static int owned_append(void *p, const MMPreviewTextProperty *property, const void *wire, MMU32 bytes)
+{
+    OwnedCaptionReader *reader = (OwnedCaptionReader *)p;
+    MMPreviewOwnedCaption *caption = reader->caption;
+    const size_t limit = (size_t)-1 / sizeof(*caption->properties);
+    MMCaptionProperty row = {0};
+    if (caption->property_count == caption->property_capacity)
+    {
+        size_t capacity = caption->property_capacity;
+        MMCaptionProperty *grown;
+        if (capacity == limit)
+            return -1;
+        capacity = capacity ? (capacity <= limit / 2 ? 2 * capacity : limit) : 8;
+        grown = (MMCaptionProperty *)realloc(caption->properties, capacity * sizeof(*grown));
+        if (!grown)
+            return -1;
+        caption->properties = grown;
+        caption->property_capacity = capacity;
+    }
+    if (wire)
+    {
+        const int result = owned_copy_font(reader->codec, wire, bytes, &row.font);
+        if (result <= 0)
+            return result;
+    }
+    row.position = property->position;
+    row.kind = property->kind;
+    row.value = property->value;
+    caption->properties[caption->property_count++] = row;
+    return 1;
+}
+
+static MMU32 owned_position(void *p, MMU32 index)
+{
+    return ((OwnedCaptionReader *)p)->caption->properties[index].position;
+}
+
+static void owned_swap(void *p, MMU32 left, MMU32 right)
+{
+    MMCaptionProperty *rows = ((OwnedCaptionReader *)p)->caption->properties;
+    const MMCaptionProperty row = rows[left];
+    rows[left] = rows[right];
+    rows[right] = row;
+}
+
+static MMPreviewCaptionServices owned_caption_services(OwnedCaptionReader *reader)
+{
+    MMPreviewCaptionServices services = {0};
+    services.context = reader;
+    services.publish = owned_caption_publish;
+    services.font = owned_default_font;
+    services.utf16 = owned_utf16;
+    services.text_buffer = owned_text_buffer;
+    services.append = owned_append;
+    services.position = owned_position;
+    services.swap = owned_swap;
+    return services;
+}
+
+int mm_preview_caption_body_owned(const MMTextBoxState *box, const MMRichTextState *body, const MMReadStream *text,
+                                  int encoding, const MMPreviewCaptionCodec *codec, MMPreviewOwnedCaption *out)
+{
+    OwnedCaptionReader reader;
+    MMPreviewCaptionServices services;
+    reader.codec = codec;
+    reader.caption = out;
+    services = owned_caption_services(&reader);
+    return mm_preview_caption_body(box, body, text, encoding, &services);
+}
+
+typedef struct OwnedPresentation
+{
+    MMPreviewCaptionArchive source;
+    const MMPreviewCaptionCodec *codec;
+    const MMPreviewOwnedPresentationOutput *output;
+} OwnedPresentation;
+
+static void owned_reset(void *p)
+{
+    const MMPreviewOwnedPresentationOutput *out = ((OwnedPresentation *)p)->output;
+    out->reset(out->context);
+}
+
+static void owned_transition(void *p, MMI32 kind)
+{
+    const MMPreviewOwnedPresentationOutput *out = ((OwnedPresentation *)p)->output;
+    out->transition(out->context, kind);
+}
+
+static int owned_caption(void *p, MMU32 chunk)
+{
+    const OwnedPresentation *presentation = (const OwnedPresentation *)p;
+    OwnedCaptionReader reader;
+    MMPreviewOwnedCaption caption = {0};
+    MMPreviewCaptionServices services;
+    int result;
+    caption.chunk = chunk;
+    reader.codec = presentation->codec;
+    reader.caption = &caption;
+    services = owned_caption_services(&reader);
+    result = mm_preview_caption_graph(chunk, &presentation->source, &services);
+    if (result > 0)
+        result = presentation->output->caption(presentation->output->context, &caption);
+    mm_preview_owned_caption_dispose(&caption);
+    return result;
+}
+
+static int owned_pause(void *p, MMI32 frame, MMI32 kind, MMI32 duration)
+{
+    const MMPreviewOwnedPresentationOutput *out = ((OwnedPresentation *)p)->output;
+    return out->pause(out->context, frame, kind, duration);
+}
+
+static int owned_cue(void *p, const MMPreviewCue *cue)
+{
+    const MMPreviewOwnedPresentationOutput *out = ((OwnedPresentation *)p)->output;
+    return out->cue(out->context, cue);
+}
+
+int mm_preview_presentation_owned(const MMMovieSessionGraph *graph, MMMovieGraphBytes stored, MMU32 scene,
+                                  int sound_sheet, int include_captions, const MMPreviewCaptionCodec *codec,
+                                  const MMPreviewOwnedPresentationOutput *out)
+{
+    OwnedPresentation presentation;
+    MMPreviewPresentationServices services = {NULL, owned_reset, owned_transition, owned_caption, owned_pause, owned_cue};
+    presentation.source.graph = graph;
+    presentation.source.text = stored;
+    presentation.source.load_font = owned_load_font;
+    presentation.codec = codec;
+    presentation.output = out;
+    services.context = &presentation;
+    return mm_preview_presentation(graph, scene, sound_sheet, include_captions, &services);
+}
+
 typedef struct AudioPayload
 {
     const MMPreviewAudioServices *services;
