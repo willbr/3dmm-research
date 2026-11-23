@@ -3523,7 +3523,7 @@ bool SceneUndoChop::FSave(PScene pscen)
 bool SceneUndoChop::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    const auto scenes = Pmvie()->_SceneServices();
+    Movie::SceneHost host(Pmvie());
     MMSceneChopSwapServices s = {};
     s.snapshot = Scene::SnapshotServices();
     s.delete_failed = [](void *) { Bug("chunk not deletable or missing"); };
@@ -3532,7 +3532,7 @@ bool SceneUndoChop::FDo(PDocumentBase pdocb)
         value->SetNfrmCur(mm_fixed_sub(value->NfrmFirst(), 1));
     };
     s.seek = [](void *scene, MMI32 frame) { static_cast<PScene>(scene)->FGotoFrm(frame); };
-    return mm_scene_chop_swap(&_snapshot, Iscen(), Nfrm(), &s, &scenes) != 0;
+    return mm_scene_chop_swap(&_snapshot, Iscen(), Nfrm(), &s, &host.scenes) != 0;
 }
 
 /****************************************************

@@ -1,7 +1,7 @@
 /* Movie scene-container control converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_scene.h"
-#include "mm/movie_archive_edit.h"
+#include "mm/movie_save.h"
 
 int mm_movie_scene_cursor_select(MMI32 scene, size_t count, unsigned flags, const MMMovieSceneCursorServices *s)
 {
@@ -142,6 +142,43 @@ void mm_movie_scenes_init(MMMovieScenes *state)
     state->open = 0;
     state->index = -1;
 }
+
+int mm_movie_scene_autosave(const MMMovieSceneServices *s)
+{
+    return s->working_save ? mm_movie_autosave(NULL, 0, s->working_save) : s->autosave(s->context);
+}
+
+int mm_movie_scene_temporary(const MMMovieSceneServices *s)
+{
+    return s->working_save ? mm_movie_save_temporary(s->working_save) : s->use_temporary(s->context);
+}
+
+MMChunkEdit mm_movie_scene_editor(void *resources, const MMMovieSceneServices *s)
+{
+    return s->edit ? s->edit(resources) : mm_resource_cache_writer(resources).edit;
+}
+
+static int prepare_working_archive(const MMMovieSceneServices *s)
+{
+    const int ready = s->working_save ? mm_movie_save_resources(s->working_save) : s->make_resources(s->context);
+    return ready && mm_movie_scene_temporary(s);
+}
+
+static void publish_working_archive(const MMMovieSceneServices *s)
+{
+    if (s->working_save)
+        s->working_save->save(s->movie->resources, NULL);
+    else
+        s->save(s->movie->resources);
+}
+
+static int copy_scene_snapshot(const MMSceneSnapshot *snapshot, MMU32 *number, const MMMovieSceneServices *s)
+{
+    void *resources = s->movie->resources;
+    return s->copy_snapshot ? s->copy_snapshot(resources, snapshot, number)
+                            : mm_scene_snapshot_copy_cache(snapshot, resources, &s->snapshot_text, number);
+}
+
 void mm_movie_scene_close_open(const MMMovieSceneServices *s)
 {
     s->close(s->state->open);
@@ -152,7 +189,7 @@ int mm_movie_scene_close(const MMMovieSceneServices *s)
 {
     if (s->state->open)
     {
-        if (!s->autosave(s->context))
+        if (!mm_movie_scene_autosave(s))
             return 0;
         mm_movie_scene_close_open(s);
     }
@@ -265,7 +302,7 @@ static void unlink_scene(const MMChunkEdit *edit, const MMChunkChild *child, con
 static int publish_scene(MMI32 index, MMU32 number, const MMMovieSceneServices *s)
 {
     MMMovieState *movie = s->movie;
-    const MMChunkEdit edit = s->edit(movie->resources);
+    const MMChunkEdit edit = mm_movie_scene_editor(movie->resources, s);
     const MMI32 previous_count = movie->sceneCount;
     MMChunkChild child;
     int status;
@@ -284,13 +321,13 @@ static int publish_scene(MMI32 index, MMU32 number, const MMMovieSceneServices *
             s->archive_issue(s->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
         return 0;
     }
-    s->save(movie->resources);
+    publish_working_archive(s);
     if (!mm_movie_scene_switch(index, s))
     {
         --movie->sceneCount;
         unlink_scene(&edit, &child, s);
         shift_scenes(index, movie->sceneCount, 0, &edit, s);
-        s->save(movie->resources);
+        publish_working_archive(s);
         if (movie->sceneCount > 0)
             mm_movie_scene_switch(index < movie->sceneCount ? index : movie->sceneCount - 1, s);
         return 0;
@@ -307,7 +344,7 @@ static int publish_scene(MMI32 index, MMU32 number, const MMMovieSceneServices *
 int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *s)
 {
     MMU32 number;
-    if (!s->make_resources(s->context) || !s->use_temporary(s->context) || !mm_movie_scene_close(s) ||
+    if (!prepare_working_archive(s) || !mm_movie_scene_close(s) ||
         !s->write(s->context, scene, &number))
         return 0;
     s->retain(scene);
@@ -318,12 +355,12 @@ int mm_movie_scene_insert_snapshot(MMI32 index, const MMSceneSnapshot *snapshot,
 {
     MMChunkEdit edit;
     MMU32 number;
-    if (!snapshot->archive || !s->make_resources(s->context) || !s->use_temporary(s->context) ||
-        !s->copy_snapshot(s->movie->resources, snapshot, &number))
+    if (!snapshot->archive || !prepare_working_archive(s) ||
+        !copy_scene_snapshot(snapshot, &number, s))
         return 0;
     if (mm_movie_scene_close(s))
         return publish_scene(index, number, s);
-    edit = s->edit(s->movie->resources);
+    edit = mm_movie_scene_editor(s->movie->resources, s);
     if (mm_chunk_delete(&edit, MM_SCENE_CHUNK, number) != MM_CHUNK_OK && s->archive_issue)
         s->archive_issue(s->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
     return 0;
@@ -345,7 +382,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     MMChunkChild child;
     MMMovieState *movie = s->movie;
     void *scene;
-    if (!s->use_temporary(s->context))
+    if (!mm_movie_scene_temporary(s))
         return 0;
     old = s->state->index;
     if (old != index && !mm_movie_scene_switch(index, s))
@@ -362,7 +399,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
             s->missing_link(s->context);
         goto restore_scene;
     }
-    edit = s->edit(movie->resources);
+    edit = mm_movie_scene_editor(movie->resources, s);
     if (!mm_movie_archive_preserve_scene_assets(&edit, child.number))
         goto restore_scene;
     s->retain(scene);
@@ -372,7 +409,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     unlink_scene(&edit, &child, s);
     --movie->sceneCount;
     shift_scenes(index, movie->sceneCount, 0, &edit, s);
-    s->save(movie->resources);
+    publish_working_archive(s);
     if (movie->sceneCount == 0)
         return 1;
     mm_movie_scene_switch(index < movie->sceneCount ? index : index - 1, s);

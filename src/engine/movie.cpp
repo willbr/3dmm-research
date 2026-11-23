@@ -118,13 +118,6 @@ ON_CID_ME(cidRender, &Movie::FCmdRender, pvNil)
 ON_CID_GEN(cidSaveAndClose, pvNil, pvNil)
 END_CMD_MAP_NIL()
 
-struct Movie::SaveHost
-{
-    PMovie movie;
-    Filename temporary, unique;
-    explicit SaveHost(PMovie value) : movie(value) {}
-};
-
 static MMChunkOwnerRead *MovieArchiveReader(void *resources)
 {
     return mm_resource_cache_reader(static_cast<MMResourceCache *>(resources));
@@ -256,17 +249,19 @@ Movie::Movie(void) : _clok(khidMvieClock)
     SetCundbMax(1);
 }
 
+Movie::SceneHost::SceneHost(PMovie movie)
+    : paths(movie), save(movie->_SaveServices(&paths)), scenes(movie->_SceneServices(&save))
+{
+}
+
 struct Movie::RuntimeHost
 {
-    SaveHost saveHost;
-    MMMovieSaveServices save;
+    SceneHost sceneHost;
     MMMovieOwnerServices owner;
-    MMMovieSceneServices scenes;
     Filename working;
 
     explicit RuntimeHost(PMovie movie)
-        : saveHost(movie), save(movie->_SaveServices(&saveHost)), owner(EngineMovieHost::OwnerServices()),
-          scenes(movie->_SceneServices())
+        : sceneHost(movie), owner(EngineMovieHost::OwnerServices())
     {
     }
 };
@@ -288,23 +283,23 @@ MMMovieRuntimeServices Movie::_RuntimeServices(RuntimeHost *host)
     MMMovieRuntimeServices s = {};
     s.context = host;
     s.owner = &host->owner;
-    s.save = &host->save;
-    s.scenes = &host->scenes;
+    s.save = &host->sceneHost.save;
+    s.scenes = &host->sceneHost.scenes;
     s.prepare_container = prepareMovieContainer;
     s.container_working_path = &host->working;
-    s.init_undo = [](void *p) -> int { return static_cast<RuntimeHost *>(p)->saveHost.movie->_FInitUndo(); };
+    s.init_undo = [](void *p) -> int { return static_cast<RuntimeHost *>(p)->sceneHost.paths.movie->_FInitUndo(); };
     s.create_world = [](void *, void *p, int half) -> void * {
         auto client = static_cast<PMovieClientCallbacks>(static_cast<BASE *>(p));
         return static_cast<BASE *>(World::PbwldNew(client->Dxp(), client->Dyp(), half != 0, half != 0));
     };
     s.sound_allocator = KauaiCopyAllocator();
-    s.sound_output = MovieSoundOutput(host->saveHost.movie);
+    s.sound_output = MovieSoundOutput(host->sceneHost.paths.movie);
 #ifdef DEBUG
     s.sound_trash = 1;
 #endif
     s.retain = RetainRuntimeRef;
     s.release = ReleaseRuntimeRef;
-    s.discard_document = [](void *p) { static_cast<RuntimeHost *>(p)->saveHost.movie->Release(); };
+    s.discard_document = [](void *p) { static_cast<RuntimeHost *>(p)->sceneHost.paths.movie->Release(); };
     s.missing_saved_file = [](void *) { Bug("Hey, we just opened this file!"); };
     s.merge_sources = [](void *p, MMU32 root) { vptagm->FMergeMovieSources(static_cast<MMResourceCache *>(p), root); };
     s.cache_tags = [](void *, MMTagList *tags) -> int { return vptagm->FCacheTagList(tags); };
@@ -821,16 +816,14 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
  *  same scene is still open (if possible).
  *
  ****************************************************/
-MMMovieSceneServices Movie::_SceneServices()
+MMMovieSceneServices Movie::_SceneServices(const MMMovieSaveServices *save)
 {
     static_assert(ivNil == -1, "Movie scene ABI");
     MMMovieSceneServices s = {};
     s.context = this;
     s.state = &_scenes;
     s.movie = &_data;
-    s.autosave = [](void *p) -> int { return static_cast<PMovie>(p)->FAutoSave(pvNil, fFalse); };
-    s.make_resources = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
-    s.use_temporary = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
+    s.working_save = save;
     s.stop_loops = [](void *) { vpsndm->StopAll(sqnNil, sclLoopWav); };
     s.memory_cleanup = [](void *) {
 #ifdef WIN
@@ -861,13 +854,11 @@ MMMovieSceneServices Movie::_SceneServices()
     s.sound_frame = [](void *p) { static_cast<PScene>(p)->UpdateSndFrame(); };
     s.scene_change = [](void *p) { static_cast<PMovie>(p)->Pmcc()->SceneChange(); };
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
-    s.edit = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)).edit; };
     s.write = [](void *p, void *scene, MMU32 *number) -> int {
         const auto &data = static_cast<PMovie>(p)->_data;
         return static_cast<PScene>(scene)->FWrite(static_cast<MMResourceCache *>(data.resources), number);
     };
     s.archive_issue = MovieArchiveIssue;
-    s.save = [](void *p) { KauaiSaveChunkOwner(MovieArchiveReader(p)->storage, kctgSoc, nullptr); };
     s.missing_link = [](void *) { Bug("Missing movie scene link"); };
     s.remove_actors = [](void *scene) { static_cast<PScene>(scene)->RemActrsFromRollCall(); };
     s.add_actors = [](void *scene) { static_cast<PScene>(scene)->FAddActrsToRollCall(); };
@@ -885,10 +876,7 @@ MMMovieSceneServices Movie::_SceneServices()
     };
     s.undo_tags = &TagManager::CoreServices();
     s.snapshot = Scene::SnapshotServices();
-    s.copy_snapshot = [](void *p, const MMSceneSnapshot *snapshot, MMU32 *number) -> int {
-        const auto text = KauaiMovieArchiveText();
-        return mm_scene_snapshot_copy_cache(snapshot, static_cast<MMResourceCache *>(p), &text, number);
-    };
+    s.snapshot_text = KauaiMovieArchiveText();
     s.add_undo = [](void *p, void *undo) -> int { return static_cast<PMovie>(p)->FAddUndo(static_cast<PMovieSceneUndo>(undo)); };
     s.release_undo = [](void *p) { auto undo = static_cast<PMovieSceneUndo>(p); ReleasePpo(&undo); };
     s.clear_undo = [](void *p) { static_cast<PMovie>(p)->ClearUndo(); };
@@ -900,8 +888,8 @@ bool Movie::FSwitchScen(long iscen)
     AssertThis(0);
     Assert(iscen == ivNil || FIn(iscen, 0, Cscen()), "iscen out of range");
     Assert(iscen == ivNil || _data.resources, "Invalid save file");
-    auto services = _SceneServices();
-    return mm_movie_scene_switch(iscen, &services) != 0;
+    SceneHost host(this);
+    return mm_movie_scene_switch(iscen, &host.scenes) != 0;
 }
 
 /****************************************************
@@ -919,8 +907,8 @@ bool Movie::FNewScenInsCore(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen() + 1);
-    auto services = _SceneServices();
-    return mm_movie_scene_new(iscen, &services) != 0;
+    SceneHost host(this);
+    return mm_movie_scene_new(iscen, &host.scenes) != 0;
 }
 
 /******************************************************************************
@@ -1133,8 +1121,8 @@ bool Movie::FRemScenCore(long iscen)
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
     Assert(_data.resources, "Bad working file.");
-    auto services = _SceneServices();
-    return mm_movie_scene_remove(iscen, &services) != 0;
+    SceneHost host(this);
+    return mm_movie_scene_remove(iscen, &host.scenes) != 0;
 }
 
 /****************************************************
@@ -1155,8 +1143,8 @@ bool Movie::FRemScen(long iscen)
 {
     AssertThis(0);
     AssertIn(iscen, 0, Cscen());
-    auto services = _SceneServices();
-    return mm_movie_scene_remove_undoable(iscen, &services) != 0;
+    SceneHost host(this);
+    return mm_movie_scene_remove_undoable(iscen, &host.scenes) != 0;
 }
 
 /****************************************************
@@ -1298,8 +1286,8 @@ bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
 bool Movie::_FCloseCurrentScene(void)
 {
     AssertThis(0);
-    auto services = _SceneServices();
-    return mm_movie_scene_close(&services) != 0;
+    SceneHost host(this);
+    return mm_movie_scene_close(&host.scenes) != 0;
 }
 
 /****************************************************
@@ -1928,9 +1916,9 @@ bool Movie::FAddScen(PTAG ptag)
 {
     AssertThis(0); AssertPvCb(ptag, size(TAG));
     const auto services = _EditServices();
-    const auto scenes = _SceneServices();
+    SceneHost host(this);
     const auto tag = TagToCore(*ptag);
-    return mm_movie_add_background(&tag, &services, &scenes) != 0;
+    return mm_movie_add_background(&tag, &services, &host.scenes) != 0;
 }
 
 struct Movie::AlarmHost
@@ -2509,17 +2497,15 @@ static void ReleaseComposeThumbnail(void *object)
     mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(object));
 }
 
-MMMovieComposeServices Movie::_ComposeServices()
+MMMovieComposeServices Movie::_ComposeServices(const MMMovieSceneServices &scenes)
 {
     static_assert(kctgMvie==0x4d564945U && kctgActr==0x41435452U && cnoNil==0xffffffffU, "Movie composition ABI");
     MMMovieComposeServices s = {};
     s.context = this;
     s.data = &_data;
     s.scenes = &_scenes;
-    s.scene_control = _SceneServices();
+    s.scene_control = scenes;
     s.allocator = CollectionAllocator();
-    s.archive = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)); };
-    s.archive_context = [](void *p) -> void * { return MovieArchiveReader(p); };
     s.titles = KauaiChunkOwnerTitleIO();
     s.rollcall = EngineMovieHost::RollCallBinding();
     s.retain_scene = [](void *object) { static_cast<PScene>(object)->AddRef(); };
@@ -2531,8 +2517,6 @@ MMMovieComposeServices Movie::_ComposeServices()
 #ifdef BUG1929
     s.temporary_before_save=1;
 #endif
-    s.use_temporary=[](void *p)->int { return static_cast<PMovie>(p)->_FUseTempFile(); };
-    s.autosave=[](void *p)->int { return static_cast<PMovie>(p)->FAutoSave(nullptr,false); };
     s.transition=[](void *p)->MMI32 { return static_cast<PScene>(p)->Trans(); };
     s.decode_thumbnail = [](void *, const MMReadStream *stream) -> void * {
         return ReadMaskedBitmap(stream);
@@ -2609,7 +2593,8 @@ bool Movie::FAddToCmvi(PCompositeMovie pcmvi, long *piscendIns)
 {
     AssertThis(0); AssertVarMem(pcmvi); AssertVarMem(piscendIns);
     MMI32 insertion = *piscendIns;
-    const auto services = _ComposeServices();
+    SceneHost host(this);
+    const auto services = _ComposeServices(host.scenes);
     bool ok = mm_movie_compose_add(pcmvi, &insertion, &services) != 0;
     *piscendIns = insertion;
     return ok;
@@ -2638,7 +2623,8 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 {
     AssertThis(0);
     AssertVarMem(pcmvi);
-    const auto services = _ComposeServices();
+    SceneHost host(this);
+    const auto services = _ComposeServices(host.scenes);
     return mm_movie_compose_apply(pcmvi, &services) != 0;
 }
 
@@ -2657,7 +2643,9 @@ bool Movie::FSetCmvi(PCompositeMovie pcmvi)
 ************************************************************ PETED ***********/
 bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 {
-    AssertThis(0); const auto services=_ComposeServices();
+    AssertThis(0);
+    SceneHost host(this);
+    const auto services = _ComposeServices(host.scenes);
     return mm_movie_compose_merge(cno,aridMin,&services)!=0;
 }
 
@@ -5565,9 +5553,9 @@ MovieSceneUndo::~MovieSceneUndo(void)
  ****************************************************/
 bool MovieSceneUndo::_Apply(bool redo)
 {
-    const auto scenes = Pmvie()->_SceneServices();
+    Movie::SceneHost host(Pmvie());
     MMMovieSceneUndoServices s = {};
-    s.scenes = &scenes;
+    s.scenes = &host.scenes;
     s.scene_edit = [](void *p) -> MMSceneEditServices {
         return static_cast<PScene>(p)->_EditServices();
     };

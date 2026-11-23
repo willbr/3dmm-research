@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MOVIE_SCENE_H
 #define MM_ENGINE_MOVIE_SCENE_H
 #include "chunk_edit.h"
+#include "movie_archive_edit.h"
 #include "movie_owner.h"
 #include "playback.h"
 #include "scene_edit.h"
@@ -41,11 +42,14 @@ extern "C"
         void *open;
         MMI32 index;
     } MMMovieScenes;
+    struct MMMovieSaveServices;
     typedef struct MMMovieSceneServices
     {
         void *context;
         MMMovieScenes *state;
         MMMovieState *movie;
+        const struct MMMovieSaveServices *working_save;
+        /* Alternate archive operations when a working save provider is absent. */
         int (*autosave)(void *), (*make_resources)(void *), (*use_temporary)(void *);
         void (*stop_loops)(void *), (*memory_cleanup)(void *);
         MMMovieSessionBinding session;
@@ -57,6 +61,7 @@ extern "C"
         void (*scene_change)(void *), (*invalidate)(void *);
         MMChunkEdit (*edit)(void *resources);
         int (*write)(void *, void *scene, MMU32 *number);
+        MMMovieArchiveText snapshot_text;
         int (*copy_snapshot)(void *resources, const MMSceneSnapshot *, MMU32 *number);
         void (*save)(void *resources);
         void (*archive_issue)(void *, int issue);
@@ -92,6 +97,9 @@ extern "C"
      * rollback is performed. Removing the last scene returns before marking dirty.
      * Undo allocation failure during remove returns success without removing it. */
     void mm_movie_scenes_init(MMMovieScenes *);
+    int mm_movie_scene_autosave(const MMMovieSceneServices *);
+    int mm_movie_scene_temporary(const MMMovieSceneServices *);
+    MMChunkEdit mm_movie_scene_editor(void *resources, const MMMovieSceneServices *);
     void mm_movie_scene_close_open(const MMMovieSceneServices *);
     int mm_movie_scene_close(const MMMovieSceneServices *);
     int mm_movie_scene_switch(MMI32 index, const MMMovieSceneServices *);

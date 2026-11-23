@@ -24766,3 +24766,42 @@ snapshots. Dissolve matched prior steady observations and the settled
 canvas in retail and V3DMM.
 
 Evidence is under `tmp/c89-working-archive`.
+
+## C89 scene working saves (23 November 2026)
+
+Studio scene changes now share the movie's C89 working-save services.
+Scene switching uses the C89 autosave before closing the old scene.
+Insertion, removal, composition, and chop undo use the same preparation
+and save path. The scene controller obtains the live editor from the
+cache and copies undo snapshots directly through the C89 archive binding.
+
+The scene, composition, and chop fixtures exercise the existing failure
+paths and publication order. The native fixtures cover scene insertion,
+removal, composition, snapshot replacement, and `.3mm` save and reopen.
+
+All ten standalone C checks passed, including strict C89 syntax. The x64
+and x86 scene, composition, and chop fixtures passed. Tag and source
+traces, ten body and movie traces, eight scene traces, ten asset preview
+fingerprints, and the Marcus headless startup image matched their baselines.
+The native composition trace matched all 19,044 bytes. The existing
+`scene-load` assertion still follows the 63,224-byte trace with fingerprint
+`0D666753`. The external consumer passed.
+
+The first native `movie-save-load` run stopped in the actor transaction
+fixture. The isolated rerun passed with byte-identical snapshots. SDL
+Studio passed 26 targeted checks, and its save trace and 27,056-byte
+authored `.3mm` matched their baselines.
+
+The subsequent native suite passed all 227 selected checks, including
+`movie-save-load`. The headless VMM workflow passed all eight checks.
+The ordinary `.3mm`, five `.vmm` outputs, and two canvas captures matched
+their baselines byte for byte.
+
+Actor Audio and Dissolve suite `20261123T155229Z-495be3e9` completed
+eight fresh captures with verified input hashes. Both ports matched prior
+seek canvases and states. Actor Audio matched the retained frame order,
+camera indices, and Studio actor snapshots. Dissolve matched prior steady
+observations and the settled canvas in retail and V3DMM.
+
+Evidence is under `tmp/c89-scene-working-save`. The playback suite is in
+`tmp/c89-working-archive/capture/playback.sqlite`.

@@ -608,14 +608,29 @@ class Movie : public Movie_PAR
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
     bool _FUseTempFile(void);                     // Switches to using a temp file.
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
-    MMMovieSceneServices _SceneServices();
+    MMMovieSceneServices _SceneServices(const MMMovieSaveServices *);
     MMMovieRollCallServices _RollCallServices();
     MMMovieUndoServices _UndoServices();
     MMMovieEditServices _EditServices();
     MMMovieContentServices _ContentServices();
-    MMMovieComposeServices _ComposeServices();
-    struct SaveHost;
+    MMMovieComposeServices _ComposeServices(const MMMovieSceneServices &);
+    struct SaveHost
+    {
+        PMovie movie;
+        Filename temporary, unique;
+        explicit SaveHost(PMovie value) : movie(value) {}
+    };
     MMMovieSaveServices _SaveServices(SaveHost *);
+    struct SceneHost
+    {
+        SaveHost paths;
+        MMMovieSaveServices save;
+        MMMovieSceneServices scenes;
+
+        explicit SceneHost(PMovie);
+        SceneHost(const SceneHost &) = delete;
+        SceneHost &operator=(const SceneHost &) = delete;
+    };
     struct RuntimeHost;
     static MMMovieRuntimeServices _RuntimeServices(RuntimeHost *);
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.

@@ -2268,6 +2268,9 @@ Named working resource caches now open through the C89 archive factory. Movie
 autosave and Save As access the live writer and graph, apply temporary and
 staged-write options, and inspect file errors through the C89 chunk owner.
 Kauai supplies the native file operations and diagnostics.
+Scene switching, insertion, removal, composition, and chop undo use the
+C89 working-save services directly. Scene editing and snapshot insertion
+obtain the archive writer and graph from the live resource cache.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

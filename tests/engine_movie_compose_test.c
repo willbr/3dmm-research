@@ -763,8 +763,6 @@ static void init(Test *t)
     s->scenes = &t->scenes;
     s->temporary_before_save = 1;
     s->validate_children = 1;
-    s->use_temporary = temporary;
-    s->autosave = save;
     s->retain_cache = retain;
     s->release_cache = release;
     s->retain_scene = retain;
@@ -802,6 +800,8 @@ static void init(Test *t)
     s->diagnostic = diagnostic;
     s->scene_control.context = t;
     s->scene_control.state = &t->scenes;
+    s->scene_control.use_temporary = temporary;
+    s->scene_control.autosave = save;
     s->scene_control.close = close_scene;
     s->scene_control.edit = edit_archive;
     s->scene_control.read = read_scene;

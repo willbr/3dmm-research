@@ -46,11 +46,10 @@ extern "C"
         MMMovieSceneServices scene_control;
         MMStorageAllocator allocator;
         MMArchiveWriter (*archive)(void *resources);
-        void *(*archive_context)(void *resources);
+        void *(*archive_context)(void *resources); /* NULL uses the live cache reader. */
         MMChunkTitleIO titles;
         MMRollCallBinding rollcall;
         int temporary_before_save, validate_children;
-        int (*use_temporary)(void *), (*autosave)(void *);
         void (*retain_cache)(void *), (*release_cache)(void *);
         void (*retain_scene)(void *), (*release_scene)(void *);
         void (*retain_thumbnail)(void *), (*release_thumbnail)(void *);
