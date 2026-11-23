@@ -23,7 +23,7 @@ typedef enum MMTextBoxEditOperation
     MM_BOX_ALLOCATE, MM_BOX_INITIALIZE, MM_BOX_RELEASE, MM_BOX_RETAIN,
     MM_BOX_INPUT_BOUNDS, MM_BOX_DEFAULTS, MM_BOX_SET_DEFAULTS, MM_BOX_SET_WIDTH,
     MM_BOX_BACKGROUND, MM_BOX_SET_BACKGROUND, MM_BOX_UNDO_MAXIMUM, MM_BOX_SET_UNDO_LIMIT,
-    MM_BOX_PUBLISH, MM_BOX_READ_METADATA, MM_BOX_READ_TEXT, MM_BOX_DIAGNOSTIC,
+    MM_BOX_PUBLISH, MM_BOX_READ_TEXT, MM_BOX_DIAGNOSTIC,
     MM_BOX_NEW_COPY, MM_BOX_SUSPEND_UNDO, MM_BOX_RESUME_UNDO, MM_BOX_CHARACTERS, MM_BOX_REPLACE,
     MM_BOX_SET_TYPE, MM_BOX_ALLOCATE_UNDO, MM_BOX_ADD_UNDO, MM_BOX_PARENT_ADD_UNDO,
     MM_BOX_CLEAR_UNDO, MM_BOX_PARENT_CLEAR_UNDO, MM_BOX_SHOW, MM_BOX_HIDE, MM_BOX_REMOVE,
@@ -41,7 +41,6 @@ typedef struct MMTextBoxEditRequest
     MMI32 value, second;
     MMU32 word, flags;
     MMTextBoxBounds bounds;
-    MMTextBoxState metadata;
     MMTextChunk chunk;
     MMTextCharacter character, difference;
 } MMTextBoxEditRequest;
@@ -63,8 +62,7 @@ typedef struct MMTextBoxEditServices
      * - INPUT_BOUNDS returns presence in value and bounds; DEFAULTS and
      *   SET_DEFAULTS use value/second for font/height; BACKGROUND uses word;
      *   SET_BACKGROUND also receives flags; SET_WIDTH/UNDO_LIMIT use value;
-     * - READ_METADATA receives number in word, returns metadata/chunk;
-     *   READ_TEXT receives chunk; NEW_COPY receives bounds;
+     * - READ_TEXT receives the resolved rich-text chunk; NEW_COPY receives bounds;
      * - SCENE_BOX receives index in value, text in other for document calls;
      *   VIEW/ACTIVE_VIEW return object; CHECK_TEXT_VIEW receives value=1 for
      *   a text-box view, 0 for a generic text view, then returns a boolean;
@@ -86,7 +84,9 @@ typedef struct MMTextBoxEditServices
  * constructors publish null first, then the completed owner. Duplicate instead
  * publishes the new document before suspension/replacement and nulls on failure. */
 int mm_text_box_create(void *scene, int story, const MMTextBoxEditServices *);
-int mm_text_box_read_document(void *scene, MMU32 number, const MMTextBoxEditServices *);
+/* Read the archive header and resolve its child before allocating the document. */
+int mm_text_box_read_document(void *scene, MMU32 number, const struct MMMovieArchiveEditor *,
+                              const MMTextBoxEditServices *);
 int mm_text_box_duplicate(void *source, const MMTextBoxEditServices *);
 int mm_text_box_index(void *text, MMI32 *index, const MMTextBoxEditServices *);
 /* Change kind is UNDO_TYPE or UNDO_COLOR. Register the matching record before

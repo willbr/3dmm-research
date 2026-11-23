@@ -11,6 +11,7 @@ extern "C"
     enum
     {
         MM_TEXT_LIMIT = 0x08000000,
+        MM_TEXT_BOX_HEADER_BYTES = 36,
         MM_TEXT_ROOT = 0x52545854U,
         MM_TEXT_BOX = 0x54424f58U,
         MM_TEXT_BYTES = 0x54455854U,
@@ -30,7 +31,7 @@ extern "C"
     } MMTextBoxState;
     struct MMMovieArchiveEditor;
     int mm_text_box_decode(const MMReadStream *, MMTextBoxState *);
-    int mm_text_box_encode(const MMTextBoxState *, int system, int big, unsigned char bytes[36]);
+    int mm_text_box_encode(const MMTextBoxState *, int system, int big, unsigned char bytes[MM_TEXT_BOX_HEADER_BYTES]);
     int mm_text_box_read(MMTextBoxState *, MMU32, MMTextChunk *optional_child, const struct MMMovieArchiveEditor *);
     int mm_text_box_write(const MMTextBoxState *, MMU32, const struct MMMovieArchiveEditor *);
     typedef struct MMRichTextDefaults

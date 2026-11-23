@@ -22,7 +22,7 @@
 #include "mm/actor_motion.h"
 #include "mm/actor_pose.h"
 #include "mm/actor_timeline.h"
-#include "text_box_data.h"
+#include "rich_text_data.h"
 #include "sound_queue.h"
 #include "mm/playback.h"
 

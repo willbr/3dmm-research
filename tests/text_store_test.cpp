@@ -1,8 +1,10 @@
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
 #include "soc_core.h"
+#include "text_box_archive_fixture.h"
 #undef size
 ASSERTNAME
 void WarnProc(schar *file, LegacyLong line, schar *message)
@@ -321,71 +323,75 @@ static void BoxCases(Trace &trace)
         Check(text.FWrite(file, &rich));
         ChunkNumber number;
         Check(file->FAdd(0, kctgTbox, &number));
-        TextBoxData s;
-        s.state.first = -2;
-        s.state.end = 18;
-        s.state.story = true;
-        s.state.child = 7;
-        s.SetBounds(10, 20, 150, 75);
-        Check(file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 7) && s.FWrite(file, number));
+        MMTextBoxState s = {};
+        s.first = -2;
+        s.end = 18;
+        s.story = true;
+        s.child = 7;
+        TextBoxArchiveFixture::SetBounds(s, 10, 20, 150, 75);
+        Check(file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 7) &&
+              TextBoxArchiveFixture::Write(file, number, s));
         DataBlock block;
         Check(file->FFind(kctgTbox, number, &block));
-        TextBoxOnFile h;
-        Check(block.FReadRgb(&h, sizeof(h), 0));
+        byte header[MM_TEXT_BOX_HEADER_BYTES + 1] = {};
+        Check(block.FReadRgb(header, MM_TEXT_BOX_HEADER_BYTES, 0));
         if (kind == 1)
         {
-            SwapBytesRgsw(&h, 2);
-            SwapBytesRglw(reinterpret_cast<byte *>(&h) + 4, 7);
+            SwapBytesRgsw(header, 2);
+            SwapBytesRglw(header + 4, 7);
         }
         if (kind == 2)
-            h.bo = 2;
-        if (kind == 3)
-            h.nfrmFirst = INT32_MIN;
-        if (kind == 4)
-            h.fStory = 2;
-        if (kind == 5 || kind == 6)
-            h.chid = 8;
-        if (kind == 7)
-            h.nfrmMax = -8;
-        if (kind == 8)
         {
-            h.nfrmFirst = INT32_MAX;
-            h.nfrmMax = INT32_MIN;
+            const std::uint16_t invalidOrder = 2;
+            std::memcpy(header, &invalidOrder, sizeof(invalidOrder));
+        }
+        if (kind == 3 || kind == 8)
+        {
+            const MMI32 first = kind == 3 ? INT32_MIN : INT32_MAX;
+            std::memcpy(header + 4, &first, sizeof(first));
+        }
+        if (kind == 4)
+            header[32] = 2; // Invalid story flag.
+        if (kind == 5 || kind == 6)
+        {
+            const MMU32 missingChild = 8;
+            std::memcpy(header + 28, &missingChild, sizeof(missingChild));
+        }
+        if (kind == 7 || kind == 8)
+        {
+            const MMI32 end = kind == 7 ? -8 : INT32_MIN;
+            std::memcpy(header + 8, &end, sizeof(end));
         }
         if (kind == 9)
         {
-            h.osk = 0x1111;
-            h.reserved[0] = h.reserved[1] = h.reserved[2] = 0xff;
+            header[2] = header[3] = 0x11; // Unknown system marker and nonzero padding.
+            header[33] = header[34] = header[35] = 0xff;
         }
-        Check(file->FPutPv(&h, sizeof(h) - (kind == 10 ? 1 : 0), kctgTbox, number));
+        Check(file->FPutPv(header, MM_TEXT_BOX_HEADER_BYTES - (kind == 10 ? 1 : 0), kctgTbox, number));
         if (kind == 11)
-        {
-            byte extended[37] = {};
-            std::memcpy(extended, &h, 36);
-            Check(file->FPutPv(extended, 37, kctgTbox, number));
-        }
-        TextBoxData out;
-        out.state.first = 99;
-        ChunkIdentification child = {22, 33};
-        bool ok = out.FRead(file, number, kind == 6 ? nullptr : &child);
+            Check(file->FPutPv(header, sizeof(header), kctgTbox, number));
+        MMTextBoxState out = {};
+        out.first = 99;
+        MMTextChunk child = {22, 33};
+        bool ok = TextBoxArchiveFixture::Read(file, number, out, kind == 6 ? nullptr : &child);
         bool expected = kind == 0 || kind == 1 || (kind >= 6 && kind <= 9);
         Check(ok == expected);
         const unsigned v[] = {ok,
-                              unsigned(out.state.first),
-                              unsigned(out.state.end),
-                              unsigned(out.state.current),
-                              unsigned(out.state.story),
-                              unsigned(out.state.left),
-                              unsigned(out.state.top),
-                              unsigned(out.state.right),
-                              unsigned(out.state.bottom),
-                              out.state.child,
-                              child.ctg,
-                              child.cno};
+                              unsigned(out.first),
+                              unsigned(out.end),
+                              unsigned(out.current),
+                              unsigned(out.story),
+                              unsigned(out.left),
+                              unsigned(out.top),
+                              unsigned(out.right),
+                              unsigned(out.bottom),
+                              out.child,
+                              child.type,
+                              child.number};
         trace.Raw(v, sizeof(v));
         if (ok)
         {
-            Check(out.FWrite(file, number));
+            Check(TextBoxArchiveFixture::Write(file, number, out));
             trace.Chunk(file, {kctgTbox, number});
         }
         ReleasePpo(&file);

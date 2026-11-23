@@ -4,6 +4,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 #include "actor_track_fixture.h"
 #include "engine_action_tables_fixture.h"
@@ -485,12 +486,12 @@ static PTBOX Caption(PScene scene, MMResourceCache *resources)
     CHECK(text.FWrite(editor, &rich));
     ChunkNumber n;
     CHECK(archive.Add(0, kctgTbox, &n));
-    TextBoxData data;
-    data.state.first = 20;
-    data.state.end = 30;
-    data.state.story = true;
-    data.SetBounds(1, 2, 100, 80);
-    CHECK(mm_text_box_write(&data.state, n, &editor) > 0 && archive.Adopt(kctgTbox, n, rich.ctg, rich.cno, 0));
+    MMTextBoxState data = {};
+    data.first = 20;
+    data.end = 30;
+    data.story = true;
+    TextBoxArchiveFixture::SetBounds(data, 1, 2, 100, 80);
+    CHECK(mm_text_box_write(&data, n, &editor) > 0 && archive.Adopt(kctgTbox, n, rich.ctg, rich.cno, 0));
     return TextBox::PtboxRead(resources, n, scene);
 }
 static void BackgroundFixture(const MovieArchiveFixture &archive, ChunkNumber *number, int id)

@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "soc_core.h"
+#include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 #include "movie_state_fixture.h"
 #include <cstdio>
@@ -58,14 +59,14 @@ int main(int argc, char **argv)
     RichTextProperties defaults = {kboCur, koskCur, 200, 12, 0};
     ChunkIdentification richText;
     Check(RichTextData::FCreateRoot(file, &richText, &defaults, &font));
-    TextBoxData caption;
-    caption.state.first = 2;
-    caption.state.end = 10;
-    caption.SetBounds(1, 2, 101, 52);
-    caption.state.child = 9;
-    Check(caption.FWrite(file, 8));
+    MMTextBoxState caption = {};
+    caption.first = 2;
+    caption.end = 10;
+    TextBoxArchiveFixture::SetBounds(caption, 1, 2, 101, 52);
+    caption.child = 9;
+    Check(TextBoxArchiveFixture::Write(file, 8, caption));
     if (variant != 6)
-        Check(file->FAdoptChild(kctgTbox, 8, richText.ctg, richText.cno, caption.state.child));
+        Check(file->FAdoptChild(kctgTbox, 8, richText.ctg, richText.cno, caption.child));
     if (variant != 1)
         Check(file->FPutPv(const_cast<byte *>(payload), sizeof(payload), 'ZZZZ', 42));
     Check(file->FAdoptChild(kctgMvie, root, kctgScen, 5, 0));

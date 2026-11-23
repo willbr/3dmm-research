@@ -29,10 +29,10 @@ static int signed_short(MMU32 v)
 }
 int mm_text_box_decode(const MMReadStream *stream, MMTextBoxState *out)
 {
-    unsigned char b[36];
+    unsigned char b[MM_TEXT_BOX_HEADER_BYTES];
     MMTextBoxState s;
     int big;
-    if (stream->length != 36 || !mm_read_exact(stream, 0, b, 36) || (big = order(b)) < 0)
+    if (stream->length != sizeof(b) || !mm_read_exact(stream, 0, b, sizeof(b)) || (big = order(b)) < 0)
         return 0;
     memset(&s, 0, sizeof(s));
     s.first = mm_signed_word(get(b + 4, 4, big));
@@ -49,11 +49,11 @@ int mm_text_box_decode(const MMReadStream *stream, MMTextBoxState *out)
     *out = s;
     return 1;
 }
-int mm_text_box_encode(const MMTextBoxState *s, int system, int big, unsigned char b[36])
+int mm_text_box_encode(const MMTextBoxState *s, int system, int big, unsigned char b[MM_TEXT_BOX_HEADER_BYTES])
 {
     if (s->first == (-2147483647L - 1))
         return 0;
-    memset(b, 0, 36);
+    memset(b, 0, MM_TEXT_BOX_HEADER_BYTES);
     put(b, 1, 2, big);
     put(b + 2, (MMU32)system, 2, big);
     put(b + 4, (MMU32)s->first, 4, big);
@@ -91,7 +91,7 @@ int mm_text_box_read(MMTextBoxState *state, MMU32 number, MMTextChunk *child, co
 }
 int mm_text_box_write(const MMTextBoxState *state, MMU32 number, const MMMovieArchiveEditor *s)
 {
-    unsigned char b[36];
+    unsigned char b[MM_TEXT_BOX_HEADER_BYTES];
     if (!mm_text_box_encode(state, s->system, s->big_endian, b))
         return 0;
     return s->put(s->context, MM_TEXT_BOX, number, b, sizeof(b));

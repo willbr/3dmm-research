@@ -3,6 +3,7 @@
 #include <cstring>
 #include <vector>
 #include "soc.h"
+#include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 #include "engine_movie_graph.h"
 #include "scene_sound.h"
@@ -201,12 +202,12 @@ static ChunkNumber Fixture(PChunkyFile file, int scenario, bool swap)
         CHECK(text.FWrite(file, &rich));
         ChunkNumber child;
         CHECK(file->FAddChild(kctgScen, number, 4, 0, kctgTbox, &child));
-        TextBoxData meta;
-        meta.state.first = 3;
-        meta.state.end = 19;
-        meta.state.story = true;
-        meta.SetBounds(1, 2, 100, 80);
-        CHECK(meta.FWrite(file, child) && file->FAdoptChild(kctgTbox, child, rich.ctg, rich.cno, 0));
+        MMTextBoxState meta = {};
+        meta.first = 3;
+        meta.end = 19;
+        meta.story = true;
+        TextBoxArchiveFixture::SetBounds(meta, 1, 2, 100, 80);
+        CHECK(TextBoxArchiveFixture::Write(file, child, meta) && file->FAdoptChild(kctgTbox, child, rich.ctg, rich.cno, 0));
         int32_t id = 4;
         add(starts, sevtAddTbox, &id, 4);
     }

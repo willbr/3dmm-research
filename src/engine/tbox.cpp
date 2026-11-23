@@ -1795,7 +1795,7 @@ PTBOX TextBox::PtboxRead(MMResourceCache *pcrf, ChunkNumber cno, PScene pscen)
     TextBoxEditHost host;
     host.editor = &editor; host.reader = reader; host.boxOutput = &result;
     auto services = host.Services();
-    host.Check(mm_text_box_read_document(pscen, cno, &services));
+    host.Check(mm_text_box_read_document(pscen, cno, &editor, &services));
     return result;
 }
 
@@ -1822,7 +1822,7 @@ bool TextBox::FWrite(const MMMovieArchiveEditor &editor, const MMArchiveWriter &
 {
     AssertThis(0);
     TextBoxStoreHost host = {this, writer, editor};
-    const auto services = host.Services(&_data.state);
+    const auto services = host.Services(&_data);
     const int result = mm_text_box_store(cno, &services);
     if (host.exception)
         std::rethrow_exception(host.exception);
@@ -1845,7 +1845,7 @@ void TextBox::SetScen(PScene pscen)
     AssertThis(0); AssertPo(pscen, 0);
     TextBoxRuntimeHost host = {this};
     auto services = host.Services();
-    host.Check(mm_text_box_attach(&_data.state, &_runtime, pscen, &services));
+    host.Check(mm_text_box_attach(&_data, &_runtime, pscen, &services));
 }
 
 /****************************************************
@@ -1865,7 +1865,7 @@ void TextBox::SetTypeCore(bool fStory)
     AssertThis(0);
     TextBoxRuntimeHost host = {this};
     auto services = host.Services();
-    host.Check(mm_text_box_set_type(&_data.state, fStory, &services));
+    host.Check(mm_text_box_set_type(&_data, fStory, &services));
 }
 
 /****************************************************
@@ -1926,7 +1926,7 @@ void TextBox::SetRc(RC *prc)
     host.nativeBounds = prc;
     host.liveBounds = &bounds;
     auto services = host.Services();
-    host.Check(mm_text_box_set_bounds(&_data.state, &_runtime, &bounds, &services));
+    host.Check(mm_text_box_set_bounds(&_data, &_runtime, &bounds, &services));
 }
 
 /****************************************************
@@ -1943,7 +1943,7 @@ void TextBox::SetRc(RC *prc)
 bool TextBox::FIsVisible(void)
 {
     AssertThis(0);
-    return mm_text_box_visible(&_data.state) != 0;
+    return mm_text_box_visible(&_data) != 0;
 }
 
 /***************************************************************************
@@ -1964,7 +1964,7 @@ bool TextBox::FGetLifetime(long *pnfrmStart, long *pnfrmLast)
     TextBoxRuntimeHost host = {this};
     auto services = host.Services();
     MMTextBoxLifetime value = {};
-    int result = mm_text_box_lifetime(&_data.state, &value, &services);
+    int result = mm_text_box_lifetime(&_data, &value, &services);
     if (value.published & 1) *pnfrmStart = value.first;
     if (value.published & 2) *pnfrmLast = value.last;
     return host.Check(result) > 0;
@@ -2006,7 +2006,7 @@ bool TextBox::FGotoFrame(long nfrm)
     AssertThis(0);
     TextBoxRuntimeHost host = {this};
     auto services = host.Services();
-    return host.Check(mm_text_box_goto(&_data.state, nfrm, &services)) > 0;
+    return host.Check(mm_text_box_goto(&_data, nfrm, &services)) > 0;
 }
 
 /****************************************************
@@ -2025,7 +2025,7 @@ bool TextBox::FShowCore(void)
     AssertThis(0);
     TextBoxRuntimeHost host = {this};
     auto services = host.Services();
-    return host.Check(mm_text_box_show(&_data.state, &services)) > 0;
+    return host.Check(mm_text_box_show(&_data, &services)) > 0;
 }
 
 /****************************************************
@@ -2063,7 +2063,7 @@ void TextBox::HideCore(void)
     AssertThis(0);
     TextBoxRuntimeHost host = {this};
     auto services = host.Services();
-    host.Check(mm_text_box_hide(&_data.state, &services));
+    host.Check(mm_text_box_hide(&_data, &services));
 }
 
 /****************************************************
@@ -2232,7 +2232,7 @@ bool TextBox::FNeedToScroll(void)
     AssertThis(0);
     TextBoxRuntimeHost host = {this};
     auto services = host.Services();
-    return host.Check(mm_text_box_needs_scroll(&_data.state, &services)) > 0;
+    return host.Check(mm_text_box_needs_scroll(&_data, &services)) > 0;
 }
 
 /****************************************************
@@ -2270,7 +2270,7 @@ bool TextBox::FTextSelected(void)
     AssertThis(0);
     TextBoxRuntimeHost host = {this};
     auto services = host.Services();
-    return host.Check(mm_text_box_text_selected(&_data.state, &services)) > 0;
+    return host.Check(mm_text_box_text_selected(&_data, &services)) > 0;
 }
 
 /****************************************************
@@ -2287,7 +2287,7 @@ bool TextBox::FTextSelected(void)
 void TextBox::SetStartFrame(long nfrm)
 {
     AssertThis(0);
-    _data.state.first = nfrm;
+    _data.first = nfrm;
 }
 
 /****************************************************

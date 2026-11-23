@@ -6,6 +6,7 @@
 #include <vector>
 #undef size
 #include "preview_admission_fixture.h"
+#include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 ASSERTNAME
 struct MediaTrace : AdmissionTrace
@@ -99,7 +100,7 @@ static bool CheckSharedArchive(Filename &filename, const std::string &path, Chun
 static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
 {
     RichTextData text;
-    TextBoxData box;
+    MMTextBoxState box = {};
     ChunkIdentification rich;
     std::vector<byte> bytes = {'A', 0, 'B', '\r'};
     if (kind == 1)
@@ -161,16 +162,16 @@ static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
     for (auto entry : entries)
         if (!text.FAddProperty(entry))
             return false;
-    box.state.first = -3;
-    box.state.end = 7;
-    box.state.story = true;
-    box.SetBounds(-8, -4, 24, 32);
+    box.first = -3;
+    box.end = 7;
+    box.story = true;
+    TextBoxArchiveFixture::SetBounds(box, -8, -4, 24, 32);
     ChunkNumber number;
     auto metadata = SceneArchiveFixture::State();
     metadata.firstFrame = -3;
     metadata.lastFrame = 6;
     metadata.transition = transFadeToWhite;
-    if (!text.FWrite(file, &rich) || !file->FAdd(0, kctgTbox, &number) || !box.FWrite(file, number) ||
+    if (!text.FWrite(file, &rich) || !file->FAdd(0, kctgTbox, &number) || !TextBoxArchiveFixture::Write(file, number, box) ||
         !file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 0) || !SceneArchiveFixture::Create(file, scene, metadata) ||
         !file->FAdoptChild(kctgScen, *scene, kctgTbox, number, 0))
         return false;

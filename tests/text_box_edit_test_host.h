@@ -40,11 +40,9 @@ static MMTextBoxState *box_state(void *v, void *p) { (void)v; return &((TestBox 
 static MMTextBoxRuntime *box_runtime(void *v, void *p) { (void)v; return &((TestBox *)p)->runtime; }
 static MMTextBoxUndo *box_undo(void *v, void *p) { (void)v; return &((TestBox *)p)->undo; }
 static MMTextBoxClipboard *box_clipboard(void *v, void *p) { (void)v; return &((TestBox *)p)->clipboard; }
-static int box_call(void *context, MMTextBoxEditOperation op, MMTextBoxEditRequest *q)
+static int box_step(BoxTestHost *h, int op)
 {
-    BoxTestHost *h = (BoxTestHost *)context;
     BoxTestEvent *e = &h->events[h->calls++];
-    TestBox *b;
     memset(e, 0, sizeof(*e));
     e->op = op; e->first = h->objects[0].state.first; e->end = h->objects[0].state.end;
     e->current = h->objects[0].state.current; e->story = h->objects[0].state.story;
@@ -54,7 +52,16 @@ static int box_call(void *context, MMTextBoxEditOperation op, MMTextBoxEditReque
         e->savedLeft = h->activeUndo->bounds.left; e->savedFirst = h->activeUndo->first; e->savedEnd = h->activeUndo->end;
     }
     if (h->calls == h->failAt) return h->error;
-    if ((int)op == h->falseOp && ++h->falseCount == h->falseAt) return 0;
+    if (op == h->falseOp && ++h->falseCount == h->falseAt) return 0;
+    return 1;
+}
+static int box_call(void *context, MMTextBoxEditOperation op, MMTextBoxEditRequest *q)
+{
+    BoxTestHost *h = context;
+    TestBox *b;
+    int status = box_step(h, op);
+    if (status <= 0)
+        return status;
     switch (op)
     {
     case MM_BOX_ALLOCATE: case MM_BOX_NEW_COPY:
@@ -76,8 +83,7 @@ static int box_call(void *context, MMTextBoxEditOperation op, MMTextBoxEditReque
     case MM_BOX_UNDO_MAXIMUM: q->value = 1; break;
     case MM_BOX_SET_UNDO_LIMIT: break;
     case MM_BOX_PUBLISH: h->published = q->object; break;
-    case MM_BOX_READ_METADATA:
-        q->metadata = h->objects[0].state; q->chunk.type = MM_TEXT_ROOT; q->chunk.number = 7; break;
+    case MM_BOX_READ_TEXT: return q->chunk.type == MM_TEXT_ROOT && q->chunk.number == 7;
     case MM_BOX_SUSPEND_UNDO: ++((TestBox *)q->object)->suspended; break;
     case MM_BOX_RESUME_UNDO: --((TestBox *)q->object)->suspended; break;
     case MM_BOX_CHARACTERS: q->value = ((TestBox *)q->object)->count; break;

@@ -1,5 +1,6 @@
 #ifndef TEXT_BOX_RUNTIME_FIXTURE_H
 #define TEXT_BOX_RUNTIME_FIXTURE_H
+#include "text_box_archive_fixture.h"
 #pragma push_macro("size")
 #undef size
 // Native engine evidence for viewless frame/lifetime operations. View creation
@@ -14,11 +15,11 @@ static bool TestTextBoxRuntime(PScene scene, PChunkyFile file, ChunkIdentificati
     for (auto &range : ranges)
         for (int story = 0; story != 2 && ok; ++story)
         {
-            TextBoxData data;
-            data.state.first = range[0]; data.state.end = range[1]; data.state.story = story != 0;
-            data.SetBounds(10,20,180,100);
+            MMTextBoxState data = {};
+            data.first = range[0]; data.end = range[1]; data.story = story != 0;
+            TextBoxArchiveFixture::SetBounds(data, 10,20,180,100);
             ChunkNumber number;
-            if (!file->FAdd(0, kctgTbox, &number) || !data.FWrite(file, number) ||
+            if (!file->FAdd(0, kctgTbox, &number) || !TextBoxArchiveFixture::Write(file, number, data) ||
                 !file->FAdoptChild(kctgTbox, number, text.ctg, text.cno, 0)) { ok = false; break; }
             auto box = TextBox::PtboxRead(resources->CoreCache(), number, scene);
             if (!box) { ok = false; break; }

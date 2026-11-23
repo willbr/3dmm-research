@@ -1,5 +1,6 @@
 #ifndef TEXT_LIVE_FIXTURE_H
 #define TEXT_LIVE_FIXTURE_H
+#include "text_box_archive_fixture.h"
 #pragma push_macro("size")
 #undef size
 // Existing engine integration fixture; no Marcus or window interaction.
@@ -146,12 +147,13 @@ static PTBOX LiveCaptionInput(PScene scene, PChunkyFile file, const std::vector<
     }
     ChunkIdentification root;
     ChunkNumber number;
-    TextBoxData metadata;
-    metadata.state.first = 1;
-    metadata.state.end = 61;
-    metadata.state.story = true;
-    metadata.SetBounds(10, 20, 180, 100);
-    if (!source.FWrite(file, &root) || !file->FAdd(0, kctgTbox, &number) || !metadata.FWrite(file, number) ||
+    MMTextBoxState metadata = {};
+    metadata.first = 1;
+    metadata.end = 61;
+    metadata.story = true;
+    TextBoxArchiveFixture::SetBounds(metadata, 10, 20, 180, 100);
+    if (!source.FWrite(file, &root) || !file->FAdd(0, kctgTbox, &number) ||
+        !TextBoxArchiveFixture::Write(file, number, metadata) ||
         !file->FAdoptChild(kctgTbox, number, root.ctg, root.cno, 0))
         return nullptr;
     auto resources = ChunkyResourceFile::PcrfNew(file, 0);
@@ -226,10 +228,11 @@ static bool TestLiveCaptionSaving(PScene scene, PChunkyFile file)
             }
         }
         ChunkNumber number;
-        TextBoxData stored;
-        ChunkIdentification child;
+        MMTextBoxState stored = {};
+        MMTextChunk child;
         if (!file->FAdd(0, kctgTbox, &number) || !caption->FWrite(file, number) ||
-            !stored.FRead(file, number, &child) || !trace.Block(file, {kctgTbox, number}) || !trace.Tree(file, child))
+            !TextBoxArchiveFixture::Read(file, number, stored, &child) || !trace.Block(file, {kctgTbox, number}) ||
+            !trace.Tree(file, {child.type, child.number}))
         {
             std::fprintf(stderr, "[live] failed at %d\n", __LINE__);
             return false;

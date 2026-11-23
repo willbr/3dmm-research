@@ -1,11 +1,77 @@
 #include "text_box_edit_test_host.h"
+#include "mm/movie_archive_edit.h"
+
+enum { BOX_TEST_READ_HEADER = -2 };
+typedef struct BoxInput
+{
+    BoxTestHost *host;
+    MMMemoryStream stream;
+    unsigned char bytes[MM_TEXT_BOX_HEADER_BYTES];
+} BoxInput;
+
+static int read_header(void *context, MMU32 type, MMU32 number, MMReadStream *out)
+{
+    BoxInput *input = context;
+    int status = box_step(input->host, BOX_TEST_READ_HEADER);
+    if (status <= 0)
+        return status;
+    if (type != MM_TEXT_BOX || number != 1 ||
+        !mm_text_box_encode(&input->host->objects[0].state, 0x0303, 0, input->bytes))
+        return 0;
+    mm_memory_stream_init(&input->stream, input->bytes, sizeof(input->bytes));
+    *out = input->stream.stream;
+    return 1;
+}
+
+static MMU32 box_count(void *context)
+{
+    (void)context;
+    return 1;
+}
+
+static int box_entry(void *context, MMU32 position, MMChunkEntry *entry)
+{
+    (void)context;
+    if (position != 0)
+        return 0;
+    memset(entry, 0, sizeof(*entry));
+    entry->type = MM_TEXT_BOX;
+    entry->number = 1;
+    entry->child_count = 1;
+    return 1;
+}
+
+static int box_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *child)
+{
+    (void)context;
+    if (parent != 0 || position != 0)
+        return 0;
+    child->type = MM_TEXT_ROOT;
+    child->number = 7;
+    child->slot = 0;
+    return 1;
+}
+
+static int read_document(BoxTestHost *h, const MMTextBoxEditServices *p)
+{
+    BoxInput input;
+    MMMovieArchiveEditor archive = {0};
+    input.host = h;
+    archive.context = &input;
+    archive.read = read_header;
+    archive.edit.count = box_count;
+    archive.edit.entry = box_entry;
+    archive.edit.child = box_child;
+    return mm_text_box_read_document(&h->objects[6], 1, &archive, p);
+}
+
 static int invoke(int kind, BoxTestHost *h, const MMTextBoxEditServices *p)
 {
     void *text = &h->objects[0];
     switch (kind)
     {
     case 0: return mm_text_box_create(&h->objects[6], 1, p);
-    case 1: return mm_text_box_read_document(&h->objects[6], 1, p);
+    case 1: return read_document(h, p);
     case 2: return mm_text_box_duplicate(text, p);
     case 3: return mm_text_box_change(text, MM_BOX_UNDO_TYPE, 1, p);
     case 4: return mm_text_box_change(text, MM_BOX_UNDO_COLOR, 0x776655, p);
@@ -153,8 +219,14 @@ int main(void)
     CHECK(h.objects[1].background == p.clear && !h.flags);
     p = box_setup(&h); h.falseOp = MM_BOX_INITIALIZE;
     CHECK(!invoke(0, &h, &p) && !h.published && !h.objects[1].refs);
-    p = box_setup(&h); h.falseOp = MM_BOX_READ_METADATA;
+    p = box_setup(&h);
+    CHECK(invoke(1, &h, &p) == 1 && h.published == &h.objects[1]);
+    CHECK(h.objects[1].state.first == 1 && h.objects[1].state.current == 0 &&
+          h.objects[1].runtime.scene == &h.objects[6]);
+    p = box_setup(&h); h.falseOp = BOX_TEST_READ_HEADER;
     CHECK(!invoke(1, &h, &p) && h.calls == 3 && h.events[2].op == MM_BOX_DIAGNOSTIC);
+    p = box_setup(&h); h.objects[0].state.child = 4;
+    CHECK(!invoke(1, &h, &p) && !h.published && h.calls == 3 && h.events[2].op == MM_BOX_DIAGNOSTIC);
     p = box_setup(&h); h.falseOp = MM_BOX_READ_TEXT;
     CHECK(!invoke(1, &h, &p) && !h.objects[1].refs && !h.published);
     p = box_setup(&h);

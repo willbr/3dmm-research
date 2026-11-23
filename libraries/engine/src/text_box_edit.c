@@ -45,7 +45,8 @@ int mm_text_box_create(void *scene, int story, const MMTextBoxEditServices *p)
     q.object = box; q.value = 1; TRY(CALL(MM_BOX_SET_UNDO_LIMIT));
     return publish(box, p);
 }
-int mm_text_box_read_document(void *scene, MMU32 number, const MMTextBoxEditServices *p)
+int mm_text_box_read_document(void *scene, MMU32 number, const struct MMMovieArchiveEditor *archive,
+                              const MMTextBoxEditServices *p)
 {
     MMTextBoxEditRequest q;
     MMTextBoxState metadata;
@@ -53,9 +54,8 @@ int mm_text_box_read_document(void *scene, MMU32 number, const MMTextBoxEditServ
     void *box;
     int result;
     TRY(publish(NULL, p));
-    q.word = number; result = CALL(MM_BOX_READ_METADATA); TRY(result);
+    result = mm_text_box_read(&metadata, number, &chunk, archive); TRY(result);
     if (!result) { q.value = MM_BOX_BAD_FILE; TRY(CALL(MM_BOX_DIAGNOSTIC)); return 0; }
-    metadata = q.metadata; chunk = q.chunk;
     TRY(CALL(MM_BOX_ALLOCATE)); box = q.object;
     if (!box) return 0;
     q.chunk = chunk; result = CALL(MM_BOX_READ_TEXT); TRY(result);

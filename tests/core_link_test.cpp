@@ -3,6 +3,7 @@
 // A real host supplies assertion reporting; no GUI/application replacements.
 #if defined(TEST_ENGINE_CORE)
 #include "soc_core.h"
+#include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 #include "handle_services.h"
 #include "actor_track_fixture.h"
@@ -4662,37 +4663,40 @@ static void TestTextBoxPersistence()
     Check(content.FWrite(file, &richText));
     ChunkNumber number;
     Check(file->FAdd(0, kctgTbox, &number));
-    TextBoxData defaults;
-    Check(defaults.FWrite(file, number));
-    TextBoxData defaultRead;
-    Check(defaultRead.FRead(file, number));
+    MMTextBoxState defaults = {};
+    Check(TextBoxArchiveFixture::Write(file, number, defaults));
+    MMTextBoxState defaultRead = {};
+    Check(TextBoxArchiveFixture::Read(file, number, defaultRead, nullptr));
     RC zeroBounds(0, 0, 0, 0);
-    Check(defaultRead.Bounds() == zeroBounds);
-    TextBoxData caption;
-    caption.state.first = -2;
-    caption.state.end = 18;
-    caption.state.story = true;
-    caption.state.child = 7;
-    caption.SetBounds(10, 20, 150, 75);
-    RC captionBounds = caption.Bounds();
-    Check(file->FAdoptChild(kctgTbox, number, richText.ctg, richText.cno, caption.state.child));
-    Check(caption.FWrite(file, number));
-    TextBoxData loaded;
-    ChunkIdentification child;
-    Check(loaded.FRead(file, number, &child));
-    Check(child.cno == richText.cno && loaded.state.story && loaded.state.first == -2 && loaded.state.end == 18);
-    Check(loaded.Bounds() == captionBounds);
-    Check(!loaded.FVisibleAt(-3) && loaded.FVisibleAt(-2) && !loaded.FVisibleAt(18));
+    Check(RC(defaultRead.left, defaultRead.top, defaultRead.right, defaultRead.bottom) == zeroBounds);
+    MMTextBoxState caption = {};
+    caption.first = -2;
+    caption.end = 18;
+    caption.story = true;
+    caption.child = 7;
+    TextBoxArchiveFixture::SetBounds(caption, 10, 20, 150, 75);
+    RC captionBounds(10, 20, 150, 75);
+    Check(file->FAdoptChild(kctgTbox, number, richText.ctg, richText.cno, caption.child));
+    Check(TextBoxArchiveFixture::Write(file, number, caption));
+    MMTextBoxState loaded = {};
+    MMTextChunk child;
+    Check(TextBoxArchiveFixture::Read(file, number, loaded, &child));
+    Check(child.type == richText.ctg && child.number == richText.cno &&
+          loaded.story && loaded.first == -2 && loaded.end == 18);
+    Check(RC(loaded.left, loaded.top, loaded.right, loaded.bottom) == captionBounds);
+    Check(!mm_text_box_visible_range(loaded.first, loaded.end, -3) &&
+          mm_text_box_visible_range(loaded.first, loaded.end, -2) &&
+          !mm_text_box_visible_range(loaded.first, loaded.end, 18));
     DataBlock block;
-    TextBoxOnFile header;
-    Check(file->FFind(kctgTbox, number, &block) && block.FReadRgb(&header, sizeof(header), 0));
-    SwapBytesRgsw(&header, 2);
-    SwapBytesRglw(reinterpret_cast<byte *>(&header) + 4, 7);
-    Check(block.FWriteRgb(&header, sizeof(header), 0));
-    Check(loaded.FRead(file, number, &child) && loaded.state.child == 7 && loaded.state.story);
-    Check(loaded.Bounds() == captionBounds && loaded.state.end == 18);
-    loaded.state.first = INT32_MIN;
-    Check(!loaded.FWrite(file, number));
+    byte header[MM_TEXT_BOX_HEADER_BYTES];
+    Check(file->FFind(kctgTbox, number, &block) && block.FReadRgb(header, sizeof(header), 0));
+    SwapBytesRgsw(header, 2);
+    SwapBytesRglw(header + 4, 7);
+    Check(block.FWriteRgb(header, sizeof(header), 0));
+    Check(TextBoxArchiveFixture::Read(file, number, loaded, &child) && loaded.child == 7 && loaded.story);
+    Check(RC(loaded.left, loaded.top, loaded.right, loaded.bottom) == captionBounds && loaded.end == 18);
+    loaded.first = INT32_MIN;
+    Check(!TextBoxArchiveFixture::Write(file, number, loaded));
     ReleasePpo(&file);
 }
 

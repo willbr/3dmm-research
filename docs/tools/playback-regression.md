@@ -24236,3 +24236,46 @@ presentations per port after consecutive duplicate samples were removed.
 Both ports matched retail and V3DMM frame order in seek and playback.
 
 Evidence is under `tmp/c89-movie-state-bindings`.
+
+## C89 text-box archive bindings (23 November 2026)
+
+Studio embeds the C89 text-box state and calls the archive codec directly.
+The C loader decodes the box and locates its rich-text child before asking
+Studio to allocate or load a document. The C++ text-box data translation
+unit is out of the native, SDL and x86 worker builds. The C fixture checks
+normal load, missing child, and error propagation through the typed
+archive reader.
+
+The 4,998-byte text-store trace and the native text-box runtime, edit,
+live save and undo traces matched byte for byte. The fixtures exercise both
+byte orders, malformed headers, missing children, stored bounds, frame
+visibility and rollback. Native and SDL movie save/load passed. Headless
+Studio authored and reopened the same 27,056-byte movie, and Marcus relaunched
+headlessly with an identical startup image.
+
+235 native checks, 13 SDL checks and three x86 worker fixtures passed.
+All ten Preview fingerprints matched the previous build.
+
+All eight scene traces matched. The existing `scene-load` debug fingerprint
+assertion still follows the same 63,224-byte trace (`0D666753`). The edited
+and copied 3D text archives matched the retained saves.
+
+Both ports reopened the copied save in `20261123T125445Z-fa4ce057` and
+matched the scene, frame and canvas captured by retail and V3DMM in
+`20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T125445Z-2477ed6c` matched all 60 prior seek
+canvases and scene states per port. Both ports matched retail and V3DMM frame
+order in seek and playback. Studio matched all 240 actor snapshots at the
+recorded precision. Both ports matched 59 of 60 retail and V3DMM seek
+canvases, with the same difference at scene 0, frame 4.
+
+The rebuilt fixture regenerated the 11,420-byte Text Acid movie with three
+different alignment bytes in its AGPA argument chunk. All other bytes matched
+the retained movie. With the regenerated file, candidate
+`20261123T125556Z-358c8b60` matched baseline `20261123T124108Z-6f52b680` on
+all 240 seek canvases and 371 playback presentations per port after consecutive
+duplicate samples were removed. Both ports matched retail and V3DMM frame
+order in seek and playback.
+
+Evidence is under `tmp/c89-text-box-bindings`.

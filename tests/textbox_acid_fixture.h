@@ -1,5 +1,6 @@
 // Authored text-box playback diagnostic. New project code.
 #pragma once
+#include "text_box_archive_fixture.h"
 
 #include "scene_archive_fixture.h"
 #include "movie_state_fixture.h"
@@ -59,12 +60,12 @@ bool WriteBox(PChunkyFile file, const Box &spec, ChunkNumber *number)
         if (!text.FAddProperty(property))
             return false;
     ChunkIdentification rich;
-    TextBoxData box;
-    box.state.first = spec.first;
-    box.state.end = spec.end;
-    box.state.story = !spec.scrolling;
-    box.SetBounds(spec.left, spec.top, spec.right, spec.bottom);
-    return text.FWrite(file, &rich) && file->FAdd(0, kctgTbox, number) && box.FWrite(file, *number) &&
+    MMTextBoxState box = {};
+    box.first = spec.first;
+    box.end = spec.end;
+    box.story = !spec.scrolling;
+    TextBoxArchiveFixture::SetBounds(box, spec.left, spec.top, spec.right, spec.bottom);
+    return text.FWrite(file, &rich) && file->FAdd(0, kctgTbox, number) && TextBoxArchiveFixture::Write(file, *number, box) &&
            file->FAdoptChild(kctgTbox, *number, rich.ctg, rich.cno, 0);
 }
 bool Write(PChunkyFile file)

@@ -20,6 +20,7 @@
 
 #include <vector>
 #include "soc.h"
+#include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 #include "movie_state_fixture.h"
 #include "handle_services.h"
@@ -2443,8 +2444,9 @@ static bool TestCaptionPersistence(PScene scene)
     PChunkyResourceFile resources = pvNil;
     PTBOX caption = pvNil;
     RichTextData content, exported;
-    TextBoxData metadata, saved;
-    ChunkIdentification richText, child;
+    MMTextBoxState metadata = {}, saved = {};
+    ChunkIdentification richText;
+    MMTextChunk child;
     ChunkNumber number, second;
     bool ok = false;
     byte text[] = {'H', 'e', 'l', 'l', 'o'};
@@ -2459,11 +2461,12 @@ static bool TestCaptionPersistence(PScene scene)
         goto done;
     if (!content.FWrite(file, &richText) || !file->FAdd(0, kctgTbox, &number))
         goto done;
-    metadata.state.first = 1;
-    metadata.state.end = klwMax;
-    metadata.state.story = true;
-    metadata.SetBounds(10, 20, 180, 100);
-    if (!metadata.FWrite(file, number) || !file->FAdoptChild(kctgTbox, number, richText.ctg, richText.cno, 0))
+    metadata.first = 1;
+    metadata.end = klwMax;
+    metadata.story = true;
+    TextBoxArchiveFixture::SetBounds(metadata, 10, 20, 180, 100);
+    if (!TextBoxArchiveFixture::Write(file, number, metadata) ||
+        !file->FAdoptChild(kctgTbox, number, richText.ctg, richText.cno, 0))
         goto done;
     resources = ChunkyResourceFile::PcrfNew(file, 0);
     if (resources == pvNil)
@@ -2476,9 +2479,9 @@ static bool TestCaptionPersistence(PScene scene)
         goto done;
     if (!file->FAdd(0, kctgTbox, &second) || !caption->FWrite(file, second))
         goto done;
-    if (!saved.FRead(file, second, &child) || !exported.FRead(file, child.ctg, child.cno))
+    if (!TextBoxArchiveFixture::Read(file, second, saved, &child) || !exported.FRead(file, child.type, child.number))
         goto done;
-    if (!saved.state.story || saved.state.first != 1 || exported.text.cb != 5)
+    if (!saved.story || saved.first != 1 || exported.text.cb != 5)
         goto done;
     if (!exported.text.FReadRgb(actual, 5, 0) || std::memcmp(actual, text, 5) != 0)
         goto done;

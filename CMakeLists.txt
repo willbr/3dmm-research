@@ -1223,7 +1223,6 @@ target_sources(engine-core
     PRIVATE
     "${PROJECT_SOURCE_DIR}/src/engine/body.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/portfolio_data.cpp"
-    "${PROJECT_SOURCE_DIR}/src/engine/text_box_data.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/retail_scroll.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/modl.cpp"
     "${PROJECT_SOURCE_DIR}/src/engine/mtrl.cpp"

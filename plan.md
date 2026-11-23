@@ -1380,10 +1380,13 @@ now also use C89. Shared Studio/Marcus character-run formatting and line layout
 now also use C89 and plain C run/paragraph/line state, including wrapping, tabs,
 objects, indentation, baseline and spacing policy. Physical bitmap/font/graphics
 providers and final integration remain work.
-Text-box stored bounds/lifetime/type now live directly in C state, with plain C
-scene/selection state and C89 attachment, frame/view sequencing, lifetime queries,
-show/hide core, bounds/type changes and scrolling/selection dispatch. Studio and
-Marcus share lifetime visibility and first-frame scrolling predicates. Text-box
+Studio embeds the C89 text-box state for bounds, lifetime and type. The C loader
+decodes the stored box and resolves its rich-text child before allocating the
+Studio document. Studio, Marcus and archive fixtures use the C89 codecs, and
+the C++ text-box data translation unit is out of the build. Attachment,
+frame/view sequencing, lifetime queries, show/hide core, bounds/type changes and
+scrolling/selection dispatch use C89. Studio and Marcus share lifetime visibility
+and first-frame scrolling predicates. Text-box
 factories, duplication, edit/undo registration and replay, property selection and
 clipboard ownership/paste now also use C89 and plain C undo/clipboard state.
 Studio's text-box clipboard controller uses C89 for command enablement, inline

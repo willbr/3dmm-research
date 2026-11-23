@@ -213,7 +213,7 @@ class TextBox : public TextBox_PAR
     MARKMEM
 
   private:
-    TextBoxData _data; // Stored bounds/lifetime/type, independent of views.
+    MMTextBoxState _data = {}; // Stored bounds/lifetime/type, independent of views.
     MMTextBoxRuntime _runtime = {}; // Borrowed scene and selection state.
 
     TextBox(void) : RichTextDocument()
@@ -252,7 +252,7 @@ class TextBox : public TextBox_PAR
     bool FHide(void);
     bool FStory(void)
     {
-        return _data.state.story;
+        return _data.story;
     }
     void SetTypeCore(bool fStory);
     bool FSetType(bool fStory);
@@ -296,7 +296,7 @@ class TextBox : public TextBox_PAR
     //
     void GetRc(RC *prc)
     {
-        *prc = _data.Bounds();
+        prc->Set(_data.left, _data.top, _data.right, _data.bottom);
     }
     void SetRc(RC *prc);
     void CleanDdg(void);
@@ -307,11 +307,11 @@ class TextBox : public TextBox_PAR
     //
     long NfrmFirst(void)
     {
-        return _data.state.first;
+        return _data.first;
     }
     long nfrmMax(void)
     {
-        return _data.state.end;
+        return _data.end;
     }
 };
 

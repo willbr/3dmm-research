@@ -17,6 +17,7 @@
 #include "mm/playback.h"
 #include <miniz.h>
 #include "soc_core.h"
+#include "text_box_archive_fixture.h"
 #include "scene_archive_fixture.h"
 #include "movie_state_fixture.h"
 #include "actor_track_fixture.h"
@@ -435,16 +436,16 @@ ChunkNumber Caption(PChunkyFile file, bool scrolling, bool edge = false, int lay
     CHECK(text.FAddProperty(style) && text.FAddProperty(foreground) && text.FAddProperty(alignment));
     ChunkIdentification rich;
     CHECK(text.FWrite(file, &rich));
-    TextBoxData box;
-    box.SetBounds(20, 20, 460, scrolling ? 55 : 110);
+    MMTextBoxState box = {};
+    TextBoxArchiveFixture::SetBounds(box, 20, 20, 460, scrolling ? 55 : 110);
     if (edge)
-        box.SetBounds(500, 230, 544, 306);
-    box.state.first = scrolling ? 0 : -2;
-    box.state.end = scrolling ? 5 : -1;
-    if (layer >= 0) { box.state.first = layer; box.state.end = 4; }
-    box.state.story = !scrolling;
+        TextBoxArchiveFixture::SetBounds(box, 500, 230, 544, 306);
+    box.first = scrolling ? 0 : -2;
+    box.end = scrolling ? 5 : -1;
+    if (layer >= 0) { box.first = layer; box.end = 4; }
+    box.story = !scrolling;
     ChunkNumber number;
-    CHECK(file->FAdd(0, kctgTbox, &number) && box.FWrite(file, number));
+    CHECK(file->FAdd(0, kctgTbox, &number) && TextBoxArchiveFixture::Write(file, number, box));
     CHECK(file->FAdoptChild(kctgTbox, number, rich.ctg, rich.cno, 0));
     return number;
 }

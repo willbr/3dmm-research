@@ -43,7 +43,7 @@ struct TextBoxEditHost
     {
         MMTextBoxEditServices s = {};
         s.context = this; s.call = Call;
-        s.state = [](void *, void *p) { return &static_cast<PTBOX>(p)->_data.state; };
+        s.state = [](void *, void *p) { return &static_cast<PTBOX>(p)->_data; };
         s.runtime = [](void *, void *p) { return &static_cast<PTBOX>(p)->_runtime; };
         s.undo = Undo;
         s.clipboard = [](void *, void *p) { return &static_cast<PTextBoxClipboard>(p)->_clipboard; };
@@ -88,10 +88,6 @@ struct TextBoxEditHost
                 if (h.undoOutput) *h.undoOutput = static_cast<PTextBoxUndoEdit>(q->object);
                 if (h.clipboardOutput) *h.clipboardOutput = static_cast<PTextBoxClipboard>(q->object);
                 break;
-            case MM_BOX_READ_METADATA:
-            {
-                return mm_text_box_read(&q->metadata, q->word, &q->chunk, h.editor);
-            }
             case MM_BOX_READ_TEXT:
                 return static_cast<PTBOX>(q->object)->_FReadArchive(*h.editor, h.reader, q->chunk.type,
                                                                  q->chunk.number, true);
