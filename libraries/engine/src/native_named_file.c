@@ -125,3 +125,40 @@ MMReadStream mm_native_named_file_stream(MMNativeNamedFile *file)
     stream.read_at = read_at;
     return stream;
 }
+
+static MMFileOwnerHost registered_host(void *file)
+{ return mm_native_named_file_host(file); }
+
+void mm_native_named_file_register(MMNativeNamedFile *file, MMFileRegistry *registry, MMRegisteredFile *record,
+                                    void *object, void *name, MMReference *references)
+{
+    mm_registered_file_init(record, object, name, &file->state, references, file, registered_host);
+    mm_file_registry_attach(registry, record);
+}
+
+static void enter_registry(void *lock)
+{
+    if (mm_native_mutex_enter(lock))
+        abort();
+}
+
+static void leave_registry(void *lock)
+{
+    if (mm_native_mutex_leave(lock))
+        abort();
+}
+
+int mm_native_file_registry_init(MMFileRegistry *registry, int *error)
+{
+    MMNativeMutex *lock = mm_native_mutex_create(error);
+    if (!lock)
+        return 0;
+    mm_file_registry_init(registry, lock, enter_registry, leave_registry);
+    return 1;
+}
+
+void mm_native_file_registry_dispose(MMFileRegistry *registry)
+{
+    mm_native_mutex_destroy(registry->lock);
+    mm_file_registry_init(registry, NULL, NULL, NULL);
+}

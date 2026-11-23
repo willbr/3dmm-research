@@ -1,7 +1,7 @@
 #ifndef MM_NATIVE_NAMED_FILE_H
 #define MM_NATIVE_NAMED_FILE_H
 
-#include "file_owner.h"
+#include "file_ops.h"
 #include "native_files.h"
 #include "native_runtime.h"
 
@@ -38,6 +38,11 @@ void mm_native_named_file_enter(MMNativeNamedFile *);
 void mm_native_named_file_leave(MMNativeNamedFile *);
 MMFileOwnerHost mm_native_named_file_host(MMNativeNamedFile *);
 MMReadStream mm_native_named_file_stream(MMNativeNamedFile *);
+void mm_native_named_file_register(MMNativeNamedFile *, MMFileRegistry *, MMRegisteredFile *,
+                                    void *object, void *name, MMReference *);
+int mm_native_file_registry_init(MMFileRegistry *, int *error);
+/* Detach all files and stop registry callers before disposal. */
+void mm_native_file_registry_dispose(MMFileRegistry *);
 
 #ifdef __cplusplus
 }

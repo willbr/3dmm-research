@@ -70,27 +70,47 @@ const MMBlockFileServices *KauaiBlockFileServices() { return &blockFiles; }
 int KauaiDecodeBlockHandle(void *, void **handle) { return vpcodmUtil->FDecompressPhq(handle); }
 
 FileType FileObject::vftgCreator = '____';
-MMLinkedListNode *FileObject::_pfilFirst;
-Mutex FileObject::_mutxList;
 
 RTCLASS(FileObject)
 RTCLASS(DataBlock)
 RTCLASS(MessageSinkFile)
 
+MMFileRegistry *FileObject::_Registry()
+{
+    static MMFileRegistry registry{};
+    // File lookups and final releases can run from other global destructors.
+    static const bool initialized = [] {
+        int error = 0;
+        if (!mm_native_file_registry_init(&registry, &error))
+            throw std::system_error(error, std::system_category());
+        return true;
+    }();
+    (void)initialized;
+    return &registry;
+}
+
+namespace {
+PFileObject FileFromRegistration(MMRegisteredFile *record)
+{
+    return record ? static_cast<PFileObject>(record->object) : nullptr;
+}
+}
+
+PFileObject FileObject::PfilFirst(void)
+{
+    return FileFromRegistration(mm_file_registry_first(_Registry()));
+}
+
+PFileObject FileObject::PfilNext(void)
+{
+    return FileFromRegistration(mm_file_registry_next(&_registration));
+}
+
 MMFileOpsHost FileObject::_OpsHost()
 {
     static_assert(tNo == MM_FILE_NAME_MISSING, "native file status contract");
     MMFileOpsHost host{};
-    host.enter_list = [](void *) { _mutxList.Enter(); };
-    host.leave_list = [](void *) { _mutxList.Leave(); };
-    host.first = [](void *) -> void * { return PfilFirst(); };
-    host.next = [](void *, void *p) -> void * { return static_cast<PFileObject>(p)->PfilNext(); };
-    host.enter_object = [](void *, void *p) { mm_native_named_file_enter(&static_cast<PFileObject>(p)->_file); };
-    host.leave_object = [](void *, void *p) { mm_native_named_file_leave(&static_cast<PFileObject>(p)->_file); };
-    host.name = [](void *, void *p) -> void * { return &static_cast<PFileObject>(p)->_fni; };
-    host.owner = [](void *, void *p) -> MMFileOwner * { return &static_cast<PFileObject>(p)->_file.state; };
-    host.references = [](void *, void *p) -> MMReference * { return &static_cast<PFileObject>(p)->_references; };
-    host.owner_host = [](void *, void *p, MMFileOwnerHost *out) { *out = static_cast<PFileObject>(p)->_OwnerHost(); };
+    host.registry = _Registry();
     host.equal_names = [](void *, void *a, void *b) -> int { return static_cast<Filename *>(a)->FEqual(static_cast<Filename *>(b)); };
     host.copy_name = [](void *, void *dst, const void *src) { *static_cast<Filename *>(dst) = *static_cast<Filename *>(const_cast<void *>(src)); };
     host.unique_name = [](void *, void *p) -> int { auto *name = static_cast<Filename *>(p); return name->FGetUnique(name->Ftg()); };
@@ -99,11 +119,12 @@ MMFileOpsHost FileObject::_OpsHost()
     host.rename_name = [](void *, void *a, void *b) -> int { return static_cast<Filename *>(a)->FRename(static_cast<Filename *>(b)); };
     host.name_status = [](void *, void *p) -> int { return static_cast<Filename *>(p)->TExists(); };
     host.delete_name = [](void *, void *p) -> int { return static_cast<Filename *>(p)->FDelete(); };
-    host.construct = [](void *, void *p, MMU32 flags) -> void * { return NewObj FileObject(static_cast<Filename *>(p), flags); };
+    host.construct = [](void *, void *p, MMU32 flags) -> MMRegisteredFile * {
+        auto *file = NewObj FileObject(static_cast<Filename *>(p), flags);
+        return file ? &file->_registration : nullptr;
+    };
     host.retain = [](void *, void *p) { static_cast<PFileObject>(p)->AddRef(); };
     host.destroy = [](void *, void *p) { delete static_cast<PFileObject>(p); };
-    host.swap_objects = [](void *, void *a, void *b) -> int { return static_cast<PFileObject>(a)->FSwapNames(static_cast<PFileObject>(b)); };
-    host.rename_object = [](void *, void *p, void *name) -> int { return static_cast<PFileObject>(p)->FRename(static_cast<Filename *>(name)); };
     host.issue = [](void *, int code) {
         switch (code) {
         case MM_FILE_OP_OPEN: PushErc(ercFileOpen); break;
@@ -135,16 +156,14 @@ MMFileOpsHost FileObject::_OpsHost()
 FileObject::FileObject(Filename *pfni, LegacyUlong grffil)
 {
     AssertPo(pfni, ffniFile);
+    auto *registry = _Registry();
     _fni = *pfni;
     int error = 0;
     if (!mm_native_named_file_init(&_file, reinterpret_cast<const MMNativePathChar *>(_fni._Path()),
                                    grffil, _FileDiagnostics(), this, &error))
         throw std::system_error(error, std::system_category());
 
-    // add it to the linked list
-    _mutxList.Enter();
-    _Attach(&_pfilFirst);
-    _mutxList.Leave();
+    mm_native_named_file_register(&_file, registry, &_registration, this, &_fni, &_references);
 }
 
 /***************************************************************************
@@ -154,9 +173,7 @@ FileObject::~FileObject(void)
 {
     _Close(fTrue);
 
-    _mutxList.Enter();
-    _Attach(pvNil);
-    _mutxList.Leave();
+    mm_file_registry_detach(_Registry(), &_registration);
 
     mm_native_named_file_dispose(&_file);
 }
@@ -167,7 +184,7 @@ FileObject::~FileObject(void)
 PFileObject FileObject::PfilOpen(Filename *pfni, LegacyUlong grffil)
 {
     const auto host = _OpsHost();
-    return static_cast<PFileObject>(mm_file_ops_open(&host, pfni, grffil));
+    return FileFromRegistration(mm_file_ops_open(&host, pfni, grffil));
 }
 
 MMReadStream FileObject::ReadStream()
@@ -181,7 +198,7 @@ MMReadStream FileObject::ReadStream()
 PFileObject FileObject::PfilCreate(Filename *pfni, LegacyUlong grffil)
 {
     const auto host = _OpsHost();
-    return static_cast<PFileObject>(mm_file_ops_create(&host, pfni, grffil));
+    return FileFromRegistration(mm_file_ops_create(&host, pfni, grffil));
 }
 
 /***************************************************************************
@@ -194,7 +211,7 @@ PFileObject FileObject::PfilCreateTemp(Filename *pfni)
     AssertNilOrPo(pfni, ffniFile);
     Filename scratch;
     const auto host = _OpsHost();
-    return static_cast<PFileObject>(mm_file_ops_temp(&host, pfni, &scratch));
+    return FileFromRegistration(mm_file_ops_temp(&host, pfni, &scratch));
 }
 
 /***************************************************************************
@@ -204,7 +221,7 @@ PFileObject FileObject::PfilCreateTemp(Filename *pfni)
 PFileObject FileObject::PfilFromFni(Filename *pfni)
 {
     const auto host = _OpsHost();
-    return static_cast<PFileObject>(mm_file_ops_find(&host, pfni));
+    return FileFromRegistration(mm_file_ops_find(&host, pfni));
 }
 
 /***************************************************************************
@@ -259,8 +276,9 @@ void FileObject::SetTemp(bool fTemp)
 bool FileObject::FSetFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
+    Filename scratch;
     const auto host = _OpsHost();
-    return mm_file_ops_set_name(&host, this, pfni) != 0;
+    return mm_file_ops_set_name(&host, &_registration, pfni, &scratch) != 0;
 }
 
 /***************************************************************************
@@ -300,8 +318,7 @@ void FileObject::AssertValid(LegacyUlong grf)
     mm_native_named_file_enter(&_file);
     AssertPo(&_fni, ffniFile);
     mm_native_named_file_leave(&_file);
-    const auto host = _OpsHost();
-    const bool found = mm_file_ops_contains(&host, this) != 0;
+    const bool found = mm_file_registry_contains(_Registry(), &_registration) != 0;
     Assert(found, "not in file list");
 }
 #endif // DEBUG

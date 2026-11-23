@@ -4,6 +4,7 @@
 #ifndef MM_ENGINE_FILE_OPS_H
 #define MM_ENGINE_FILE_OPS_H
 #include "file_owner.h"
+#include "linked_list.h"
 #include "reference.h"
 #ifdef __cplusplus
 extern "C" {
@@ -12,18 +13,41 @@ extern "C" {
 enum { MM_FILE_OP_OPEN = 1, MM_FILE_OP_CREATE, MM_FILE_OP_SWAP, MM_FILE_OP_RENAME };
 enum { MM_FILE_OP_TEMP_OPEN = 1, MM_FILE_OP_CREATE_OPEN, MM_FILE_OP_SWAP_SELF,
        MM_FILE_OP_SWAP_DIRECTORY, MM_FILE_OP_RENAME_DIRECTORY, MM_FILE_OP_RECOVERY };
+
+typedef struct MMRegisteredFile {
+    MMLinkedListNode link;
+    void *object;
+    void *name;
+    MMFileOwner *owner;
+    MMReference *references;
+    void *file_context;
+    MMFileOwnerHost (*file_host)(void *);
+} MMRegisteredFile;
+
+typedef struct MMFileRegistry {
+    MMLinkedListNode *head;
+    void *lock;
+    void (*enter)(void *);
+    void (*leave)(void *);
+} MMFileRegistry;
+
+/* The registry owns the list. File records and their name, owner and
+ * reference storage stay at stable addresses until detached. Detach a file
+ * from its registry before moving it to another. Locks are recursive, or may
+ * both be NULL when callers supply synchronization. First/next borrow a
+ * record. The caller serializes external iteration. */
+void mm_file_registry_init(MMFileRegistry *, void *lock, void (*enter)(void *), void (*leave)(void *));
+void mm_registered_file_init(MMRegisteredFile *, void *object, void *name, MMFileOwner *, MMReference *,
+                             void *file_context, MMFileOwnerHost (*file_host)(void *));
+void mm_file_registry_attach(MMFileRegistry *, MMRegisteredFile *);
+void mm_file_registry_detach(MMFileRegistry *, MMRegisteredFile *);
+MMRegisteredFile *mm_file_registry_first(const MMFileRegistry *);
+MMRegisteredFile *mm_file_registry_next(const MMRegisteredFile *);
+int mm_file_registry_contains(const MMFileRegistry *, const MMRegisteredFile *);
+
 typedef struct MMFileOpsHost {
+    MMFileRegistry *registry;
     void *context;
-    void (*enter_list)(void *);
-    void (*leave_list)(void *);
-    void *(*first)(void *);
-    void *(*next)(void *, void *object);
-    void (*enter_object)(void *, void *object);
-    void (*leave_object)(void *, void *object);
-    void *(*name)(void *, void *object);
-    MMFileOwner *(*owner)(void *, void *object);
-    MMReference *(*references)(void *, void *object);
-    void (*owner_host)(void *, void *object, MMFileOwnerHost *);
     int (*equal_names)(void *, void *a, void *b);
     void (*copy_name)(void *, void *destination, const void *source);
     int (*unique_name)(void *, void *name);
@@ -32,19 +56,17 @@ typedef struct MMFileOpsHost {
     int (*rename_name)(void *, void *source, void *destination);
     int (*name_status)(void *, void *name);
     int (*delete_name)(void *, void *name);
-    void *(*construct)(void *, void *name, MMU32 flags);
+    MMRegisteredFile *(*construct)(void *, void *name, MMU32 flags);
     void (*retain)(void *, void *object);
     void (*destroy)(void *, void *object);
-    int (*swap_objects)(void *, void *a, void *b);
-    int (*rename_object)(void *, void *object, void *name);
     void (*validate_name)(void *, void *name);
     void (*validate_object)(void *, void *object);
     void (*issue)(void *, int code);
     void (*assertion)(void *, int code);
 } MMFileOpsHost;
-/* Explicit provider context; no global registry in C. Names and objects are
- * opaque borrowed tokens. All primitive services are required except validation,
- * assertions and issue reporting. Locks are recursive; two-object transactions
+/* The caller supplies a registry. Names and objects are opaque borrowed tokens.
+ * Operations require the primitive services they use. Validation, assertions
+ * and issue reporting are optional. File owner locks are recursive. Two-object transactions
  * enter a then b and leave a then b, retaining native lock order. Callers must
  * serialize competing operations on the same objects/registry. Lookup borrows a
  * result without retaining; cached open retains once; fresh construct owns one
@@ -61,19 +83,17 @@ typedef struct MMFileOpsHost {
  * deliberately ignores reopen results, while rename fails on reopen failure.
  * Nonmissing/unknown destination status triggers an attempted deletion whose
  * result is ignored before rename. Registry clear_marks retains sticky marks.
- * Returned files need the caller's normal release; final C++ facade removal and
- * native name/physical-service implementations are separate integration work. */
-void *mm_file_ops_find(const MMFileOpsHost *, void *name);
-void *mm_file_ops_open(const MMFileOpsHost *, void *name, MMU32 flags);
-void *mm_file_ops_create(const MMFileOpsHost *, void *name, MMU32 flags);
-void *mm_file_ops_temp(const MMFileOpsHost *, void *basis, void *scratch);
-int mm_file_ops_swap(const MMFileOpsHost *, void *a, void *b, void *scratch);
-int mm_file_ops_rename(const MMFileOpsHost *, void *object, void *name);
-int mm_file_ops_set_name(const MMFileOpsHost *, void *object, void *name);
+ * Returned files need the caller's normal release. */
+MMRegisteredFile *mm_file_ops_find(const MMFileOpsHost *, void *name);
+MMRegisteredFile *mm_file_ops_open(const MMFileOpsHost *, void *name, MMU32 flags);
+MMRegisteredFile *mm_file_ops_create(const MMFileOpsHost *, void *name, MMU32 flags);
+MMRegisteredFile *mm_file_ops_temp(const MMFileOpsHost *, void *basis, void *scratch);
+int mm_file_ops_swap(const MMFileOpsHost *, MMRegisteredFile *a, MMRegisteredFile *b, void *scratch);
+int mm_file_ops_rename(const MMFileOpsHost *, MMRegisteredFile *, void *name);
+int mm_file_ops_set_name(const MMFileOpsHost *, MMRegisteredFile *, void *name, void *scratch);
 void mm_file_ops_clear_marks(const MMFileOpsHost *);
 void mm_file_ops_close_unmarked(const MMFileOpsHost *);
 void mm_file_ops_shutdown(const MMFileOpsHost *);
-int mm_file_ops_contains(const MMFileOpsHost *, void *object);
 #ifdef __cplusplus
 }
 #endif

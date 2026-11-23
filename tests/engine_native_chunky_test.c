@@ -602,24 +602,47 @@ static int check_temporary_archive(void)
     return ok;
 }
 
+static int equal_native_paths(void *context, void *a, void *b)
+{
+    (void)context;
+    return mm_native_paths_equal(a, b);
+}
+
 static int check_named_stream(const MMNativePathChar *path, void *reference)
 {
     MMNativeNamedFile file;
+    MMFileRegistry registry;
+    MMRegisteredFile record;
+    MMReference references;
+    MMFileOpsHost ops = {0};
     MMFileOwnerHost host;
     MMReadStream expected, stream;
     char header[MM_CHUNK_PREFIX_BYTES], copy[MM_CHUNK_PREFIX_BYTES];
     int ok;
-    if (!mm_native_named_file_init(&file, path, MM_FILE_DENY_WRITE, NULL, NULL, NULL))
+    if (!mm_native_file_registry_init(&registry, NULL))
         return 0;
+    if (!mm_native_named_file_init(&file, path, MM_FILE_DENY_WRITE, NULL, NULL, NULL))
+    {
+        mm_native_file_registry_dispose(&registry);
+        return 0;
+    }
+    mm_reference_init(&references);
+    mm_native_named_file_register(&file, &registry, &record, &file, (void *)path, &references);
+    ops.registry = &registry;
+    ops.equal_names = equal_native_paths;
     host = mm_native_named_file_host(&file);
     stream = mm_native_named_file_stream(&file);
-    ok = mm_native_file_read_stream(reference, &expected) && stream.length == expected.length &&
+    ok = mm_file_ops_find(&ops, (void *)path) == &record &&
+         mm_native_file_read_stream(reference, &expected) && stream.length == expected.length &&
          mm_read_exact(&expected, 0, header, sizeof(header));
-    mm_file_owner_close(&file.state, &host, 0);
+    mm_file_ops_shutdown(&ops);
     ok = ok && !file.state.open && mm_read_exact(&stream, 0, copy, sizeof(copy)) &&
          file.state.open && !memcmp(header, copy, sizeof(copy));
     mm_file_owner_close(&file.state, &host, 1);
+    mm_file_registry_detach(&registry, &record);
+    ok = ok && !mm_file_ops_find(&ops, (void *)path);
     mm_native_named_file_dispose(&file);
+    mm_native_file_registry_dispose(&registry);
     return ok;
 }
 

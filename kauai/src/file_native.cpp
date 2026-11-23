@@ -107,9 +107,9 @@ bool FileObject::FSwapNames(PFileObject pfil)
 {
     AssertThis(0);
     AssertPo(pfil, 0);
-    Filename scratch, unused;
+    Filename scratch;
     const auto host = _OpsHost();
-    return mm_file_ops_swap(&host, this, pfil, &scratch) != 0;
+    return mm_file_ops_swap(&host, &_registration, &pfil->_registration, &scratch) != 0;
 }
 
 /***************************************************************************
@@ -120,7 +120,6 @@ bool FileObject::FRename(Filename *pfni)
 {
     AssertThis(0);
     AssertPo(pfni, ffniFile);
-    Filename unused;
     const auto host = _OpsHost();
-    return mm_file_ops_rename(&host, this, pfni) != 0;
+    return mm_file_ops_rename(&host, &_registration, pfni) != 0;
 }

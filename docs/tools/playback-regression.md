@@ -25681,3 +25681,41 @@ Audio peak difference on replay.
 
 Evidence is under `tmp/c89-named-file-owner`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 file registry and name replacement (23 November 2026)
+
+Studio now uses C file records for registry lookup, cached open, cleanup,
+shutdown, and the rename and swap transactions used by archive saves.
+The registry holds the intrusive links and recursive lock. Its records
+bind the existing name, reference count, and native file owner. Kauai
+supplies the Filename values and tracked object lifetime and diagnostics.
+
+The standalone file operations fixture exercises separate registries,
+reference counts, removal during traversal, and all 32 combinations of
+swap and rollback failures. The native C archive fixture registers a real
+file, finds it, closes its handle through registry shutdown, and reopens it
+from the retained stream. The C registry, native binding, and fixture
+cross-compiled for Linux x64 with strict C89 flags. Runtime checks ran on
+Windows.
+
+All twelve file-owner and file-operation traces matched the frozen hashes
+for native x64 Debug, native x86 Debug, and SDL Release. The 39 standalone
+engine checks, 23 strict C89 checks, and 228 selected native tests passed.
+The 27 native scene, save, and edit traces, four SDL save traces, ten
+preview fingerprints, resource-cache trace, eight VMM workflow outputs,
+and headless Marcus startup canvas matched their baselines. Classic and SDL
+Studio rebuilt. SDL authoring and the external core, archive, and preview
+consumers passed. The SDL save/load fixture took 72 seconds during parallel
+verification and 17 seconds when rerun by itself.
+
+Fresh suite `20261123T210419Z-9cf51b66` completed eight captures and replay
+suite `20261123T210633Z-df2bd744` completed four with verified input hashes.
+Both ports matched all 60 Actor Audio frame positions and camera indices and
+59 of 60 seek canvases against retained retail and V3DMM. Both matched all 60
+seek canvases and scene states against the prior port build. The first 100 ms
+of all four Actor Audio spans, the embedded WAVE cue, and the first 400 ms of
+embedded MIDI matched the retained port samples. SDL replay reproduced the
+previously observed one-count difference in the later Actor Audio peak.
+
+Evidence is under `tmp/c89-file-registry`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

@@ -19,7 +19,6 @@
 #include "mm/block_io.h"
 #include "mm/block_owner.h"
 #include "mm/native_named_file.h"
-#include "mm/file_ops.h"
 
 /****************************************
     Byte order issues
@@ -60,21 +59,17 @@ enum
     FileObject class
 ****************************************/
 typedef class FileObject *PFileObject;
-#define FileObject_PAR BaseLinkedList
+#define FileObject_PAR BASE
 #define kclsFileObject 'FIL'
 class FileObject : public FileObject_PAR
 {
     RTCLASS_DEC
-    BLL_DEC(FileObject, PfilNext)
     ASSERT
 
   protected:
-    // static member variables
-    static Mutex _mutxList;
-    static MMLinkedListNode *_pfilFirst;
-
     Filename _fni;
     MMNativeNamedFile _file;
+    MMRegisteredFile _registration;
 
     // private methods
     FileObject(Filename *pfni, LegacyUlong grffil);
@@ -85,6 +80,7 @@ class FileObject : public FileObject_PAR
     void _SetFpPos(FilePosition fp);
     MMFileOwnerHost _OwnerHost();
     static const MMNativeNamedFileDiagnostics *_FileDiagnostics();
+    static MMFileRegistry *_Registry();
     static MMFileOpsHost _OpsHost();
 
   public:
@@ -98,10 +94,8 @@ class FileObject : public FileObject_PAR
     static void ShutDown(void);
 
     // static methods returning a PFileObject
-    static PFileObject PfilFirst(void)
-    {
-        return _pfilFirst ? static_cast<PFileObject>(static_cast<PBaseLinkedList>(_pfilFirst->owner)) : pvNil;
-    }
+    static PFileObject PfilFirst(void);
+    PFileObject PfilNext(void);
     static PFileObject PfilOpen(Filename *pfni, LegacyUlong grffil = ffilDenyWrite);
     static PFileObject PfilCreate(Filename *pfni, LegacyUlong grffil = ffilWriteEnable | ffilDenyWrite);
     static PFileObject PfilCreateTemp(Filename *pfni = pvNil);

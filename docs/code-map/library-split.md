@@ -770,11 +770,10 @@ virtual destruction and final C-only host/facade integration remain work.
 borrowed owner token. C implements initialization, unlink-before-insert attachment,
 detach and ordered validation. `BaseLinkedList` embeds this record and delegates
 construction, attachment, destruction-time detach and validation. Its public
-`PbllNext` accessor returns the typed owner. `FileObject` stores a C node head,
-using typed accessors for registry lookup, marking, close and shutdown traversal.
-Head and internal next slots have one C pointer type; no derived-owner pointer
-slots are reinterpreted as base-owner or C-node slots. The extra owner field
-changes private runtime object sizes, without affecting stored formats.
+`PbllNext` accessor returns the typed owner. The C file registry uses the
+same intrusive links for its file records. Its head and internal next slots
+share the C node pointer type. This storage concerns runtime objects and
+leaves the stored formats unchanged.
 
 Attaching first repairs the old predecessor and successor, then publishes the
 new predecessor and head. Repeated detach and moving to the current head are
@@ -838,19 +837,18 @@ sharing rejection and restored-handle reads. `file-owner-expensive` overrides
 the file facades with expensive validation against the shared core. See the
 [playback regression log](../tools/playback-regression.md) for evidence.
 
-The file factory still uses the legacy filename registry and virtual object
-destruction. The native path binding follows the same buffer when rename and
-swap publish a new name.
+The native path binding follows the same Filename buffer when rename and swap
+publish a new name. The C registry holds stable references to the record and
+its name, native owner, and reference storage.
 
 ### File factories, registry control and name transactions
 
-`mm/file_ops.h` now controls cached open/reuse, fresh creation, temporary-file
-factory routing, registry lookup, mark/zero-reference/shutdown scans and membership
-checks. It uses the preceding C owner controller for flags, permission recovery,
-opening and closing. Explicit provider contexts bind registries; no C global
-registry is hidden in the implementation. `FileObject`'s temporary native binding
-still supplies the process registry, object allocation/constructor/destructor
-primitives and typed Filename services. Both hosts call the same C policy.
+`mm/file_ops.h` controls cached open/reuse, fresh creation, temporary-file
+factory routing, registry lookup, mark/zero-reference/shutdown scans, and
+membership checks. Each registry owns its list and lock binding. The file
+operations access records directly for names, file owners, and references.
+The native registry uses a recursive C mutex. Kauai supplies the address of
+its process registry, object allocation and destruction, and Filename services.
 
 Lookup borrows without retaining. Cached open retains once after flags succeed,
 and does not add a file-open error when permission recovery fails. Duplicate
@@ -877,8 +875,8 @@ construct/destroy/copy/physical operations; callbacks cannot unwind or mutate
 other owners/links. Locks must be recursive and callers serialize competing
 transactions. Native adapters retain entry validation and scratch-object lifetime;
 C performs post-transaction validation. Directory checks are advisory and are
-skipped when diagnostics are disabled. The native binding is still a C++ facade,
-not a completed C-only FileObject implementation.
+skipped when diagnostics are disabled. Existing callers use the FileObject
+facade to reach the same C records used by registry and publication operations.
 
 `engine-file-ops` uses independent pure-C registries, file records and a physical
 name/content model. It exercises all 32 failure combinations across the three
