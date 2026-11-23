@@ -1,6 +1,7 @@
 /* Embedded forests converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_forest.h"
+#include "mm/chunk_owner.h"
 #include <string.h>
 #define FOREST_LIMIT 0x7fffffffUL
 static MMU32 get_word(const unsigned char *p, unsigned width, int big)
@@ -165,4 +166,129 @@ int mm_forest_read(const MMReadStream *stream, MMU32 offset, MMU32 bytes,
 done:
     mm_storage_dispose(&storage);
     return result;
+}
+
+typedef struct ForestArchiveImport
+{
+    const MMChunkOwnerRead *reader;
+    MMChunkEdit edit;
+    void *source;
+} ForestArchiveImport;
+
+static int import_copied_chunk(const ForestArchiveImport *import, MMU32 type, MMU32 offset, MMU32 bytes,
+                               MMU32 flags, MMU32 *number)
+{
+    const MMChunkOwnerRead *reader = import->reader;
+    MMBlockFile extent;
+    MMOwnedBlock block;
+    int ok;
+    if (mm_owned_block_init(&block, reader->payloads.handles, reader->payloads.files) != MM_DATA_OK)
+        return 0;
+    extent.file = import->source;
+    extent.offset = offset;
+    extent.length = bytes;
+    ok = mm_owned_block_set_file(&block, &extent, (flags & MM_CHUNK_PACKED) != 0) == MM_DATA_OK &&
+         mm_chunk_add_block_copy(&import->edit, reader->payloads.files, reader->storage->allocator, type,
+                                 &block, number) == MM_CHUNK_OK;
+    mm_owned_block_clear(&block);
+    return ok;
+}
+
+static int import_chunk(void *context, MMU32 type, MMU32 offset, MMU32 bytes, MMU32 flags,
+                        int copy, MMU32 *number)
+{
+    const ForestArchiveImport *import = context;
+    const MMChunkEdit *edit = &import->edit;
+    MMChunkEntry entry = {0};
+    MMU32 position;
+    if (copy)
+        return import_copied_chunk(import, type, offset, bytes, flags, number);
+    if (mm_chunk_unique(edit, type, &position, &entry.number) != MM_CHUNK_OK || !edit->insert(edit->context, position))
+        return 0;
+    entry.type = type;
+    entry.offset = bytes ? offset : 0;
+    entry.bytes = bytes;
+    entry.flags = MM_CHUNK_LONER | flags;
+    edit->store(edit->context, position, &entry, 1);
+    *number = entry.number;
+    return 1;
+}
+
+static int adopt_chunk(void *context, MMU32 parent, MMU32 number, MMU32 type, MMU32 child, MMU32 slot)
+{
+    const ForestArchiveImport *import = context;
+    MMChunkChild link;
+    link.type = type;
+    link.number = child;
+    link.slot = slot;
+    return mm_chunk_adopt(&import->edit, parent, number, &link, 1) == MM_CHUNK_OK;
+}
+
+int mm_chunk_reader_import_forest(const MMChunkOwnerRead *reader, const MMReadStream *stream,
+                                  void *source, MMU32 offset, MMU32 bytes, int copy)
+{
+    ForestArchiveImport import;
+    MMForestImport services = {NULL, import_chunk, adopt_chunk};
+    import.reader = reader;
+    import.edit = mm_chunk_owner_editor(reader->storage, reader->write.max_references,
+                                        reader->write.scan_all_references);
+    import.source = source;
+    services.context = &import;
+    return mm_forest_read(stream, offset, bytes, &services, reader->storage->allocator, copy);
+}
+
+typedef struct ForestArchiveExport
+{
+    MMChunkOwnerStorage *storage;
+    void *destination;
+} ForestArchiveExport;
+
+static int export_chunk(void *context, MMU32 type, MMU32 number, MMChunkEntry *entry)
+{
+    const ForestArchiveExport *archive = context;
+    const MMChunkAccess access = mm_chunk_owner_access(archive->storage);
+    MMU32 position;
+    return mm_chunk_find(&access, type, number, &position) == MM_CHUNK_OK &&
+           mm_chunk_at(&access, position, entry) == MM_CHUNK_OK;
+}
+
+static int export_descriptor(void *context, MMU32 offset, const void *bytes, size_t count)
+{
+    const ForestArchiveExport *archive = context;
+    return archive->storage->io.write_at(archive->destination, offset, bytes, count);
+}
+
+static int export_payload(void *context, MMU32 type, MMU32 number, MMU32 offset, MMU32 bytes)
+{
+    const ForestArchiveExport *archive = context;
+    const MMChunkOwnerFileIO *io = &archive->storage->io;
+    MMBlockFile extent;
+    int packed;
+    return mm_chunk_owner_locate(archive->storage, type, number, &extent, &packed) && extent.length == bytes &&
+           io->copy(io->context, extent.file, extent.offset, archive->destination, offset, bytes);
+}
+
+int mm_chunk_reader_export_forest(const MMChunkOwnerRead *reader, void *destination, MMU32 type,
+                                  MMU32 number, MMU32 offset, MMU32 *bytes)
+{
+    const unsigned short order = 1;
+    const MMChunkEdit edit = mm_chunk_owner_editor(reader->storage, reader->write.max_references,
+                                                  reader->write.scan_all_references);
+    ForestArchiveExport archive;
+    MMForestExport output = {0};
+    archive.storage = reader->storage;
+    archive.destination = destination;
+    output.context = &archive;
+    output.graph = mm_chunk_edit_graph(&edit);
+    output.entry = export_chunk;
+    output.big_endian = *(const unsigned char *)&order == 0;
+    output.system = reader->write.system;
+    if (destination)
+    {
+        if (!archive.storage->io.write_at || !archive.storage->io.copy)
+            return MM_CHUNK_BAD_FILE;
+        output.write = export_descriptor;
+        output.copy = export_payload;
+    }
+    return mm_forest_write(&output, reader->storage->allocator, type, number, offset, bytes);
 }

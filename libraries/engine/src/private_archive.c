@@ -223,42 +223,13 @@ fail:
     return NULL;
 }
 
-static int add_forest_chunk(void *context, MMU32 type, MMU32 offset, MMU32 bytes, MMU32 flags,
-                            int copy, MMU32 *number)
-{
-    const MMChunkEdit *edit = context;
-    MMChunkEntry entry = {0};
-    MMU32 position;
-    (void)copy;
-    if (mm_chunk_unique(edit, type, &position, &entry.number) != MM_CHUNK_OK || !edit->insert(edit->context, position))
-        return 0;
-    entry.type = type;
-    entry.offset = bytes ? offset : 0;
-    entry.bytes = bytes;
-    entry.flags = MM_CHUNK_LONER | (flags & (MM_CHUNK_PACKED | MM_CHUNK_FOREST));
-    edit->store(edit->context, position, &entry, 1);
-    *number = entry.number;
-    return 1;
-}
-
-static int adopt_forest_chunk(void *context, MMU32 parent, MMU32 number, MMU32 type, MMU32 child, MMU32 slot)
-{
-    MMChunkChild link;
-    link.type = type;
-    link.number = child;
-    link.slot = slot;
-    return mm_chunk_adopt(context, parent, number, &link, 1) == MM_CHUNK_OK;
-}
-
 MMPrivateArchive *mm_private_archive_open_forest(const MMBlockFile *extent, const MMChunkOwnerFileIO *io,
                                                const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
 {
     MMPrivateArchive *archive;
     MMChunkOwnerRead *reader;
     MMChunkOwnerStorage *storage;
-    MMChunkEdit edit;
     MMReadStream stream;
-    MMForestImport importer = {NULL, add_forest_chunk, adopt_forest_chunk};
     if (!extent)
         return NULL;
     archive = allocate_archive(extent->file, io, blocks, profile);
@@ -270,9 +241,8 @@ MMPrivateArchive *mm_private_archive_open_forest(const MMBlockFile *extent, cons
     if (mm_chunk_reader_create_index(reader) == MM_CHUNK_OK)
     {
         storage->owner->files.invalid_main = 1;
-        edit = mm_chunk_owner_editor(storage, max_references(archive), profile->trash_unused);
-        importer.context = &edit;
-        if (mm_forest_read(&stream, extent->offset, extent->length, &importer, NULL, 0) == MM_CHUNK_OK &&
+        if (mm_chunk_reader_import_forest(reader, &stream, extent->file, extent->offset, extent->length, 0) ==
+                MM_CHUNK_OK &&
             mm_chunk_reader_validate_index(reader) == MM_CHUNK_OK && bind_editor(archive))
         {
             storage->owner->files.main_end = extent->offset + extent->length;

@@ -25890,3 +25890,39 @@ embedded MIDI matched the retained port samples in fresh playback and replay.
 
 Evidence is under `tmp/c89-archive-construction`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## Shared C89 forest import and export (23 November 2026)
+
+Studio and private archives now share the C reader's forest import visitor.
+The reader allocates copied payloads, inserts borrowed extents, and adopts
+children. Studio exports through the same C graph and file binding. Packed
+forest imports decode into a temporary file and release the staging reference
+after the destination takes ownership. Failed imports also release that
+reference.
+
+The C archive fixture exercises copied and borrowed round trips, compares
+serialized bytes, and checks packed staging lifetime after success and a
+failed destination allocation. All 41 standalone checks passed. The changed
+C modules compiled with strict C89 flags for Linux x64. Runtime checks used
+Windows.
+The 1,594-byte native forest traces matched their pre-change versions on x64
+and x86. They cover valid, swapped, truncated, invalid-length/count/byte-order,
+and empty forests. Registry, construction, lifecycle, chunk-save, and resource
+cache traces matched as well. All 23 strict C89 checks passed. Classic and SDL
+Studio rebuilt, and the headless Marcus startup canvas and external consumer
+checks passed.
+All twelve file traces, four SDL save traces, and eight VMM outputs matched
+their baselines. SDL authoring and save/reopen passed.
+All 228 selected native tests passed. The 27 native scene, save, and edit
+traces and ten preview fingerprints matched their baselines.
+
+Fresh suite `20261123T221925Z-b39bff70` completed eight captures and replay
+suite `20261123T222103Z-9be262bf` completed four with verified input hashes.
+Both ports matched all 60 Actor Audio frame positions and camera indices and
+59 of 60 seek canvases against retained retail and V3DMM. Both matched all 60
+seek canvases and scene states against the prior port build. The first 100 ms
+of all four Actor Audio spans, the embedded WAVE cue, and the first 400 ms of
+embedded MIDI matched the retained port samples in fresh playback and replay.
+
+Evidence is under `tmp/c89-forest-payload`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

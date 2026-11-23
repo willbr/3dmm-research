@@ -177,10 +177,6 @@ void ChunkReadFixed(PChunkTable table, LegacyLong i, void *out)
 
 namespace
 {
-int ReadRuntimeChunk(void *context, MMU32 position, MMChunkEntry *entry)
-{
-    return mm_chunk_table_entry(static_cast<PChunkTable>(context), position, entry);
-}
 int CopyFileExtent(void *, void *source, MMU32 sourceOffset, void *destination, MMU32 offset, MMU32 bytes)
 {
     FileLocation from = {static_cast<PFileObject>(source), static_cast<FilePosition>(sourceOffset), static_cast<LegacyLong>(bytes)};
@@ -468,92 +464,31 @@ void ChunkyFile::DiagnoseExtraFile(void *)
     ChunkyFile::PcflReadForestFromFlo reads a CF from a flo and creates a ChunkyFile
     around the data.
 ***************************************************************************/
-namespace {
-MMChunkGraph ChunkGraphServices(PChunkyFile);
-struct ForestWriteHost { PChunkyFile source; PFileObject destination; };
-}
 bool ChunkyFile::FWriteChunkTree(ChunkTagOrType ctg, ChunkNumber cno, PFileObject pfilDst, FilePosition fpDst, LegacyLong *pcb)
 {
     AssertThis(0); AssertNilOrPo(pfilDst, 0); AssertNilOrVarMem(pcb);
-    ForestWriteHost host = {this, pfilDst};
-    const short one = 1;
-    MMForestExport output = {};
-    output.context = &host; output.graph = ChunkGraphServices(this);
-    output.big_endian = reinterpret_cast<const byte *>(&one)[0] == 0; output.system = koskCur;
-    output.entry = [](void *c, MMU32 type, MMU32 number, MMChunkEntry *entry) -> int {
-        auto source = static_cast<ForestWriteHost *>(c)->source; LegacyLong position;
-        return source->_FFindCtgCno(type, number, &position) && ReadRuntimeChunk(source->_Index(), position, entry);
-    };
-    if (pfilDst)
-    {
-        output.write = [](void *c, MMU32 offset, const void *bytes, size_t count) -> int {
-            return static_cast<ForestWriteHost *>(c)->destination->FWriteRgb(const_cast<void *>(bytes), count, offset);
-        };
-        output.copy = [](void *c, MMU32 type, MMU32 number, MMU32 offset, MMU32 bytes) -> int {
-            auto h = static_cast<ForestWriteHost *>(c); FileLocation source;
-            if (!h->source->FFindFlo(type, number, &source)) return 0;
-            FileLocation destination = {h->destination, static_cast<FilePosition>(offset), static_cast<LegacyLong>(bytes)};
-            return source.FCopy(&destination);
-        };
-    }
     MMU32 bytes;
-    if (mm_forest_write(&output, KauaiCopyAllocator(), ctg, cno, fpDst, &bytes) != MM_CHUNK_OK)
+    if (mm_chunk_reader_export_forest(&_reader, pfilDst, ctg, cno, fpDst, &bytes) != MM_CHUNK_OK)
     { TrashVar(pcb); return false; }
     if (pcb) *pcb = bytes;
     return true;
+}
+
+const MMForestConstruction &ChunkyFile::_ForestServices()
+{
+    static const MMForestConstruction services = {
+        nullptr, _NewArchiveLink,
+        [](void *, void *owner) { static_cast<PChunkyFile>(owner)->Release(); },
+        [](void *, void *owner) { AssertPo(static_cast<PChunkyFile>(owner), fcflFull | fcflGraph); }};
+    return services;
 }
 
 PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData)
 {
     AssertVarMem(pflo);
     AssertPo(pflo->pfil, 0);
-    const MMForestConstruction construction = {
-        nullptr, _NewArchiveLink,
-        [](void *, void *owner) { static_cast<PChunkyFile>(owner)->Release(); },
-        [](void *, void *owner, void *source, MMU32 offset, MMU32 bytes, int copy) -> int {
-            struct ImportHost
-            {
-                PChunkyFile destination;
-                PFileObject source;
-            } host = {static_cast<PChunkyFile>(owner), static_cast<PFileObject>(source)};
-            const MMForestImport services = {
-                &host,
-                [](void *c, MMU32 type, MMU32 offset, MMU32 bytes, MMU32 flags, int copy,
-                   MMU32 *number) -> int {
-                    auto h = static_cast<ImportHost *>(c);
-                    ChunkNumber created;
-                    if (copy)
-                    {
-                        DataBlock block(h->source, offset, bytes, flags & fcrpPacked);
-                        if (!h->destination->FAddBlck(&block, type, &created))
-                            return 0;
-                    }
-                    else
-                    {
-                        LegacyLong position;
-                        h->destination->_GetUniqueCno(type, &position, &created);
-                        if (!h->destination->_FAdd(0, type, created, position, nullptr))
-                            return 0;
-                        auto row = static_cast<ChunkRepresentation *>(ChunkFixed(h->destination->_Index(), position));
-                        row->fp = bytes ? offset : 0;
-                        mm_chunk_record_set_bytes(row, expandedRecords, bytes);
-                        mm_chunk_record_set_flags(row, expandedRecords, flags, fcrpPacked | fcrpForest);
-                    }
-                    *number = created;
-                    return 1;
-                },
-                [](void *c, MMU32 parentType, MMU32 parentNumber, MMU32 type, MMU32 number,
-                   MMU32 slot) -> int {
-                    return static_cast<ImportHost *>(c)->destination->FAdoptChild(parentType, parentNumber, type,
-                                                                                  number, slot);
-                }};
-            const auto stream = static_cast<PFileObject>(source)->ReadStream();
-            return mm_forest_read(&stream, offset, bytes, &services, KauaiCopyAllocator(), copy) ==
-                   MM_CHUNK_OK;
-        },
-        [](void *, void *owner) { AssertPo(static_cast<PChunkyFile>(owner), fcflFull | fcflGraph); }};
     return static_cast<PChunkyFile>(
-        mm_chunk_construct_forest(&construction, pflo->pfil, pflo->fp, pflo->cb, fCopyData));
+        mm_chunk_construct_forest(&_ForestServices(), pflo->pfil, pflo->fp, pflo->cb, fCopyData));
 }
 /***************************************************************************
     Return whether the chunk contains a forest of subchunks.
@@ -590,21 +525,8 @@ void ChunkyFile::SetForest(ChunkTagOrType ctg, ChunkNumber cno, bool fForest)
 PChunkyFile ChunkyFile::PcflReadForest(ChunkTagOrType ctg, ChunkNumber cno, bool fCopyData)
 {
     AssertThis(0);
-    FileLocation flo;
-
-    if (!FFindFlo(ctg, cno, &flo))
-        return pvNil;
-
-    if (FPacked(ctg, cno))
-    {
-        DataBlock blck(&flo, fTrue);
-
-        if (!blck.FUnpackData() || !blck.FGetFlo(&flo))
-            return pvNil;
-        fCopyData = fFalse;
-    }
-
-    return PcflReadForestFromFlo(&flo, fCopyData);
+    return static_cast<PChunkyFile>(mm_chunk_construct_forest_from_chunk(&_ForestServices(), &_reader, ctg, cno,
+                                                                         fCopyData));
 }
 
 /***************************************************************************

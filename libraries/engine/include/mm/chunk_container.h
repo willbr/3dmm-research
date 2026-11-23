@@ -16,6 +16,7 @@ extern "C"
     };
     struct MMChunkContext;
     struct MMChunkLink;
+    struct MMChunkOwnerRead;
     struct MMFileOpsHost;
     typedef struct MMChunkConstruction
     {
@@ -45,17 +46,18 @@ extern "C"
         void *context;
         struct MMChunkLink *(*allocate)(void *);
         void (*release)(void *, void *owner);
-        int (*read)(void *, void *owner, void *source, MMU32 offset, MMU32 bytes, int copy);
         void (*finish)(void *, void *owner); /* Optional successful-owner diagnostics. */
     } MMForestConstruction;
     /* Allocate returns the link of a new archive with an empty reader. Copy
      * imports create a temporary file and reserve its 128-byte prefix; borrowed
      * imports retain source, publish offset+bytes as end, and mark invalid-main /
-     * add-to-extra before reading. Failure releases the owner and all attachments.
-     * read may leave partial resources; release consumes those too. Input source
-     * is borrowed. Calls are synchronous and cannot re-enter this construction. */
+     * add-to-extra before reading. Failure releases the owner, including partial
+     * imports. Input source is borrowed. Calls are synchronous and may not re-enter. */
     void *mm_chunk_construct_forest(const MMForestConstruction *, void *source, MMU32 offset,
                                           MMU32 bytes, int copy);
+    /* Unpack packed chunks into a temporary file and import by borrowing it. */
+    void *mm_chunk_construct_forest_from_chunk(const MMForestConstruction *, const struct MMChunkOwnerRead *,
+                                               MMU32 type, MMU32 number, int copy);
     typedef struct MMChunkDisposal
     {
         void *context;

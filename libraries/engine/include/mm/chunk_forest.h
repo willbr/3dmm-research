@@ -39,6 +39,15 @@ extern "C"
      * synchronous and may not re-enter; add publishes a number only on success. */
     int mm_forest_read(const MMReadStream *, MMU32 offset, MMU32 bytes,
                              const MMForestImport *, const MMStorageAllocator *, int copy);
+
+    struct MMChunkOwnerRead;
+    /* Import into an initialized table. Copied data is allocated in the archive.
+     * Borrowed rows point into its main file. On failure dispose the partial archive. */
+    int mm_chunk_reader_import_forest(const struct MMChunkOwnerRead *, const MMReadStream *,
+                                      void *source, MMU32 offset, MMU32 bytes, int copy);
+    /* A NULL destination measures the output. File and graph are borrowed. */
+    int mm_chunk_reader_export_forest(const struct MMChunkOwnerRead *, void *destination,
+                                      MMU32 type, MMU32 number, MMU32 offset, MMU32 *bytes);
 #ifdef __cplusplus
 }
 #endif

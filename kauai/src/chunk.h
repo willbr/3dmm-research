@@ -130,6 +130,7 @@ class ChunkyFile : public ChunkyFile_PAR
     ~ChunkyFile(void);
 
     static MMChunkConstruction _ConstructionServices(const MMFileOpsHost &);
+    static const MMForestConstruction &_ForestServices();
     static MMChunkLink *_NewArchiveLink(void *);
     void _SetChunkFlag(ChunkTagOrType, ChunkNumber, MMU32, bool);
     MMChunkAccess _ChunkAccess();

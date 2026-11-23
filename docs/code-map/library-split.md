@@ -6881,7 +6881,7 @@ source file, publish offset+length as the logical end, and set invalid-main and
 add-to-extra before reading. Every failure releases the partial archive,
 including resources left by a failed importer. The constructor rejects invalid
 signed file extents before allocation. Kauai supplies the object factory,
-diagnostics, and forest import visitor.
+diagnostics, and platform file services.
 
 `engine-container-test` checks independent registries, head/middle/tail removal,
 repeated detach, cross-context transfer, duplicate attachment, disposal order,
@@ -7215,11 +7215,13 @@ reject unrepresentable signed file positions/sizes before that record's I/O.
 Imports decode either byte order per descriptor. OSK and root child IDs remain
 opaque/ignored; negative child counts remain leaves, while incomplete positive
 counts fail. Empty forests succeed even at an offset beyond physical EOF,
-matching native behavior. Copy imports preserve only PACKED; borrowed-data imports
-preserve PACKED|FOREST. The native facades still create/dispose destination
-containers/files and provide raw payload transfer and index insertion primitives.
-The C import stack replaces a native DynamicArray object; failures release stack
-storage and leave partial destination cleanup to its host owner.
+matching native behavior. Copy imports preserve PACKED. Borrowed-data imports
+preserve PACKED and FOREST. Studio and private archives share the C reader's
+visitor for index insertion, payload copy, and child adoption. Export uses that
+reader's live graph and bound file services for size and write operations.
+Packed Studio forests decode through the reader's handle provider, then import
+from a retained temporary extent. C releases the staging reference after import,
+including on failure. Partial imports are disposed with the destination archive.
 
 `engine-forest-test` freezes the native 118-byte export (FNV32 `2c02e752`) and
 checks copy/borrow flag policy, payload offsets, parent/slot reconstruction, both
@@ -7228,7 +7230,8 @@ descriptors and signed limits. A 200-level tree checks stack growth, relocating
 allocations, SPEED fallback and failed-growth cleanup. MSVC AddressSanitizer
 passes. Real native memory/file/container integration retains all 1,594 baseline
 bytes over valid, swapped, truncated, invalid-length/count/byte-order and empty
-forests. Existing chunk and serialized-string snapshots remain exact too.
+forests. The C archive fixture also checks copied and borrowed round trips and
+temporary extent ownership when opening a packed forest.
 
 ### Runtime IDs, chunk names, serialized strings and codec registry
 

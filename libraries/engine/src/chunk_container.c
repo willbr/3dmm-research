@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_container.h"
 #include "mm/chunk_context.h"
+#include "mm/chunk_forest.h"
 #include "mm/chunk_owner.h"
 #include "mm/file_ops.h"
 #include <string.h>
@@ -12,7 +13,8 @@ void *mm_chunk_construct_forest(const MMForestConstruction *s, void *source, MMU
     MMChunkOwnerRead *reader;
     MMChunkOwnerStorage *storage;
     MMChunkOwner *owner;
-    if (!s || !source || !s->allocate || !s->release || !s->read || offset > 0x7fffffffUL ||
+    MMReadStream stream;
+    if (!s || !source || !s->allocate || !s->release || offset > 0x7fffffffUL ||
         bytes > 0x7fffffffUL - offset)
         return NULL;
     link = s->allocate(s->context);
@@ -39,7 +41,8 @@ void *mm_chunk_construct_forest(const MMForestConstruction *s, void *source, MMU
         owner->files.invalid_main = 1;
         owner->add_to_extra = 1;
     }
-    if (!s->read(s->context, link->owner, source, offset, bytes, copy != 0))
+    stream = storage->io.read_stream(source);
+    if (mm_chunk_reader_import_forest(reader, &stream, source, offset, bytes, copy) != MM_CHUNK_OK)
         goto fail;
     if (s->finish)
         s->finish(s->context, link->owner);
@@ -47,6 +50,31 @@ void *mm_chunk_construct_forest(const MMForestConstruction *s, void *source, MMU
 fail:
     s->release(s->context, link->owner);
     return NULL;
+}
+
+void *mm_chunk_construct_forest_from_chunk(const MMForestConstruction *services, const MMChunkOwnerRead *reader,
+                                          MMU32 type, MMU32 number, int copy)
+{
+    const MMChunkPayloadServices *payloads = &reader->payloads;
+    MMBlockFile extent;
+    MMOwnedBlock block;
+    void *archive;
+    int packed, ok;
+    if (!mm_chunk_owner_locate(reader->storage, type, number, &extent, &packed))
+        return NULL;
+    if (!packed)
+        return mm_chunk_construct_forest(services, extent.file, extent.offset, extent.length, copy);
+    if (mm_owned_block_init(&block, payloads->handles, payloads->files) != MM_DATA_OK)
+        return NULL;
+    ok = mm_owned_block_set_file(&block, &extent, 1) == MM_DATA_OK &&
+         mm_owned_block_code(&block, 0, payloads->decode_context, payloads->decode, NULL) == MM_DATA_OK &&
+         mm_owned_block_materialize(&block, 0, &extent) == MM_DATA_OK;
+    mm_owned_block_clear(&block);
+    if (!ok || !extent.file)
+        return NULL;
+    archive = mm_chunk_construct_forest(services, extent.file, extent.offset, extent.length, 0);
+    payloads->files->release(payloads->files->context, extent.file);
+    return archive;
 }
 static void issue(const MMChunkConstruction *services, int kind)
 {

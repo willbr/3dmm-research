@@ -2364,8 +2364,9 @@ Studio and private archives use the reader's C89 index binding to load,
 validate, and reload live tables. A failed reload restores the running archive
 for both paths and follows each path's deferred free-map policy.
 Studio archive opens and creation use the C registries, reader index binding,
-and registered file permissions directly. C also attaches the destination for
-copied and borrowed forest imports.
+and registered file permissions directly. Studio and private archives share the
+C reader for embedded forest imports. The reader also sizes and writes forest
+exports and owns temporary backing for packed imports.
 Legacy allocation and diagnostics remain host services.
 Stored preview caches and native private archives use the shared C heap
 handles and KCDC/KCD2 decoder. Resource readers use the decoder paired with

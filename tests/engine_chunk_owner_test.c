@@ -1,4 +1,7 @@
 #include "mm/chunk_owner.h"
+#include "mm/chunk_forest.h"
+#include "mm/codec.h"
+#include "mm/codec_registry.h"
 #include "mm/file_ops.h"
 #include "mm/movie_session.h"
 #include "mm/private_archive_cache.h"
@@ -1019,6 +1022,7 @@ static MMChunkConstruction construction_setup(ConstructionHost *h)
     h->blocks.context = &h->storage;
     h->blocks.retain = retain_block;
     h->blocks.release = release_block;
+    h->blocks.create_temp = create_extra;
     h->blocks.read = read_block;
     h->blocks.write = write_block;
     h->table.context = h;
@@ -1040,24 +1044,16 @@ static void check_construction_closed(const ConstructionHost *h)
     CHECK(!h->archive && !h->archives.first && !h->files.head && !h->file_refs.count && !h->tables);
 }
 
-static int construction_read_forest(void *p, void *archive, void *source, MMU32 offset, MMU32 bytes, int copy)
-{
-    ConstructionHost *h = p;
-    MMChunkOwner *owner = h->link.reader->storage->owner;
-    CHECK(archive == h && source == &h->storage.main && offset == 60 && bytes == 100);
-    CHECK(owner->files.index && owner->files.main_file == (copy ? (void *)&h->storage.extra : source));
-    CHECK(owner->files.main_end == (copy ? MM_CHUNK_PREFIX_BYTES : 160) && owner->files.invalid_main == !copy &&
-          owner->add_to_extra == !copy);
-    CHECK(mm_free_map_create(NULL, 1, &owner->files.main_map) == MM_CHUNK_OK);
-    CHECK(mm_chunk_runtime_set(&owner->runtime, 1, 0, 12) == MM_CHUNK_OK);
-    return h->fail != FACTORY_READ;
-}
+static const unsigned char forest_data[] = {
+    1,0,3,3, 'T','O','O','R', 255,255,255,255, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+    1,0,3,3, 'F','A','E','L', 7,0,0,0, 4,0,0,0, 0,0,0,0, 0,0,0,0, 'd','a','t','a'
+};
 
 static void archive_construction_cases(void)
 {
     ConstructionHost h;
     MMChunkConstruction named;
-    MMForestConstruction forest = {NULL, construction_allocate, construction_release, construction_read_forest, NULL};
+    MMForestConstruction forest = {NULL, construction_allocate, construction_release, NULL};
     MMArchiveWriter writer;
     MMChunkEntry entry;
     int name = 41, scratch, copy, fail, created;
@@ -1119,19 +1115,70 @@ static void archive_construction_cases(void)
     for (copy = 0; copy <= 1; ++copy)
         for (fail = 0; fail <= FACTORY_READ; ++fail)
         {
+            const MMU32 offset = 60;
+            const MMU32 bytes = sizeof(forest_data) - (fail == FACTORY_READ);
             construction_setup(&h);
             h.fail = fail;
             h.storage.create_fails = fail == FACTORY_OPEN;
             h.storage.extra.resize_fails = fail == FACTORY_RESIZE;
+            h.storage.main.length = offset + bytes;
+            memcpy(h.storage.main.bytes + offset, forest_data, bytes);
             CHECK(!mm_chunk_construct_forest(&forest, &h.storage.main, 0x7fffffffUL, 1, copy));
             created = !fail || (!copy && (fail == FACTORY_OPEN || fail == FACTORY_RESIZE));
-            CHECK((mm_chunk_construct_forest(&forest, &h.storage.main, 60, 100, copy) != NULL) == created);
+            CHECK((mm_chunk_construct_forest(&forest, &h.storage.main, offset, bytes, copy) != NULL) == created);
             if (created)
+            {
+                MMChunkOwner *owner = h.link.reader->storage->owner;
+                MMU32 written;
+                CHECK(owner->files.index && owner->files.main_file == (copy ? &h.storage.extra : &h.storage.main));
+                CHECK(owner->files.main_end == (copy ? MM_CHUNK_PREFIX_BYTES + 4 : offset + bytes) &&
+                      owner->files.invalid_main == !copy && owner->add_to_extra == !copy);
+                CHECK(mm_chunk_reader_export_forest(h.link.reader, &h.storage.staging[0], 0x524f4f54UL, 0, 0,
+                                                     &written) == MM_CHUNK_OK);
+                CHECK(written == sizeof(forest_data) && !memcmp(h.storage.staging[0].bytes, forest_data, written));
                 construction_release(&h, &h);
+            }
             CHECK(h.storage.main.retains == h.storage.main.releases);
-            CHECK(h.storage.extra.releases == (copy && (!fail || fail >= FACTORY_RESIZE)));
+            CHECK(h.storage.extra.releases == h.storage.extra.retains + (copy && (!fail || fail >= FACTORY_RESIZE)));
             check_construction_closed(&h);
         }
+}
+
+static void packed_forest_cases(void)
+{
+    ConstructionHost source, destination;
+    MMChunkConstruction named = construction_setup(&source);
+    MMForestConstruction forest = {NULL, construction_allocate, construction_release, NULL};
+    MMArchiveWriter writer;
+    MMChunkOwnerRead *reader;
+    MMBlockFile extent;
+    unsigned char encoded[128];
+    MMU32 number;
+    MMI32 bytes;
+    int name = 41, packed;
+    CHECK(mm_chunk_construct(&named, &name, 0, 1) == &source);
+    writer = mm_chunk_owner_writer(source.link.reader);
+    CHECK(mm_codec_registry_code(NULL, MM_CODEC_KCDC, forest_data, sizeof(forest_data), encoded, sizeof(encoded),
+                                &bytes, NULL) == MM_DATA_OK);
+    CHECK(mm_chunk_add_bytes(&writer.edit, &source.blocks, 1, encoded, (MMU32)bytes, &number) == MM_CHUNK_OK);
+    CHECK(mm_chunk_set_flag(&writer.edit, 1, number, MM_CHUNK_PACKED, 1) == MM_CHUNK_OK);
+
+    construction_setup(&destination);
+    forest.context = &destination;
+    CHECK(mm_chunk_construct_forest_from_chunk(&forest, source.link.reader, 1, number, 1) == &destination);
+    reader = destination.link.reader;
+    CHECK(reader->storage->owner->files.main_file == &source.storage.extra && !destination.storage.creates);
+    CHECK(mm_chunk_owner_locate(reader->storage, 0x4c454146UL, 0, &extent, &packed) && !packed &&
+          extent.file == &source.storage.extra && extent.length == 4);
+    CHECK(!memcmp(source.storage.extra.bytes + extent.offset, "data", 4));
+    construction_release(&destination, &destination);
+    CHECK(source.storage.extra.releases == source.storage.extra.retains + 1);
+    destination.fail = FACTORY_ALLOC;
+    CHECK(!mm_chunk_construct_forest_from_chunk(&forest, source.link.reader, 1, number, 0));
+    CHECK(source.storage.extra.releases == source.storage.extra.retains + 2);
+    check_construction_closed(&destination);
+    construction_release(&source, &source);
+    check_construction_closed(&source);
 }
 
 static size_t convert_text(void *context, const void *bytes, size_t count, int encoding, void *out, size_t capacity)
@@ -1387,10 +1434,6 @@ static void private_archive_cases(void)
 
 static void private_forest_cases(void)
 {
-    static const unsigned char forest[] = {
-        1,0,3,0, 'T','O','O','R', 0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
-        1,0,3,0, 'F','A','E','L', 7,0,0,0, 4,0,0,0, 0,0,0,0, 0,0,0,0, 'd','a','t','a'
-    };
     const MMPrivateArchiveProfile profile = {1, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, 0, 1, NULL, convert_text};
     StorageHost host = {0};
     MMChunkOwnerFileIO io = storage_io(&host);
@@ -1407,9 +1450,9 @@ static void private_forest_cases(void)
     blocks.context = &host;
     extent.file = &host.main;
     extent.offset = 7;
-    extent.length = sizeof(forest);
+    extent.length = sizeof(forest_data);
     host.main.length = extent.offset + extent.length;
-    memcpy(host.main.bytes + extent.offset, forest, sizeof(forest));
+    memcpy(host.main.bytes + extent.offset, forest_data, sizeof(forest_data));
     archive = mm_private_archive_open_forest(&extent, &io, &blocks, &profile);
     CHECK(archive && !host.main.releases && !mm_private_archive_save(archive, 0));
     reader = mm_private_archive_reader(archive);
@@ -1436,6 +1479,7 @@ int main(void)
     persistence_cases(1);
     reader_cases();
     archive_construction_cases();
+    packed_forest_cases();
     private_archive_cases();
     private_forest_cases();
     puts("chunk owner C89 checks passed");
