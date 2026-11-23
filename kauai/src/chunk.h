@@ -58,6 +58,8 @@ MMPrivateArchive *KauaiTemporaryArchive();
 MMPrivateArchive *KauaiWorkingArchive(Filename *, bool create);
 bool KauaiSaveChunkOwner(MMChunkOwnerStorage *, ChunkTagOrType creator, Filename *);
 bool KauaiSetChunkOwnerOptions(MMChunkOwnerStorage *, LegacyUlong flags, LegacyUlong mask);
+const MMChunkOwnerFileFlags *KauaiChunkOwnerFileFlags();
+const MMChunkErrorServices *KauaiChunkOwnerErrorServices();
 LegacyLong KauaiChunkOwnerError(const MMChunkOwner *);
 void KauaiResetChunkOwnerError(MMChunkOwner *, LegacyLong level);
 

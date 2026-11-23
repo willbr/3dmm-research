@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MOVIE_SAVE_H
 #define MM_ENGINE_MOVIE_SAVE_H
 #include "movie_owner.h"
+#include "chunk_owner.h"
 #include "movie_scene.h"
 #include "collections.h"
 #include "chunky_file.h"
@@ -49,9 +50,13 @@ extern "C"
         int retry_enabled;
         void *(*temporary_path)(void *), *(*unique_path)(void *, void *destination);
         void *(*create_resources)(void *, void *path);
-        int (*is_temp)(void *resources), (*save)(void *resources, void *path);
-        void (*set_temp)(void *resources, int), (*mark_temporary)(void *resources), (*persistent)(void *resources);
+        int (*save)(void *resources, void *path);
+        /* NULL storage, archive and tag_graph bindings use the live resource cache. */
+        MMChunkOwnerStorage *(*archive_storage)(void *resources);
         MMArchiveWriter (*archive)(void *resources);
+        const MMChunkOwnerFileFlags *file_flags;
+        const MMChunkErrorServices *file_errors;
+        void (*archive_options_issue)(void *);
         void *(*find_file)(void *, void *path);
         void (*retain_saved)(void *file), (*release_saved)(void *file), (*flush_saved)(void *file);
         int (*read_only)(void *, void *path);
@@ -65,8 +70,7 @@ extern "C"
         void (*rollcall_changed)(void *);
         MMSourceNames *source_names;
         MMChunkTitleIO titles;
-        int (*has_error)(void *resources);
-        void (*reset_error)(void *resources), (*clear_errors)(void *), (*save_error)(void *), (*bad_file)(void *);
+        void (*clear_errors)(void *), (*save_error)(void *), (*bad_file)(void *);
         void (*update_title)(void *, void *path), (*clear_undo)(void *);
         int (*is_vmm)(void *path), (*source_archive)(void *, MMI32 source);
         MMMovieSessionGraph (*tag_graph)(void *resources);

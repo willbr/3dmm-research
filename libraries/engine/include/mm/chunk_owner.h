@@ -69,6 +69,14 @@ extern "C"
         MMChunkTableEditBinding edit;
         MMU32 max_bytes;
     } MMChunkOwnerStorage;
+    typedef struct MMChunkOwnerFileFlags
+    {
+        MMU32 (*get)(void *file);
+        int (*set)(void *file, MMU32 flags, MMU32 mask);
+    } MMChunkOwnerFileFlags;
+    /* Apply archive options to the current main file and load a pending free map
+     * if the options enable writes. The callbacks operate on physical files. */
+    int mm_chunk_owner_file_options(MMChunkOwnerStorage *, const MMChunkOwnerFileFlags *, MMU32 flags, MMU32 mask);
     /* Bind once at a stable address to an initialized owner. Editing and
      * payload lookup require a live table.
      * write_at is required for saves. Relocating saves also require release and

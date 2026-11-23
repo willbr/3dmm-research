@@ -706,34 +706,34 @@ bool KauaiSetChunkOwnerOptions(MMChunkOwnerStorage *storage, LegacyUlong flags, 
     static_assert(fcflWriteEnable == MM_CHUNK_WRITE && fcflTemp == MM_CHUNK_TEMP &&
         fcflMark == MM_CHUNK_MARK && fcflAddToExtra == MM_CHUNK_ADD_EXTRA &&
         fcflReadFromExtra == MM_CHUNK_READ_EXTRA, "container flag encoding");
-    const MMChunkOptionServices services = {storage,
-        [](void *c) -> MMU32 {
-            auto file = static_cast<PFileObject>(static_cast<MMChunkOwnerStorage *>(c)->owner->files.main_file);
-            return file->GrffilCur();
-        },
-        [](void *c, MMU32 flags, MMU32 mask) -> int {
-            auto file = static_cast<PFileObject>(static_cast<MMChunkOwnerStorage *>(c)->owner->files.main_file);
-            return file->FSetGrffil(flags, mask);
-        },
-        [](void *c) { mm_chunk_owner_read_free_map(static_cast<MMChunkOwnerStorage *>(c)); }};
-    return mm_chunk_owner_options(storage->owner, &services, flags, mask) == MM_CHUNK_OK;
+    return mm_chunk_owner_file_options(storage, KauaiChunkOwnerFileFlags(), flags, mask) == MM_CHUNK_OK;
+}
+
+const MMChunkOwnerFileFlags *KauaiChunkOwnerFileFlags()
+{
+    static const MMChunkOwnerFileFlags services = {
+        [](void *file) -> MMU32 { return static_cast<PFileObject>(file)->GrffilCur(); },
+        [](void *file, MMU32 flags, MMU32 mask) -> int { return static_cast<PFileObject>(file)->FSetGrffil(flags, mask); }};
+    return &services;
 }
 /***************************************************************************
     Return the level of error that we've encountered for this chunky file.
 ***************************************************************************/
-namespace {
-const MMChunkErrorServices ChunkErrors = {
-    [](void *file) -> MMI32 { return static_cast<PFileObject>(file)->ElError(); },
-    [](void *file, MMI32 level) { static_cast<PFileObject>(file)->SetEl(level); }};
+const MMChunkErrorServices *KauaiChunkOwnerErrorServices()
+{
+    static const MMChunkErrorServices services = {
+        [](void *file) -> MMI32 { return static_cast<PFileObject>(file)->ElError(); },
+        [](void *file, MMI32 level) { static_cast<PFileObject>(file)->SetEl(level); }};
+    return &services;
 }
 LegacyLong KauaiChunkOwnerError(const MMChunkOwner *owner)
 {
-    return mm_chunk_owner_error(owner, &ChunkErrors);
+    return mm_chunk_owner_error(owner, KauaiChunkOwnerErrorServices());
 }
 
 void KauaiResetChunkOwnerError(MMChunkOwner *owner, LegacyLong level)
 {
-    mm_chunk_owner_reset_error(owner, &ChunkErrors, level);
+    mm_chunk_owner_reset_error(owner, KauaiChunkOwnerErrorServices(), level);
 }
 
 LegacyLong ChunkyFile::ElError(void)

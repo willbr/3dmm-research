@@ -13,6 +13,10 @@ void mm_private_archive_cache_services(MMPrivateArchive *, const MMHandleService
 MMResourceCache *mm_private_archive_cache_create(MMPrivateArchive *, MMI32 budget,
                                                  const MMResourceServices *,
                                                  const MMStorageAllocator *owner, const MMStorageAllocator *storage);
+/* Open a named working archive and transfer its lifetime to the cache. */
+MMResourceCache *mm_private_archive_open_named_cache(const MMNamedArchiveServices *, void *name, int create,
+                                                    MMI32 budget, const MMResourceServices *,
+                                                    const MMStorageAllocator *owner, const MMStorageAllocator *storage);
 /* Open the selected forest chunk as a read-only archive. The archive retains
  * the decoded extent independently of the source cache. The file services
  * must match those used by the source cache. */

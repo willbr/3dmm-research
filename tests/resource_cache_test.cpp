@@ -481,16 +481,16 @@ static int SharedArchiveSourceCase()
     CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&saved));
     mm_resource_cache_release(cache);
 
-    auto working = KauaiWorkingArchive(&path, false);
-    CHECK(working);
+    auto working = OpenWorkingResourceCache(&path, false, 128);
+    CHECK(working && working->budget == 128);
     cache = OpenSharedTypedCache(&path, false, selected, &reader);
-    CHECK(selected && cache && reader == mm_private_archive_reader(working));
+    CHECK(selected && cache && cache != working && reader == mm_resource_cache_reader(working));
     CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&saved));
     byte wire[kcbMaxDataStn];
     const auto encoded = ChunkyFile::EncodeName(&pending, wire);
     CHECK(mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
                                    encoded.wire, encoded.bytes) == MM_CHUNK_OK);
-    mm_private_archive_close(working);
+    mm_resource_cache_release(working);
     CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&pending));
     mm_resource_cache_release(cache);
 

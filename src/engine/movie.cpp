@@ -130,11 +130,6 @@ static MMChunkOwnerRead *MovieArchiveReader(void *resources)
     return mm_resource_cache_reader(static_cast<MMResourceCache *>(resources));
 }
 
-static PFileObject MovieArchiveFile(void *resources)
-{
-    return static_cast<PFileObject>(MovieArchiveReader(resources)->storage->owner->files.main_file);
-}
-
 static void MovieArchiveIssue(void *, int issue)
 {
     switch (issue)
@@ -175,18 +170,12 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.create_resources = [](void *, void *path) -> void * {
         return OpenWorkingResourceCache(static_cast<PFilename>(path), true);
     };
-    s.is_temp = [](void *p) -> int { return MovieArchiveFile(p)->FTemp(); };
     s.save = [](void *p, void *path) -> int {
         return KauaiSaveChunkOwner(MovieArchiveReader(p)->storage, kctgSoc, static_cast<PFilename>(path));
     };
-    s.set_temp = [](void *p, int value) { MovieArchiveFile(p)->SetTemp(value != 0); };
-    s.mark_temporary = [](void *p) {
-        AssertDo(KauaiSetChunkOwnerOptions(MovieArchiveReader(p)->storage, fcflTemp, fcflTemp), 0);
-    };
-    s.persistent = [](void *p) {
-        AssertDo(KauaiSetChunkOwnerOptions(MovieArchiveReader(p)->storage, fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
-    };
-    s.archive = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)); };
+    s.file_flags = KauaiChunkOwnerFileFlags();
+    s.file_errors = KauaiChunkOwnerErrorServices();
+    s.archive_options_issue = [](void *) { Assert(false, "failed to set movie archive options"); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
     s.release_saved = [](void *p) { auto file = static_cast<PFileObject>(p); ReleasePpo(&file); };
@@ -216,8 +205,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
     s.source_names = vptagm ? vptagm->CoreSourceNames() : nullptr;
     s.titles = mm_resource_cache_title_io(KauaiChunkOwnerTitleIO());
-    s.has_error = [](void *p) -> int { return KauaiChunkOwnerError(MovieArchiveReader(p)->storage->owner) != elNil; };
-    s.reset_error = [](void *p) { KauaiResetChunkOwnerError(MovieArchiveReader(p)->storage->owner, elNil); };
     s.clear_errors = [](void *) { vpers->Clear(); };
     s.save_error = [](void *) { PushErc(ercSocSaveFailure); };
     s.bad_file = [](void *) { PushErc(ercSocBadFile); };
@@ -228,7 +215,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         Filename path;
         return vptagm && vptagm->SourceArchive(source, kftgContent, 0, &path);
     };
-    s.tag_graph = [](void *p) { return mm_movie_cache_graph(static_cast<MMResourceCache *>(p)); };
     s.actor_tag_issue = [](void *, int issue) {
         if (issue == MM_ACTOR_TAG_TEMPLATE_LINK)
             Bug("where's the child Template?");

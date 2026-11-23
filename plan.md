@@ -2264,6 +2264,10 @@ working archive for bundled movies, and releases the container after the
 archive and runtime references. Studio supplies VMM package and filesystem
 operations through a C service table. The C++ movie-container module is
 out of the engine build.
+Named working resource caches now open through the C89 archive factory. Movie
+autosave and Save As access the live writer and graph, apply temporary and
+staged-write options, and inspect file errors through the C89 chunk owner.
+Kauai supplies the native file operations and diagnostics.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

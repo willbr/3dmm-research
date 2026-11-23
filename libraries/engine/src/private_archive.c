@@ -462,6 +462,22 @@ MMPrivateArchive *mm_private_archive_open_named(const MMNamedArchiveServices *s,
     return archive;
 }
 
+static MMResourceCache *cache_opened_archive(MMPrivateArchive *archive, MMI32 budget,
+                                            const MMResourceServices *profile,
+                                            const MMStorageAllocator *owner, const MMStorageAllocator *storage)
+{
+    MMResourceCache *cache = mm_private_archive_cache_create(archive, budget, profile, owner, storage);
+    mm_private_archive_close(archive);
+    return cache;
+}
+
+MMResourceCache *mm_private_archive_open_named_cache(const MMNamedArchiveServices *s, void *name, int create,
+                                                    MMI32 budget, const MMResourceServices *profile,
+                                                    const MMStorageAllocator *owner, const MMStorageAllocator *storage)
+{
+    return cache_opened_archive(mm_private_archive_open_named(s, name, create), budget, profile, owner, storage);
+}
+
 MMResourceCache *mm_shared_archive_cache_open(const MMSharedArchiveCacheServices *s, void *name, int prefer_working,
                                               MMI32 budget, int *selected, MMChunkOwnerRead **reader)
 {
@@ -490,10 +506,7 @@ MMResourceCache *mm_shared_archive_cache_open(const MMSharedArchiveCacheServices
         }
     }
     if (archive)
-    {
-        cache = mm_private_archive_cache_create(archive, budget, s->working, s->owner_allocator, s->storage_allocator);
-        mm_private_archive_close(archive);
-    }
+        cache = cache_opened_archive(archive, budget, s->working, s->owner_allocator, s->storage_allocator);
     if (reader && cache)
         *reader = mm_resource_cache_reader(cache);
     return cache;

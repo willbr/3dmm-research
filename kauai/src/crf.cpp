@@ -297,10 +297,10 @@ MMResourceCache *NewTypedPrivateCache(MMPrivateArchive *archive, MMI32 budget)
 
 MMResourceCache *OpenWorkingResourceCache(Filename *name, bool create, MMI32 budget)
 {
-    const auto archive = KauaiWorkingArchive(name, create);
-    const auto cache = NewTypedPrivateCache(archive, budget);
-    mm_private_archive_close(archive);
-    return cache;
+    AssertPo(name, ffniFile);
+    const auto services = TypedCacheServices(PrivateCacheProfile());
+    return mm_private_archive_open_named_cache(KauaiNamedArchiveServices(), name, create, budget, &services,
+                                               KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
 
 MMResourceCache *OpenForestResourceCache(MMResourceCache *source, MMU32 type, MMU32 number)

@@ -24731,3 +24731,38 @@ snapshots. Dissolve matched prior steady observations and the settled
 canvas in retail and V3DMM.
 
 Evidence is under `tmp/c89-movie-container`.
+
+## C89 working archive save bindings (23 November 2026)
+
+Named working caches open and retain their archive through the C89
+factory. The shared-source open uses the same cache construction path.
+Studio autosave and Save As use the live C89 writer and graph. Temporary
+file flags, staged writes after Save As, and save-error recovery use the
+C89 chunk owner with native file operations and diagnostics.
+
+The save fixture checks the file flags and archive staging state through
+the C89 path. The native resource fixture opens a named cache and a
+shared cache on the same archive, then verifies that staged changes stay
+visible after the named cache is released.
+
+All seven standalone C checks passed, including strict C89 syntax. The
+x64 and x86 runtime, save, and cache fixtures passed. Tag and source
+traces, nine body and movie traces, eight scene traces, ten asset preview
+fingerprints, and the headless Marcus startup image matched the baseline.
+The existing `scene-load` assertion still follows a 63,224-byte trace
+with fingerprint `0D666753`. The external consumer passed.
+
+The native suite passed 227 selected checks. SDL Studio passed 24 targeted
+checks. Its save trace and 27,056-byte authored `.3mm` matched their baselines.
+The headless VMM workflow passed all eight checks, with the ordinary `.3mm`,
+five `.vmm` outputs, and two canvas captures matching byte for byte.
+
+Actor Audio and Dissolve suite `20261123T153937Z-1a6adf5b` completed
+eight runs with verified input hashes. The final run reused seven completed
+captures from two disk-space interruptions and recorded the last with a
+256 MiB reserve. Both ports matched prior seek canvases and states. Actor
+Audio matched the retained frame order, camera indices, and Studio actor
+snapshots. Dissolve matched prior steady observations and the settled
+canvas in retail and V3DMM.
+
+Evidence is under `tmp/c89-working-archive`.

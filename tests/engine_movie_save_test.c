@@ -1,5 +1,6 @@
 /* Movie save replacement/publication, rollback, retry and ownership checks. */
 #include "mm/movie_save.h"
+#include "mm/file_owner.h"
 #include "mm/movie_root.h"
 #include "mm/movie_sound.h"
 #include "mm/movie_publish.h"
@@ -79,13 +80,15 @@ struct Test
     MMMovieState data;
     MMMovieScenes scenes;
     MMMovieSaveState state;
+    MMChunkOwner archiveOwner;
+    MMChunkOwnerStorage archiveStorage;
     Path named, temporary, unique, publicName;
     Saved saved[2];
     MMChunkChild children[64];
     MMChunkEntry extraChunks[64];
     MMU32 extraCount, indexChildCount;
     int childCount, fail, left, skip, markError, error, resets, errors, clears, missing;
-    int temp, marks, tempSets, persistent, missingRoot, archiveRefs, savedCalls, tempCalls;
+    int temp, marks, tempSets, missingRoot, archiveRefs, savedCalls, tempCalls;
     MMU32 rootNumber, savedRootNumber;
     int changeSavedRoot;
     int begins, ends, dirty, updates, titleCalls, undos, packages, packageNull, bundled;
@@ -233,17 +236,21 @@ static void set_temp(void *p, int value)
     t->temp = value;
     ++t->tempSets;
 }
-static void mark_temp(void *p)
+static MMU32 file_flags(void *p)
 {
-    Test *t = p;
-    t->temp = 1;
-    ++t->marks;
+    return MM_FILE_DENY_WRITE | (((Test *)p)->temp ? MM_FILE_TEMP : 0);
 }
-static void persistent(void *p)
+static int set_file_flags(void *p, MMU32 flags, MMU32 mask)
 {
     Test *t = p;
-    t->temp = 0;
-    ++t->persistent;
+    assert(mask == (MM_FILE_DENY_WRITE | MM_FILE_TEMP));
+    t->temp = (flags & MM_FILE_TEMP) != 0;
+    t->marks += t->temp;
+    return 1;
+}
+static MMChunkOwnerStorage *working_archive(void *p)
+{
+    return &((Test *)p)->archiveStorage;
 }
 static void missing_root(void *p)
 {
@@ -493,14 +500,15 @@ static int write_title(void *f, MMU32 type, MMU32 number, const void *wire, MMU3
     ++t->titleCalls;
     return succeeds(t, TITLE);
 }
-static int error(void *p)
+static MMI32 error(void *p)
 {
     return ((Test *)p)->error;
 }
-static void reset(void *p)
+static void reset(void *p, MMI32 level)
 {
     Test *t = p;
-    t->error = 0;
+    assert(!level);
+    t->error = level;
     ++t->resets;
 }
 static void clear_errors(void *p)
@@ -1012,8 +1020,14 @@ static void free_storage(void *p, void *data, MMU32 bytes)
 }
 static void init(Test *t)
 {
+    static const MMChunkOwnerFileFlags flags = {file_flags, set_file_flags};
+    static const MMChunkErrorServices errors = {error, reset};
     MMMovieSaveServices *s;
     memset(t, 0, sizeof(*t));
+    t->archiveOwner.files.main_file = t;
+    t->archiveStorage.owner = &t->archiveOwner;
+    t->archiveStorage.io.is_temp = is_temp;
+    t->archiveStorage.io.set_temp = set_temp;
     mm_movie_save_init(&t->state);
     if (!mm_movie_title_init(&t->data.title, 1) || !mm_movie_title_set(&t->data.title, "Movie", 5))
         abort();
@@ -1055,11 +1069,10 @@ static void init(Test *t)
     t->tag_services.publish = publish_tag;
     s->tags = &t->tag_services;
     s->create_resources = create_resources;
-    s->is_temp = is_temp;
     s->save = save;
-    s->set_temp = set_temp;
-    s->mark_temporary = mark_temp;
-    s->persistent = persistent;
+    s->archive_storage = working_archive;
+    s->file_flags = &flags;
+    s->file_errors = &errors;
     s->find_file = find;
     s->retain_saved = retain_saved;
     s->release_saved = release_saved;
@@ -1077,8 +1090,6 @@ static void init(Test *t)
     s->source_names = &t->sourceNames;
     s->titles.encoding = MM_TEXT_WINDOWS;
     s->titles.write = write_title;
-    s->has_error = error;
-    s->reset_error = reset;
     s->clear_errors = clear_errors;
     s->save_error = save_error;
     s->bad_file = save_error;
@@ -1378,7 +1389,7 @@ static int packaging(void)
         t.changeSavedRoot = 1;
         t.savedRootNumber = 99;
         CHECK(mm_movie_save_to(&t.named, remember, &t.s));
-        CHECK(t.persistent == 1 && !t.temp && t.undos == 1 && !t.dirty && t.state.nameValid == remember &&
+        CHECK(t.archiveOwner.add_to_extra && !t.temp && t.undos == 1 && !t.dirty && t.state.nameValid == remember &&
               t.data.movieNumber == 99);
         mm_movie_save_release(1, &t.s);
     }

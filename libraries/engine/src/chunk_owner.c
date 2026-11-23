@@ -45,6 +45,40 @@ int mm_chunk_owner_options(MMChunkOwner *o, const MMChunkOptionServices *s, MMU3
     }
     return result;
 }
+typedef struct ChunkFileOptions
+{
+    MMChunkOwnerStorage *storage;
+    const MMChunkOwnerFileFlags *files;
+} ChunkFileOptions;
+
+static MMU32 option_file_flags(void *context)
+{
+    const ChunkFileOptions *options = context;
+    return options->files->get(options->storage->owner->files.main_file);
+}
+
+static int set_option_file_flags(void *context, MMU32 flags, MMU32 mask)
+{
+    const ChunkFileOptions *options = context;
+    return options->files->set(options->storage->owner->files.main_file, flags, mask);
+}
+
+static void read_option_free_map(void *context)
+{
+    mm_chunk_owner_read_free_map(((ChunkFileOptions *)context)->storage);
+}
+
+int mm_chunk_owner_file_options(MMChunkOwnerStorage *storage, const MMChunkOwnerFileFlags *files,
+                                MMU32 flags, MMU32 mask)
+{
+    ChunkFileOptions options;
+    MMChunkOptionServices services = {NULL, option_file_flags, set_option_file_flags, read_option_free_map};
+    options.storage = storage;
+    options.files = files;
+    services.context = &options;
+    return mm_chunk_owner_options(storage->owner, &services, flags, mask);
+}
+
 MMChunkSaveState mm_chunk_owner_save_state(const MMChunkOwner *o)
 {
     MMChunkSaveState state;
