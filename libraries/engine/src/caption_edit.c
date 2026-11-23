@@ -1,4 +1,5 @@
 #include "mm/caption_edit.h"
+#include "mm/preview_media.h"
 #include "mm/private_archive.h"
 #include "mm/wide.h"
 #include <stdlib.h>
@@ -505,6 +506,71 @@ int mm_caption_edit_apply(const MMCaptionEditPlan *plan, MMI32 first, MMI32 last
     *box = edited;
     *body_changed = plan->font_changed || plan->text_changed || format.defaults || format.count;
     return MM_CAPTION_EDIT_OK;
+}
+
+int mm_caption_edit_draft(const MMCaptionDraftSource *draft, const MMCaptionEditInput *value,
+                          const MMCaptionEditInput *before, const MMPreviewCaptionCodec *codec,
+                          MMPreviewOwnedCaption *out)
+{
+    const MMRichTextArchive *archive = draft->archive;
+    const MMMovieArchiveEditor *editor = archive->editor;
+    MMCaptionEditPlan plan;
+    MMTextBoxState box = {0};
+    MMRichTextState body;
+    MMCaptionText words = {0};
+    MMPreviewOwnedCaption caption = {0};
+    MMRichTextStream stored;
+    MMMemoryStream replacement;
+    MMCaptionEditSource source;
+    const MMReadStream *text;
+    int changed, encoding, decoded;
+    int status = mm_caption_edit_plan(value, before, 0, &plan);
+    if (status != MM_CAPTION_EDIT_OK)
+        return status;
+    mm_rich_text_init(&body, editor->text_unit, editor->system);
+    if (draft->original)
+    {
+        MMTextChunk chunk;
+        if (mm_text_box_read(&box, *draft->original, &chunk, editor) <= 0 ||
+            mm_rich_text_archive_read(&body, &chunk, archive) <= 0)
+        {
+            status = MM_CAPTION_EDIT_READ_BOX;
+            goto done;
+        }
+    }
+    mm_rich_text_archive_stream(&stored, archive, &body.text);
+    source.encoding = draft->encoding;
+    source.stored_text = &stored.stream;
+    source.native_system = editor->system;
+    status = mm_caption_edit_apply(&plan, draft->first, draft->last, &box, &body, &source, &words, &changed);
+    if (status != MM_CAPTION_EDIT_OK)
+        goto done;
+    text = &stored.stream;
+    encoding = body.text_system;
+    if (plan.text_changed)
+    {
+        if (!mm_memory_stream_init(&replacement, words.text, words.count * sizeof(*words.text)))
+        {
+            status = MM_CAPTION_EDIT_PREVIEW;
+            goto done;
+        }
+        text = &replacement.stream;
+        encoding = editor->big_endian ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE;
+    }
+    else
+        mm_rich_text_archive_stream(&stored, archive, &body.text);
+    decoded = mm_preview_caption_body_owned(&box, &body, text, encoding, codec, &caption);
+    if (decoded > 0)
+        *out = caption;
+    else
+    {
+        mm_preview_owned_caption_dispose(&caption);
+        status = decoded == -1 ? MM_CAPTION_EDIT_PREVIEW_MEMORY : MM_CAPTION_EDIT_PREVIEW;
+    }
+done:
+    mm_caption_edit_dispose_text(&words);
+    mm_rich_text_archive_dispose(&body, archive);
+    return status;
 }
 
 int mm_caption_edit_archive_box(const MMMovieArchiveEditor *editor, const MMSceneArchiveText *original,

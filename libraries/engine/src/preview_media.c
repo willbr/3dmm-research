@@ -503,6 +503,7 @@ typedef struct OwnedCaptionReader
 {
     const MMPreviewCaptionCodec *codec;
     MMPreviewOwnedCaption *caption;
+    const MMMovieTitle *body_font;
 } OwnedCaptionReader;
 
 static void owned_caption_publish(void *p, const MMPreviewCaptionData *data)
@@ -516,11 +517,13 @@ static int owned_load_font(void *p, const MMReadStream *stream, MMU32 offset)
     return codec->load_font(codec->context, stream, offset);
 }
 
-static int owned_copy_font(const MMPreviewCaptionCodec *codec, const void *wire, MMU32 bytes, MMCaptionFont *out)
+static int owned_copy_font(const MMPreviewCaptionCodec *codec, const MMMovieTitle *title,
+                           const void *wire, MMU32 bytes, MMCaptionFont *out)
 {
     MMCaptionFont font;
     char *name;
-    int result = codec->font(codec->context, wire, bytes, &font);
+    int result = title && codec->body_font ? codec->body_font(codec->context, title, &font)
+                                         : codec->font(codec->context, wire, bytes, &font);
     if (result <= 0)
         return result;
     name = NULL;
@@ -540,7 +543,7 @@ static int owned_default_font(void *p, void *input)
 {
     OwnedCaptionReader *reader = (OwnedCaptionReader *)p;
     (void)input;
-    return owned_copy_font(reader->codec, NULL, 0, &reader->caption->font);
+    return owned_copy_font(reader->codec, reader->body_font, NULL, 0, &reader->caption->font);
 }
 
 static int owned_utf16(void *p, const void *bytes, MMU32 size, int encoding, unsigned short *out,
@@ -587,7 +590,7 @@ static int owned_append(void *p, const MMPreviewTextProperty *property, const vo
     }
     if (wire)
     {
-        const int result = owned_copy_font(reader->codec, wire, bytes, &row.font);
+        const int result = owned_copy_font(reader->codec, NULL, wire, bytes, &row.font);
         if (result <= 0)
             return result;
     }
@@ -632,6 +635,7 @@ int mm_preview_caption_body_owned(const MMTextBoxState *box, const MMRichTextSta
     MMPreviewCaptionServices services;
     reader.codec = codec;
     reader.caption = out;
+    reader.body_font = &body->font;
     services = owned_caption_services(&reader);
     return mm_preview_caption_body(box, body, text, encoding, &services);
 }
@@ -665,6 +669,7 @@ static int owned_caption(void *p, MMU32 chunk)
     caption.chunk = chunk;
     reader.codec = presentation->codec;
     reader.caption = &caption;
+    reader.body_font = NULL;
     services = owned_caption_services(&reader);
     result = mm_preview_caption_graph(chunk, &presentation->source, &services);
     if (result > 0)

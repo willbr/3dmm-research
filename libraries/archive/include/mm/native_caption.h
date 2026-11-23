@@ -2,6 +2,8 @@
 #define MM_NATIVE_CAPTION_H
 #include "mm/text_store.h"
 
+struct MMCaptionDraftSource;
+struct MMCaptionEditInput;
 struct MMPreviewOwnedCaption;
 namespace MM
 {
@@ -10,6 +12,8 @@ struct PreviewCaption;
 bool ReadCaptionData(const MMTextBoxState &, const MMRichTextState &, const MMReadStream &, int encoding, PreviewCaption &);
 /* Transfer a complete decoded body into an empty owner. */
 bool ReadCaptionData(const MMTextBoxState &, const MMRichTextState &, const MMReadStream &, int encoding,
+                     MMPreviewOwnedCaption &);
+int DraftCaptionData(const MMCaptionDraftSource &, const MMCaptionEditInput &, const MMCaptionEditInput *before,
                      MMPreviewOwnedCaption &);
 }
 #endif

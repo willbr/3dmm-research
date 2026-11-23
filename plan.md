@@ -1843,7 +1843,10 @@ publishes the authored stack after the scene has finished loading. Preview
 callers that request C++ records receive the same decoded data through the
 existing interface.
 The live editor also takes the decoded row directly for draft layout and
-caret placement. Timing analysis measures captions and reads pauses from
+caret placement. The shared C89 engine reads the authored box, applies its
+draft edits, selects stored or replacement text and publishes a complete
+decoded row. The host supplies native text and font conversion.
+Timing analysis measures captions and reads pauses from
 the C playback records. It orders the raw cue rows through the shared
 sorter before adding them to the sound schedule.
 The C89 caption editor catalogue reads native text boxes in authored order,

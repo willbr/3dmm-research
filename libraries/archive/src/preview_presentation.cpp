@@ -5,6 +5,7 @@
 #include "preview_presentation.h"
 #include "preview_audio_output.h"
 #include "engine_movie_graph.h"
+#include "mm/caption_edit.h"
 #include "mm/native_caption.h"
 #include "mm/preview_media.h"
 #include "platform_text.h"
@@ -76,6 +77,16 @@ struct CaptionCodec
             [](void *p, const void *bytes, MMU32 size, int encoding, unsigned short *out, MMU32 capacity, MMU32 *count) {
                 auto &host = *static_cast<CaptionCodec *>(p);
                 return StoreCaption(host.exception, [&] { return CaptionUtf16(bytes, size, encoding, out, capacity, count); });
+            },
+            [](void *p, const MMMovieTitle *title, MMCaptionFont *out) {
+                auto &host = *static_cast<CaptionCodec *>(p);
+                return StoreCaption(host.exception, [&] {
+                    String font;
+                    font.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(title))), title->count);
+                    host.converted = FontName(font);
+                    *out = {host.converted.data(), host.converted.size()};
+                    return 1;
+                });
             }};
     }
 };
@@ -205,7 +216,6 @@ bool ReadCaptionData(const MMTextBoxState &box, const MMRichTextState &text, con
                      MMPreviewOwnedCaption &out)
 {
     Internal::CaptionCodec host;
-    host.font.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(&text.font))), text.font.count);
     MMPreviewOwnedCaption caption{};
     const std::unique_ptr<MMPreviewOwnedCaption, decltype(&mm_preview_owned_caption_dispose)>
         owner(&caption, mm_preview_owned_caption_dispose);
@@ -231,5 +241,16 @@ bool ReadCaptionData(const MMTextBoxState &box, const MMRichTextState &text, con
     caption.chunk = out.chunk;
     out = Internal::PublicCaption(caption);
     return true;
+}
+
+int DraftCaptionData(const MMCaptionDraftSource &source, const MMCaptionEditInput &value,
+                     const MMCaptionEditInput *before, MMPreviewOwnedCaption &out)
+{
+    Internal::CaptionCodec host;
+    const auto codec = host.Services();
+    const int status = mm_caption_edit_draft(&source, &value, before, &codec, &out);
+    if (host.exception) std::rethrow_exception(host.exception);
+    if (status == MM_CAPTION_EDIT_PREVIEW_MEMORY) throw std::bad_alloc();
+    return status;
 }
 } // namespace MM

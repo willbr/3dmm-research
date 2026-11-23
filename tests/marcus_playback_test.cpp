@@ -539,6 +539,16 @@ void CaptionStacking(const char *path, const char *resources, const char *conten
     value.scrolling = 1;
     const char *edited = u8"Edited\nUnicode \u03a9";
     CHECK(marcus_seek(player, 1));
+    const auto originalPixels = captionPixels();
+    auto moved = observed;
+    moved.x -= 10;
+    CHECK(marcus_caption_draft(player, list.get(), 3, &moved, words));
+    const auto movedDraft = captionPixels();
+    CHECK(movedDraft != originalPixels);
+    CHECK(marcus_edit_caption(player, list.get(), 3, &moved, words));
+    CHECK(captionPixels() == movedDraft);
+    CHECK(marcus_undo(player));
+    list = readCaptions();
     CHECK(marcus_caption_draft(player, list.get(), 3, &value, edited));
     const auto editedDraft = captionPixels();
     CHECK(marcus_edit_caption(player, list.get(), 3, &value, edited));

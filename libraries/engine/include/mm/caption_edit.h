@@ -19,7 +19,7 @@ enum
     MM_CAPTION_EDIT_FONT_LENGTH, MM_CAPTION_EDIT_EXISTING_LIMIT, MM_CAPTION_EDIT_READ_TEXT,
     MM_CAPTION_EDIT_ENCODING, MM_CAPTION_EDIT_UTF8, MM_CAPTION_EDIT_APPLY_FORMAT,
     MM_CAPTION_EDIT_COPY_BOX, MM_CAPTION_EDIT_ADD_BOX, MM_CAPTION_EDIT_WRITE_BODY,
-    MM_CAPTION_EDIT_WRITE_BOX
+    MM_CAPTION_EDIT_WRITE_BOX, MM_CAPTION_EDIT_READ_BOX, MM_CAPTION_EDIT_PREVIEW, MM_CAPTION_EDIT_PREVIEW_MEMORY
 };
 enum { MM_CAPTION_EDIT_SET_SIZE = 1, MM_CAPTION_EDIT_SET_PAPER = 2, MM_CAPTION_EDIT_SET_WIDTH = 4 };
 
@@ -123,6 +123,22 @@ typedef struct MMCaptionEditSource
  * replacement words only after a successful text change. */
 int mm_caption_edit_apply(const MMCaptionEditPlan *, MMI32 first, MMI32 last, MMTextBoxState *,
                           MMRichTextState *, const MMCaptionEditSource *, MMCaptionText *, int *body_changed);
+
+typedef struct MMCaptionDraftSource
+{
+    const MMRichTextArchive *archive; /* An empty archive binding supplies the format for a new box. */
+    const MMTextHost *encoding;
+    MMI32 first, last;
+    const MMU32 *original;
+} MMCaptionDraftSource;
+
+struct MMPreviewCaptionCodec;
+struct MMPreviewOwnedCaption;
+/* Read and edit a private text box, then decode its playback record. An
+ * existing box supplies both original and before. The output starts empty
+ * and receives ownership only when the draft succeeds. */
+int mm_caption_edit_draft(const MMCaptionDraftSource *, const MMCaptionEditInput *, const MMCaptionEditInput *before,
+                          const struct MMPreviewCaptionCodec *, struct MMPreviewOwnedCaption *);
 
 typedef struct MMCaptionArchiveBox
 {

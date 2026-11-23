@@ -23477,3 +23477,26 @@ retained retail and V3DMM captures `20261122T033140Z-2abe2197` and
 `20261122T033233Z-5e23a412`. The candidate suite ran the two ports. The
 comparison against the retained captures read both databases afterward.
 Evidence is under `tmp/c89-caption-catalog`.
+
+## C89 caption draft preparation (23 November 2026)
+
+The shared engine prepares caption drafts in C89. It reads the authored box
+and rich text, applies the same edit policy used for native saves, then
+decodes either stored text or the replacement UTF-16 into the playback row.
+Only a complete row reaches Marcus. The native font codec serves both
+authored captions and the prepared body.
+
+The headless playback test compares a geometry-only draft using stored text
+with the committed pixels, then undoes the edit. It also exercises changed
+Unicode text and native save/reopen. A standalone C89 probe linked only the
+C engine and covered Unicode, empty drafts and output ownership after an
+injected decode failure. All 228 selected native checks, 12 SDL checks and
+three x86 worker fixtures passed. The headless startup image matched.
+
+Text Acid candidate `20261123T005833Z-75e41996` matched baseline
+`20261123T005007Z-e26760e2` on all 240 seek canvases and caption and camera
+states per port. Seek and continuous playback frame order matched the
+retained retail and V3DMM captures `20261122T033140Z-2abe2197` and
+`20261122T033233Z-5e23a412`. These captures cover authored playback.
+The draft comparison runs through the Marcus player API. Evidence is under
+`tmp/c89-caption-preview`.

@@ -26,32 +26,6 @@ MarcusArchive Open(const std::filesystem::path &path, int mode)
     return file;
 }
 
-struct CaptionBody
-{
-    MMRichTextState state;
-    MMCaptionText words{};
-    MMRichTextArchive archive;
-
-    CaptionBody(MMPrivateArchive *file, const MMMovieArchiveEditor &editor)
-        : archive(mm_private_archive_rich_text(file, &editor))
-    {
-        mm_rich_text_init(&state, editor.text_unit, editor.system);
-    }
-
-    CaptionBody(const CaptionBody &) = delete;
-    CaptionBody &operator=(const CaptionBody &) = delete;
-    ~CaptionBody()
-    {
-        mm_rich_text_archive_dispose(&state, &archive);
-        mm_caption_edit_dispose_text(&words);
-    }
-
-    bool Read(const MMTextChunk &chunk)
-    {
-        return mm_rich_text_archive_read(&state, &chunk, &archive) > 0;
-    }
-
-};
 void CheckTextArchive(int status)
 {
     static const char *const messages[] = {
@@ -100,20 +74,14 @@ void CheckCaptionEdit(int status)
         "Cannot copy the selected 2D text box.",
         "Cannot allocate a new 2D text box.",
         "Cannot save the native 2D text.",
-        "Cannot save the native 2D text box."
+        "Cannot save the native 2D text box.",
+        "Cannot read the authored text box.",
+        "Cannot prepare the 2D text preview.",
+        "Cannot allocate the 2D text preview."
     };
-    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_CAPTION_EDIT_WRITE_BOX + 1, "caption edit diagnostics");
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_CAPTION_EDIT_PREVIEW_MEMORY + 1,
+                  "caption edit diagnostics");
     Require(status == MM_CAPTION_EDIT_OK, messages[status]);
-}
-
-int ApplyCaption(const MMCaptionEditPlan &plan, const MarcusCaptionList &list, MMTextBoxState &box, CaptionBody &rich,
-                 int *bodyChanged)
-{
-    MMRichTextStream stream;
-    mm_rich_text_archive_stream(&stream, &rich.archive, &rich.state.text);
-    const MMCaptionEditSource source{KauaiText::Services(), &stream.stream, koskCur};
-    return mm_caption_edit_apply(&plan, list.first_frame, list.last_frame, &box, &rich.state, &source,
-                                 &rich.words, bodyChanged);
 }
 
 const MarcusCaptionEntry *Entry(const MarcusCaptionList &list, int index)
@@ -171,9 +139,6 @@ void MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionLi
     const auto *entry = Entry(list, index);
     const auto value = CaptionInput(options, text);
     const auto before = entry ? CaptionInput(entry->options, entry->text) : MMCaptionEditInput{};
-    MMCaptionEditPlan plan;
-    CheckCaptionEdit(mm_caption_edit_plan(&value, entry ? &before : nullptr, 0, &plan));
-    MMTextBoxState box{};
     auto file = entry ? Open(path, MM_PRIVATE_ARCHIVE_READ) : MarcusArchive(nullptr, mm_private_archive_close);
     const auto editor = [&] {
         if (file)
@@ -185,27 +150,10 @@ void MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionLi
         format.big_endian = *reinterpret_cast<const unsigned char *>(&order) == 0;
         return format;
     }();
-    CaptionBody rich(file.get(), editor);
-    if (entry)
-    {
-        MMTextChunk body;
-        Require(mm_text_box_read(&box, entry->chunk, &body, &editor) > 0 && rich.Read(body),
-                "Cannot read the authored text box.");
-    }
-    int bodyChanged;
-    CheckCaptionEdit(ApplyCaption(plan, list, box, rich, &bodyChanged));
-    MMRichTextStream stored;
-    mm_rich_text_archive_stream(&stored, &rich.archive, &rich.state.text);
-    const MMReadStream *stream = &stored.stream;
-    int encoding = rich.state.text_system;
-    MMMemoryStream draft;
-    if (plan.text_changed)
-    {
-        mm_memory_stream_init(&draft, rich.words.text, static_cast<MMU32>(rich.words.count * 2));
-        stream = &draft.stream;
-        encoding = editor.big_endian ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE;
-    }
-    Require(MM::ReadCaptionData(box, rich.state, *stream, encoding, preview), "Cannot prepare the 2D text preview.");
+    const auto archive = mm_private_archive_rich_text(file.get(), &editor);
+    const MMCaptionDraftSource source{&archive, KauaiText::Services(), list.first_frame, list.last_frame,
+                                      entry ? &entry->chunk : nullptr};
+    CheckCaptionEdit(MM::DraftCaptionData(source, value, entry ? &before : nullptr, preview));
 }
 
 std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path &path,

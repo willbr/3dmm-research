@@ -64,6 +64,9 @@ extern "C"
         int (*load_font)(void *, const MMReadStream *, MMU32 offset);
         int (*font)(void *, const void *wire, MMU32 bytes, MMCaptionFont *);
         int (*utf16)(void *, const void *, MMU32, int, unsigned short *, MMU32, MMU32 *);
+        /* Optional conversion of the prepared body's counted default font.
+         * Without it, font(NULL) still reads the caller's loaded default. */
+        int (*body_font)(void *, const MMMovieTitle *, MMCaptionFont *);
     } MMPreviewCaptionCodec;
     typedef struct MMPreviewOwnedPresentationOutput
     {
@@ -117,8 +120,7 @@ extern "C"
      * name on invalid wire text and reports only hard failures. */
     int mm_preview_caption_graph(MMU32 number, const MMPreviewCaptionArchive *, const MMPreviewCaptionServices *);
     void mm_preview_owned_caption_dispose(MMPreviewOwnedCaption *);
-    /* Decode a prepared body into a zeroed owner. The codec supplies the
-     * default font from the caller's body. Dispose the owner after any result. */
+    /* Decode a prepared body into a zeroed owner. Dispose the owner after any result. */
     int mm_preview_caption_body_owned(const MMTextBoxState *, const MMRichTextState *, const MMReadStream *text,
                                       int encoding, const MMPreviewCaptionCodec *, MMPreviewOwnedCaption *);
     /* Decode the authored scene through C-owned caption storage. The codec
