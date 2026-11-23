@@ -438,20 +438,7 @@ int mm_archive_reader_stored_payload(void *context, const MMChunkEntry *entry, M
 static int legacy_name(void *context, const char *text, void *out, MMU32 capacity, MMU32 *count)
 {
     const MMArchiveReader *reader = (const MMArchiveReader *)context;
-    const unsigned short order = 1;
-    unsigned short characters[MM_STRING_MAX + 2];
-    MMStringValue value = {0};
-    MMStringWire wire = {0};
-    wire.current_encoding = reader->options.encoding;
-    wire.native_big_endian = *(const unsigned char *)&order == 0;
-    value.buffer = wire.buffer = characters;
-    value.unit = wire.unit = wire.current_encoding == MM_TEXT_UTF16_LE ||
-                             wire.current_encoding == MM_TEXT_UTF16_BE ? 2 : 1;
-    mm_string_from_ansi(&value, NULL, text, strlen(text));
-    if (!mm_string_wire_get(&wire, out, capacity))
-        return 0;
-    *count = mm_string_wire_size(&wire);
-    return 1;
+    return mm_string_wire_encode_ansi(NULL, reader->options.encoding, text, out, capacity, count);
 }
 
 int mm_archive_reader_name(MMArchiveReader *reader, MMU32 position, MMReadReceiver receive, void *out)

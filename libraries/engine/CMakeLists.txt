@@ -114,9 +114,16 @@ if(NOT WIN32)
   set_target_properties(engine-native-files-posix-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
   add_test(NAME engine-native-files-posix COMMAND engine-native-files-posix-test)
 endif()
+add_library(mm-native-text STATIC src/native_text.c)
+set_target_properties(mm-native-text PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_link_libraries(mm-native-text PUBLIC mm-engine-c89)
+if(WIN32)
+  target_link_libraries(mm-native-text PRIVATE user32)
+endif()
+
 add_library(mm-native-archive-file STATIC src/native_archive_file.c)
 set_target_properties(mm-native-archive-file PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-target_link_libraries(mm-native-archive-file PUBLIC mm-native-files PRIVATE mm-native-runtime mm-engine-c89)
+target_link_libraries(mm-native-archive-file PUBLIC mm-native-files PRIVATE mm-native-runtime mm-native-text)
 
 add_executable(engine-native-chunky-test EXCLUDE_FROM_ALL "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_native_chunky_test.c")
 target_link_libraries(engine-native-chunky-test PRIVATE mm-native-archive-file mm-movie-content)
@@ -1194,6 +1201,12 @@ foreach(engine_test_target IN LISTS engine_test_targets)
   endif()
 endforeach()
 if(ENGINE_C89_COMPILER)
+  add_test(NAME engine-native-text-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      "-I${CMAKE_CURRENT_SOURCE_DIR}/include" -fsyntax-only "${CMAKE_CURRENT_SOURCE_DIR}/src/native_text.c")
+  add_test(NAME engine-portable-text-c89-syntax
+    COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
+      -DKAUAI_PORTABLE_TEXT "-I${CMAKE_CURRENT_SOURCE_DIR}/include" -fsyntax-only "${CMAKE_CURRENT_SOURCE_DIR}/src/native_text.c")
   add_test(NAME engine-native-runtime-c89-syntax
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       "-I${CMAKE_CURRENT_SOURCE_DIR}/include" -fsyntax-only "${CMAKE_CURRENT_SOURCE_DIR}/${native_runtime_source}"

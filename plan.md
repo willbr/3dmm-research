@@ -2343,6 +2343,9 @@ Marcus also uses the shared native archive file and index owners for browser
 reads, editing, clipboard transfers, and saves. Its UTF-8 paths enter through
 the native wide file API on Windows. Studio's archive readers and private
 drafts use the same C file services.
+The Windows code-page, case mapping, and collation providers now build as C89.
+Archive readers and private editors get the shared C archive text profile,
+including the writer for legacy counted names.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining
 body, template, resource and object dependencies by the operation that still

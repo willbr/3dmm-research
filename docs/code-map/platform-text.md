@@ -5,12 +5,13 @@ including the Windows SDK, application framework or UI libraries. `utilstr.cpp`
 uses it for the existing String readers, user comparisons and case helpers.
 File paths remain a separate concern in `platform_files.h`.
 
-The shared C89 module `mm/text.h` now implements conversion dispatch,
-fixed byte maps, portable conversion/case/comparison and UTF-16 byte order.
-`platform_text.cpp` retains native Windows code-page, case and locale callbacks.
-Both Studio and Marcus reach the same C implementation through Kauai; the
-standalone platform checks link that C source too. String-table mutation and
-packed-string conversion are described in the [backend boundary](library-split.md#string-table-storage-and-text-conversion-slice).
+The shared C89 text module implements conversion dispatch, fixed byte maps,
+portable conversion, case mapping, collation, and UTF-16 byte order.
+`mm/native_text.h` supplies native Windows code-page, case and locale
+services. `platform_text.h` forwards the old C++ calls to those C interfaces.
+Studio, Marcus, and the standalone platform checks use the same native
+backend. String-table mutation and packed-string conversion are described
+in the [backend boundary](library-split.md#string-table-storage-and-text-conversion-slice).
 
 ## Stored text compatibility
 
@@ -52,14 +53,12 @@ their bytes; locale collation has not replaced that equality contract.
 initialization. Mapping a full byte string remains a separate operation because
 Windows DBCS behavior can depend on adjacent bytes.
 
-The map arrays and initialization/application policy now use the plain C
-`MMTextCaseMaps` record; the host retains the synchronized first-use guard and
-native mapping calls. C also owns empty-count ordering, the native signed-32-bit
-count limit and conversion of native ranked comparison results. String validation,
-internal ordering, 255-unit equality chunks, user-comparison fallback and ANSI
-convenience conversion now use `mm/string_ops.h`. The same native code-page and
-locale providers remain in use; this does not substitute portable CP1252 rules
-for the actual Windows ACP or locale.
+The C native backend publishes `MMTextCaseMaps` through the Windows one-time
+initialization primitive. C also owns empty-count ordering, the native
+signed-32-bit count limit and conversion of native ranked comparison results.
+String validation, internal ordering, 255-unit equality chunks, user-comparison
+fallback and ANSI convenience conversion use `mm/string_ops.h`. Windows uses
+the actual ACP and user locale when the native providers are selected.
 
 The portable backend uses deterministic CP1252 case mapping and comparison.
 UTF-16 case mapping covers that repertoire and leaves other units unchanged;

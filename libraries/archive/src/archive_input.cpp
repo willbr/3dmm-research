@@ -4,7 +4,8 @@
 #include <stdexcept>
 #include <utility>
 #include "kauai_core.h"
-#include "platform_text.h"
+#include "mm/native_text.h"
+#include "private_archive_host.h"
 #include "resource_archive_host.h"
 #undef size
 ASSERTNAME
@@ -23,7 +24,7 @@ bool ReadArchiveTextUtf8(const void *value, std::size_t count, unsigned unit, st
 {
     char text[MM_STRING_UTF8_MAX];
     std::size_t written;
-    const int status = mm_string_text_utf8(KauaiText::Services(), value, count, unit, text, sizeof(text), &written);
+    const int status = mm_string_text_utf8(mm_native_text_host(), value, count, unit, text, sizeof(text), &written);
     if (status < 0)
         throw std::range_error("Archive text cannot be decoded.");
     if (!status)
@@ -59,7 +60,7 @@ try
 #else
     constexpr int ansi = 0;
 #endif
-    switch (mm_native_archive_legacy_path(utf8Path.data(), utf8Path.size(), ansi, KauaiText::Services(), nativePath))
+    switch (mm_native_archive_legacy_path(utf8Path.data(), utf8Path.size(), ansi, mm_native_text_host(), nativePath))
     {
     case MM_ARCHIVE_PATH_OK:
         break;
@@ -78,17 +79,16 @@ try
     pathString.SetSzs(nativePath);
     if (!filename.FBuildFromPath(&pathString))
         return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+    const auto profile = KauaiPrivateArchiveProfile();
     const MMArchiveReaderOptions readerOptions = {
         options.maxDecodedBytes,
         options.maxStringTableBytes,
-        koskCur,
-        [](void *, const void *input, size_t bytes, int source, void *output, size_t capacity) -> size_t {
-            return CchTranslateRgb(const_cast<void *>(input), bytes, source, static_cast<achar *>(output), capacity);
-        },
+        profile.encoding,
+        profile.convert,
         nullptr,
         [](void *) -> int { return !AssertionFailed(); },
         nullptr,
-        KauaiEncodeLegacyChunkName,
+        profile.legacy_name,
     };
     const MMNativeArchiveInputHost host = {
         &filename,

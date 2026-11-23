@@ -616,7 +616,8 @@ target_link_libraries(file-browser-test PRIVATE kauai-core)
 target_link_libraries(filename-test PRIVATE kauai-core)
 add_executable(text-services-test EXCLUDE_FROM_ALL tests/text_services_test.cpp)
 target_link_libraries(text-services-test PRIVATE kauai-core)
-add_executable(text-portable-test EXCLUDE_FROM_ALL tests/text_services_test.cpp kauai/src/platform_text.cpp kauai/src/text_utf8.cpp)
+add_executable(text-portable-test EXCLUDE_FROM_ALL tests/text_services_test.cpp libraries/engine/src/native_text.c kauai/src/text_utf8.cpp)
+set_target_properties(text-portable-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(text-portable-test PRIVATE "${PROJECT_SOURCE_DIR}/kauai/src")
 target_compile_definitions(text-portable-test PRIVATE KAUAI_PORTABLE_TEXT)
 target_link_libraries(text-portable-test PRIVATE Threads::Threads mm-engine-c89)
@@ -965,7 +966,6 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/launch_context.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/settings_store_bridge.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/platform_users_bridge.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/platform_text.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/text_utf8.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/pixel_buffer.cpp"
     # cmd_core: CommandHandler + bare CommandExecutionManager. The
@@ -1068,6 +1068,7 @@ target_link_libraries(kauai-core
     mm-native-files
     mm-native-users
     mm-native-settings
+    mm-native-text
     mm-native-runtime
     Threads::Threads
     $<$<PLATFORM_ID:Windows>:advapi32>

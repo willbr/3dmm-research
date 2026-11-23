@@ -80,6 +80,7 @@
 #include "mm/chunk_ops.h"
 #include "mm/chunk_copy.h"
 #include "private_archive_host.h"
+#include "mm/native_text.h"
 #include "resource_archive_host.h"
 #include "mm/chunk_forest.h"
 #include "mm/movie_title.h"
@@ -994,14 +995,7 @@ bool ChunkyFile::_FReadIndex(void)
 
 int KauaiEncodeLegacyChunkName(void *, const char *text, void *wire, MMU32 capacity, MMU32 *bytes)
 {
-    String converted;
-    converted.SetSzs(const_cast<char *>(text));
-    const auto size = static_cast<MMU32>(converted.CbData());
-    if (size > capacity)
-        return 0;
-    converted.GetData(wire);
-    *bytes = size;
-    return 1;
+    return mm_string_wire_encode_ansi(mm_native_text_host(), koskCur, text, wire, capacity, bytes);
 }
 
 bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)

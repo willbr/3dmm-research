@@ -92,6 +92,9 @@ int mm_native_archive_input_open_utf8(MMNativeArchiveInput *, const char *, int 
 void mm_native_archive_input_close(MMNativeArchiveInput *);
 MMMovieSessionGraph mm_native_archive_input_graph(const MMNativeArchiveInput *);
 
+/* Select the native code page and the legacy name writer for the wire encoding.
+ * The caller supplies its archive dialect and diagnostic mode. */
+MMPrivateArchiveProfile mm_native_archive_profile(int encoding, int swapped_unicode, int expanded, int trash_unused);
 /* Open a read-only, editable or fresh private archive using the same file provider. */
 MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *, int mode,
                                                  const MMPrivateArchiveProfile *);

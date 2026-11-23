@@ -1,6 +1,7 @@
 /* Serialized strings converted from Kauai utilstr.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/string_wire.h"
+#include "mm/string_ops.h"
 #include <string.h>
 
 int mm_string_text_utf8(const MMTextHost *host, const void *text, size_t count, unsigned unit,
@@ -27,6 +28,26 @@ static unsigned width(int encoding)
     if (encoding == MM_TEXT_UTF16_BE || encoding == MM_TEXT_UTF16_LE)
         return 2;
     return 0;
+}
+
+int mm_string_wire_encode_ansi(const MMTextHost *host, int encoding, const char *name, void *out, MMU32 capacity,
+                               MMU32 *written)
+{
+    const unsigned short order = 1;
+    unsigned short characters[MM_STRING_MAX + 2];
+    MMStringValue value = {0};
+    MMStringWire wire = {0};
+    value.unit = wire.unit = width(encoding);
+    if (!wire.unit || !name || !written)
+        return 0;
+    value.buffer = wire.buffer = characters;
+    wire.current_encoding = encoding;
+    wire.native_big_endian = *(const unsigned char *)&order == 0;
+    mm_string_from_ansi(&value, host, name, strlen(name));
+    if (!mm_string_wire_get(&wire, out, capacity))
+        return 0;
+    *written = mm_string_wire_size(&wire);
+    return 1;
 }
 static unsigned word(const unsigned char *p, int big)
 {

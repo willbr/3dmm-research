@@ -18,6 +18,10 @@ extern "C"
      * malformed UTF-16 or short output. Only success sets written. */
     int mm_string_text_utf8(const MMTextHost *, const void *, size_t count, unsigned unit,
                             char *, size_t capacity, size_t *written);
+    /* Serialize a legacy zero-terminated ANSI name with the String conversion
+     * and truncation rules. Failure leaves the destination and count intact. */
+    int mm_string_wire_encode_ansi(const MMTextHost *, int encoding, const char *, void *, MMU32 capacity,
+                                   MMU32 *written);
     typedef struct MMStringWire
     {
         void *buffer; /* (255+2) native one/two-byte units: count, text, terminator. */

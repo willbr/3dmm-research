@@ -1,5 +1,6 @@
 #include "mm/native_archive_file.h"
 #include "mm/native_runtime.h"
+#include "mm/native_text.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -369,6 +370,75 @@ int mm_native_archive_input_open_utf8(MMNativeArchiveInput *input, const char *p
 MMMovieSessionGraph mm_native_archive_input_graph(const MMNativeArchiveInput *input)
 {
     return input->live ? mm_movie_owner_graph(input->live_reader) : mm_archive_reader_graph(input->reader);
+}
+
+static size_t convert_ansi(void *context, const void *input, size_t bytes, int encoding, void *out, size_t capacity)
+{
+    (void)context;
+    return mm_text_ansi(mm_native_text_host(), input, bytes, encoding, capacity ? out : NULL, capacity);
+}
+
+static size_t convert_utf16(void *context, const void *input, size_t bytes, int encoding, void *out, size_t capacity)
+{
+    (void)context;
+    return mm_text_utf16(mm_native_text_host(), input, bytes, encoding, capacity ? out : NULL, capacity);
+}
+
+static int name_mac(void *context, const char *name, void *out, MMU32 capacity, MMU32 *written)
+{
+    (void)context;
+    return mm_string_wire_encode_ansi(NULL, MM_TEXT_MAC, name, out, capacity, written);
+}
+
+static int name_windows(void *context, const char *name, void *out, MMU32 capacity, MMU32 *written)
+{
+    (void)context;
+    return mm_string_wire_encode_ansi(NULL, MM_TEXT_WINDOWS, name, out, capacity, written);
+}
+
+static int name_utf16_be(void *context, const char *name, void *out, MMU32 capacity, MMU32 *written)
+{
+    (void)context;
+    return mm_string_wire_encode_ansi(mm_native_text_host(), MM_TEXT_UTF16_BE, name, out, capacity, written);
+}
+
+static int name_utf16_le(void *context, const char *name, void *out, MMU32 capacity, MMU32 *written)
+{
+    (void)context;
+    return mm_string_wire_encode_ansi(mm_native_text_host(), MM_TEXT_UTF16_LE, name, out, capacity, written);
+}
+
+MMPrivateArchiveProfile mm_native_archive_profile(int encoding, int swapped_unicode, int expanded, int trash_unused)
+{
+    static const struct
+    {
+        int encoding;
+        unsigned unit;
+        MMChunkLegacyName name;
+        MMStringConvert convert;
+    } codecs[] = {
+        {MM_TEXT_MAC, 1, name_mac, convert_ansi},
+        {MM_TEXT_WINDOWS, 1, name_windows, convert_ansi},
+        {MM_TEXT_UTF16_BE, 2, name_utf16_be, convert_utf16},
+        {MM_TEXT_UTF16_LE, 2, name_utf16_le, convert_utf16}
+    };
+    MMPrivateArchiveProfile profile = {0};
+    size_t i;
+    for (i = 0; i < sizeof(codecs) / sizeof(*codecs); ++i)
+    {
+        if (codecs[i].encoding == encoding)
+        {
+            profile.unit = codecs[i].unit;
+            profile.encoding = encoding;
+            profile.swapped_unicode_encoding = swapped_unicode;
+            profile.expanded = expanded;
+            profile.trash_unused = trash_unused;
+            profile.legacy_name = codecs[i].name;
+            profile.convert = codecs[i].convert;
+            break;
+        }
+    }
+    return profile;
 }
 
 static MMPrivateArchive *open_private(const void *path, int utf8, int mode, const MMPrivateArchiveProfile *profile)

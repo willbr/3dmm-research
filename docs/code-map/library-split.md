@@ -472,9 +472,10 @@ policy is applied to Studio.
 
 `mm/text.h` owns fixed lossy Mac/Windows byte maps, portable CP1252/Mac
 Roman decoding, UTF-16 byte order, portable substitution/case/comparison rules,
-and conversion dispatch. `platform_text.cpp` supplies Windows `CP_ACP`/`CP_MACCP`
-callbacks and native locale/case services. It remains sensitive to the actual
-Windows ACP; fixed CP1252 is not substituted on that host. String-table physical
+and conversion dispatch. `mm/native_text.h` supplies Windows `CP_ACP`/`CP_MACCP`
+callbacks and native locale and case services. These use the actual Windows ACP.
+The C native archive profile supplies the same conversion and legacy name
+writing to the archive reader and editing paths. String-table physical
 walks and width-changing reconstruction are C89 and use the same conversion
 service as ordinary String readers. Internal length-first/signed-character
 sorting and user locale comparison remain distinct host comparison callbacks.
@@ -7579,7 +7580,7 @@ they used to.
 Files in `kauai-core` (see `CMakeLists.txt`):
 
 `base.cpp`, `chse.cpp`, `chunk.cpp`, `codec.cpp`, `codkauai.cpp`,
-`core_platform_bridge.cpp`, `platform_text.cpp`, `cmd_core.cpp`, `clok.cpp`, `crf.cpp`, `file.cpp`,
+`core_platform_bridge.cpp`, `cmd_core.cpp`, `clok.cpp`, `crf.cpp`, `file.cpp`,
 `ellipse_geometry.cpp`, `pixel_canvas.cpp`, `pixel_stretch.cpp`, `dialog_resource.cpp`,
 `file_native.cpp`, `filename.cpp`,
 `groups.cpp`, `groups2.cpp`, `lex.cpp`, `mssio.cpp`, `mbmp.cpp`,

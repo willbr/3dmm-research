@@ -25469,3 +25469,38 @@ matched the full window. All SDL captures matched it.
 
 Evidence is under `tmp/c89-native-archive`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 native text and archive profile (23 November 2026)
+
+Studio and Marcus use the C native text library for Windows code pages,
+case mapping, and user-locale comparison. The C library initializes the
+legacy per-byte case maps once across threads. The portable provider uses
+the existing CP1252 and Mac Roman tables. The legacy C++ string interface
+forwards to C.
+
+The C archive profile selects counted-name serialization and text conversion
+for Mac and Windows single-byte text and both UTF-16 byte orders. Archive
+readers and private editors reuse that profile when loading, editing, and
+saving. The standalone archive fixture verifies the four profiles, short
+output behavior, and conversion of counted text containing a zero.
+
+Native text tests matched the Windows APIs and verified thread-safe first
+use of the byte maps. The forced portable backend and stored-string
+compatibility tests passed, as did the ten standalone platform checks.
+
+SDL and classic Studio rebuilt. The 228 selected native tests, 33 standalone
+C engine checks, and 23 strict C89 checks passed. The external core, archive,
+and preview consumers passed. The native save and scene traces, SDL save
+traces, VMM outputs, x86 tag and source traces, and headless Marcus startup
+canvas matched their baselines.
+
+Fresh suite `20261123T195035Z-7a74575a` completed eight captures and replay
+suite `20261123T195226Z-8ccb5a75` completed four. Input hashes verified.
+Studio and Marcus matched all 60 Actor Audio frame positions and camera
+indices and 59 of 60 seek canvases against retained retail and V3DMM. Both
+matched all 60 seek canvases and scene states against the prior port build.
+The first 100 ms of all four Actor Audio spans, the embedded WAVE cue, and
+the first 400 ms of embedded MIDI matched the retained port samples.
+
+Evidence is under `tmp/c89-native-text`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

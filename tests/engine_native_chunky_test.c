@@ -527,6 +527,41 @@ static int check_legacy_paths(void)
            !strcmp(out, "a\xe2\x82");
 }
 
+static int check_archive_profiles(void)
+{
+    static const int encodings[] = {MM_TEXT_MAC, MM_TEXT_WINDOWS, MM_TEXT_UTF16_BE, MM_TEXT_UTF16_LE};
+    static const unsigned char utf16[] = {'A', 0, 0, 0, 'Z', 0};
+    unsigned char wire[24];
+    unsigned short converted[3];
+    size_t i;
+    MMU32 written, size;
+    for (i = 0; i < sizeof(encodings) / sizeof(*encodings); ++i)
+    {
+        const int encoding = encodings[i];
+        const unsigned unit = i < 2 ? 1 : 2;
+        const MMPrivateArchiveProfile profile = mm_native_archive_profile(encoding, MM_TEXT_UTF16_BE, 1, 1);
+        MMChunkTitleIO codec = {0};
+        MMMovieTitle title;
+        codec.encoding = profile.encoding;
+        codec.swapped_unicode_encoding = profile.swapped_unicode_encoding;
+        written = 99;
+        size = 2 + 4 * unit;
+        memset(wire, 0xa5, sizeof(wire));
+        if (profile.encoding != encoding || profile.unit != unit || !profile.expanded || !profile.trash_unused ||
+            codec.swapped_unicode_encoding != MM_TEXT_UTF16_BE ||
+            profile.legacy_name(NULL, "Az", wire, size - 1, &written) || written != 99 || wire[0] != 0xa5 ||
+            !profile.legacy_name(NULL, "Az", wire, size, &written) || written != size ||
+            !mm_movie_title_init(&title, unit) || !mm_movie_title_read_wire(&title, wire, written, &codec) ||
+            title.count != 2 || (unit == 1 ? memcmp(title.text, "Az", 2) : title.text[0] != 'A' || title.text[1] != 'z') ||
+            profile.convert(NULL, utf16, sizeof(utf16), MM_TEXT_UTF16_LE, converted, 0) != 3 ||
+            profile.convert(NULL, utf16, sizeof(utf16), MM_TEXT_UTF16_LE, converted, 3) != 3)
+            return 0;
+        if (unit == 1 ? memcmp(converted, "A\0Z", 3) : converted[0] != 'A' || converted[1] || converted[2] != 'Z')
+            return 0;
+    }
+    return 1;
+}
+
 int main(int argc, char **argv)
 {
     MMNativeOpenOptions options;
@@ -538,6 +573,11 @@ int main(int argc, char **argv)
     if (!check_legacy_paths())
     {
         fputs("Legacy archive path conversion failed\n", stderr);
+        return 1;
+    }
+    if (!check_archive_profiles())
+    {
+        fputs("Native archive text profile failed\n", stderr);
         return 1;
     }
 
