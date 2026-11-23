@@ -763,12 +763,22 @@ static const char *caption_font_name(const void *p, size_t index, size_t *bytes)
     return name;
 }
 
+static struct MMPrivateArchive *caption_unavailable_copy(void *p)
+{
+    ++*(int *)p;
+    return NULL;
+}
+
 static int check_caption_catalog(MarcusPlayer *player)
 {
     const char *const names[] = {"Zulu", "ARIAL", "", "Arial Black", "\xc0\xaf", "Arial"};
     MarcusCaptionList *list = marcus_caption_catalog_create(1, 2, -4, 7, -2);
     MarcusCaptionOptions defaults;
-    int ok = 0;
+    MarcusCaptionList active = {0};
+    MarcusCaptionEntry entry = {0};
+    MarcusCaptionSaveHost host = {NULL, caption_unavailable_copy, NULL, 0};
+    char text[] = "Original";
+    int copies = 0, detail, ok = 0;
     CHECK(list && marcus_caption_count(list) == 0);
     CHECK(marcus_caption(list, -1, &defaults) && defaults.first_frame == 3 && defaults.last_frame == 12);
     CHECK(marcus_caption_catalog_fonts(list, sizeof(names) / sizeof(*names), names, caption_font_name, NULL, 2));
@@ -778,6 +788,19 @@ static int check_caption_catalog(MarcusPlayer *player)
     CHECK(!strcmp(marcus_caption_font_name(list, 2), "Zulu"));
     CHECK(marcus_caption_catalog_fonts(list, 0, NULL, caption_font_name, NULL, 2));
     CHECK(list->font_count == 0 && !marcus_caption_font_name(list, 0));
+    entry.options = defaults;
+    entry.text = text;
+    active.entries = &entry;
+    active.count = 1;
+    host.context = &copies;
+    CHECK(marcus_caption_catalog_save(&active, 0, &defaults, text, &host, &detail) == MARCUS_CAPTION_CATALOG_NO_CHANGE);
+    CHECK(marcus_caption_catalog_save(&active, -1, &defaults, "", &host, &detail) == MARCUS_CAPTION_CATALOG_EDIT);
+    CHECK(detail == MM_CAPTION_EDIT_TEXT_LIMIT && !copies);
+    CHECK(marcus_caption_catalog_save(&active, -1, NULL, NULL, &host, &detail) == MARCUS_CAPTION_CATALOG_INPUT);
+    memset(defaults.font, 'x', sizeof(defaults.font));
+    CHECK(marcus_caption_catalog_save(&active, 0, &defaults, text, &host, &detail) == MARCUS_CAPTION_CATALOG_INPUT);
+    CHECK(!copies && !marcus_caption_catalog_valid_edit(&active, 0, NULL, NULL, 0));
+    CHECK(marcus_caption_catalog_save(&active, 0, NULL, NULL, &host, &detail) == MARCUS_CAPTION_CATALOG_OPEN && copies == 1);
     ok = 1;
 failed:
     marcus_captions_destroy(list);

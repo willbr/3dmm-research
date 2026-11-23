@@ -23545,3 +23545,28 @@ continuous playback presentations per port matched in order, pixels and
 recorded state, including the scrolling credit. Both ports matched the
 retained retail and V3DMM authored frame order in seek and playback.
 Evidence is under `tmp/c89-caption-paint`.
+
+## C89 Marcus caption save transaction (23 November 2026)
+
+The C89 catalogue validates caption edits and detects unchanged submissions
+before asking the host for a private working copy. It applies insertion,
+replacement or removal, saves the archive and releases its reference. The
+host retains the file lease through publication and undo.
+
+The headless player fixture covers rejection and unchanged edits before any
+working copy is opened. A player API probe covered insertion, a no-op edit,
+formatting without replacing the text, deletion, undo and reopen. Its three
+complete `.3MM` saves matched the preceding build byte for byte.
+
+Retail reopened and rendered scene 1, frame 1 from all three saves on a
+separate Windows desktop. It reported 13 captions after insertion and the
+formatting edit, and 12 after removal. Headless SDL Studio also opened the
+three saves and matched the retail scene state. All 228 selected native
+checks, 12 SDL checks and three x86 worker fixtures passed. The headless
+Marcus startup image matched the previous build.
+
+Text Acid candidate `20261123T084033Z-e00a3879` matched baseline
+`20261123T083054Z-8bf360cc` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched the retained retail and V3DMM authored frame order in
+seek and playback. Evidence is under `tmp/c89-caption-save`.

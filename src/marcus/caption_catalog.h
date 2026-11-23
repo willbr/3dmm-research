@@ -30,7 +30,9 @@ enum
 {
     MARCUS_CAPTION_CATALOG_OK, MARCUS_CAPTION_CATALOG_ARCHIVE, MARCUS_CAPTION_CATALOG_BOX,
     MARCUS_CAPTION_CATALOG_EDIT, MARCUS_CAPTION_CATALOG_MEMORY, MARCUS_CAPTION_CATALOG_UTF8,
-    MARCUS_CAPTION_CATALOG_TEXT_LIMIT, MARCUS_CAPTION_CATALOG_FONT_LIMIT
+    MARCUS_CAPTION_CATALOG_TEXT_LIMIT, MARCUS_CAPTION_CATALOG_FONT_LIMIT,
+    MARCUS_CAPTION_CATALOG_INPUT, MARCUS_CAPTION_CATALOG_NO_CHANGE, MARCUS_CAPTION_CATALOG_OPEN,
+    MARCUS_CAPTION_CATALOG_SAVE
 };
 
 MarcusCaptionList *marcus_caption_catalog_create(unsigned long document, MMU32 scene, MMI32 first, MMI32 last,
@@ -42,6 +44,24 @@ int marcus_caption_catalog_load(MarcusCaptionList *, struct MMPrivateArchive *, 
                                 const void *, MarcusCaptionColour *, int *detail);
 const MarcusCaptionEntry *marcus_caption_catalog_entry(const MarcusCaptionList *, int index);
 int marcus_caption_catalog_find(const MarcusCaptionList *, MMU32 chunk);
+
+int marcus_caption_catalog_valid_edit(const MarcusCaptionList *, int index, const MarcusCaptionOptions *,
+                                      const char *text, int allow_delete);
+void marcus_caption_catalog_input(MMCaptionEditInput *, const MarcusCaptionOptions *, const char *text);
+
+typedef struct MarcusCaptionSaveHost
+{
+    void *context;
+    /* Open a new private working copy and transfer its archive reference. */
+    struct MMPrivateArchive *(*copy)(void *);
+    const MMTextHost *encoding;
+    MMU32 creator;
+} MarcusCaptionSaveHost;
+
+/* Validate and plan the edit before requesting a copy. The host keeps the
+ * working file lease and publishes the file only after this returns OK. */
+int marcus_caption_catalog_save(const MarcusCaptionList *, int index, const MarcusCaptionOptions *,
+                                const char *text, const MarcusCaptionSaveHost *, int *detail);
 
 typedef const char *MarcusCaptionFontRead(const void *, size_t index, size_t *bytes);
 /* Borrow candidate names while filtering and sorting. The last spelling of

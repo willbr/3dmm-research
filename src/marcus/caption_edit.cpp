@@ -6,6 +6,7 @@
 #include "platform_text.h"
 #include "font_catalog.h"
 #include "font_host.h"
+#include <exception>
 #include <new>
 #include <stdexcept>
 #include <vector>
@@ -43,12 +44,6 @@ void CheckTextArchive(int status)
     Require(status == MM_SCENE_ARCHIVE_TEXT_OK, messages[status]);
 }
 
-MMCaptionEditInput CaptionInput(const MarcusCaptionOptions &value, const char *text)
-{
-    return {{value.x, value.y, value.width, value.height, value.first_frame, value.last_frame,
-             value.through_end, value.scrolling, value.font_size, value.bold, value.italic,
-             value.alignment, value.transparent, value.ink, value.paper}, value.font, text};
-}
 void CheckCaptionEdit(int status)
 {
     static const char *const messages[] = {
@@ -84,13 +79,6 @@ void CheckCaptionEdit(int status)
     Require(status == MM_CAPTION_EDIT_OK, messages[status]);
 }
 
-const MarcusCaptionEntry *Entry(const MarcusCaptionList &list, int index)
-{
-    if (index < 0) return nullptr;
-    const auto *entry = marcus_caption_catalog_entry(&list, index);
-    Require(entry != nullptr, "Choose a valid 2D text box.");
-    return entry;
-}
 }
 
 void MarcusReadCaptionFonts(MarcusCaptionList &list, const KauaiFonts::FontCatalog *bundled)
@@ -136,9 +124,12 @@ void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &pr
 void MarcusDraftCaption(const std::filesystem::path &path, const MarcusCaptionList &list, int index,
                         const MarcusCaptionOptions &options, const char *text, MMPreviewOwnedCaption &preview)
 {
-    const auto *entry = Entry(list, index);
-    const auto value = CaptionInput(options, text);
-    const auto before = entry ? CaptionInput(entry->options, entry->text) : MMCaptionEditInput{};
+    const auto *entry = marcus_caption_catalog_entry(&list, index);
+    Require(index < 0 || entry, "Choose a valid 2D text box.");
+    MMCaptionEditInput value, before;
+    marcus_caption_catalog_input(&value, &options, text);
+    if (entry)
+        marcus_caption_catalog_input(&before, &entry->options, entry->text);
     auto file = entry ? Open(path, MM_PRIVATE_ARCHIVE_READ) : MarcusArchive(nullptr, mm_private_archive_close);
     const auto editor = [&] {
         if (file)
@@ -160,26 +151,38 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusCaptionList &list, int index,
     const MarcusCaptionOptions *options, const char *text)
 {
-    const auto *entry = Entry(list, index);
-    MMCaptionEditPlan plan{};
-    const auto value = text ? CaptionInput(*options, text) : MMCaptionEditInput{};
-    const auto before = entry ? CaptionInput(entry->options, entry->text) : MMCaptionEditInput{};
-    if (text)
+    struct Copy
     {
-        const int status = mm_caption_edit_plan(&value, entry ? &before : nullptr, MARCUS_CAPTION_UTF8_CAPACITY, &plan);
-        if (status == MM_CAPTION_EDIT_NO_CHANGE)
-            return {};
-        CheckCaptionEdit(status);
+        const std::filesystem::path &path;
+        const std::shared_ptr<MarcusMovieFile> &origin;
+        std::shared_ptr<MarcusMovieFile> file;
+        std::exception_ptr failure;
+    } copy{path, origin, {}, {}};
+    const MarcusCaptionSaveHost host{&copy, [](void *p) -> MMPrivateArchive * {
+        auto &copy = *static_cast<Copy *>(p);
+        try
+        {
+            copy.file = MarcusCopyMovie(copy.path, copy.origin);
+            return MarcusOpenArchive(copy.file->path, MM_PRIVATE_ARCHIVE_EDIT).release();
+        }
+        catch (...)
+        {
+            copy.failure = std::current_exception();
+            return nullptr;
+        }
+    }, KauaiText::Services(), kctgSoc};
+    int detail;
+    const int status = marcus_caption_catalog_save(&list, index, options, text, &host, &detail);
+    if (copy.failure)
+        std::rethrow_exception(copy.failure);
+    switch (status)
+    {
+    case MARCUS_CAPTION_CATALOG_OK: return copy.file;
+    case MARCUS_CAPTION_CATALOG_NO_CHANGE: return {};
+    case MARCUS_CAPTION_CATALOG_EDIT: CheckCaptionEdit(detail); return {};
+    case MARCUS_CAPTION_CATALOG_ARCHIVE: CheckTextArchive(detail); return {};
+    case MARCUS_CAPTION_CATALOG_OPEN: throw std::runtime_error("Cannot open the movie's 2D text.");
+    case MARCUS_CAPTION_CATALOG_SAVE: throw std::runtime_error("Cannot save the 2D text working copy.");
+    default: throw std::runtime_error("Choose a valid 2D text box.");
     }
-    auto copy = MarcusCopyMovie(path, origin);
-    auto file = Open(copy->path, MM_PRIVATE_ARCHIVE_EDIT);
-    const MMSceneArchiveText original{entry ? entry->slot : 0, entry ? entry->chunk : 0};
-    const MMCaptionArchiveChange edit{list.scene, list.first_frame, list.last_frame, entry ? &original : nullptr,
-                                      text ? &plan : nullptr, KauaiText::Services()};
-    int captionStatus;
-    const int result = mm_caption_edit_private_archive(file.get(), &edit, &captionStatus);
-    CheckCaptionEdit(captionStatus);
-    CheckTextArchive(result);
-    Require(mm_private_archive_save(file.get(), kctgSoc), "Cannot save the 2D text working copy.");
-    return copy;
 }

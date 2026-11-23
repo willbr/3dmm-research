@@ -1860,6 +1860,10 @@ converts their text to UTF-8, and exposes their geometry, frame range and
 starting format. It also filters and orders the font menu, keeping the last
 spelling of each case-insensitive family name. Marcus supplies the native
 character codec, palette lookup and available font families.
+The catalogue validates draft and save inputs. Its C89 save transaction
+detects unchanged edits before requesting a working copy, applies the edit,
+and closes the archive after saving. Marcus retains the working file lease
+and publishes the completed movie through the existing undo path.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

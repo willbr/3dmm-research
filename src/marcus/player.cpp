@@ -1941,8 +1941,7 @@ extern "C"
                              const MarcusCaptionOptions *options, const char *text)
     {
         return Guard(player, [&](MM::Error &error) {
-            if (!CurrentCaptions(player, list) || index < -1 || index >= marcus_caption_count(list) ||
-                !options || !std::memchr(options->font, 0, sizeof(options->font)) || !text)
+            if (!CurrentCaptions(player, list) || !marcus_caption_catalog_valid_edit(list, index, options, text, 0))
             {
                 error.message = "Choose a valid 2D text box.";
                 return false;
@@ -1988,8 +1987,7 @@ extern "C"
         return Guard(player, [&](MM::Error &error) {
             if (!CurrentCaptions(player, list))
             { error.message = "Reopen the 2D text editor for the current scene."; return false; }
-            if (index < -1 || index >= marcus_caption_count(list) ||
-                (text ? !options || !std::memchr(options->font, 0, sizeof(options->font)) : index < 0))
+            if (!marcus_caption_catalog_valid_edit(list, index, options, text, 1))
             { error.message = "Choose a valid 2D text box."; return false; }
             if (!CancelPropPreviews(player, error)) return false;
             const auto movie = MaterializedMovie(*player);

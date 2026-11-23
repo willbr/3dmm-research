@@ -101,6 +101,95 @@ const char *marcus_caption_font_name(const MarcusCaptionList *list, int index)
     return list && index >= 0 && index < list->font_count ? list->font_names[index] : NULL;
 }
 
+int marcus_caption_catalog_valid_edit(const MarcusCaptionList *list, int index, const MarcusCaptionOptions *options,
+                                      const char *text, int allow_delete)
+{
+    if (!list || index < -1 || index >= list->count)
+        return 0;
+    if (!text)
+        return allow_delete && index >= 0;
+    return options && memchr(options->font, 0, sizeof(options->font));
+}
+
+void marcus_caption_catalog_input(MMCaptionEditInput *out, const MarcusCaptionOptions *value, const char *text)
+{
+    MMCaptionEditOptions *options = &out->options;
+    options->x = value->x;
+    options->y = value->y;
+    options->width = value->width;
+    options->height = value->height;
+    options->first = value->first_frame;
+    options->last = value->last_frame;
+    options->through_end = value->through_end;
+    options->scrolling = value->scrolling;
+    options->font_size = value->font_size;
+    options->bold = value->bold;
+    options->italic = value->italic;
+    options->alignment = value->alignment;
+    options->transparent = value->transparent;
+    options->ink = value->ink;
+    options->paper = value->paper;
+    out->font = value->font;
+    out->text = text;
+}
+
+int marcus_caption_catalog_save(const MarcusCaptionList *list, int index, const MarcusCaptionOptions *options,
+                                const char *text, const MarcusCaptionSaveHost *host, int *detail)
+{
+    const MarcusCaptionEntry *entry = marcus_caption_catalog_entry(list, index);
+    MMCaptionEditInput value, before;
+    MMCaptionEditPlan plan;
+    MMSceneArchiveText original;
+    MMCaptionArchiveChange change;
+    MMPrivateArchive *file;
+    int edit, scene, status;
+    if (!marcus_caption_catalog_valid_edit(list, index, options, text, 1))
+        return MARCUS_CAPTION_CATALOG_INPUT;
+    if (text)
+    {
+        marcus_caption_catalog_input(&value, options, text);
+        if (entry)
+            marcus_caption_catalog_input(&before, &entry->options, entry->text);
+        edit = mm_caption_edit_plan(&value, entry ? &before : NULL, MARCUS_CAPTION_UTF8_CAPACITY, &plan);
+        if (edit == MM_CAPTION_EDIT_NO_CHANGE)
+            return MARCUS_CAPTION_CATALOG_NO_CHANGE;
+        if (edit != MM_CAPTION_EDIT_OK)
+        {
+            *detail = edit;
+            return MARCUS_CAPTION_CATALOG_EDIT;
+        }
+    }
+    if (entry)
+    {
+        original.slot = entry->slot;
+        original.number = entry->chunk;
+    }
+    file = host->copy(host->context);
+    if (!file)
+        return MARCUS_CAPTION_CATALOG_OPEN;
+    change.scene = list->scene;
+    change.first = list->first_frame;
+    change.last = list->last_frame;
+    change.original = entry ? &original : NULL;
+    change.plan = text ? &plan : NULL;
+    change.encoding = host->encoding;
+    scene = mm_caption_edit_private_archive(file, &change, &edit);
+    if (edit != MM_CAPTION_EDIT_OK)
+    {
+        *detail = edit;
+        status = MARCUS_CAPTION_CATALOG_EDIT;
+    }
+    else if (scene != MM_SCENE_ARCHIVE_TEXT_OK)
+    {
+        *detail = scene;
+        status = MARCUS_CAPTION_CATALOG_ARCHIVE;
+    }
+    else
+        status = mm_private_archive_save(file, host->creator) ? MARCUS_CAPTION_CATALOG_OK : MARCUS_CAPTION_CATALOG_SAVE;
+    mm_private_archive_close(file);
+    return status;
+}
+
 typedef struct UTF8Buffer
 {
     char *next;
