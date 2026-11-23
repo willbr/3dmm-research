@@ -27,6 +27,7 @@ void marcus_playback_presentation_clear(MarcusPlaybackPresentation *);
 MMPreviewOwnedPresentationOutput marcus_playback_presentation_output(MarcusPlaybackPresentation *);
 void marcus_playback_scene_order_cues(MarcusPlaybackScene *, MMU32 scene_type, MMU32 scene);
 const MMPreviewCue *marcus_playback_scene_cues(const MarcusPlaybackScene *);
+int marcus_playback_scene_timing_range(const MarcusScene *, MMMovieTimingRange *);
 int marcus_playback_presentation_timing(const MarcusPlaybackPresentation *, const MarcusCaptionFonts *, MMMovieTimingHolds *);
 
 typedef int MarcusPlaybackCueSink(void *, const MMPreviewCue *);

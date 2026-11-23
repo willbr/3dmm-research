@@ -1,5 +1,6 @@
 #include "playback_scene.h"
 #include "mm/collections.h"
+#include <limits.h>
 
 typedef struct PlaybackPause
 {
@@ -94,6 +95,20 @@ MMPreviewOwnedPresentationOutput marcus_playback_presentation_output(MarcusPlayb
 const MMPreviewCue *marcus_playback_scene_cues(const MarcusPlaybackScene *scene)
 {
     return (const MMPreviewCue *)scene->cues.buffers[0].data;
+}
+
+int marcus_playback_scene_timing_range(const MarcusScene *scene, MMMovieTimingRange *range)
+{
+#if ULONG_MAX > 0xffffffffUL
+    if (scene->chunk > 0xffffffffUL || scene->first_frame < (-2147483647L - 1) ||
+        scene->first_frame > 2147483647L || scene->last_frame < (-2147483647L - 1) ||
+        scene->last_frame > 2147483647L)
+        return 0;
+#endif
+    range->chunk = (MMU32)scene->chunk;
+    range->first = (MMI32)scene->first_frame;
+    range->last = (MMI32)scene->last_frame;
+    return 1;
 }
 
 static void order_read(void *p, MMU32 index, MMPreviewCue *out)

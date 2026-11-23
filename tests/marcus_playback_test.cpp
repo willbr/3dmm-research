@@ -59,10 +59,8 @@ void BackgroundTiming()
     CHECK(marcus_audio_stats(player, &audioAfter));
     CHECK(audioBefore.wave_sounds == audioAfter.wave_sounds && audioBefore.midi_sounds == audioAfter.midi_sounds);
 }
-void FailedTiming()
+std::string TimingFailure(MarcusTimingJob &job)
 {
-    auto input = std::make_shared<MarcusMovieFile>("missing-timing-movie.3mm");
-    MarcusTimingJob job(input, "missing-timing-resources.chk", "", {});
     std::unique_ptr<MarcusSoundTimeline> result;
     std::string error;
     const auto deadline = SDL_GetTicks() + 15000;
@@ -70,6 +68,26 @@ void FailedTiming()
     while (!(done = job.Take(result, error)) && SDL_GetTicks() < deadline)
         SDL_Delay(5);
     CHECK(done && !result && !error.empty());
+    return error;
+}
+void FailedTiming()
+{
+    auto input = std::make_shared<MarcusMovieFile>("missing-timing-movie.3mm");
+    MarcusTimingJob job(input, "missing-timing-resources.chk", "", nullptr, 0);
+    TimingFailure(job);
+}
+void MismatchedTiming(const char *path, const char *resources, const char *content)
+{
+    MarcusInfo info;
+    CHECK(marcus_info(player, &info) && info.scene_count > 0);
+    std::vector<MarcusScene> expected(info.scene_count);
+    for (int scene = 0; scene < info.scene_count; ++scene)
+        CHECK(marcus_scene(player, scene, &expected[scene]));
+    auto input = std::make_shared<MarcusMovieFile>(path);
+    ++expected.front().last_frame;
+    MarcusTimingJob job(input, resources, content, expected.data(), expected.size());
+    --expected.front().last_frame;
+    CHECK(TimingFailure(job) == "Invalid movie timing output.");
 }
 void RetailScrollSteps()
 {
@@ -1233,6 +1251,7 @@ int main(int argc, char **argv)
     BundledFonts(argv[1], argv[2], argv[3], argc == 5 ? argv[4] : nullptr);
     player = marcus_create();
     CHECK(player && marcus_open(player, argv[1], argv[2], argv[3]));
+    MismatchedTiming(argv[1], argv[2], argv[3]);
     // Reopening cancels and joins a pending job before releasing its leases.
     MarcusMovieTime pending;
     CHECK(marcus_movie_time_async(player, &pending) == 0);

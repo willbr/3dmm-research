@@ -2688,11 +2688,9 @@ extern "C"
                 return -1;
             if (!player->timingStarted)
             {
-                std::vector<MarcusScene> base;
                 const auto &rows = player->baseSceneInfo;
-                if (!rows.empty()) base.assign(rows.Data(), rows.Data() + rows.size());
                 player->timingJob = std::make_unique<MarcusTimingJob>(player->timingInput, player->timingResources,
-                                                                     player->timingContent, std::move(base),
+                                                                     player->timingContent, rows.Data(), rows.size(),
                                                                      player->playbackRate, player->playbackModifier);
                 player->timingStarted = true;
             }

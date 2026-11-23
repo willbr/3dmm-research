@@ -9,7 +9,7 @@ extern "C" {
 
 MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *);
 
-enum { MARCUS_WORKING_MOVIE, MARCUS_WORKING_BOARD };
+enum { MARCUS_WORKING_MOVIE, MARCUS_WORKING_BOARD, MARCUS_WORKING_TIMING };
 typedef struct MarcusWorkingFiles
 {
     void *context;

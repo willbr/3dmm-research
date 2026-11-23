@@ -1494,6 +1494,11 @@ The Marcus sound timeline now owns its cue spans, active voices and frame
 holds in C89. The sound sheet, movie clock, waveform mapping and playback
 resume use that schedule. The preview helper and player adapt decoded cue
 metadata and the matching-build timing snapshot to the C schedule.
+The C89 timing worker copies the expected scene ranges, launches the
+isolated helper and imports its bounded snapshot. It owns cancellation,
+child cleanup and schedule transfer. The browser preview shares the same
+background process binding. Marcus supplies the movie lease and native
+filesystem paths.
 Marcus now reads authored caption links, scene pauses, and scene and actor
 cues directly through the C89 movie graph readers used by Studio. The graph
 reader also loads stored caption bounds, text and formatting through the

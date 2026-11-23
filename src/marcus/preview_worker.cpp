@@ -1,5 +1,5 @@
 #include "preview_worker.h"
-#include <SDL3/SDL.h>
+#include "preview_process.h"
 #include <array>
 #include <memory>
 #include <stdexcept>
@@ -8,31 +8,13 @@ BrowserPreview RunPreviewWorker(const std::string &movie, const std::string &res
                                const std::function<bool()> &cancelled, const std::string &content, bool duration,
                                const std::string &fonts, bool background, bool prop, bool text)
 {
-    const auto base = SDL_GetBasePath();
-    if (!base) throw std::runtime_error("Cannot locate the preview helper.");
-    const auto executable = std::string(base) + "marcus-preview"
-#ifdef _WIN32
-        ".exe"
-#endif
-        ;
-    const char *args[] = {executable.c_str(), movie.c_str(), resources.c_str(), text ? "--text" : prop ? "--prop" : background ? "--background" : duration ? "--duration" : nullptr,
+    const std::unique_ptr<char, decltype(&SDL_free)> executable(marcus_preview_executable(), SDL_free);
+    if (!executable) throw std::runtime_error("Cannot locate the preview helper.");
+    const char *args[] = {executable.get(), movie.c_str(), resources.c_str(), text ? "--text" : prop ? "--prop" : background ? "--background" : duration ? "--duration" : nullptr,
                           content.c_str(), (background || prop || text) ? nullptr : fonts.c_str(), nullptr};
-    const auto properties = SDL_CreateProperties();
-    SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
-    SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
-    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
-    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_APP);
-    SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_NULL);
-    auto process = SDL_CreateProcessWithProperties(properties);
-    SDL_DestroyProperties(properties);
+    auto process = marcus_preview_process_start(args, 1);
     if (!process) throw std::runtime_error("Cannot launch marcus-preview. Keep it beside Marcus.");
-    const auto destroy = [](SDL_Process *value) {
-        int status;
-        if (!SDL_WaitProcess(value, false, &status))
-        { SDL_KillProcess(value, true); SDL_WaitProcess(value, true, &status); }
-        SDL_DestroyProcess(value);
-    };
-    std::unique_ptr<SDL_Process, decltype(destroy)> owner(process, destroy);
+    std::unique_ptr<SDL_Process, decltype(&marcus_preview_process_close)> owner(process, marcus_preview_process_close);
     const auto stream = SDL_GetProcessOutput(process);
     if (!stream) throw std::runtime_error("Cannot read the preview helper output.");
     const auto deadline = SDL_GetTicks() + (duration ? 300000 : 30000);

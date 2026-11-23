@@ -57,6 +57,7 @@ class MarcusSoundTimeline
     static Schedule Create(double frameSeconds);
     explicit MarcusSoundTimeline(Schedule);
     friend struct MarcusSoundScene;
+    friend class MarcusTimingJob;
     Schedule schedule;
 
   public:

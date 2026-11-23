@@ -13,13 +13,6 @@ bool FitsFrame(long value)
 {
     return value >= (std::numeric_limits<MMI32>::min)() && value <= (std::numeric_limits<MMI32>::max)();
 }
-bool TimingRange(const MarcusScene &scene, MMMovieTimingRange &range)
-{
-    if (scene.chunk > 0xffffffffUL || !FitsFrame(scene.first_frame) || !FitsFrame(scene.last_frame))
-        return false;
-    range = {MMU32(scene.chunk), MMI32(scene.first_frame), MMI32(scene.last_frame)};
-    return true;
-}
 bool TimingCue(const MM::PreviewSoundCue &cue, const MarcusWaveformInfo &audio, MMMovieTimingCue &out)
 {
     if (audio.resolved_type > 0xffffffffUL || audio.resolved_chunk > 0xffffffffUL ||
@@ -119,7 +112,7 @@ bool MarcusSoundTimeline::Read(std::istream &in, const std::vector<MarcusScene> 
             catch (...) { ctx.failure = std::current_exception(); return false; }
         },
         [](void *p, std::size_t index, MMMovieTimingRange *range) -> int {
-            return TimingRange(static_cast<Context *>(p)->expected[index], *range);
+            return marcus_playback_scene_timing_range(&static_cast<Context *>(p)->expected[index], range);
         }};
     MMMovieSoundSchedule *result = nullptr;
     const int read = mm_movie_sound_schedule_read_snapshot(&reader, expected.size(), &result);
@@ -157,7 +150,7 @@ std::optional<MarcusSoundTimeline> MarcusSoundTimeline::Reframed(const MarcusSce
     MMMovieSoundSchedule *result = nullptr;
     const int status = mm_movie_sound_schedule_reframe_read(schedule.get(), available, &ranges,
         [](void *p, std::size_t index, MMMovieTimingRange *out) -> int {
-            return TimingRange((*static_cast<const MarcusScene **>(p))[index], *out);
+            return marcus_playback_scene_timing_range(*static_cast<const MarcusScene **>(p) + index, out);
         }, &result);
     if (status == MM_SOUND_REFRAME_MISMATCH) return std::nullopt;
     if (status == MM_SOUND_REFRAME_MEMORY) throw std::bad_alloc();
@@ -267,7 +260,7 @@ bool MarcusSoundTimeline::Extend(const MarcusScene *scenes, std::size_t count, c
             {
                 if (!ctx.read(index, ctx.sound, *holds))
                     return 0;
-                if (!TimingRange(ctx.scenes[index], *range))
+                if (!marcus_playback_scene_timing_range(ctx.scenes + index, range))
                     throw std::out_of_range("Movie sound scene is outside the native range.");
                 *count = ctx.sound.cue_count;
                 return 1;
@@ -290,7 +283,7 @@ void MarcusSoundTimeline::Append(const MarcusScene &info, const std::vector<MM::
                                 const WaveformReader &read, const MMMovieTimingHolds &timing)
 {
     MMMovieTimingRange range;
-    if (!TimingRange(info, range))
+    if (!marcus_playback_scene_timing_range(&info, &range))
         throw std::out_of_range("Movie sound scene is outside the native range.");
     TimingCueSource source{cues, read, {}};
     CollectedTiming(mm_movie_sound_schedule_append_cues(schedule.get(), &range, &timing, cues.size(), &source,

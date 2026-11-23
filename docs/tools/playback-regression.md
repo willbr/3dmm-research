@@ -23616,3 +23616,30 @@ Text Acid candidate `20261123T085647Z-5cea5870` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched the retained retail and V3DMM authored frame order in
 seek and playback. Evidence is under `tmp/c89-caption-target`.
+
+## C89 Marcus timing worker (23 November 2026)
+
+The worker copies the expected scene ranges and owns helper startup,
+cancellation, timeout, snapshot reads and schedule transfer in C89. The
+timing worker and browser preview share the background process binding.
+The native host supplies the exclusive temporary directory and retains the
+movie lease until the worker joins.
+
+The native playback test covers a failed helper, a mismatched expected
+frame range and cancellation on reopen. The asynchronous API produced
+byte-identical timing results and time seeks across Actor Audio,
+Presentation, Scene Transition and Text Acid at two playback settings.
+The workers cleaned up their staging directories. All 228 selected native
+checks, 12 SDL checks and three x86 worker fixtures passed, and the
+headless Marcus startup image matched the previous build.
+
+Actor Audio candidate `20261123T090959Z-a049b4b4` matched baseline
+`20261123T003914Z-ac12ec0d` on all 60 seek canvases and scene states per
+port. Seek and continuous playback matched the authored frame order in
+retail and V3DMM capture `20261122T082301Z-c465fa98`.
+
+Text Acid candidate `20261123T090926Z-82f40e29` matched baseline
+`20261123T085647Z-5cea5870` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports also matched the retained retail and V3DMM authored frame order
+in seek and playback. Evidence is under `tmp/c89-timing-worker`.

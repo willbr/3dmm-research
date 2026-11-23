@@ -11,11 +11,21 @@
 
 int marcus_archive_stage_working_file(int kind, const char *stamp, int copy_source, const MarcusWorkingFiles *files)
 {
-    const char *prefix = kind == MARCUS_WORKING_BOARD ? "marcus-board-" : "marcus-edit-";
-    const char *leaf = kind == MARCUS_WORKING_BOARD ? "background.3cn" : "movie.3mm";
+    const char *prefix = "marcus-edit-", *leaf = "movie.3mm";
     char directory[64];
     int attempt, length;
     MMMovieStageResult reserved;
+
+    if (kind == MARCUS_WORKING_BOARD)
+    {
+        prefix = "marcus-board-";
+        leaf = "background.3cn";
+    }
+    else if (kind == MARCUS_WORKING_TIMING)
+    {
+        prefix = "marcus-timing-";
+        leaf = "timing.bin";
+    }
 
     for (attempt = 0; attempt < 100; ++attempt)
     {

@@ -1,113 +1,94 @@
 #include "timing_job.h"
-#include <SDL3/SDL.h>
-#include <chrono>
-#include <fstream>
+#include "timing_worker.h"
+#include <exception>
 #include <stdexcept>
+#include <utility>
+
+struct MarcusTimingJob::Impl
+{
+    std::shared_ptr<MarcusMovieFile> movie;
+    std::string resources, content, input, fonts, origin;
+    std::filesystem::path root, staging, candidate;
+    std::string output;
+    std::exception_ptr stageFailure;
+    // Join before destroying the paths and movie lease borrowed by the worker.
+    std::unique_ptr<MarcusTimingWorker, decltype(&marcus_timing_worker_close)> worker{nullptr, marcus_timing_worker_close};
+
+    Impl(std::shared_ptr<MarcusMovieFile> file, std::string resources, std::string content,
+         const MarcusScene *scenes, std::size_t count, int rate, int modifier)
+        : movie(std::move(file)), resources(std::move(resources)), content(std::move(content)),
+          input(movie->path.u8string()), fonts(movie->fontDirectory.u8string()), origin(movie->contentOrigin.u8string())
+    {
+        const MarcusTimingInput request{input.c_str(), this->resources.c_str(), this->content.c_str(),
+                                        fonts.c_str(), origin.c_str(), scenes, count, rate, modifier};
+        const MarcusTimingFiles files{this, Reserve, Discard};
+        const char *failure;
+        worker.reset(marcus_timing_worker_start(&request, &files, &failure));
+        if (!worker)
+        {
+            if (failure) throw std::runtime_error(failure);
+            throw std::bad_alloc();
+        }
+    }
+
+    static MMMovieStageResult Reserve(void *p, const char *directory, const char *leaf, const char **path)
+    {
+        auto &host = *static_cast<Impl *>(p);
+        try
+        {
+            if (host.root.empty()) host.root = std::filesystem::temp_directory_path();
+            auto staging = host.root / directory;
+            auto candidate = staging / leaf;
+            auto output = candidate.u8string();
+            if (!std::filesystem::create_directory(staging))
+                return MM_MOVIE_STAGE_COLLISION;
+            host.staging = std::move(staging);
+            host.candidate = std::move(candidate);
+            host.output = std::move(output);
+            *path = host.output.c_str();
+            return MM_MOVIE_STAGE_OK;
+        }
+        catch (...)
+        {
+            host.stageFailure = std::current_exception();
+            return MM_MOVIE_STAGE_ERROR;
+        }
+    }
+
+    static void Discard(void *p)
+    {
+        const auto &host = *static_cast<const Impl *>(p);
+        std::error_code ignored;
+        std::filesystem::remove(host.candidate, ignored);
+        std::filesystem::remove(host.staging, ignored);
+    }
+};
 
 MarcusTimingJob::MarcusTimingJob(std::shared_ptr<MarcusMovieFile> movie, std::string resources, std::string content,
-                                 std::vector<MarcusScene> scenes, int rate, int modifier)
+                                 const MarcusScene *scenes, std::size_t count, int rate, int modifier)
+    : impl(std::make_unique<Impl>(std::move(movie), std::move(resources), std::move(content), scenes, count, rate, modifier))
 {
-    // Resolve the sibling executable on the owner thread.
-    const auto base = SDL_GetBasePath();
-    const auto executable = base ? std::string(base) + "marcus-preview"
-#ifdef _WIN32
-                                                       ".exe"
-#endif
-                                 : std::string();
-    thread = std::thread(
-        [this, movie = std::move(movie), resources = std::move(resources), content = std::move(content),
-         scenes = std::move(scenes), executable, rate, modifier] {
-            std::filesystem::path staging;
-            SDL_Process *process = nullptr;
-            try
-            {
-                if (executable.empty())
-                    throw std::runtime_error("Cannot locate the timing helper.");
-                // Atomically reserve a private directory; never reuse an existing file.
-                const auto root = std::filesystem::temp_directory_path();
-                const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
-                for (unsigned attempt = 0; attempt < 100; ++attempt)
-                {
-                    const auto candidate =
-                        root / ("marcus-timing-" + std::to_string(stamp) + "-" + std::to_string(attempt));
-                    if (std::filesystem::create_directory(candidate))
-                    {
-                        staging = candidate;
-                        break;
-                    }
-                }
-                if (staging.empty())
-                    throw std::runtime_error("Cannot reserve timing output.");
-                const auto output = (staging / "timing.bin").u8string();
-                const auto input = movie->path.u8string();
-                const auto rateText = std::to_string(rate), modifierText = std::to_string(modifier);
-                const auto fonts = movie->fontDirectory.u8string();
-                const auto origin = movie->contentOrigin.u8string();
-                const char *args[] = {executable.c_str(), input.c_str(), resources.c_str(), "--timing", content.c_str(),
-                                      output.c_str(), rateText.c_str(), modifierText.c_str(), fonts.c_str(), origin.c_str(), nullptr};
-                const auto properties = SDL_CreateProperties();
-                SDL_SetPointerProperty(properties, SDL_PROP_PROCESS_CREATE_ARGS_POINTER, const_cast<char **>(args));
-                SDL_SetBooleanProperty(properties, SDL_PROP_PROCESS_CREATE_BACKGROUND_BOOLEAN, true);
-                SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDIN_NUMBER, SDL_PROCESS_STDIO_NULL);
-                SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDOUT_NUMBER, SDL_PROCESS_STDIO_NULL);
-                SDL_SetNumberProperty(properties, SDL_PROP_PROCESS_CREATE_STDERR_NUMBER, SDL_PROCESS_STDIO_NULL);
-                process = SDL_CreateProcessWithProperties(properties);
-                SDL_DestroyProperties(properties);
-                if (!process)
-                    throw std::runtime_error("Cannot launch marcus-preview for timing.");
-                const auto deadline = SDL_GetTicks() + 300000;
-                int status = -1;
-                while (!SDL_WaitProcess(process, false, &status))
-                {
-                    if (cancel || SDL_GetTicks() >= deadline)
-                        throw std::runtime_error("Movie timing cancelled or timed out.");
-                    SDL_Delay(5);
-                }
-                if (status)
-                    throw std::runtime_error("Movie timing analysis failed.");
-                const auto size = std::filesystem::file_size(std::filesystem::u8path(output));
-                if (!size || size > 64u * 1024 * 1024)
-                    throw std::runtime_error("Movie timing output exceeds its limit.");
-                std::ifstream stream(std::filesystem::u8path(output), std::ios::binary);
-                result = std::make_unique<MarcusSoundTimeline>();
-                if (!result->Read(stream, scenes))
-                    throw std::runtime_error("Invalid movie timing output.");
-            }
-            catch (const std::exception &error)
-            {
-                failure = error.what();
-                result.reset();
-            }
-            if (process)
-            {
-                int status;
-                if (!SDL_WaitProcess(process, false, &status))
-                {
-                    SDL_KillProcess(process, true);
-                    SDL_WaitProcess(process, true, &status);
-                }
-                SDL_DestroyProcess(process);
-            }
-            if (!staging.empty())
-            {
-                std::error_code ignored;
-                std::filesystem::remove(staging / "timing.bin", ignored);
-                std::filesystem::remove(staging, ignored);
-            }
-            done.store(true, std::memory_order_release);
-        });
 }
-MarcusTimingJob::~MarcusTimingJob()
-{
-    cancel = true;
-    if (thread.joinable())
-        thread.join();
-}
+
+MarcusTimingJob::~MarcusTimingJob() = default;
+
 bool MarcusTimingJob::Take(std::unique_ptr<MarcusSoundTimeline> &timeline, std::string &error)
 {
-    if (!done.load(std::memory_order_acquire))
+    MMMovieSoundSchedule *schedule;
+    const char *failure;
+    if (!marcus_timing_worker_take(impl->worker.get(), &schedule, &failure))
         return false;
-    timeline = std::move(result);
-    error = std::move(failure);
+    MarcusSoundTimeline::Schedule owner(schedule, mm_movie_sound_schedule_destroy);
+    if (owner)
+        timeline.reset(new MarcusSoundTimeline(std::move(owner)));
+    else
+        timeline.reset();
+    error = failure ? failure : "";
+    if (impl->stageFailure)
+    {
+        try { std::rethrow_exception(impl->stageFailure); }
+        catch (const std::exception &exception) { error = exception.what(); }
+        catch (...) { }
+    }
     return true;
 }
