@@ -18,7 +18,7 @@
 #include "mm/data_stream.h"
 #include "mm/block_io.h"
 #include "mm/block_owner.h"
-#include "mm/file_owner.h"
+#include "mm/native_named_file.h"
 #include "mm/file_ops.h"
 
 /****************************************
@@ -73,10 +73,8 @@ class FileObject : public FileObject_PAR
     static Mutex _mutxList;
     static MMLinkedListNode *_pfilFirst;
 
-    Mutex _mutx;
-
     Filename _fni;
-    MMFileOwner _file;
+    MMNativeNamedFile _file;
 
     // private methods
     FileObject(Filename *pfni, LegacyUlong grffil);
@@ -86,6 +84,7 @@ class FileObject : public FileObject_PAR
     void _Close(bool fFinal = fFalse);
     void _SetFpPos(FilePosition fp);
     MMFileOwnerHost _OwnerHost();
+    static const MMNativeNamedFileDiagnostics *_FileDiagnostics();
     static MMFileOpsHost _OpsHost();
 
   public:
@@ -111,26 +110,26 @@ class FileObject : public FileObject_PAR
     virtual void Release(void);
     void Mark(void)
     {
-        _file.flags |= ffilMark;
+        _file.state.flags |= ffilMark;
     }
 
     LegacyLong ElError(void)
     {
-        return _file.error;
+        return _file.state.error;
     }
     void SetEl(LegacyLong el = elNil)
     {
-        _file.error = el;
+        _file.state.error = el;
     }
     bool FSetGrffil(LegacyUlong grffil, LegacyUlong grffilMask = ~0);
     LegacyUlong GrffilCur(void)
     {
-        return _file.flags;
+        return _file.state.flags;
     }
     void SetTemp(bool fTemp = fTrue);
     bool FTemp(void)
     {
-        return FPure(_file.flags & ffilTemp);
+        return FPure(_file.state.flags & ffilTemp);
     }
     void GetFni(Filename *pfni)
     {

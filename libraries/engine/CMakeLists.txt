@@ -121,7 +121,7 @@ if(WIN32)
   target_link_libraries(mm-native-text PRIVATE user32)
 endif()
 
-add_library(mm-native-archive-file STATIC src/native_archive_file.c)
+add_library(mm-native-archive-file STATIC src/native_archive_file.c src/native_named_file.c)
 set_target_properties(mm-native-archive-file PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_link_libraries(mm-native-archive-file PUBLIC mm-native-files PRIVATE mm-native-runtime mm-native-text)
 
@@ -1263,7 +1263,7 @@ if(ENGINE_C89_COMPILER)
     "-I${CMAKE_CURRENT_SOURCE_DIR}/include"
     "-I${CMAKE_CURRENT_SOURCE_DIR}/../content/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/native_file_stream.c" "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_native_chunky_test.c"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/native_archive_file.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/native_archive_file.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/native_named_file.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_actor.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_session_source.c" "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_content_resolver.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/movie_portable.c"

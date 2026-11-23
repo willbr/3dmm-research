@@ -25644,3 +25644,40 @@ fresh playback and replay.
 
 Evidence is under `tmp/c89-scene-snapshot-file`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 physical owner for named files (23 November 2026)
+
+Studio's named working archives now reach the OS through `MMNativeNamedFile`.
+The C record owns the native handle and recursive lock and provides the
+borrowed read stream. It follows the original Filename buffer during rename
+and swap. The Kauai facade still supplies registry identity and the existing
+debug assertions and error stack.
+
+The standalone native fixture opens a stream, closes its handle, and verifies
+that the stream reopens the same file and reads the original header. The new
+C owner and fixture also cross-compiled for Linux x64 with strict C89 flags.
+Runtime execution used Windows.
+
+All twelve standard and expensive file-owner and file-operation traces matched
+their frozen hashes for native x64 Debug, native x86 Debug, and SDL Release.
+Coverage includes real permission recovery, rename, swap, and temporary
+cleanup. SDL Studio's authoring workflow and save/reopen checks passed.
+
+The 228 selected native tests, 37 standalone engine checks, and 23 strict C89
+checks passed. The native scene and save traces, SDL save traces, resource
+cache trace, eight VMM outputs, ten preview fingerprints, and headless Marcus
+startup canvas matched their baselines. Classic Studio rebuilt, and the
+external core, archive, and preview consumers passed.
+
+Fresh suite `20261123T205202Z-fd53451c` completed eight captures and replay
+suite `20261123T205321Z-afc2cb0b` completed four with verified input hashes.
+Both ports matched all 60 Actor Audio frame positions and camera indices and
+59 seek canvases against retained retail and V3DMM. They matched all 60 seek
+canvases and scene states against the prior port build. The first 100 ms of
+all four Actor Audio spans, the embedded WAVE cue, and the first 400 ms of
+embedded MIDI matched the retained port samples. SDL reproduced the previously
+observed later MIDI peak of 7,609 on fresh playback and the one-count Actor
+Audio peak difference on replay.
+
+Evidence is under `tmp/c89-named-file-owner`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

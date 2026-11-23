@@ -3,6 +3,7 @@
 #include "mm/movie_content_resolver.h"
 #include "mm/native_archive_file.h"
 #include "mm/native_files.h"
+#include "mm/native_named_file.h"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -601,6 +602,27 @@ static int check_temporary_archive(void)
     return ok;
 }
 
+static int check_named_stream(const MMNativePathChar *path, void *reference)
+{
+    MMNativeNamedFile file;
+    MMFileOwnerHost host;
+    MMReadStream expected, stream;
+    char header[MM_CHUNK_PREFIX_BYTES], copy[MM_CHUNK_PREFIX_BYTES];
+    int ok;
+    if (!mm_native_named_file_init(&file, path, MM_FILE_DENY_WRITE, NULL, NULL, NULL))
+        return 0;
+    host = mm_native_named_file_host(&file);
+    stream = mm_native_named_file_stream(&file);
+    ok = mm_native_file_read_stream(reference, &expected) && stream.length == expected.length &&
+         mm_read_exact(&expected, 0, header, sizeof(header));
+    mm_file_owner_close(&file.state, &host, 0);
+    ok = ok && !file.state.open && mm_read_exact(&stream, 0, copy, sizeof(copy)) &&
+         file.state.open && !memcmp(header, copy, sizeof(copy));
+    mm_file_owner_close(&file.state, &host, 1);
+    mm_native_named_file_dispose(&file);
+    return ok;
+}
+
 int main(int argc, char **argv)
 {
     MMNativeOpenOptions options;
@@ -652,6 +674,12 @@ int main(int argc, char **argv)
     if (!file)
     {
         fprintf(stderr, "Cannot open %s\n", argv[1]);
+        return 1;
+    }
+    if (!check_named_stream(argv[1], file))
+    {
+        fputs("Native named file stream failed\n", stderr);
+        mm_native_file_close(file);
         return 1;
     }
     ok = check_index(file, argv[1], type, movie, seek ? &input : NULL, actors, auto_content, bodies);

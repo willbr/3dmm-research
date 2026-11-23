@@ -10,6 +10,7 @@
     Shared (platform independent) file APIs.
 
 ***************************************************************************/
+#include <system_error>
 #include "util.h"
 #include "handle_services.h"
 #include "mm/file_text.h"
@@ -84,10 +85,10 @@ MMFileOpsHost FileObject::_OpsHost()
     host.leave_list = [](void *) { _mutxList.Leave(); };
     host.first = [](void *) -> void * { return PfilFirst(); };
     host.next = [](void *, void *p) -> void * { return static_cast<PFileObject>(p)->PfilNext(); };
-    host.enter_object = [](void *, void *p) { static_cast<PFileObject>(p)->_mutx.Enter(); };
-    host.leave_object = [](void *, void *p) { static_cast<PFileObject>(p)->_mutx.Leave(); };
+    host.enter_object = [](void *, void *p) { mm_native_named_file_enter(&static_cast<PFileObject>(p)->_file); };
+    host.leave_object = [](void *, void *p) { mm_native_named_file_leave(&static_cast<PFileObject>(p)->_file); };
     host.name = [](void *, void *p) -> void * { return &static_cast<PFileObject>(p)->_fni; };
-    host.owner = [](void *, void *p) -> MMFileOwner * { return &static_cast<PFileObject>(p)->_file; };
+    host.owner = [](void *, void *p) -> MMFileOwner * { return &static_cast<PFileObject>(p)->_file.state; };
     host.references = [](void *, void *p) -> MMReference * { return &static_cast<PFileObject>(p)->_references; };
     host.owner_host = [](void *, void *p, MMFileOwnerHost *out) { *out = static_cast<PFileObject>(p)->_OwnerHost(); };
     host.equal_names = [](void *, void *a, void *b) -> int { return static_cast<Filename *>(a)->FEqual(static_cast<Filename *>(b)); };
@@ -135,7 +136,10 @@ FileObject::FileObject(Filename *pfni, LegacyUlong grffil)
 {
     AssertPo(pfni, ffniFile);
     _fni = *pfni;
-    mm_file_owner_init(&_file, grffil);
+    int error = 0;
+    if (!mm_native_named_file_init(&_file, reinterpret_cast<const MMNativePathChar *>(_fni._Path()),
+                                   grffil, _FileDiagnostics(), this, &error))
+        throw std::system_error(error, std::system_category());
 
     // add it to the linked list
     _mutxList.Enter();
@@ -148,12 +152,13 @@ FileObject::FileObject(Filename *pfni, LegacyUlong grffil)
 ***************************************************************************/
 FileObject::~FileObject(void)
 {
-    // make sure the file is closed.
     _Close(fTrue);
 
     _mutxList.Enter();
     _Attach(pvNil);
     _mutxList.Leave();
+
+    mm_native_named_file_dispose(&_file);
 }
 
 /***************************************************************************
@@ -167,14 +172,7 @@ PFileObject FileObject::PfilOpen(Filename *pfni, LegacyUlong grffil)
 
 MMReadStream FileObject::ReadStream()
 {
-    const auto end = FpMac();
-    return {this, end > 0 ? static_cast<MMU32>(end) : 0,
-        [](void *context, MMU32 offset, void *bytes, size_t count) -> int {
-            if (offset > klwMax || count > klwMax)
-                return false;
-            return static_cast<PFileObject>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count),
-                                                              static_cast<FilePosition>(offset));
-        }};
+    return mm_native_named_file_stream(&_file);
 }
 
 /***************************************************************************
@@ -216,7 +214,7 @@ PFileObject FileObject::PfilFromFni(Filename *pfni)
 bool FileObject::FSetGrffil(LegacyUlong grffil, LegacyUlong grffilMask)
 {
     const auto host = _OwnerHost();
-    return mm_file_owner_set_flags(&_file, &host, grffil, grffilMask) != 0;
+    return mm_file_owner_set_flags(&_file.state, &host, grffil, grffilMask) != 0;
 }
 
 /***************************************************************************
@@ -226,7 +224,7 @@ bool FileObject::FSetGrffil(LegacyUlong grffil, LegacyUlong grffilMask)
 void FileObject::Release(void)
 {
     AssertThis(0);
-    mm_reference_release_marked(&_references, (_file.flags & ffilMark) != 0, this,
+    mm_reference_release_marked(&_references, (_file.state.flags & ffilMark) != 0, this,
         [](void *) { Bug("calling Release without an AddRef"); },
         [](void *p) { delete static_cast<PFileObject>(p); });
 }
@@ -238,9 +236,9 @@ void FileObject::GetStnPath(PString pstn)
 {
     AssertThis(0);
 
-    _mutx.Enter();
+    mm_native_named_file_enter(&_file);
     _fni.GetStnPath(pstn);
-    _mutx.Leave();
+    mm_native_named_file_leave(&_file);
 }
 
 /***************************************************************************
@@ -249,7 +247,7 @@ void FileObject::GetStnPath(PString pstn)
 void FileObject::SetTemp(bool fTemp)
 {
     const auto host = _OwnerHost();
-    mm_file_owner_set_temp(&_file, &host, fTemp);
+    mm_file_owner_set_temp(&_file.state, &host, fTemp);
 }
 
 /***************************************************************************
@@ -299,9 +297,9 @@ void FileObject::ShutDown(void)
 void FileObject::AssertValid(LegacyUlong grf)
 {
     FileObject_PAR::AssertValid(fobjAllocated);
-    _mutx.Enter();
+    mm_native_named_file_enter(&_file);
     AssertPo(&_fni, ffniFile);
-    _mutx.Leave();
+    mm_native_named_file_leave(&_file);
     const auto host = _OpsHost();
     const bool found = mm_file_ops_contains(&host, this) != 0;
     Assert(found, "not in file list");

@@ -2344,6 +2344,9 @@ reads, editing, clipboard transfers, and saves. Its UTF-8 paths enter through
 the native wide file API on Windows. Studio's archive readers, private drafts,
 and scene undo snapshots use the same C file services. Scratch storage is
 released when the last archive or extent reference closes.
+Studio's named working files use a C89 owner for their native handle, lock,
+permission changes, and read streams. The legacy filename registry still
+supplies name lookup and save publication.
 The Windows code-page, case mapping, and collation providers now build as C89.
 Archive readers and private editors get the shared C archive text profile,
 including the writer for legacy counted names.

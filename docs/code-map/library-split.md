@@ -803,11 +803,11 @@ work. This list extraction does not finish the shared backend migration.
 `mm/file_owner.h` owns persistent flags, error severity, open/ever-open/written
 state and the physical handle. C controls permission upgrades and recovery,
 close/final temporary-file deletion, flush, seek, size, resize, read/write and
-flag/temp mutation. `FileObject` embeds this record and delegates to it in both
-hosts. The native facade supplies physical file primitives over its current
-Filename, recursive mutexes, validation and error/warning callbacks. No C++ types
-or libraries are needed by the C controller. The record's fields replace native
-bitfields; this changes private runtime sizes without changing stored formats.
+flag/temp mutation. `FileObject` embeds `MMNativeNamedFile`, which binds this
+record to a native path buffer, owns the recursive mutex, and exposes a C read
+stream. The facade supplies its inline Filename buffer and the existing
+diagnostics. Named working archives use the same C binding in both Studio builds.
+The owner and its storage use C types, and the stored formats are unchanged.
 
 Upgrades close the old handle, retain old permissions, try the new permissions
 and restore the old handle on failure. A failed restoration latches critical
@@ -838,10 +838,9 @@ sharing rejection and restored-handle reads. `file-owner-expensive` overrides
 the file facades with expensive validation against the shared core. See the
 [playback regression log](../tools/playback-regression.md) for evidence.
 
-File/name factory and registry coordination and name transactions are described
-next. Filename representation, native primitives, virtual destruction and final
-C-only host/facade integration remain conversion work. Historical `filemac.cpp`
-is not built by the current Windows/POSIX hosts.
+The file factory still uses the legacy filename registry and virtual object
+destruction. The native path binding follows the same buffer when rename and
+swap publish a new name.
 
 ### File factories, registry control and name transactions
 

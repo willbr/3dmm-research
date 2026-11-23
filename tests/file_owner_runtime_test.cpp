@@ -28,8 +28,11 @@ public:
     Probe(Filename *name, LegacyUlong flags) : FileObject(name, flags) {}
     bool Open(bool create, LegacyUlong flags) { return _FOpen(create, flags); }
     void Close() { _Close(); }
-    void State() { Word(_file.flags); Word(_file.error); Word(_file.open); Word(_file.ever_open); Word(_file.wrote); Word(_file.handle != nullptr); }
-    void Unmark() { _file.flags &= ~ffilMark; }
+    void State() {
+        const auto &state = _file.state;
+        Word(state.flags); Word(state.error); Word(state.open); Word(state.ever_open); Word(state.wrote); Word(state.handle != nullptr);
+    }
+    void Unmark() { _file.state.flags &= ~ffilMark; }
 };
 static Probe *observed;
 class Errors : public ErrorStack
