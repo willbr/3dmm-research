@@ -144,17 +144,11 @@ int mm_brender_action_read(MMResourceCache *cache, MMU32 type, MMU32 number, MMO
     return mm_action_resource_read(cache, type, number, block, out, bytes, mm_kauai_action_host());
 }
 
-static MMTextDescriptor *text_descriptor(void *context, void *object)
-{
-    (void)context;
-    return mm_template_owner_descriptor(object);
-}
-
-static int read_text_header(void *context, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block)
+static int read_text_header(void *context, MMTemplateOwner *owner, MMU32 type, MMU32 number, MMOwnedBlock *block)
 {
     MMTemplateCreateServices services = {0};
     mm_brender_template_read_services(&services, context);
-    return mm_template_read_header(object, context, type, number, block, &services);
+    return mm_template_read_header(owner, context, type, number, block, &services);
 }
 
 int mm_brender_text_initialize(MMTemplateOwner *owner, MMResourceCache *cache, MMU32 type, MMU32 number,
@@ -164,7 +158,6 @@ int mm_brender_text_initialize(MMTemplateOwner *owner, MMResourceCache *cache, M
     MMTextResourceServices services = {0};
     source.cache = cache;
     services.context = cache;
-    services.state = text_descriptor;
     services.read_template = read_text_header;
     mm_kauai_text_read_services(&services);
     mm_brender_text_generation_services(&services.generation);
@@ -200,7 +193,8 @@ static MMI32 text_character(void *context, void *object, MMI32 index)
 
 static MMI32 text_shape(void *context, void *object)
 {
-    return text_descriptor(context, object)->shape;
+    (void)context;
+    return mm_template_owner_descriptor(object)->shape;
 }
 
 static void *new_text_material(void *context)
@@ -218,7 +212,8 @@ static void retain_material(void *context, void *material)
 static void *fetch_font(void *context, void *object)
 {
     const MMTemplateFontProvider *provider = mm_template_owner_font(object);
-    const MMTag *tag = &text_descriptor(context, object)->font;
+    const MMTag *tag = &mm_template_owner_descriptor(object)->font;
+    (void)context;
     if (provider->fetch)
         return provider->fetch(provider->context, tag);
     return mm_tag_fetch_owned(tag, mm_brender_font_read, mm_font_owner_services(), 0, mm_tag_local_cache_services());
@@ -290,6 +285,30 @@ void mm_brender_text_generation_services(MMTextGenerationServices *s)
     s->glyph = fetch_glyph;
     s->body_shape = text_body_shape;
     s->body_material = text_body_material;
+}
+
+MMTemplateOwner *mm_brender_text_create(const MMStringValue *name, MMI32 shape, const MMTag *font,
+                                        const MMTemplateFontProvider *provider)
+{
+    MMTextGenerationServices services = {0};
+    mm_brender_text_generation_services(&services);
+    return mm_text_create(mm_kauai_template_host(), name, shape, font, provider, &services);
+}
+
+MMTemplateOwner *mm_brender_text_duplicate(MMTemplateOwner *owner)
+{
+    MMTextGenerationServices services = {0};
+    mm_kauai_template_validate(owner);
+    mm_brender_text_generation_services(&services);
+    return mm_text_duplicate(owner, &services);
+}
+
+int mm_brender_text_change(MMTemplateOwner *owner, const MMStringValue *name, MMI32 shape, const MMTag *font)
+{
+    MMTextGenerationServices services = {0};
+    mm_kauai_template_validate(owner);
+    mm_brender_text_generation_services(&services);
+    return mm_text_change(owner, name, shape, font, &services);
 }
 
 int mm_brender_text_adjust_body(MMTemplateOwner *owner, MMBodyOwner *body)

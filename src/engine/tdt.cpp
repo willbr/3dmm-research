@@ -24,10 +24,6 @@ ASSERTNAME
 
 
 
-struct TextResourceContext
-{
-    String saved;
-};
 static void TextTagToCore(const TAG *tag, MMTag *out)
 {
     out->sid = tag->sid; std::memcpy(&out->cache, &tag->cache, sizeof(out->cache)); out->type = tag->ctg; out->number = tag->cno;
@@ -35,37 +31,6 @@ static void TextTagToCore(const TAG *tag, MMTag *out)
 static void TextTagFromCore(TAG *tag, const MMTag *in)
 {
     tag->sid = in->sid; std::memcpy(&tag->cache, &in->cache, sizeof(tag->cache)); tag->ctg = in->type; tag->cno = in->number;
-}
-static MMTextResourceServices ResourceServices(void *context)
-{
-    MMTextResourceServices s = {}; s.context = context; s.generation = EngineText::GenerationServices();
-    mm_kauai_text_read_services(&s);
-    static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 && sizeof(TAG) == sizeof(MMTag), "text resource ABI");
-    s.state = [](void *, void *object) { return mm_template_owner_descriptor(static_cast<PThreeDText>(object)); };
-    s.create = [](void *) -> void * { return mm_template_owner_create(&EngineTemplate::Host(), 1); };
-    s.release_object = [](void *, void *object) { mm_template_owner_release(static_cast<PThreeDText>(object)); };
-    s.text = [](void *, void *object) -> void * {
-        return mm_template_owner_name(static_cast<PThreeDText>(object)).buffer;
-    };
-    s.assign = [](void *, void *destination, const void *source) {
-        const MMStringValue name = {destination, sizeof(achar)};
-        mm_string_value_copy(&name, source);
-    };
-    s.space = [](void *, void *text) {
-        const MMStringValue name = {text, sizeof(achar)};
-        const achar ch = ChLit(' ');
-        mm_string_value_set(&name, &ch, 1);
-    };
-    s.saved_text = [](void *p) -> void * { return static_cast<TextResourceContext *>(p)->saved.Pst(); };
-    s.provider_copy = [](void *, void *to, void *from) {
-        *mm_template_owner_font(static_cast<PThreeDText>(to)) = *mm_template_owner_font(static_cast<PThreeDText>(from));
-    };
-    s.publish_tag = [](void *, void *out, const MMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
-    s.publish_error = [](void *, void *out, int error) { *static_cast<bool *>(out) = error != 0; };
-    s.release_tag_list = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
-    s.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
-    s.append_tag = [](void *, void *list, const MMTag *in) -> int { TAG tag; TextTagFromCore(&tag, in); return static_cast<PDynamicArray>(list)->FAdd(&tag); };
-    return s;
 }
 
 void EngineText::SetFontResolver(PThreeDText owner, void *context, MMFontOwner *(*fetch)(void *, const MMTag *))
@@ -85,7 +50,16 @@ void EngineText::SetFontResolver(PThreeDText owner, void *context, MMFontOwner *
 PDynamicArray EngineText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0); AssertVarMem(pfError);
-    TextResourceContext context; auto services = ResourceServices(&context);
+    MMTextResourceServices services = {};
+    mm_kauai_text_read_services(&services);
+    services.publish_error = [](void *, void *out, int error) { *static_cast<bool *>(out) = error != 0; };
+    services.release_tag_list = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
+    services.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
+    services.append_tag = [](void *, void *list, const MMTag *in) -> int {
+        TAG tag;
+        TextTagFromCore(&tag, in);
+        return static_cast<PDynamicArray>(list)->FAdd(&tag);
+    };
     const MMTextResourceSource source = {nullptr, pcfl, pcfl->ReadChunkAccess()};
     return static_cast<PDynamicArray>(mm_text_tags(&source, ctg, cno, pfError, &services));
 }
@@ -96,12 +70,10 @@ PDynamicArray EngineText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, Chun
 PThreeDText EngineText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf, const MMTemplateFontProvider &provider)
 {
     AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
-    TextResourceContext context; auto services = ResourceServices(&context); MMTag font;
+    MMTag font;
     TextTagToCore(ptagTdf, &font);
-    auto owner = static_cast<PThreeDText>(mm_text_create(pstn->Pst(), tdts, &font, &services));
-    if (owner)
-        *mm_template_owner_font(owner) = provider;
-    return owner;
+    const MMStringValue name = {pstn->Pst(), sizeof(achar)};
+    return mm_brender_text_create(&name, tdts, &font, &provider);
 }
 
 /***************************************************************************
@@ -165,9 +137,7 @@ PModel EngineText::FetchModel(PThreeDText owner, ChildChunkID chidModl)
 ***************************************************************************/
 PThreeDText EngineText::PtdtDup(PThreeDText owner)
 {
-    TEXT_VALIDATE(owner);
-    TextResourceContext context; auto services = ResourceServices(&context);
-    return static_cast<PThreeDText>(mm_text_duplicate(owner, &services));
+    return mm_brender_text_duplicate(owner);
 }
 
 /***************************************************************************
@@ -175,11 +145,12 @@ PThreeDText EngineText::PtdtDup(PThreeDText owner)
 ***************************************************************************/
 bool EngineText::FChange(PThreeDText owner, PString pstn, LegacyLong tdts, PTAG ptagTdf)
 {
-    TEXT_VALIDATE(owner); AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptagTdf);
+    AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptagTdf);
     if (tdts != tdtsNil) AssertIn(tdts, 0, tdtsLim);
-    TextResourceContext context; auto services = ResourceServices(&context); MMTag font;
+    MMTag font;
     if (ptagTdf) TextTagToCore(ptagTdf, &font);
-    return mm_text_change(owner, pstn ? pstn->Pst() : nullptr, tdts, ptagTdf ? &font : nullptr, &services) != 0;
+    const MMStringValue name = {pstn ? pstn->Pst() : nullptr, sizeof(achar)};
+    return mm_brender_text_change(owner, pstn ? &name : nullptr, tdts, ptagTdf ? &font : nullptr) != 0;
 }
 
 /***************************************************************************
@@ -188,8 +159,14 @@ bool EngineText::FChange(PThreeDText owner, PString pstn, LegacyLong tdts, PTAG 
 void EngineText::GetInfo(PThreeDText owner, PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
 {
     TEXT_VALIDATE(owner); AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptdts); AssertNilOrVarMem(ptagTdf);
-    TextResourceContext context; auto services = ResourceServices(&context);
-    mm_text_info(owner, pstn ? pstn->Pst() : nullptr, ptdts, ptagTdf, &services);
+    const auto *descriptor = mm_template_owner_descriptor(owner);
+    if (pstn)
+    {
+        const MMStringValue name = {pstn->Pst(), sizeof(achar)};
+        mm_string_value_copy(&name, mm_template_owner_name(owner).buffer);
+    }
+    if (ptdts) *ptdts = descriptor->shape;
+    if (ptagTdf) TextTagFromCore(ptagTdf, &descriptor->font);
 }
 
 /***************************************************************************

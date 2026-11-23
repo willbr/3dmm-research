@@ -2075,9 +2075,12 @@ the cached action reference and replaces it after text edits. Kauai supplies
 chunk names, allocation, decoding and diagnostics. Studio loads the retail
 3D text action catalogue through the C89 cache binding. C owns the counted
 labels, normalizes their text encoding and resolves action IDs in stored
-order. Marcus, its Preview helper and regression runner build and link
-without engine-core. Studio
-still uses native engine and archive interfaces around the shared engine.
+order. The C89 template owner creates, duplicates and edits Studio's 3D text
+through the shared BRender binding. It copies counted text and the font tag
+directly, binds the font provider on success, and restores the previous text
+and descriptor if generation fails. Marcus, its Preview helper and regression
+runner build and link without engine-core. Studio still uses native engine
+and archive interfaces around the shared engine.
 The C89 MSND owner holds the counted sound name, payload metadata and
 cache binding. Studio's cache reader, invalidation and frame-sound dispatch
 use the bound C89 operations. Preview reads the same sound state from its

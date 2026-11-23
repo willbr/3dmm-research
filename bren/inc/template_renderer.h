@@ -23,6 +23,10 @@ MMTemplateOwner *mm_brender_template_fetch(MMResourceCache *, MMU32 type, MMU32 
 int mm_brender_action_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 int mm_brender_text_initialize(MMTemplateOwner *, MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
 void mm_brender_text_generation_services(MMTextGenerationServices *);
+MMTemplateOwner *mm_brender_text_create(const MMStringValue *, MMI32 shape, const MMTag *,
+                                        const MMTemplateFontProvider *);
+MMTemplateOwner *mm_brender_text_duplicate(MMTemplateOwner *);
+int mm_brender_text_change(MMTemplateOwner *, const MMStringValue *, MMI32 shape, const MMTag *);
 int mm_brender_text_action_names_read(const MMReadStream *, int encoding, MMStringConvert, void *context);
 int mm_brender_text_action_names_load(MMResourceCache *, MMU32 number, int encoding, MMStringConvert, void *context);
 void mm_brender_text_action_names_clear(void);

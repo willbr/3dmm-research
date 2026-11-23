@@ -78,19 +78,7 @@ typedef struct MMTextResourceServices
     void *context;
     int host_big_endian;
     MMTextGenerationServices generation;
-    MMTextDescriptor *(*state)(void *,void *object);
-    void *(*create)(void *);
-    void (*release_object)(void *,void *);
-    void *(*text)(void *,void *object);
-    void (*assign)(void *,void *destination,const void *source);
-    void (*space)(void *,void *text);
-    void *(*saved_text)(void *);
-    void (*provider_copy)(void *,void *destination,void *source);
-    int (*has_provider)(void *,void *object);
-    void *(*provider_font)(void *,void *object,const MMTag *);
-    void *(*default_font)(void *,const MMTag *);
-    void (*publish_tag)(void *,void *output,const MMTag *);
-    int (*read_template)(void *,void *object,MMU32 type,MMU32 number,MMOwnedBlock *);
+    int (*read_template)(void *,MMTemplateOwner *,MMU32 type,MMU32 number,MMOwnedBlock *);
     const MMChunkPayloadServices *payloads;
     void (*publish_error)(void *,void *output,int value);
     void *(*tag_list)(void *);
@@ -98,17 +86,17 @@ typedef struct MMTextResourceServices
     int (*append_tag)(void *,void *list,const MMTag *);
     void (*bad_order)(void *);
 } MMTextResourceServices;
-/* Text/tag storage is borrowed. Runtime cache bits survive copying and rollback;
- * on-file tags discard their pointer pad and load a NULL cache. Creation/change
- * normalize empty text to a space, loading does not. Even a no-op change rebuilds
- * generated owners. Failure restores text, shape, then font; generated owners
- * are replaced atomically by text_generation. Duplicate providers copy only
- * after successful fresh construction. Callbacks must not reenter owners. */
-void *mm_text_create(const void *text,MMI32 shape,const MMTag *,const MMTextResourceServices *);
-void *mm_text_duplicate(void *object,const MMTextResourceServices *);
-int mm_text_change(void *object,const void *text,MMI32 shape,const MMTag *,const MMTextResourceServices *);
-void mm_text_info(void *object,void *text,void *shape,void *font,const MMTextResourceServices *);
-void *mm_text_font(void *object,const MMTextResourceServices *);
+/* Copy counted text in the owner's character width and preserve runtime tag
+ * cache bits. Empty authored text becomes a space. Change borrows optional
+ * text and font and a shape of -1 keeps the current shape. Even a no-op change
+ * rebuilds generated owners. Failure preserves the old text, descriptor and
+ * generated owners. Font providers bind after successful fresh construction.
+ * Generation callbacks must not reenter owners. */
+MMTemplateOwner *mm_text_create(const MMTemplateOwnerHost *, const MMStringValue *, MMI32 shape, const MMTag *,
+                                const MMTemplateFontProvider *, const MMTextGenerationServices *);
+MMTemplateOwner *mm_text_duplicate(MMTemplateOwner *, const MMTextGenerationServices *);
+int mm_text_change(MMTemplateOwner *, const MMStringValue *, MMI32 shape, const MMTag *,
+                   const MMTextGenerationServices *);
 /* Read publishes base-template fields first, then font and shape, retaining
  * partial state on direct failure. Tag enumeration clears error before allocation
  * and publishes failure before releasing the list. The 24-byte record allows
@@ -116,7 +104,7 @@ void *mm_text_font(void *object,const MMTextResourceServices *);
  * Write keeps the parent/output number on child failure, deletes only the child
  * on payload-write failure, and always writes a zero pointer pad. */
 /* Supply a live cache or a standalone archive and its chunk access. */
-int mm_text_read(void *object,const MMTextResourceSource *,MMU32 type,MMU32 number,MMOwnedBlock *,
+int mm_text_read(MMTemplateOwner *,const MMTextResourceSource *,MMU32 type,MMU32 number,MMOwnedBlock *,
                  const MMTextResourceServices *);
 int mm_text_write(const MMTemplateState *, const MMTextDescriptor *, const MMChunkNameValue *,
                   MMU32 type, MMU32 *number, const MMArchiveWriter *);

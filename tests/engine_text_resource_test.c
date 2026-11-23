@@ -1,62 +1,42 @@
 #include "mm/text_resource.h"
 #include "mm/chunk_ops.h"
 #include "mm/collections.h"
+#include "mm/material_resource.h"
 #include "engine_resource_block_fixture.h"
 #include "template_writer_fixture.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-typedef struct Root { int refs,object; } Root;
-typedef struct Object
-{
-    Root root; MMTextDescriptor descriptor; MMTextGenerated generated;
-    MMTemplateState template_state; char text[256]; int provider;
-} Object;
 typedef struct Context
 {
-    MMTextResourceServices services; char saved[256]; unsigned char wire[24];
+    MMTextResourceServices services;
+    MMTemplateOwnerHost template_host;
+    MMMaterialOwnerHost material_host;
+    unsigned char wire[24];
     ResourceTestBlock block;
     MMChunkPayloadServices payloads;
     MMResourceCache cache;
     MMTextResourceSource source;
     MMI32 bytes; int fail,step,live,header,child,found,packed,unpacked,appended;
     int file_refs;
-    int error,released_error,bad,custom,defaults;
+    int error,released_error,bad;
 } Context;
-static void copy_string(char *to,const char *from) { memcpy(to,from,strlen(from)+1); }
-static void *allocate(Context *c,size_t n,int object)
-{ Root *r; if (++c->step==c->fail) return NULL; r=(Root *)calloc(1,n); assert(r); r->refs=1; r->object=object; ++c->live; return r; }
-static void retain(void *p,void *v)
-{ (void)p; ++((Root *)v)->refs; }
-static void release(void *p,void *v)
+static MMTextGenerated *generated(void *context, void *owner)
 {
-    Context *c=(Context *)p; Root *r=(Root *)v; Object *o;
-    if (--r->refs) return;
-    c->released_error=c->error;
-    if (r->object)
-    {
-        o=(Object *)v; mm_text_dispose(&o->generated,&c->services.generation);
-        mm_part_indices_dispose(o->template_state.parents);
-        mm_part_indices_dispose(o->template_state.sets);
-        mm_template_costumes_dispose(o->template_state.costumes);
-    }
-    --c->live; free(v);
+    (void)context;
+    return mm_template_owner_generated(owner);
 }
-static void *create(void *p) { return allocate((Context *)p,sizeof(Object),1); }
-static MMTextDescriptor *state(void *p,void *o) { (void)p; return &((Object *)o)->descriptor; }
-static MMTextGenerated *generated(void *p,void *o) { (void)p; return &((Object *)o)->generated; }
-static void *text(void *p,void *o) { (void)p; return ((Object *)o)->text; }
-static MMI32 length(void *p,void *o) { (void)p; return (MMI32)strlen(((Object *)o)->text); }
-static void assign(void *p,void *to,const void *from) { (void)p; copy_string((char *)to,(const char *)from); }
-static void space(void *p,void *t) { (void)p; copy_string((char *)t," "); }
-static void *saved(void *p) { return ((Context *)p)->saved; }
-static void provider_copy(void *p,void *to,void *from) { (void)p; ((Object *)to)->provider=((Object *)from)->provider; }
-static int has_provider(void *p,void *o) { (void)p; return ((Object *)o)->provider; }
-static void *provider(void *p,void *o,const MMTag *t) { (void)o; (void)t; ++((Context *)p)->custom; return NULL; }
-static void *default_font(void *p,const MMTag *t) { (void)t; ++((Context *)p)->defaults; return p; }
-static void publish_tag(void *p,void *out,const MMTag *t) { (void)p; memcpy(out,t,sizeof(*t)); }
-static MMTemplateState *template_state(void *p,void *o) { (void)p; return &((Object *)o)->template_state; }
-static void *list_new(void *p,MMI32 bytes,MMI32 count) { (void)bytes; (void)count; return allocate((Context *)p,sizeof(Root),0); }
+static MMI32 length(void *context, void *owner)
+{
+    const MMStringValue name = mm_template_owner_name(owner);
+    (void)context;
+    return name.unit == 1 ? *(const unsigned char *)name.buffer : *(const unsigned short *)name.buffer;
+}
+static MMTemplateState *template_state(void *context, void *owner)
+{
+    (void)context;
+    return mm_template_owner_state(owner);
+}
 static void *resize_shape(void *p,void *data,MMU32 old_bytes,MMU32 bytes,int priority)
 {
     Context *c=p;
@@ -77,9 +57,31 @@ static void free_shape(void *p,void *data,MMU32 bytes)
     --c->live;
     free(data);
 }
-static void *material_new(void *p) { return list_new(p,0,0); }
-static int read_template(void *p,void *o,MMU32 type,MMU32 n,MMOwnedBlock *block)
-{ Context *c=(Context *)p; assert(block==&c->block.owner); (void)type; (void)n; copy_string(((Object *)o)->text,"loaded"); return c->header; }
+static void *material_new(void *context)
+{
+    Context *c = context;
+    return mm_material_owner_create(&c->material_host, MM_MATERIAL);
+}
+static void retain_material(void *context, void *material)
+{
+    (void)context;
+    mm_material_owner_retain(material);
+}
+static void release_material(void *context, void *material)
+{
+    (void)context;
+    mm_material_owner_release(material);
+}
+static int read_template(void *context, MMTemplateOwner *owner, MMU32 type, MMU32 number, MMOwnedBlock *block)
+{
+    Context *c = context;
+    const MMStringValue name = mm_template_owner_name(owner);
+    assert(block == &c->block.owner);
+    (void)type;
+    (void)number;
+    mm_string_value_set(&name, "loaded", 6);
+    return c->header;
+}
 static int graph_entry(void *p, MMU32 pos, MMChunkEntry *out)
 {
     Context *c = (Context *)p;
@@ -145,7 +147,13 @@ static int decode(void *p, void **handle)
 static int write_block(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
 { (void)p; (void)file; (void)offset; (void)bytes; (void)count; return 0; }
 static void publish_error(void *p,void *out,int v) { ((Context *)p)->error=v; *(int *)out=v; }
-static void *tag_list(void *p) { assert(!((Context *)p)->error); return list_new(p,0,0); }
+static void *tag_list(void *p) { assert(!((Context *)p)->error); return resize_shape(p, NULL, 0, 1, MM_STORAGE_NORMAL); }
+static void release_tag_list(void *p, void *list)
+{
+    Context *c = p;
+    c->released_error = c->error;
+    free_shape(p, list, 1);
+}
 static int append_tag(void *p,void *list,const MMTag *t) { (void)list; assert(!t->cache); ++((Context *)p)->appended; return ((Context *)p)->child!=2; }
 static void bad(void *p) { ++((Context *)p)->bad; }
 static void init(Context *c)
@@ -172,63 +180,143 @@ static void init(Context *c)
     c->cache.services.locate = locate;
     s->context=c; g->context=c; g->state=generated; g->length=length; g->template_state=template_state;
     g->table_allocator.context=c; g->table_allocator.resize=resize_shape; g->table_allocator.release=free_shape;
-    g->material_new=material_new; g->retain_material=retain; g->release_material=release;
-    s->state=state; s->create=create; s->release_object=release; s->release_tag_list=release; s->text=text; s->assign=assign; s->space=space; s->saved_text=saved; s->provider_copy=provider_copy;
-    s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template;
+    g->material_new=material_new; g->retain_material=retain_material; g->release_material=release_material;
+    c->template_host.allocator = &g->table_allocator;
+    c->template_host.name_unit = 1;
+    c->material_host.objects = &g->table_allocator;
+    s->release_tag_list=release_tag_list; s->read_template=read_template;
     s->payloads=&c->payloads;
     s->publish_error=publish_error; s->tag_list=tag_list; s->append_tag=append_tag; s->bad_order=bad;
 }
+static MMTemplateOwner *create_text(Context *c, const char *text, MMI32 shape, const MMTag *font)
+{
+    unsigned char storage[MM_STRING_MAX + 2];
+    MMStringValue name = {0};
+    name.buffer = storage;
+    name.unit = 1;
+    mm_string_value_set(&name, text, (MMI32)strlen(text));
+    return mm_text_create(&c->template_host, &name, shape, font, NULL, &c->services.generation);
+}
+
+static struct MMFontOwner *test_font(void *context, const MMTag *font)
+{
+    (void)context;
+    (void)font;
+    return NULL;
+}
+
 static void lifecycle(void)
 {
-    Context c; Object *o,*copy; MMTag font={123,NULL,0x54444620U,29},out; MMI32 shape; char value[256]; int failure,create_steps=0,replace_steps;
-    const MMActionDefinition empty={0};
-    font.cache=&font;
-    for (failure=0;failure<=create_steps;++failure)
+    const MMActionDefinition empty = {0};
+    const MMTag replacement = {456, NULL, 0x54444620U, 15};
+    const unsigned short wide_old[] = {'o', 'l', 'd'};
+    const unsigned short wide_space = ' ';
+    Context c;
+    MMTag font = {123, NULL, 0x54444620U, 29};
+    MMTemplateFontProvider provider = {0};
+    MMStringValue value = {0}, name;
+    unsigned short storage[MM_STRING_MAX + 2];
+    const void *old_text, *space;
+    MMTemplateOwner *owner, *copy;
+    MMTextGenerated *parts;
+    MMTextDescriptor *descriptor;
+    int failure, create_steps, replace_steps;
+    unsigned unit;
+    font.cache = &font;
+    provider.context = &c;
+    provider.fetch = test_font;
+    value.buffer = storage;
+    for (unit = 1; unit <= 2; ++unit)
     {
-        init(&c); c.fail=failure; o=(Object *)mm_text_create("",9,&font,&c.services);
-        assert((o!=NULL)==(failure==0)); if (o) { create_steps=c.step; assert(!strcmp(o->text," ")); release(&c,o); } assert(!c.live);
+        value.unit = unit;
+        old_text = unit == 1 ? (const void *)"old" : (const void *)wide_old;
+        space = unit == 1 ? (const void *)" " : (const void *)&wide_space;
+        mm_string_value_clear(&value);
+        create_steps = 0;
+        for (failure = 0; failure <= create_steps; ++failure)
+        {
+            init(&c);
+            c.template_host.name_unit = unit;
+            c.fail = failure;
+            owner = mm_text_create(&c.template_host, &value, 9, &font, &provider, &c.services.generation);
+            assert((owner != NULL) == (failure == 0));
+            if (owner)
+            {
+                create_steps = c.step;
+                name = mm_template_owner_name(owner);
+                assert(mm_string_value_equal(&name, space, 1));
+                mm_template_owner_release(owner);
+            }
+            assert(!c.live);
+        }
+        init(&c);
+        c.template_host.name_unit = unit;
+        mm_string_value_set(&value, old_text, 3);
+        owner = mm_text_create(&c.template_host, &value, 9, &font, &provider, &c.services.generation);
+        assert(owner);
+        name = mm_template_owner_name(owner);
+        descriptor = mm_template_owner_descriptor(owner);
+        parts = mm_template_owner_generated(owner);
+        c.step = 0;
+        assert(mm_text_change(owner, NULL, -1, NULL, &c.services.generation));
+        replace_steps = c.step;
+        parts->action = mm_action_resource_create(&empty, NULL);
+        assert(parts->action);
+        parts->action_id = 7;
+        mm_string_value_clear(&value);
+        for (failure = 1; failure <= replace_steps; ++failure)
+        {
+            const MMPartIndexList *parents = mm_template_owner_state(owner)->parents;
+            const MMActionResource *action = parts->action;
+            const void *material = parts->material;
+            c.step = 0;
+            c.fail = failure;
+            assert(!mm_text_change(owner, &value, 0, &replacement, &c.services.generation));
+            assert(mm_string_value_equal(&name, old_text, 3) && descriptor->shape == 9);
+            assert(descriptor->font.cache == font.cache && descriptor->font.sid == font.sid &&
+                   descriptor->font.type == font.type && descriptor->font.number == font.number);
+            assert(mm_template_owner_state(owner)->parents == parents && parts->action == action &&
+                   parts->action_id == 7 && parts->material == material);
+        }
+        c.fail = 0;
+        assert(mm_text_change(owner, &value, 0, NULL, &c.services.generation));
+        assert(mm_string_value_equal(&name, space, 1) && !parts->action && parts->action_id == -1);
+        copy = mm_text_duplicate(owner, &c.services.generation);
+        assert(copy && mm_template_owner_generated(copy)->material != parts->material);
+        assert(mm_template_owner_font(copy)->fetch == provider.fetch && mm_template_owner_font(copy)->context == &c);
+        name = mm_template_owner_name(copy);
+        descriptor = mm_template_owner_descriptor(copy);
+        assert(mm_string_value_equal(&name, space, 1) && !descriptor->shape && descriptor->font.cache == font.cache);
+        mm_template_owner_release(copy);
+        mm_template_owner_release(owner);
+        assert(!c.live);
     }
-    init(&c); o=(Object *)mm_text_create("old",9,&font,&c.services); assert(o); o->provider=1;
-    assert(!mm_text_font(o,&c.services) && c.custom==1 && !c.defaults);
-    o->provider=0; assert(mm_text_font(o,&c.services)==&c && c.defaults==1); o->provider=1;
-    c.step=0;
-    assert(mm_text_change(o,NULL,-1,NULL,&c.services));
-    replace_steps=c.step;
-    for (failure=1;failure<=replace_steps;++failure)
-    {
-        void *parents=o->template_state.parents; c.step=0; c.fail=failure;
-        assert(!mm_text_change(o,"",0,NULL,&c.services));
-        assert(!strcmp(o->text,"old") && o->descriptor.shape==9 && o->descriptor.font.cache==font.cache && o->template_state.parents==parents);
-    }
-    c.fail=0; assert(mm_text_change(o,"",0,NULL,&c.services) && !strcmp(o->text," "));
-    o->generated.action=mm_action_resource_create(&empty,NULL); assert(o->generated.action); o->generated.action_id=7;
-    assert(mm_text_change(o,NULL,-1,NULL,&c.services) && !o->generated.action && o->generated.action_id==-1);
-    copy=(Object *)mm_text_duplicate(o,&c.services); assert(copy && copy->provider && copy->generated.material!=o->generated.material);
-    mm_text_info(copy,value,&shape,&out,&c.services); assert(!strcmp(value," ") && !shape && out.cache==font.cache && out.sid==123);
-    mm_text_info(copy,NULL,NULL,NULL,&c.services); release(&c,copy); release(&c,o); assert(!c.live);
 }
 static void wire(void)
 {
-    Context c; Object *o,*loaded; void *tags; MMTag font={-1,NULL,0xfedcba98U,0x87654321U}; MMU32 number; int endian,failure,error;
+    Context c; MMTemplateOwner *o,*loaded; void *tags; MMTag font={-1,NULL,0xfedcba98U,0x87654321U}; MMU32 number; int endian,failure,error;
     TemplateWriterFixture output;
     MMArchiveWriter writer;
     const MMChunkNameValue name = {"saved",5,5};
     for (endian=0;endian<2;++endian)
     {
-        init(&c); c.services.host_big_endian=endian; o=(Object *)mm_text_create("saved",9,&font,&c.services); assert(o);
+        MMStringValue loaded_name;
+        init(&c); c.services.host_big_endian=endian; o=create_text(&c,"saved",9,&font); assert(o);
         writer=writer_fixture(&output,endian,0x1234);
-        assert(mm_text_write(&o->template_state,&o->descriptor,&name,MM_TMPL,&number,&writer) && number==0 && !output.archive.file_refs);
+        assert(mm_text_write(mm_template_owner_state(o),mm_template_owner_descriptor(o),&name,MM_TMPL,&number,&writer) && number==0 && !output.archive.file_refs);
         memcpy(c.wire,output.descriptor,sizeof(c.wire));
         assert(c.wire[endian?1:0]==1 && c.wire[2]==(endian?0x12:0x34) && c.wire[3]==(endian?0x34:0x12));
         assert(!c.wire[12] && !c.wire[13] && !c.wire[14] && !c.wire[15]);
         c.source.cache = &c.cache;
         for (failure=0;failure<2;++failure)
         {
-            loaded=(Object *)create(&c); c.services.host_big_endian=endian^failure;
+            MMTextDescriptor *descriptor;
+            loaded=mm_template_owner_create(&c.template_host,1); c.services.host_big_endian=endian^failure;
             c.packed = failure;
             assert(mm_text_read(loaded,&c.source,MM_TMPL,37,&c.block.owner,&c.services) && !c.file_refs);
-            assert(loaded->descriptor.shape==9 && loaded->descriptor.font.sid==-1 && loaded->descriptor.font.type==font.type && loaded->descriptor.font.number==font.number && !loaded->descriptor.font.cache);
-            release(&c,loaded);
+            descriptor=mm_template_owner_descriptor(loaded);
+            assert(descriptor->shape==9 && descriptor->font.sid==-1 && descriptor->font.type==font.type && descriptor->font.number==font.number && !descriptor->font.cache);
+            mm_template_owner_release(loaded);
         }
         c.source.cache = NULL;
         for (failure=0;failure<7;++failure)
@@ -237,13 +325,18 @@ static void wire(void)
             c.packed = failure == 4;
             error=-1; c.released_error=-1; tags=mm_text_tags(&c.source,MM_TMPL,37,&error,&c.services);
             assert((tags!=NULL)==!failure && error==(failure!=0) && !c.file_refs);
-            if (tags) release(&c,tags); else if (failure!=1) assert(c.released_error==1);
+            if (tags) release_tag_list(&c,tags); else if (failure!=1) assert(c.released_error==1);
         }
         c.fail=0; c.bytes=24; c.child=1; c.found=1;
-        c.header=0; c.found=1; loaded=(Object *)create(&c); assert(!mm_text_read(loaded,&c.source,MM_TMPL,37,&c.block.owner,&c.services) && !strcmp(loaded->text,"loaded")); release(&c,loaded);
-        c.header=1; c.wire[0]=c.wire[1]=0x7f; loaded=(Object *)create(&c);
-        assert(mm_text_read(loaded,&c.source,MM_TMPL,37,&c.block.owner,&c.services) && c.bad==1 && !c.file_refs); release(&c,loaded);
-        release(&c,o); assert(!c.live);
+        c.header=0; c.found=1; loaded=mm_template_owner_create(&c.template_host,1);
+        assert(!mm_text_read(loaded,&c.source,MM_TMPL,37,&c.block.owner,&c.services));
+        loaded_name=mm_template_owner_name(loaded);
+        assert(mm_string_value_equal(&loaded_name,"loaded",6));
+        mm_template_owner_release(loaded);
+        c.header=1; c.wire[0]=c.wire[1]=0x7f; loaded=mm_template_owner_create(&c.template_host,1);
+        assert(mm_text_read(loaded,&c.source,MM_TMPL,37,&c.block.owner,&c.services) && c.bad==1 && !c.file_refs);
+        mm_template_owner_release(loaded);
+        mm_template_owner_release(o); assert(!c.live);
     }
 }
 typedef struct DraftOutput
@@ -374,20 +467,21 @@ static void drafts(void)
     MMTextDescriptor draft = {9, {123, NULL, 0x54444620UL, 29}};
     MMTemplateState header;
     MMU32 number;
-    Object *object;
+    MMTemplateOwner *object;
     int big, failure;
     for (big = 0; big < 2; ++big)
     {
         init(&c);
         c.services.host_big_endian = big;
-        object = mm_text_create("saved", draft.shape, &draft.font, &c.services);
+        object = create_text(&c, "saved", draft.shape, &draft.font);
         assert(object);
         for (failure = 1; failure <= 6; ++failure)
         {
             writer = writer_fixture(&normal, big, 0x1234);
             normal.fail = failure;
             number = 99;
-            assert(!mm_text_write(&object->template_state, &object->descriptor, &name, MM_TMPL, &number, &writer));
+            assert(!mm_text_write(mm_template_owner_state(object), mm_template_owner_descriptor(object), &name,
+                                  MM_TMPL, &number, &writer));
             assert(number == (failure < 3 ? 99U : 0U) && !normal.archive.file_refs);
             assert(normal.archive.index.count == (failure >= 4 ? 1U : 0U));
             if (failure >= 4)
@@ -404,8 +498,9 @@ static void drafts(void)
             assert(saved.deleted == (failure == 1 ? 0 : failure >= 5 ? 2 : 1));
         }
         writer = writer_fixture(&normal, big, 0x1234);
-        assert(mm_text_write(&object->template_state, &object->descriptor, &name, MM_TMPL, &number, &writer));
-        release(&c, object);
+        assert(mm_text_write(mm_template_owner_state(object), mm_template_owner_descriptor(object), &name,
+                             MM_TMPL, &number, &writer));
+        mm_template_owner_release(object);
         writer = writer_fixture(&saved, big, 0x1234);
         assert(mm_text_write_draft(&name, &draft, &number, &writer) && number == 0);
         assert(mm_template_decode_header(saved.header, 0, &header));

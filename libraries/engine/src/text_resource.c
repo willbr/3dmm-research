@@ -172,52 +172,81 @@ int mm_text_author_prepare_name(const char *utf8, MMTextAuthorName *out)
     return MM_TEXT_NAME_OK;
 }
 
-static void normalize(void *object,const MMTextResourceServices *s)
-{ if (!s->generation.length(s->generation.context,object)) s->space(s->context,s->text(s->context,object)); }
-void *mm_text_create(const void *text,MMI32 shape,const MMTag *font,const MMTextResourceServices *s)
+static void normalize_text(const MMStringValue *name)
 {
-    void *object; MMTextDescriptor *d;
-    object=s->create(s->context); if (!object) return NULL;
-    s->assign(s->context,s->text(s->context,object),text); normalize(object,s);
-    d=s->state(s->context,object); d->shape=shape; memcpy(&d->font,font,sizeof(*font));
-    if (!mm_text_initialize_lists(object,&s->generation)) { s->release_object(s->context,object); return NULL; }
-    return object;
+    const unsigned char narrow = ' ';
+    const unsigned short wide = ' ';
+    if (mm_string_value_equal(name, NULL, 0))
+        mm_string_value_set(name, name->unit == 1 ? (const void *)&narrow : (const void *)&wide, 1);
 }
-void *mm_text_duplicate(void *object,const MMTextResourceServices *s)
+
+MMTemplateOwner *mm_text_create(const MMTemplateOwnerHost *host, const MMStringValue *text, MMI32 shape,
+                                const MMTag *font, const MMTemplateFontProvider *provider,
+                                const MMTextGenerationServices *services)
 {
-    MMTextDescriptor *d; void *copy;
-    d=s->state(s->context,object);
-    copy=mm_text_create(s->text(s->context,object),d->shape,&d->font,s);
-    if (copy) s->provider_copy(s->context,copy,object);
-    return copy;
+    MMTemplateOwner *owner;
+    MMTemplateText *data;
+    MMStringValue name;
+    if (text->unit != host->name_unit)
+        return NULL;
+    owner = mm_template_owner_create(host, 1);
+    if (!owner)
+        return NULL;
+    name = mm_template_owner_name(owner);
+    mm_string_value_copy(&name, text->buffer);
+    normalize_text(&name);
+    data = text_data(owner);
+    data->descriptor.shape = shape;
+    memcpy(&data->descriptor.font, font, sizeof(*font));
+    if (!mm_text_initialize_lists(owner, services))
+    {
+        mm_template_owner_release(owner);
+        return NULL;
+    }
+    if (provider)
+        data->font = *provider;
+    return owner;
 }
-int mm_text_change(void *object,const void *text,MMI32 shape,const MMTag *font,const MMTextResourceServices *s)
+
+MMTemplateOwner *mm_text_duplicate(MMTemplateOwner *owner, const MMTextGenerationServices *services)
 {
-    MMTextDescriptor saved,*d; void *old_text,*current;
-    current=s->text(s->context,object); old_text=s->saved_text(s->context);
-    s->assign(s->context,old_text,current); d=s->state(s->context,object); memcpy(&saved,d,sizeof(saved));
-    if (text) s->assign(s->context,current,text);
-    if (shape!=-1) d->shape=shape;
-    if (font) memcpy(&d->font,font,sizeof(*font));
-    normalize(object,s);
-    if (mm_text_initialize_lists(object,&s->generation)) return 1;
-    s->assign(s->context,current,old_text); d->shape=saved.shape; memcpy(&d->font,&saved.font,sizeof(d->font));
+    const MMTemplateText *data;
+    MMStringValue name;
+    if (!mm_template_owner_is_text(owner))
+        return NULL;
+    data = text_data(owner);
+    name = mm_template_owner_name(owner);
+    return mm_text_create(owner->host, &name, data->descriptor.shape, &data->descriptor.font, &data->font,
+                          services);
+}
+
+int mm_text_change(MMTemplateOwner *owner, const MMStringValue *text, MMI32 shape, const MMTag *font,
+                   const MMTextGenerationServices *services)
+{
+    unsigned short saved_units[MM_STRING_MAX + 2];
+    MMStringValue saved_name = {0};
+    MMStringValue current;
+    MMTextDescriptor saved, *descriptor;
+    if (!mm_template_owner_is_text(owner) || (text && text->unit != owner->host->name_unit))
+        return 0;
+    current = mm_template_owner_name(owner);
+    saved_name.buffer = saved_units;
+    saved_name.unit = current.unit;
+    mm_string_value_copy(&saved_name, current.buffer);
+    descriptor = mm_template_owner_descriptor(owner);
+    memcpy(&saved, descriptor, sizeof(saved));
+    if (text)
+        mm_string_value_copy(&current, text->buffer);
+    if (shape != -1)
+        descriptor->shape = shape;
+    if (font)
+        memmove(&descriptor->font, font, sizeof(*font));
+    normalize_text(&current);
+    if (mm_text_initialize_lists(owner, services))
+        return 1;
+    mm_string_value_copy(&current, saved_name.buffer);
+    memcpy(descriptor, &saved, sizeof(saved));
     return 0;
-}
-void mm_text_info(void *object,void *text,void *shape,void *font,const MMTextResourceServices *s)
-{
-    MMTextDescriptor *d;
-    d=s->state(s->context,object);
-    if (text) s->assign(s->context,text,s->text(s->context,object));
-    if (shape) memcpy(shape,&d->shape,sizeof(d->shape));
-    if (font) s->publish_tag(s->context,font,&d->font);
-}
-void *mm_text_font(void *object,const MMTextResourceServices *s)
-{
-    MMTextDescriptor *d;
-    d=s->state(s->context,object);
-    if (s->has_provider(s->context,object)) return s->provider_font(s->context,object,&d->font);
-    return s->default_font(s->context,&d->font);
 }
 static MMU32 word(const unsigned char *p,int n,int big)
 { MMU32 v=0; int i; for (i=0;i<n;++i) v=(v<<8)|p[big?i:n-1-i]; return v; }
@@ -261,14 +290,15 @@ static int descriptor(const MMTextResourceSource *source, MMU32 type, MMU32 numb
     mm_owned_block_clear(&block);
     return ok;
 }
-int mm_text_read(void *object, const MMTextResourceSource *source, MMU32 type, MMU32 number, MMOwnedBlock *block,
+int mm_text_read(MMTemplateOwner *owner, const MMTextResourceSource *source, MMU32 type, MMU32 number, MMOwnedBlock *block,
                  const MMTextResourceServices *s)
 {
     MMTextDescriptor read,*d;
-    if (!s->read_template(s->context,object,type,number,block) || !descriptor(source,type,number,&read,s))
+    if (!mm_template_owner_is_text(owner) ||
+        !s->read_template(s->context,owner,type,number,block) || !descriptor(source,type,number,&read,s))
         return 0;
-    d=s->state(s->context,object); memcpy(&d->font,&read.font,sizeof(d->font)); d->shape=read.shape;
-    return mm_text_initialize_lists(object,&s->generation);
+    d=mm_template_owner_descriptor(owner); memcpy(&d->font,&read.font,sizeof(d->font)); d->shape=read.shape;
+    return mm_text_initialize_lists(owner,&s->generation);
 }
 static int adopt_descriptor(const MMChunkEdit *edit, MMU32 type, MMU32 parent, const MMChunkChild *child)
 {
