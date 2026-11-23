@@ -2,7 +2,7 @@
 #include "sound_recording.h"
 #include "scene_edit.h"
 #include "sdl_recording.h"
-#include "sdl_audio.h"
+#include "sdl_wave.h"
 #include "waveform.h"
 #include <SDL3/SDL.h>
 #include <exception>
@@ -75,10 +75,11 @@ int sound_recording_waveform(MarcusSoundRecording *r, int count, MarcusWaveformC
         std::size_t bytes; auto data = SDL_LoadFile(r->path.c_str(), &bytes);
         if (!data) return Fail(r, SDL_GetError());
         std::unique_ptr<void, decltype(&SDL_free)> owned(data, SDL_free);
-        KauaiAudio::Sample sample;
-        if (!KauaiAudio::DecodeWave(data, bytes, sample)) return Fail(r, "Cannot read the recorded audio.");
+        MMAudioSample *sample;
+        if (!mm_sdl_wave_decode(data, bytes, &sample)) return Fail(r, "Cannot read the recorded audio.");
+        const std::unique_ptr<MMAudioSample, decltype(&mm_audio_sample_release)> sound(sample, mm_audio_sample_release);
         MarcusWaveformEnvelope peaks;
-        peaks.Build(mm_audio_sample_data(sample.get()), mm_audio_sample_frames(sample.get()));
+        peaks.Build(mm_audio_sample_data(sound.get()), mm_audio_sample_frames(sound.get()));
         *seconds = peaks.Seconds(); peaks.Read(0, *seconds / count, count, columns); return 1;
     }
     catch (const std::exception &e) { return Fail(r, e.what()); }

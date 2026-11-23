@@ -2328,6 +2328,10 @@ their last voice. The playback audio layer creates SoundFont voices in C.
 Waveform durations and peaks read the same owned archive payload.
 Studio and Marcus share a C89 SDL recorder for bounded microphone capture,
 AudioMan-compatible PCM bias and trim, WAVE publication, and preview.
+C89 owns Studio's SDL WAVE device lifetime, output queues, playback cursor
+updates, group starts, and diagnostics. The Studio adapter supplies the
+sample lookup through its existing resource cache. Studio and Marcus link
+the C audio libraries directly for decoding, import, recording, and output.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

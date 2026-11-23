@@ -2,7 +2,7 @@
 #include "scene_edit.h"
 #include "archive_file.h"
 #include "soc_core.h"
-#include "sdl_audio.h"
+#include "sdl_wave.h"
 #include "platform_text.h"
 #include "private_archive_host.h"
 #include <stdexcept>
@@ -29,7 +29,7 @@ struct AudioInput
         String name;
         filename.GetLeaf(&name);
         extension = full.extension().u8string();
-        value = {path, extension.c_str(), MarcusArchiveName(name, wire), KauaiAudio::ImportWave};
+        value = {path, extension.c_str(), MarcusArchiveName(name, wire), mm_sdl_wave_import};
     }
 };
 }

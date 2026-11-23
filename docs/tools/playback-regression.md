@@ -25356,3 +25356,34 @@ The embedded MIDI fixture matched the 100 ms WAVE cue and first 400 ms of MIDI.
 
 Evidence is under `tmp/c89-recording`. The playback suites are in
 `tmp/c89-working-archive/capture/playback.sqlite`.
+
+## C89 Studio SDL WAVE device (23 November 2026)
+
+The C89 WAVE device owns the SDL output, mixer queue projections, playback
+cursor updates, volume, group start, suspension, and diagnostic counters.
+Each projection retains the output through its last queue reference. The
+Studio resource facade calls the C WAVE decoder and supplies the decoded
+sample to the mixer. It preserves the existing cache charge. Studio and
+Marcus now link the C WAVE decoder, import, and recording paths directly.
+
+The standalone fixture links as a C executable. It releases the creator
+while a queue is live, finishes a grouped start, checks the completion
+cursor, flushes the queue, and verifies diagnostic publication when a new
+device replaces the previous one. The Studio fixture also tests packed
+WAVE caching, nested pause, activation, and stop by sound class. Both
+fixtures passed 15 consecutive runs using SDL's dummy audio output.
+
+The 228 selected native, 28 standalone C89, and 21 native strict syntax
+checks passed. Classic Studio rebuilt and the external consumer passed.
+The native save and scene traces, four SDL save traces, eight VMM outputs,
+and headless Marcus startup canvas matched their baselines.
+
+Fresh suite `20261123T191256Z-2135ee33` completed eight captures. Replay suite
+`20261123T191359Z-5c57bd1a` completed four. Both verified input hashes. Against
+retained retail and V3DMM, both ports matched all 60 Actor Audio frame
+positions and camera indices and 59 seek canvases. The first 100 ms of
+each sampled span matched its preceding port capture sample for sample.
+The embedded MIDI fixture matched the 100 ms WAVE cue and first 400 ms of MIDI.
+
+Evidence is under `tmp/c89-sdl-wave-device`. The playback suites are in
+`tmp/c89-working-archive/capture/playback.sqlite`.

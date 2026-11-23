@@ -1,9 +1,9 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "sdl_audio.h"
 #include "sdl_sound.h"
+#include "sdl_wave.h"
+#include "sdl_wave_device.h"
 #include "mm/sound_payload.h"
-#include <algorithm>
-#include <new>
+#include <memory>
 #include "kauai_core.h"
 #include "handle_services.h"
 #include "sndm.h"
@@ -12,204 +12,117 @@
 #error The SDL sound adapter must not import the Windows SDK
 #endif
 ASSERTNAME
-namespace
-{
-std::weak_ptr<MMSdlAudioOutput> studioOutput;
-std::uint64_t decodedSounds = 0;
-} // namespace
+
 #define SDLWave_PAR BaseCacheableObject
 #define kclsSDLWave 'swav'
 class SDLWave : public SDLWave_PAR
 {
     RTCLASS_INLINE(SDLWave)
   public:
-    KauaiAudio::Sample sample;
+    MMAudioSample *sample = nullptr;
+
+    ~SDLWave() { mm_audio_sample_release(sample); }
+
     static int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **result, MMI32 *bytes)
     {
         // Preserve the cache charge of the former shared PCM handle.
-        constexpr auto cacheBytes = sizeof(SDLWave) - sizeof(KauaiAudio::Sample) + sizeof(std::shared_ptr<void>);
+        constexpr auto cacheBytes = sizeof(SDLWave) - sizeof(MMAudioSample *) + sizeof(std::shared_ptr<void>);
         MMSoundPayloadServices s = {};
         s.object_bytes = cacheBytes;
         s.decode_block = KauaiDecodeBlockHandle;
         s.create = [](void *) -> void * { return NewObj SDLWave; };
         s.release = [](void *, void *object) { static_cast<SDLWave *>(object)->Release(); };
         s.decode = [](void *, void *object, const void *encoded, MMU32 bytes) -> int {
-            try
-            {
-                return KauaiAudio::DecodeWave(encoded, bytes, static_cast<SDLWave *>(object)->sample);
-            }
-            catch (const std::bad_alloc &)
-            {
-                return false;
-            }
+            return mm_sdl_wave_decode(encoded, bytes, &static_cast<SDLWave *>(object)->sample);
         };
         s.allocation_size = [](void *, void *object, MMI32 *bytes) -> int {
-            const auto frames = mm_audio_sample_frames(static_cast<SDLWave *>(object)->sample.get());
+            const auto frames = mm_audio_sample_frames(static_cast<SDLWave *>(object)->sample);
             if (frames > (INT32_MAX - cacheBytes) / (2 * sizeof(float)))
                 return 0;
             *bytes = static_cast<MMI32>(frames * 2 * sizeof(float) + cacheBytes);
             return 1;
         };
-        s.decoded = [](void *) { ++decodedSounds; };
+        s.decoded = [](void *) { mm_sdl_wave_note_decode(); };
         return mm_wave_payload_fetch(block, result, bytes, &s);
     }
 };
+
 #define SDLWaveQueue_PAR SoundQueue
 #define kclsSDLWaveQueue 'swqu'
 class SDLWaveQueue : public SDLWaveQueue_PAR
 {
     RTCLASS_INLINE(SDLWaveQueue)
-    std::shared_ptr<MMSdlAudioOutput> output;
-    MMAudioCounter id = {};
-    explicit SDLWaveQueue(const std::shared_ptr<MMSdlAudioOutput> &device) : output(device)
-    {
-    }
-    void Sync()
-    {
-        mm_audio_device_mixer_sync_queue(mm_sdl_audio_output_mixer(output.get()), id, &_entries, kvlmFull,
-            [](void *object) -> const MMAudioSample * {
-                return static_cast<SDLWave *>(static_cast<PBaseCacheableObject>(object))->sample.get();
-            });
-    }
+    MMSdlWaveQueue queue = {};
 
   protected:
-    void _Enter() override
-    {
-        auto mixer = mm_audio_device_mixer_enter(mm_sdl_audio_output_mixer(output.get()));
-        while (_entries.current < mm_sound_queue_count(&_entries))
-        {
-            const auto item = mm_sound_queue_get(&_entries, _entries.current);
-            if (!mm_audio_mixer_done(mixer, id, item.id))
-                break;
-            ++_entries.current;
-        }
-    }
-    void _Leave() override
-    {
-        mm_audio_device_mixer_leave(mm_sdl_audio_output_mixer(output.get()));
-    }
+    void _Enter() override { mm_sdl_wave_queue_enter(&queue); }
+    void _Leave() override { mm_sdl_wave_queue_leave(&queue); }
     void _Flush() override
     {
-        KauaiAudio::LockedMixer lock(output.get());
-        SoundQueue::_Flush();
-        Sync();
+        const auto services = _Services();
+        mm_sdl_wave_queue_flush(&queue, &services);
     }
-    void _Queue(LegacyLong) override
-    {
-        Sync();
-    }
-    void _PauseQueue(LegacyLong) override
-    {
-        Sync();
-    }
-    void _ResumeQueue(LegacyLong) override
-    {
-        Sync();
-    }
-    ResourceReader _Reader() override
-    {
-        return SDLWave::Read;
-    }
+    void _Queue(LegacyLong) override { mm_sdl_wave_queue_sync(&queue); }
+    void _PauseQueue(LegacyLong) override { mm_sdl_wave_queue_sync(&queue); }
+    void _ResumeQueue(LegacyLong) override { mm_sdl_wave_queue_sync(&queue); }
+    ResourceReader _Reader() override { return SDLWave::Read; }
 
   public:
-    ~SDLWaveQueue()
+    ~SDLWaveQueue() { mm_sdl_wave_queue_dispose(&queue); }
+    static SDLWaveQueue *Create(MMSdlWaveDevice *device)
     {
-        if (id.low || id.high)
-            mm_audio_mixer_remove(KauaiAudio::LockedMixer(output.get()).Get(), id);
-    }
-    static SDLWaveQueue *Create(const std::shared_ptr<MMSdlAudioOutput> &output)
-    {
-        auto queue = NewObj SDLWaveQueue(output);
-        if (!queue)
-            return nullptr;
-        if (queue->_FInit())
-            queue->id = mm_audio_mixer_add(KauaiAudio::LockedMixer(output.get()).Get());
-        if (!queue->id.low && !queue->id.high)
-        {
-            queue->Release();
-            return nullptr;
-        }
-        return queue;
+        auto host = NewObj SDLWaveQueue;
+        const auto sample = [](void *object) -> const MMAudioSample * {
+            return static_cast<SDLWave *>(static_cast<PBaseCacheableObject>(object))->sample;
+        };
+        if (host && (!mm_sdl_wave_queue_init(&host->queue, device, &host->_entries, sample) || !host->_FInit()))
+            ReleasePpo(&host);
+        return host;
     }
 };
+
 #define SDLWaveDevice_PAR SoundManagerQueue
 #define kclsSDLWaveDevice 'swde'
 class SDLWaveDevice : public SDLWaveDevice_PAR
 {
     RTCLASS_INLINE(SDLWaveDevice)
-    std::shared_ptr<MMSdlAudioOutput> output;
-    LegacyLong volume = kvlmFull;
+    MMSdlWaveDevice *device = nullptr;
 
   protected:
-    PSoundQueue _PsnqueNew() override
-    {
-        return SDLWaveQueue::Create(output);
-    }
-    void _Suspend(bool suspended) override
-    {
-        mm_audio_mixer_suspend(KauaiAudio::LockedMixer(output.get()).Get(), suspended);
-    }
+    PSoundQueue _PsnqueNew() override { return SDLWaveQueue::Create(device); }
+    void _Suspend(bool suspended) override { mm_sdl_wave_device_suspend(device, suspended); }
 
   public:
-    void SetVlm(LegacyLong value) override
-    {
-        volume = std::max<LegacyLong>(0, value);
-        mm_audio_mixer_volume(KauaiAudio::LockedMixer(output.get()).Get(), volume / float(kvlmFull));
-    }
-    LegacyLong VlmCur() override
-    {
-        return volume;
-    }
-    void BeginSynch() override
-    {
-        mm_audio_mixer_begin(KauaiAudio::LockedMixer(output.get()).Get());
-    }
-    void EndSynch() override
-    {
-        mm_audio_mixer_end(KauaiAudio::LockedMixer(output.get()).Get());
-    }
+    ~SDLWaveDevice() { mm_sdl_wave_device_release(device); }
+    void SetVlm(LegacyLong value) override { mm_sdl_wave_device_set_volume(device, value); }
+    LegacyLong VlmCur() override { return mm_sdl_wave_device_volume(device); }
+    void BeginSynch() override { mm_sdl_wave_device_begin(device); }
+    void EndSynch() override { mm_sdl_wave_device_end(device); }
+
     static SDLWaveDevice *Create()
     {
-        auto device = NewObj SDLWaveDevice;
-        if (!device)
+        auto host = NewObj SDLWaveDevice;
+        if (!host)
             return nullptr;
-        auto nativeOutput = mm_sdl_audio_output_create_mixer();
-        if (!nativeOutput)
-        {
-            device->Release();
-            return nullptr;
-        }
-        try
-        {
-            device->output = std::shared_ptr<MMSdlAudioOutput>(nativeOutput, mm_sdl_audio_output_destroy);
-        }
-        catch (const std::bad_alloc &)
-        {
-            device->Release();
-            return nullptr;
-        }
-        if (!device->_FInit() || !mm_sdl_audio_output_open(device->output.get(), nullptr, nullptr))
-        {
-            device->Release();
-            return nullptr;
-        }
-        studioOutput = device->output;
-        return device;
+        host->device = mm_sdl_wave_device_create(kvlmFull);
+        if (!host->device || !host->_FInit() || !mm_sdl_wave_device_open(host->device))
+            ReleasePpo(&host);
+        return host;
     }
 };
+
 namespace KauaiAudio
 {
 SoundDevice *NewWaveDevice()
 {
     return SDLWaveDevice::Create();
 }
+
 StudioSoundStats StudioStats()
 {
-    auto output = studioOutput.lock();
-    if (!output)
-        return {};
-    const LockedMixer lock(output.get());
+    MMSdlWaveStats stats;
+    mm_sdl_wave_stats(&stats);
     const auto number = [](MMAudioCounter count) { return (std::uint64_t(count.high) << 32) | count.low; };
-    return {true, decodedSounds, number(lock.Get()->started), number(lock.Get()->completed)};
+    return {stats.active != 0, number(stats.decoded), number(stats.started), number(stats.completed)};
 }
 } // namespace KauaiAudio

@@ -23,7 +23,7 @@
 
 ***************************************************************************/
 #ifdef KAUAI_SDL3
-#include "sdl_audio.h"
+#include "sdl_wave.h"
 #endif
 #include "soc.h"
 #include "mm/string_wire.h"
@@ -158,7 +158,7 @@ int EngineSoundImportHost::Wave(void *host, const MMReadStream *source, MMI32 st
     AssertIn(sty, 0, styLim);
     Assert(sty != styMidi, "Illegal sty argument");
 #ifdef KAUAI_SDL3
-    return KauaiAudio::ImportWave(host, source, sty, name, pcno, writer);
+    return mm_sdl_wave_import(host, source, sty, name, pcno, writer);
 #else
     struct Context
     {

@@ -24,7 +24,7 @@ set_target_properties(marcus-player PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED
 target_include_directories(marcus-player PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_include_directories(marcus-player PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/bren/inc")
 target_link_libraries(marcus-player PRIVATE MM::Preview mm-brender-resources mm-movie-content studio-pack-store studio-settings SDL3::SDL3-static
-  kauai-sdl-audio kauai-midi-synth kauai-font-host Threads::Threads)
+  kauai-sdl-wave kauai-sdl-output kauai-sdl-recording kauai-midi-synth kauai-font-host Threads::Threads)
 target_link_libraries(marcus-player PUBLIC mm-engine-c89 mm-v3dmm)
 target_compile_definitions(marcus-player PRIVATE MARCUS_MIDI_BANK="${KAUAI_MIDI_BANK_FILE}")
 
