@@ -312,7 +312,7 @@ class ContentActor : public Actor
             return false;
         mm_actor_track_swap(&_owner.track, &track.Core());
         mm_actor_sounds_clear(&_owner.sounds);
-        _owner.runtime.state = ActorFrameState();
+        mm_actor_state_init(&_owner.runtime.state);
         const auto motion = mm_actor_track_motion_services();
         mm_actor_state_rewind(&_owner.runtime.state, _owner.track.route, &motion);
         _owner.runtime.state.frame = 1;

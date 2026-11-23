@@ -24073,3 +24073,44 @@ Text Acid candidate `20261123T114806Z-6c182efe` matched baseline
 presentations per port after consecutive duplicate samples were removed.
 Both ports matched retail and V3DMM frame order in seek and playback.
 Evidence is under `tmp/c89-actor-template-step`.
+
+## C89 actor route, state and pose (23 November 2026)
+
+The C++ actor route, pose and evaluated-state translation units are out
+of the native, SDL and x86 worker builds. Studio actor and sound code use
+the C89 track services directly. The existing core fixtures call the C89
+route, state, pose and frame functions with the same authored inputs,
+including aliased position and matrix outputs.
+
+The 33,384-byte route, 4,142-byte state, 111,872-byte pose and 170,230-byte
+frame traces matched the previous build. The timeline and seek traces
+also matched. The SDL actor creation and movie-content traces matched
+across 12,320 and 91,484 bytes.
+
+All 230 selected native checks, 13 SDL checks and three x86 worker fixtures
+passed, including 13 strict C89 checks in the native selection. Marcus
+produced the same startup image after a headless relaunch.
+
+The native route-paste and sound edit traces matched across 167,168 and
+7,456 bytes. Recording, stage, subroute and transform traces and the
+29,440-byte native save trace matched the prior build. Headless Studio
+authored, saved and reopened its actor and caption fixture and produced
+the same 27,056-byte movie.
+
+The edited and copied 3D text archives matched their retained saves. Both
+ports reopened the copied save in `20261123T115829Z-edbba72b` and matched
+the frame and canvas from retail and V3DMM in `20261122T074857Z-643a0567`.
+
+Actor Audio candidate `20261123T115829Z-2fd09047` matched the prior port
+canvases and scene states on all 60 seeks per port. Both ports matched the
+retail and V3DMM frame order in seek and playback. Studio matched all 240
+on-stage actor snapshots, including root and part matrices and route
+positions at Studio's recorded precision. Both ports matched 59 of 60
+retail and V3DMM seek canvases. Scene 0, frame 4 retained its prior canvas
+difference.
+
+Text Acid candidate `20261123T115829Z-8772a0d7` matched baseline
+`20261123T114806Z-6c182efe` on all 240 seek canvases and 371 playback
+presentations per port after consecutive duplicate samples were removed.
+Both ports matched retail and V3DMM frame order in seek and playback.
+Evidence is under `tmp/c89-actor-motion-facades`.

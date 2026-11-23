@@ -403,8 +403,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   action reader. Their resolver follows template replacement and undo. The C++
   actor timeline translation unit has been removed from the engine build.
 - Actor pose evaluation, weighted route orientation and fixed matrix/angle math
-  now use C89. Native pose code supplies table views and copies matrices into
-  BRender at the SDK boundary. The C implementation uses fixed-point arithmetic.
+  use C89. The C89 renderer binding publishes the resulting matrices to
+  BRender. Studio and Preview use the C actor state and track services directly.
+  The C++ route, pose and evaluated-state translation units have been removed
+  from the engine build. The original numeric and frame traces exercise the C89
+  entry points, including matrix and route output aliasing.
 - Actor event dispatch, partial action/cache state, entrance costume rollback and
   material fetch/apply/release ordering use one typed C89 binding in Studio and
   Marcus. The C binding owns the entrance costume snapshot, applies material

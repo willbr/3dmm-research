@@ -108,6 +108,7 @@
     _dxyzRte combines the overall actor translation for efficiency only.
 
 ***************************************************************************/
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -115,10 +116,24 @@
 #include "soc.h"
 
 #include "body_world.h"
-#include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_placement.h"
+
+static_assert(BASED_FIXED && sizeof(BRS) == 4, "actor C89 scalar ABI is signed 16.16");
+static_assert(sizeof(RoutePoint) == sizeof(MMActorPoint) && offsetof(RoutePoint, dyr) == 4 &&
+                  offsetof(RoutePoint, dzr) == 8,
+              "actor point ABI");
+static_assert(sizeof(RouteDistancePoint) == sizeof(MMActorRoutePoint) && offsetof(RouteDistancePoint, dwr) == 12,
+              "actor route ABI");
+static_assert(sizeof(RouteLocation) == sizeof(MMActorLocation) && offsetof(RouteLocation, dwrOffset) == 4 &&
+                  offsetof(RouteLocation, dnfrm) == 8,
+              "actor location ABI");
+static_assert(sizeof(ActorEvent::Base) == sizeof(MMActorEvent) && offsetof(ActorEvent::Base, rtel) == 8,
+              "actor event ABI");
+static_assert(factnRotateX == MM_ACTOR_ROTATE_X && factnRotateY == MM_ACTOR_ROTATE_Y &&
+                  factnRotateZ == MM_ACTOR_ROTATE_Z,
+              "pose action flag ABI");
 
 ASSERTNAME
 
@@ -256,7 +271,7 @@ void Actor::_InitState(void)
 {
     AssertBaseThis(0);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_reset(&state,_owner.track.route,&tables,&services);
     _owner.runtime.state = state;
@@ -338,7 +353,7 @@ MMActorPlaybackEffects Actor::_PlaybackEffects()
 bool Actor::FReplayFrame(long grfscen)
 {
     AssertThis(0);
-    const auto motion = EngineActorMotion::Services();
+    const auto motion = mm_actor_track_motion_services();
     return mm_actor_replay_frame_sounds(&_owner.runtime.state, _owner.track.events, (grfscen & fscenSounds) != 0, &motion, this,
                                         [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); },
                                         [](void *p) -> int { return static_cast<Actor *>(p)->_FEnqueueSmmInMsq(); }) > 0;
@@ -381,7 +396,7 @@ bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
     AssertBaseThis(0);
     Assert(_owner.track.events, "missing actor events");
     AssertIn(iaev, 0, mm_actor_events_count(_owner.track.events) + 1);
-    const auto motion = EngineActorMotion::Services();
+    const auto motion = mm_actor_track_motion_services();
     return mm_actor_subroute_events_done(_owner.track.events, iaev, &rtel, &motion) != 0;
 }
 
@@ -485,7 +500,7 @@ bool Actor::_FAddDoAev(long aetNew, long cbNew, void *pvVar)
 #error C89 actor editing requires the enabled retail BUG1870 policy
 #endif
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto edits=_EventEditServices();
     bool ok=mm_actor_edit_add_apply(&state,&_owner.sounds,_owner.track.events,_owner.runtime.actor,aetNew,cbNew,pvVar,
                                           &tables,&edits)!=0;
@@ -510,7 +525,7 @@ void Actor::_MergeAev(long iaevFirst, long iaevNew, long *piaevRtn)
     AssertIn(iaevNew, iaevFirst, mm_actor_events_count(_owner.track.events));
     AssertNilOrVarMem(piaevRtn);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto edits=_EventEditServices();
     MMI32 result=0;
     mm_actor_edit_merge(&state,&_owner.sounds,_owner.track.events,_owner.runtime.actor,iaevFirst,iaevNew,
@@ -599,7 +614,7 @@ bool Actor::_FInsertGgRpt(long irpt, RouteDistancePoint *prpt, BRS dwrPrior)
     AssertBaseThis(0); AssertIn(irpt,0,mm_actor_path_count(_owner.track.route)+1); AssertVarMem(prpt);
     static_assert(rEps==1,"actor route epsilon ABI");
     MMActorRoutePoint point; std::memcpy(&point,prpt,sizeof(point));
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_RouteEditServices();
     bool ok=mm_actor_route_edit_insert(_owner.track.route,irpt,&point,dwrPrior,&tables,&services)!=0;
     std::memcpy(prpt,&point,sizeof(point));
@@ -620,7 +635,7 @@ bool Actor::FSetStep(BRS dwrStep)
 {
     AssertThis(0); Assert(kdwrNil==dwrStep || rZero<=dwrStep, "Invalid dwrStep argument");
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_EventEditServices();
     bool ok=mm_actor_edit_set_step(&state,&_owner.sounds,_owner.track.events,_owner.runtime.actor,dwrStep,&tables,&services)!=0;
     _owner.runtime.state = state;
@@ -708,7 +723,7 @@ bool Actor::_FAddAevFromPrev(long iaevLim, ulong grfaet)
 {
     AssertBaseThis(0); AssertIn(iaevLim,0,mm_actor_events_count(_owner.track.events)+1);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_SubrouteEditServices();
     bool ok=mm_actor_subroute_from_previous(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
                                                   iaevLim,grfaet,&tables,&services)!=0;
@@ -726,7 +741,7 @@ bool Actor::_FAddAevFromLater(void)
 {
     AssertBaseThis(0); Assert(_owner.runtime.state.nextEvent==1,"_FAddAevFromLater logic error");
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_SubrouteEditServices();
     ChildChunkID external=0; TrashVar(&external);
     bool ok=mm_actor_subroute_from_later(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
@@ -744,7 +759,7 @@ bool Actor::_FAddAevFromLater(void)
 bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0); AssertIn(aet,0,aetLim); AssertVarMem(piaevAdd);
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     *piaevAdd=mm_actor_route_edit_find(_owner.track.events,aet,iaevCur,1,&tables);
     return *piaevAdd>=0;
 }
@@ -758,7 +773,7 @@ bool Actor::_FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd)
 bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 {
     AssertBaseThis(0); AssertIn(aet,0,aetLim); AssertVarMem(piaevAdd);
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     *piaevAdd=mm_actor_route_edit_find(_owner.track.events,aet,iaevCur,0,&tables);
     return *piaevAdd>=0;
 }
@@ -777,7 +792,7 @@ bool Actor::_FFindNextAevAet(long aet, long iaevCur, long *piaevAdd)
 void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 {
     AssertBaseThis(0); AssertVarMem(piaevLast);
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     *piaevLast=mm_actor_route_edit_last(_owner.track.events,iaevAdd,iaevLim,&tables);
 }
 
@@ -796,7 +811,7 @@ void Actor::_DelAddFrame(long iaevAdd, long iaevLim)
 {
     AssertThis(0); AssertIn(iaevAdd,0,iaevLim);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_delete_add(&state,_owner.track.route,_owner.track.events,iaevAdd,iaevLim,&tables,&services);
     _owner.runtime.state = state;
@@ -861,7 +876,7 @@ void Actor::SetAddOrient(BRA xa, BRA ya, BRA za, ulong grfbra, RoutePoint *pdxyz
     AssertThis(0); AssertIn(_owner.runtime.state.addEvent,0,mm_actor_events_count(_owner.track.events));
     static_assert(kdwrFast==196608 && krOriWeightMin==6553,"actor orientation weight ABI");
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto edits=_EventEditServices();
     MMI32 distance=0;
     if (pdxyz) distance=BR_LENGTH3(pdxyz->dxr,pdxyz->dyr,pdxyz->dzr);
@@ -1123,7 +1138,7 @@ void Actor::_PrepXfrmFill(long aet, void *pvVar, long cbVar, long iaevMin, long 
     AssertPvCb(pvVar,cbVar); AssertIn(cbVar,0,100);
     AssertIn(iaevMin,0,mm_actor_events_count(_owner.track.events)+1); AssertIn(iaevCmp,-1,mm_actor_events_count(_owner.track.events)+1);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_FillEditServices();
     mm_actor_edit_transform_fill(&state,_owner.track.events,aet,pvVar,cbVar,iaevMin,iaevCmp,grfaet,&tables,&services);
     _owner.runtime.state = state;
@@ -1199,7 +1214,7 @@ void Actor::_RemoveAev(long iaev, bool fUpdateState)
     AssertBaseThis(0);
     AssertIn(iaev, 0, mm_actor_events_count(_owner.track.events));
     auto state = _owner.runtime.state;
-    const auto tables = EngineActorMotion::Services();
+    const auto tables = mm_actor_track_motion_services();
     const auto edits = _EventEditServices();
     mm_actor_edit_remove(&state, _owner.track.events, iaev, fUpdateState, &tables, &edits);
     _owner.runtime.state = state;
@@ -1221,7 +1236,7 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
 {
     AssertBaseThis(0); AssertIn(iaevMin,0,mm_actor_events_count(_owner.track.events)+1);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_EventEditServices();
     mm_actor_edit_action_fill(&state,_owner.track.events,iaevMin,anidPrev,anidNew,grfaet,&tables,&services);
     _owner.runtime.state = state;
@@ -1258,7 +1273,7 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
     AssertBaseThis(0); AssertIn(iaevMin,0,mm_actor_events_count(_owner.track.events)+1); AssertVarMem(paevcost);
     MMActorCostume costume; std::memcpy(&costume,paevcost,sizeof(costume));
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_CostumeEditServices();
     mm_actor_edit_costume_fill(&state,_owner.track.events,iaevMin,&costume,&tables,&services);
     _owner.runtime.state = state;
@@ -1273,7 +1288,7 @@ void Actor::_PrepCostFill(long iaevMin, Costume *paevcost)
 void Actor::_AdjustAevForRteIns(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_owner.track.route)); AssertIn(iaevMin,0,mm_actor_events_count(_owner.track.events)+1);
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_adjust_insert(_owner.track.route,_owner.track.events,irptAdjust,iaevMin,&tables,&services);
 }
@@ -1287,68 +1302,10 @@ void Actor::_AdjustAevForRteDel(long irptAdjust, long iaevMin)
 {
     AssertBaseThis(0); AssertIn(irptAdjust,0,mm_actor_path_count(_owner.track.route)); AssertIn(iaevMin,0,mm_actor_events_count(_owner.track.events)+1);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_adjust_delete(&state,_owner.track.route,_owner.track.events,irptAdjust,iaevMin,&tables,&services);
     _owner.runtime.state = state;
-}
-
-/***************************************************************************
-
-    Locate a point on the path dwrStep further along the route from *prtel
-    Events which potentially modify this step (Action, Add) begin at iaevCur.
-    *pfEndRoute is set only when an attempt is made to move past the last
-    node of the subroute.
-
-    NOTE: This routine is designed to be independent of all frame dependent
-    state variables.
-    Spec: The end of a subroute is <always> reached in a moving action.
-***************************************************************************/
-void Actor::_AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute)
-{
-    AssertBaseThis(0);
-    ActorRouteEvaluator::Advance(_owner.track, dwrStep, prtel, iaevCur, nfrmCur, _owner.runtime.first, !_owner.runtime.recording.recording && !_owner.runtime.recording.rejoining,
-                                 pfEndRoute);
-}
-
-/***************************************************************************
-
-    Convert a route location (rtel) to an xyz point (in *pxyz)
-
-***************************************************************************/
-void Actor::_GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz)
-{
-    AssertBaseThis(0);
-    ActorRouteEvaluator::Position(_owner.track, prtel, pxyz);
-}
-
-/***************************************************************************
-
-    Find a point rFract fractional distance between two points.
-    Store in *pxyz
-
-***************************************************************************/
-void Actor::_GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS rFract, PRoutePoint pxyz)
-{
-    AssertBaseThis(0);
-    ActorRouteEvaluator::Interpolate(pxyzFirst, pxyzSecond, rFract, pxyz);
-}
-
-/***************************************************************************
-
-    Compute the angles of rotation defined by the vector *pxyz
-    Apply the rotation to matrix *pbmat34
-    Return the angles of rotation in *pxa, *pya, *pza
-    Return a mask of the axes rotated
-
-    Note: Banking can be done by approximating the second derivative
-    which can be done using additional arguments.
-
-***************************************************************************/
-void Actor::_ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa, BRA *pya, BRA *pza, LegacyUlong *pgrfbra)
-{
-    AssertBaseThis(0);
-    ActorPoseEvaluator::ApplyVectorRotation(_owner.runtime.state.actionFlags, pxyz, pbmat34, pxa, pya, pza, pgrfbra);
 }
 
 /***************************************************************************
@@ -1450,7 +1407,7 @@ void Actor::_DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 #error C89 route editing requires the enabled retail BUG1870 policy
 #endif
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_RouteEditServices();
     int alive=0;
     mm_actor_route_edit_delete_forward_core(&state,_owner.track.route,_owner.track.events,fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
@@ -1467,7 +1424,7 @@ void Actor::_SaveCurPathOrien(void)
 {
     AssertBaseThis(0);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_SubrouteEditServices();
     mm_actor_subroute_save_orientation(&state,_owner.track.route,_owner.track.events,&tables,&services);
     _owner.runtime.state = state;
@@ -1485,7 +1442,7 @@ void Actor::DeleteBackCore(bool *pfAlive)
 #error C89 backward deletion requires enabled retail BUG1870/BUG1866 policies
 #endif
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_SubrouteEditServices();
     int alive=0;
     mm_actor_subroute_delete_back(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
@@ -1508,7 +1465,7 @@ void Actor::_TruncateSubRte(long irptDelLim)
 {
     AssertBaseThis(0);
     auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
+    const auto tables=mm_actor_track_motion_services();
     const auto services=_RouteEditServices();
     mm_actor_route_edit_truncate(&state,_owner.track.route,_owner.track.events,irptDelLim,&tables,&services);
     _owner.runtime.state = state;
@@ -1541,7 +1498,7 @@ bool Actor::FMustRender(long nfrmRenderLast)
     Assert(nfrmRenderLast >= _owner.runtime.state.frame, "Invalid argument to FMustRender");
     Assert(!_owner.runtime.life_dirty, "FMustRender was called when nfrm values were invalid");
 
-    const auto motion = EngineActorMotion::Services();
+    const auto motion = mm_actor_track_motion_services();
     return mm_actor_must_render(&_owner.runtime.state, _owner.track.route, _owner.track.events, _owner.runtime.first,
                                 _owner.runtime.last, nfrmRenderLast, &motion) != 0;
 }
@@ -1575,7 +1532,7 @@ void Actor::GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertNilOrVarMem(pzr);
 
     RoutePoint xyz;
-    const auto motion = EngineActorMotion::Services();
+    const auto motion = mm_actor_track_motion_services();
     mm_actor_world_position(&_owner.runtime.state, _owner.track.route, &xyz, &motion);
     if (pxr)
         *pxr = xyz.dxr;

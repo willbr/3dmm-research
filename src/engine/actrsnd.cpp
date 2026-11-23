@@ -11,7 +11,6 @@
 ***************************************************************************/
 
 #include "soc.h"
-#include "engine_actor_motion.h"
 
 ASSERTNAME
 
@@ -139,11 +138,11 @@ bool Actor::_FEnqueueSmmInMsq(void)
 bool Actor::_FRemoveAevMm(long anid)
 {
     AssertThis(0);
-    auto state = EngineActorMotion::Core(_owner.runtime.state);
-    const auto tables = EngineActorMotion::Services();
+    auto state = _owner.runtime.state;
+    const auto tables = mm_actor_track_motion_services();
     const auto services = _SoundEditServices();
     mm_actor_sound_remove_motion(&state, _owner.track.events, anid, &tables, &services);
-    EngineActorMotion::Publish(_owner.runtime.state, state);
+    _owner.runtime.state = state;
     return fTrue;
 }
 
@@ -155,13 +154,13 @@ bool Actor::_FRemoveAevMm(long anid)
 bool Actor::_FAddAevDefMm(long anid)
 {
     AssertThis(0);
-    auto state = EngineActorMotion::Core(_owner.runtime.state);
-    const auto tables = EngineActorMotion::Services();
+    auto state = _owner.runtime.state;
+    const auto tables = mm_actor_track_motion_services();
     const auto services = _SoundEditServices();
     ChildChunkID external = 0; TrashVar(&external);
     bool ok = mm_actor_sound_defaults(&state, &_owner.sounds, _owner.track.events, _owner.runtime.actor, anid, external,
                                             &tables, &services) != 0;
-    EngineActorMotion::Publish(_owner.runtime.state, state);
+    _owner.runtime.state = state;
     return ok;
 }
 
@@ -173,12 +172,12 @@ bool Actor::_FAddAevDefMm(long anid)
 bool Actor::FSetVlmSnd(long sty, bool fMotionMatch, long vlm)
 {
     AssertThis(0); AssertIn(sty, 0, styLim); AssertIn(vlm, 0, kvlmFull + 1);
-    auto state = EngineActorMotion::Core(_owner.runtime.state);
-    const auto tables = EngineActorMotion::Services();
+    auto state = _owner.runtime.state;
+    const auto tables = mm_actor_track_motion_services();
     const auto services = _SoundEditServices();
     bool ok = mm_actor_sound_volume(&state, &_owner.sounds, _owner.track.events, sty, fMotionMatch, vlm,
                                           &tables, &services) != 0;
-    EngineActorMotion::Publish(_owner.runtime.state, state);
+    _owner.runtime.state = state;
     return ok;
 }
 
@@ -196,8 +195,8 @@ bool Actor::FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, lon
     result.publish = [](void *p, MMI32 volume, int loop) {
         auto out = static_cast<Outputs *>(p); *out->volume = volume; *out->loop = loop != 0;
     };
-    const auto state = EngineActorMotion::Core(_owner.runtime.state);
-    const auto tables = EngineActorMotion::Services();
+    const auto state = _owner.runtime.state;
+    const auto tables = mm_actor_track_motion_services();
     const auto services = _SoundEditServices();
     bool ok = mm_actor_sound_query(&state, &_owner.sounds, _owner.track.events, sty, fMotionMatch,
                                          &result, &tables, &services) != 0;
@@ -213,12 +212,12 @@ bool Actor::FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, lon
 bool Actor::FDeleteSndCore(long sty, bool fMotionMatch)
 {
     AssertThis(0); AssertIn(sty, 0, styLim);
-    auto state = EngineActorMotion::Core(_owner.runtime.state);
-    const auto tables = EngineActorMotion::Services();
+    auto state = _owner.runtime.state;
+    const auto tables = mm_actor_track_motion_services();
     const auto services = _SoundEditServices();
     bool ok = mm_actor_sound_delete(&state, &_owner.sounds, _owner.track.events, sty, fMotionMatch,
                                           &tables, &services) != 0;
-    EngineActorMotion::Publish(_owner.runtime.state, state);
+    _owner.runtime.state = state;
     return ok;
 }
 
@@ -233,8 +232,8 @@ bool Actor::FDeleteSndCore(long sty, bool fMotionMatch)
 bool Actor::FSoundInFrm(void)
 {
     AssertThis(0); AssertPo(Pscen(), 0);
-    const auto state = EngineActorMotion::Core(_owner.runtime.state);
-    const auto tables = EngineActorMotion::Services();
+    const auto state = _owner.runtime.state;
+    const auto tables = mm_actor_track_motion_services();
     return mm_actor_sound_in_frame(&state, _owner.track.events, Pscen()->Nfrm(), &tables) != 0;
 }
 
@@ -245,7 +244,7 @@ bool Actor::FSoundInFrm(void)
 bool Actor::FResolveAllSndTags(ChunkNumber cnoScen)
 {
     AssertThis(0);
-    const auto tables = EngineActorMotion::Services();
+    const auto tables = mm_actor_track_motion_services();
     const auto services = _SoundEditServices();
     return mm_actor_sound_resolve_all(_owner.track.events, cnoScen, &tables, &services) != 0;
 }

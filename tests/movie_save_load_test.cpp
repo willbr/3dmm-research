@@ -317,7 +317,7 @@ class TrackTestActor : public Actor
         if (!(mm_array_add(&track.Route()->rows, &first, nullptr) == MM_STORAGE_OK) || !(mm_array_add(&track.Route()->rows, &last, nullptr) == MM_STORAGE_OK) || !mm_actor_events_insert(track.Events(), 0,sizeof(add),&add,&event)) return false;
         event.aet=aetActn; if (!mm_actor_events_insert(track.Events(), 1,sizeof(action),&action,&event)) return false;
         event.aet=aetStep; if (!mm_actor_events_insert(track.Events(), 2,sizeof(step),&step,&event)) return false;
-        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
+        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.frame=1; _owner.runtime.state.nextEvent=3; _owner.runtime.state.firstEventInFrame=0; _owner.runtime.state.addEvent=0; _owner.runtime.state.actionEvent=1;
         _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=factnRotateY; _owner.runtime.first=1; _owner.runtime.last=10; _owner.runtime.life_dirty=false;
         return true;
@@ -431,7 +431,7 @@ class TrackTestActor : public Actor
             if (!mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(sound),&sound,&event))
             { mm_tag_close(&sound.tag, &EngineActorTagServices()); return false; }
         }
-        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState();
+        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state);
         _owner.runtime.state.frame=3; _owner.runtime.state.nextEvent=3; _owner.runtime.state.firstEventInFrame=2; _owner.runtime.state.actionEvent=1; _owner.runtime.state.addEvent=0;
         _owner.runtime.state.subrouteTranslation={BR_SCALAR(8),BR_SCALAR(9),BR_SCALAR(10)};
         _owner.runtime.state.routeTranslation={BR_SCALAR(20),BR_SCALAR(21),BR_SCALAR(22)};
@@ -499,11 +499,13 @@ class TrackTestActor : public Actor
         mm_actor_track_swap(&_owner.track, &track.Core());
         mm_actor_track_swap(&clipboard->_owner.track, &clip.Core());
         mm_actor_sounds_clear(&_owner.sounds);
-        _owner.runtime.state=ActorFrameState();
+        mm_actor_state_init(&_owner.runtime.state);
         _owner.runtime.state.frame=3; _owner.runtime.state.onStage=true; _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=factnRotateY;
         _owner.runtime.state.addEvent=0; _owner.runtime.state.actionEvent=1; _owner.runtime.state.nextEvent=_owner.runtime.state.firstEventInFrame=4;
         _owner.runtime.state.location={current,(current<2 && (mode&1))?BR_SCALAR(2):rZero,(mode&2)?2:0};
-        _GetXyzFromRtel(&_owner.runtime.state.location,&_owner.runtime.state.position); _owner.runtime.first=1; _owner.runtime.last=10; _owner.runtime.life_dirty=(mode&128)!=0;
+        const auto motion = mm_actor_track_motion_services();
+        mm_actor_route_position(_owner.track.route, &_owner.runtime.state.location, &_owner.runtime.state.position, &motion);
+        _owner.runtime.first=1; _owner.runtime.last=10; _owner.runtime.life_dirty=(mode&128)!=0;
         if (!scene->TrackActor(this,3)) return false;
         const auto services = _RoutePasteServices();
         bool changed=mm_actor_route_paste(&_owner,clipboard->_owner.track.route,&services)!=0; vpers->Clear();
@@ -573,7 +575,7 @@ class TrackTestActor : public Actor
             append(aetActn,4,1) && append(aetRem,4,1) && append(aetAdd,8,2) && append(aetActn,8,2) &&
             append(aetSnd,9,3,-1) && append(aetStep,10,4,0) && append(aetFreeze,10,4,1);
         if (!ok) return false;
-        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState();
+        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state);
         _owner.runtime.state.cel=3; _owner.runtime.state.celCount=4; _owner.runtime.state.action=0; _owner.runtime.state.actionFlags=factnRotateY;
         _owner.runtime.state.location={(mode&64)?4:(mode&32)?1:0,(!(mode&96) && (mode&4))?BR_SCALAR(3):rZero,(mode&8)?3:0};
         _owner.runtime.state.addEvent=(mode&64)?18:0; _owner.runtime.state.actionEvent=(mode&64)?19:1;
@@ -711,7 +713,7 @@ class TrackTestActor : public Actor
             !append(aetTweak,20,2,0,0,&tweak,sizeof(tweak)) || !append(aetSize,22,2,2,0,&scale,sizeof(scale)) ||
             !append(aetPull,23,3,0,0,&pull,sizeof(pull)) || !append(aetFreeze,24,3,0,1,&freeze,sizeof(freeze)) ||
             !append(aetAdd,40,4,0,0,&entrance,sizeof(entrance)) || !append(aetActn,40,4,0,0,&action,sizeof(action))) return false;
-        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
+        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.frame=20; _owner.runtime.state.location={2,rZero,0}; _owner.runtime.state.position=tweak; _owner.runtime.state.onStage=true; EngineBody::Show(_Body());
         _owner.runtime.state.addEvent=4; _owner.runtime.state.actionEvent=5; _owner.runtime.state.firstEventInFrame=4; _owner.runtime.state.nextEvent=9;
         _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=(mode&32)?factnRotateX|factnRotateY|factnRotateZ:factnRotateY;
@@ -799,7 +801,7 @@ class TrackTestActor : public Actor
             Base early; mm_actor_events_get_fixed(track.Events(), 8,&early); early.nfrm=7;
             mm_actor_events_delete(track.Events(), 8); if (!mm_actor_events_insert(track.Events(), 7,0,nullptr,&early)) return false;
         }
-        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
+        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.frame=3; _owner.runtime.state.location={1,rZero,0}; _owner.runtime.state.position=tweak;
         _owner.runtime.state.onStage=!(group==2 && (mode&32) && (mode&2)); _owner.runtime.state.frozen=(mode&4)!=0;
         if (_owner.runtime.state.onStage) EngineBody::Show(_Body());
@@ -896,7 +898,7 @@ class TrackTestActor : public Actor
             if (!mm_actor_path_insert(track.Route(), node,&p) || !append(aetAdd,10,node,&addition,sizeof(addition)) ||
                 !append(aetActn,10,node,&action,sizeof(action)) || !append(aetStep,10,node,&step,sizeof(step))) return false;
         }
-        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
+        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.action=0; _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=factnRotateY;
         _owner.runtime.state.frame=kind==0?3:kind==1?1:kind==2?7:kind==6?1:kind==7?10:3;
         _owner.runtime.state.onStage=kind==3 || kind>=5;
@@ -997,7 +999,7 @@ class TrackTestActor : public Actor
                append(aetAdd,5,1,0,0) && append(aetStep,6,1,0,1);
         else ok=append(aetAdd,1,0,0,0);
         if (!ok) return false;
-        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
+        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.onStage=true; _owner.runtime.state.action=0; _owner.runtime.state.cel=2; _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=factnRotateY;
         _owner.runtime.state.frame=backward?3:previous?5:1; _owner.runtime.state.location={0,backward?BR_SCALAR(2):rZero,0};
         _owner.runtime.state.nextEvent=backward?6:previous?8:1; _owner.runtime.state.firstEventInFrame=backward?3:previous?7:0;
@@ -1086,7 +1088,7 @@ class TrackTestActor : public Actor
             !append(aetStep,10,4,0,0) || !append(aetRem,11,4,0,1) || !append(aetAdd,15,5,0,0) ||
             !append(aetFreeze,15,5,0,0)) return false;
         mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds);
-        _owner.runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
+        mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.frame=3; _owner.runtime.state.location={0,BR_SCALAR(2),0}; _owner.runtime.state.onStage=true; _owner.runtime.state.celCount=4;
         _owner.runtime.state.nextEvent=3; _owner.runtime.state.firstEventInFrame=2; _owner.runtime.state.actionEvent=1; _owner.runtime.state.addEvent=0;
         _owner.runtime.first=1; _owner.runtime.last=15; _owner.runtime.life_dirty=false; _owner.runtime.recording.recording=true;
@@ -1199,7 +1201,7 @@ class TrackTestActor : public Actor
         event={aetAdd,7,{0,rZero,6}};
         ok=ok && mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(add),&add,&event) && append(oldType,0,0,8);
         if (!ok) return false;
-        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState();
+        mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); mm_actor_state_init(&_owner.runtime.state);
         _owner.runtime.state.frame=2; _owner.runtime.state.location={0,rZero,1}; _owner.runtime.state.onStage=true;
         _owner.runtime.state.firstEventInFrame=_owner.runtime.state.nextEvent=1; _owner.runtime.state.actionEvent=-1; _owner.runtime.state.addEvent=0;
         _owner.runtime.first=1; _owner.runtime.last=8;
@@ -1290,7 +1292,7 @@ class TrackTestActor : public Actor
                 !append(aetAdd,0,10) || !append(kind,1,10)) return false;
         }
         mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds);
-        _owner.runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track); _owner.runtime.state.frame=3; _owner.runtime.state.location={0,BR_SCALAR(2),0};
+        mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track); _owner.runtime.state.frame=3; _owner.runtime.state.location={0,BR_SCALAR(2),0};
         _owner.runtime.state.onStage=true; _owner.runtime.state.action=0; _owner.runtime.state.celCount=4; _owner.runtime.state.actionFlags=factnRotateY;
         _owner.runtime.state.actionEvent=1; _owner.runtime.state.addEvent=0; _owner.runtime.state.firstEventInFrame=2; _owner.runtime.state.nextEvent=2;
         _owner.runtime.first=1; _owner.runtime.last=20; _owner.runtime.life_dirty=false;
@@ -1421,7 +1423,7 @@ class TrackTestActor : public Actor
             mm_actor_events_set_payload(created.Events(), 1,&old); mm_actor_events_set_payload(created.Events(), 2,&fresh);
         }
         mm_actor_track_swap(&_owner.track, &created.Core()); mm_actor_sounds_clear(&_owner.sounds);
-        _owner.runtime.state=ActorFrameState(); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
+        mm_actor_state_init(&_owner.runtime.state); ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.onStage=true; _owner.runtime.state.frame=4; _owner.runtime.state.firstEventInFrame=1; _owner.runtime.state.nextEvent=mm_actor_events_count(_owner.track.events)-1;
         _owner.runtime.state.actionEvent=-1; _owner.runtime.state.addEvent=0; _owner.runtime.state.celCount=4;
         _owner.runtime.state.subrouteTranslation={BR_SCALAR(7),BR_SCALAR(8),BR_SCALAR(9)};
@@ -1589,7 +1591,7 @@ class TrackTestActor : public Actor
         if (_Body() == pvNil)
             return false;
         mm_actor_sounds_clear(&_owner.sounds);
-        _owner.runtime.state = ActorFrameState();
+        mm_actor_state_init(&_owner.runtime.state);
         ActorFrameTest::Rewind(_owner.runtime.state, _owner.track);
         _owner.runtime.state.celCount = 4;
         _owner.runtime.state.actionFlags = factnRotateY;
@@ -1711,15 +1713,18 @@ class TrackTestActor : public Actor
         BRS step = rZero;
         if (!mm_actor_events_insert(_owner.track.events, 2, sizeof(step), &step, &event))
             return false;
+        const auto motion = mm_actor_track_motion_services();
         for (long mode = 0; mode < 3; ++mode)
         {
             _owner.runtime.recording.recording = mode == 1;
             _owner.runtime.recording.rejoining = mode == 2;
             RouteLocation location = {0, rZero, 0};
             RoutePoint position;
-            bool end = true;
-            _AdvanceRtel(BR_SCALAR(3), &location, 0, 2, &end);
-            _GetXyzFromRtel(&location, &position);
+            int end;
+            const auto &r = _owner.runtime;
+            mm_actor_route_advance(_owner.track.route, _owner.track.events, BR_SCALAR(3), &location, 0, 2, r.first,
+                                   !r.recording.recording && !r.recording.rejoining, &end, &motion);
+            mm_actor_route_position(_owner.track.route, &location, &position, &motion);
             if (end || position.dxr != (mode == 0 ? BR_SCALAR(5) : BR_SCALAR(6)))
                 return false;
         }
@@ -1750,7 +1755,7 @@ class TrackTestActor : public Actor
         PActor snapshot = pvNil;
         if (!FDup(&snapshot, false))
             return false;
-        _owner.runtime.state = ActorFrameState();
+        mm_actor_state_init(&_owner.runtime.state);
         Restore(snapshot);
         ReleasePpo(&snapshot);
         return _owner.runtime.state.frame == 17 && _owner.runtime.state.routeTranslation.dzr == BR_SCALAR(34) && _owner.runtime.state.frozen &&
@@ -1777,7 +1782,7 @@ class TrackTestActor : public Actor
         _owner.runtime.state.actionFlags = factnRotateX;
         RoutePoint direction = {rOne, rOne, rZero};
         BRA x = 123, y = 123, z = 123;
-        _ApplyRotFromVec(&direction, pvNil, &x, &y, &z);
+        mm_actor_pose_vector(_owner.runtime.state.actionFlags, &direction, nullptr, &x, &y, &z, nullptr);
         return x == static_cast<BRA>(0xe000) && y == aZero && z == aZero;
     }
 };

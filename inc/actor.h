@@ -44,7 +44,6 @@ using namespace BRender;
 #include "mm/actor_route_paste.h"
 #include "mm/actor_clipboard.h"
 #include "mm/actor_create.h"
-#include "actor_state.h"
 
 const long kcrptGrow = 32;                                         // quantum growth for rpt
 const long kctagSndGrow = 2;                                       // quantum growth for tagSnd
@@ -191,15 +190,10 @@ class Actor : public Actor_PAR
     void _AdjustAevForRteIns(long irptAdjust, long iaevMin);
     void _AdjustAevForRteDel(long irptAdjust, long iaevMin);
     bool _FInsertStop(void);
-    void _ApplyRotFromVec(RoutePoint *pxyz, BMAT34 *pbmat34, BRA *pxa = pvNil, BRA *pya = pvNil, BRA *pza = pvNil,
-                          LegacyUlong *grfbra = pvNil);
     void _SaveCurPathOrien(void);
     void _LoadAddOrien(ActorEvent::Add *paevadd, bool fNoReset = fFalse);
     BRA _BraAvgAngle(BRA a1, BRA a2, BRS rw);
 
-    void _AdvanceRtel(BRS dwrStep, RouteLocation *prtel, long iaevCur, long nfrmCur, bool *pfEndRoute);
-    void _GetXyzFromRtel(RouteLocation *prtel, PRoutePoint pxyz);
-    void _GetXyzOnLine(PRoutePoint pxyzFirst, PRoutePoint pxyzSecond, BRS dwrOffset, PRoutePoint pxyz);
     void _TruncateSubRte(long irptDelLim);
 
 
